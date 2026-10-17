@@ -118,6 +118,7 @@ fn card_width(host: egui::Rect, tab: TaskDockTab, preferred_width: f32) -> f32 {
 
 fn area_id(tab: TaskDockTab) -> Id {
     match tab {
+        TaskDockTab::Dosy => Id::new("dosy_task_card"),
         TaskDockTab::Processing => Id::new("processing_task_card"),
         TaskDockTab::Regions => Id::new("region_task_card"),
         TaskDockTab::CurveFit => Id::new("curve_fit_task_card"),
@@ -142,6 +143,7 @@ fn width_limits(tab: TaskDockTab) -> (f32, f32) {
 fn preferred_size(app: &PlotiumApp, tab: TaskDockTab) -> TaskCardSize {
     let cards = &app.settings.window.task_cards;
     match tab {
+        TaskDockTab::Dosy => cards.dosy,
         TaskDockTab::Processing => cards.processing,
         TaskDockTab::Regions => cards.regions,
         TaskDockTab::CurveFit => cards.curve_fit,
@@ -153,6 +155,7 @@ fn preferred_size(app: &PlotiumApp, tab: TaskDockTab) -> TaskCardSize {
 fn preferred_size_mut(app: &mut PlotiumApp, tab: TaskDockTab) -> &mut TaskCardSize {
     let cards = &mut app.settings.window.task_cards;
     match tab {
+        TaskDockTab::Dosy => &mut cards.dosy,
         TaskDockTab::Processing => &mut cards.processing,
         TaskDockTab::Regions => &mut cards.regions,
         TaskDockTab::CurveFit => &mut cards.curve_fit,
@@ -164,6 +167,13 @@ fn preferred_size_mut(app: &mut PlotiumApp, tab: TaskDockTab) -> &mut TaskCardSi
 pub(crate) fn visible_area_id(app: &PlotiumApp) -> Option<Id> {
     let active = app.active_dataset();
     match app.session.ui.task_dock_active? {
+        TaskDockTab::Dosy => app
+            .session
+            .ui
+            .dosy_task_dataset
+            .and_then(|id| app.doc.dataset_index(id))
+            .filter(|dataset| Some(*dataset) == active)
+            .map(|_| Id::new("dosy_task_card")),
         TaskDockTab::Processing => app
             .session
             .ui
@@ -656,6 +666,15 @@ pub(super) fn is_active(app: &PlotiumApp, tab: TaskDockTab) -> bool {
 /// dataset that owns it so controls never edit a dataset other than the canvas.
 pub(super) fn tab_bar(app: &mut PlotiumApp, current: TaskDockTab, ui: &mut Ui) -> bool {
     let tabs = [
+        (
+            TaskDockTab::Dosy,
+            icon::CHART_LINE,
+            "DOSY",
+            app.session
+                .ui
+                .dosy_task_dataset
+                .and_then(|id| app.doc.dataset_index(id)),
+        ),
         (
             TaskDockTab::Processing,
             icon::FLOW_ARROW,

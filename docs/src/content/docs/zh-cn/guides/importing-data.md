@@ -232,7 +232,8 @@ import** 预览，可先检查每个候选数据表。确认一次会导入全�
 ## 伪 2D 实验
 
 DOSY、T1、T2 实验会根据采集参数自动识别，并获得专属的分析工具——参见
-[伪 2D 分析](/zh-cn/guides/pseudo-2d/)。
+[伪 2D 分析](/zh-cn/guides/pseudo-2d/)和 [DOSY 扩散分析](/zh-cn/guides/dosy/)。
+缺失的扩散参数可在导入后通过 **DOSY** 任务卡片补充。
 
 膜片钳 sweep、滤波、时间窗统计、刺激与 IV 分析见
 [电生理](/zh-cn/guides/electrophysiology/)。

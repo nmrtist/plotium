@@ -54,9 +54,9 @@ everything except your recent-files list.
 
 - **Default ILT regularization (λ)** — the λ offered when you build an ILT DOSY
   map for a dataset with no earlier ILT result to take it from. Accepts
-  `0.000001` to `1000`; the default is `0.01`. A λ typed into the **Experiment**
+  `0.000001` to `1000`; the default is `0.01`. A λ typed into the **DOSY**
   card applies to that dataset and leaves this default unchanged. See
-  [Pseudo-2D analysis](/guides/pseudo-2d/).
+  [DOSY diffusion analysis](/guides/dosy/).
 
 ## Export
 

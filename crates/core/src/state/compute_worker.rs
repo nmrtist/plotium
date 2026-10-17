@@ -11,17 +11,16 @@ pub(super) fn run_job(job: Job) -> Done {
             epoch,
             token,
             stack,
-            b_factors,
             d_grid,
             lambda,
             params,
-            values,
-            meta,
+            input,
             nucleus,
             source,
         } => {
             let cancelled = || token.is_cancelled();
-            let provenance = ilt_provenance(&stack, &values, &meta, params);
+            let provenance = ilt_provenance(&stack, &input, params);
+            let b_factors: Vec<_> = input.increments.iter().map(|entry| entry.b).collect();
             match ilt_map_cancellable(&*stack, &b_factors, &d_grid, lambda, &cancelled) {
                 Some(result) if !cancelled() => {
                     let Some(figure) =
@@ -57,15 +56,22 @@ pub(super) fn run_job(job: Job) -> Done {
             epoch,
             token,
             stack,
-            values,
-            meta,
+            input,
             nucleus,
             source,
         } => {
             let cancelled = || token.is_cancelled();
-            let provenance = mono_exp_provenance(&stack, &values, &meta);
-            match diffusion_map_cancellable(&*stack, &values, &meta, MONO_EXP_SNR_FRAC, &cancelled)
-            {
+            let provenance = mono_exp_provenance(&stack, &input);
+            match diffusion_map_b_cancellable(
+                &*stack,
+                &input
+                    .increments
+                    .iter()
+                    .map(|entry| entry.b)
+                    .collect::<Vec<_>>(),
+                MONO_EXP_SNR_FRAC,
+                &cancelled,
+            ) {
                 Some(result) if !cancelled() => {
                     let Some(figure) =
                         build_dosy_figure_cancellable(&result, &nucleus, &source, &cancelled)

@@ -169,7 +169,7 @@ pub(crate) fn table_dataset_to_v1(
         x_column: table.x_binding,
         series: table.series_bindings.clone(),
         provenance: table.provenance.clone(),
-        meta: table.meta,
+        meta: table.meta.clone(),
         curve_fit_analyses: table.curve_fit_analyses.clone(),
         board_pos: table.board_pos,
         board_sheet_visible: table.board_sheet_visible,

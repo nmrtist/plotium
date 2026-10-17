@@ -11,7 +11,8 @@ Plotium 用数学模型拟合表格中的 x-y 数据，内置模型和你自己�
 打开 **Analyze** 选项卡，在 **Curve Fit** 组中选择 **Fit Curves**，画布上会弹出一个任务卡片。
 在卡片中：
 
-1. **Model** — 选择内置或自定义模型。Plotium 会预选一个合理的默认值：DOSY 表格用
+1. **Model** — 选择内置或自定义模型。Plotium 会预选一个合理的默认值：记录了扩散
+   输入的 DOSY 提取曲线用 **Diffusion (b values)**，带梯度扩散元数据的表格用
    Stejskal–Tanner，延迟序列用反转恢复，其余用单指数。
 2. **Data** — 拟合表格中的全部曲线（**All curves**）或单条 **Selected curve**。
 3. **Parameters** — 拟合全部曲线时，勾选 **Share all free parameters across curves**
@@ -48,8 +49,11 @@ Results 区域会为每条已拟合曲线列出参数估计值、标准误及 R�
 Plotium 内置以下模型，按类别分组：
 
 - **Relaxation** — 单指数、反转恢复、饱和恢复、双指数、拉伸指数。
-- **Diffusion** — Stejskal–Tanner。在 DOSY 表格上，它会从表格元数据读取梯度与扩散参数
-  （γ、δ、Δ 以及恢复延迟和梯度形状因子），无需手工输入。它需要这些参数，若表格缺失会给出提示。
+- **Diffusion** — **Diffusion (b values)** 拟合 `I = I₀ exp(−Db)`，b 的单位为
+  `s/m²`，D 的单位为 `m²/s`；DOSY 提取曲线根据确认的扩散输入生成 b 轴。
+  **Stejskal–Tanner** 以梯度强度为自变量，使用表格元数据中的扩散参数（γ、δ、Δ、
+  恢复延迟和梯度形状因子），缺失参数时会给出提示。输入确认与构图见
+  [DOSY 扩散分析](/zh-cn/guides/dosy/)。
 - **General** — 线性。
 
 ## 自定义模型

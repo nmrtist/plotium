@@ -54,6 +54,7 @@ export default defineConfig({
 							translations: { 'zh-CN': '按数据类型' },
 							items: [
 								{ slug: 'guides/pseudo-2d' },
+								{ slug: 'guides/dosy' },
 								{ slug: 'guides/2d-integration' },
 								{ slug: 'guides/symmetry-review' },
 								{ slug: 'guides/electrophysiology' },

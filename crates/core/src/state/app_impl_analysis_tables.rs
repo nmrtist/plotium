@@ -164,10 +164,23 @@ impl PlotiumApp {
 
         let (x_label, x_unit, x, values, value_units) = match source {
             Dataset::Nmr2D(d2) => {
-                let (Processed2D::Stack(stack), Some(axis)) = (&d2.processed, &d2.data.pseudo_axis)
-                else {
+                let Processed2D::Stack(stack) = &d2.processed else {
                     return Err("The selected NMR field is not an ordered series.".to_owned());
                 };
+                let encoding = d2.resolve_diffusion_input(None).ok();
+                let b_axis = encoding.as_ref().map(|input| plotium_io::PseudoAxis {
+                    name: "b".into(),
+                    unit: "s/m²".into(),
+                    kind: plotium_io::PseudoKind::Generic,
+                    values: input.increments.iter().map(|entry| entry.b).collect(),
+                    source: plotium_io::AxisSource::LibraryEvidence,
+                });
+                let axis = b_axis
+                    .as_ref()
+                    .or(d2.data.pseudo_axis.as_ref())
+                    .ok_or_else(|| {
+                        "Confirm diffusion inputs or provide a series ruler.".to_owned()
+                    })?;
                 let x_label = match axis.kind {
                     plotium_io::PseudoKind::Gradient => "Gradient".to_owned(),
                     plotium_io::PseudoKind::Delay => "Delay".to_owned(),
@@ -261,6 +274,20 @@ impl PlotiumApp {
         x_schema.role = plotium_data::SemanticRole::Custom("space.nmrtist.plotium.axis.x".into());
         let x_binding = x_schema.id;
         let mut columns = vec![(x_schema, x_values)];
+        if let Some(data) = source.as_nmr2d()
+            && data.resolve_diffusion_input(None).is_ok()
+            && let Some(axis) = data
+                .data
+                .pseudo_axis
+                .as_ref()
+                .filter(|axis| axis.kind == plotium_io::PseudoKind::Gradient)
+        {
+            columns.push(materialized_float_column(
+                "Gradient",
+                "T/m",
+                axis.values.iter().copied().map(Some),
+            ));
+        }
         let mut series_bindings = Vec::with_capacity(state.regions.len());
         let mut region_provenance = Vec::with_capacity(state.regions.len());
         let axis_unit = source.region_axis_unit().unwrap_or("");
@@ -321,6 +348,9 @@ impl PlotiumApp {
             }
             _ => None,
         };
+        table.meta.diffusion_input = source
+            .as_nmr2d()
+            .and_then(|data| data.resolve_diffusion_input(None).ok());
         table.provenance = Some(TableProvenance {
             source_resource,
             source_field,
@@ -342,7 +372,8 @@ impl PlotiumApp {
     }
 
     /// Re-derive the linked series table from `source`'s regions in place. A no-op
-    /// when no table is linked yet (creation is explicit) or the regions cleared.
+    /// when no table is linked yet (creation is explicit). Unavailable NMR
+    /// values invalidate the linked table until it can be reconstructed.
     pub fn sync_region_table(&mut self, source: usize) {
         let Some(tj) = self.region_table_index(source) else {
             return;
@@ -360,6 +391,47 @@ impl PlotiumApp {
         let table = match self.build_region_table(source, persisted_members) {
             Ok(table) => table,
             Err(error) => {
+                if self.doc.datasets[source].as_nmr2d().is_some()
+                    && let Some(table) = self.doc.datasets[tj].as_table_mut()
+                {
+                    // Keep the extraction recipe so restoring the source can refresh it,
+                    // but expose no values or results from an obsolete source revision.
+                    let columns = table
+                        .typed_state
+                        .envelope
+                        .revision
+                        .snapshot
+                        .schema
+                        .columns
+                        .iter()
+                        .cloned()
+                        .map(|schema| (schema, plotium_data::ColumnChunk::optional_f64([])))
+                        .collect();
+                    match TableDataset::from_materialized(
+                        columns,
+                        Vec::new(),
+                        table.x_binding,
+                        table.series_bindings.clone(),
+                        "plotium.analysis.region-table.v1",
+                    ) {
+                        Ok(empty) => table.typed_state = empty.typed_state,
+                        Err(invalidation_error) => {
+                            self.session.status = format!(
+                                "{error}; failed to clear linked table: {invalidation_error}"
+                            );
+                            return;
+                        }
+                    }
+                    table.meta = TableMeta::default();
+                    table.curve_fit_analyses.clear();
+                    for binding in &mut table.series_bindings {
+                        binding.fit = None;
+                    }
+                    table.line_fits.clear();
+                    table.statistics.clear();
+                    table.peaks = PeakSet::default();
+                }
+                self.rebuild_canvases_for(tj);
                 self.session.status = error;
                 return;
             }

@@ -19,6 +19,9 @@ fn enqueue_error_status(error: EnqueueError) -> String {
         EnqueueError::Busy(ComputeKind::Craft) => {
             "A CRAFT analysis is already running for this dataset.".into()
         }
+        EnqueueError::InvalidDiffusionInput => {
+            "Confirm model parameters or provide one valid b value per increment.".into()
+        }
         EnqueueError::WorkersUnavailable => {
             "Background computation is unavailable in this session; the analysis was not started."
                 .into()
@@ -61,18 +64,16 @@ impl PlotiumApp {
             self.session.status = error.into();
             return;
         }
-        if d2.data.diffusion.is_none() {
-            self.session.status =
-                "This dataset has no diffusion parameters (not a DOSY array).".into();
-            return;
-        }
-        let (Processed2D::Stack(stack), Some(axis), Some(meta)) =
-            (&d2.processed, &d2.data.pseudo_axis, &d2.data.diffusion)
-        else {
+        let input = match d2.resolve_diffusion_input(None) {
+            Ok(input) => input,
+            Err(error) => {
+                self.session.status = error;
+                return;
+            }
+        };
+        let Processed2D::Stack(stack) = &d2.processed else {
             return;
         };
-        let values = axis.values.clone();
-        let meta = *meta;
         let nucleus = d2.data.direct.nucleus.clone();
         let source = stack.source.clone();
         let stack = stack.clone();
@@ -81,8 +82,7 @@ impl PlotiumApp {
             dataset_id,
             self.session.dataset_epoch,
             stack,
-            values,
-            meta,
+            input,
             nucleus,
             source,
         );
@@ -112,29 +112,16 @@ impl PlotiumApp {
             self.session.status = error.into();
             return;
         }
-        if d2.data.diffusion.is_none() {
-            self.session.status =
-                "This dataset has no diffusion parameters (not a DOSY array).".into();
-            return;
-        }
-        let is_gradient = d2
-            .data
-            .pseudo_axis
-            .as_ref()
-            .map(|a| a.kind == plotium_io::PseudoKind::Gradient)
-            .unwrap_or(false);
-        if !is_gradient {
-            self.session.status =
-                "ILT DOSY needs a gradient-encoded ruler (this array is not gradient-encoded)."
-                    .into();
-            return;
-        }
-        let (Processed2D::Stack(stack), Some(axis), Some(meta)) =
-            (&d2.processed, &d2.data.pseudo_axis, &d2.data.diffusion)
-        else {
+        let input = match d2.resolve_diffusion_input(None) {
+            Ok(input) => input,
+            Err(error) => {
+                self.session.status = error;
+                return;
+            }
+        };
+        let Processed2D::Stack(stack) = &d2.processed else {
             return;
         };
-        let b_factors: Vec<f64> = axis.values.iter().map(|&g| meta.b_factor(g)).collect();
         let d_grid = log_grid(params.d_min, params.d_max, params.n_grid);
         let nucleus = d2.data.direct.nucleus.clone();
         let source = stack.source.clone();
@@ -144,12 +131,10 @@ impl PlotiumApp {
             dataset_id,
             self.session.dataset_epoch,
             stack,
-            b_factors,
             d_grid,
             params.lambda,
             params,
-            axis.values.clone(),
-            *meta,
+            input,
             nucleus,
             source,
         );

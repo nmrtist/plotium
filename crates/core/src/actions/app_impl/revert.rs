@@ -28,6 +28,11 @@ impl PlotiumApp {
                     self.revert_action(action);
                 }
             }
+            Action::SetDiffusionInput {
+                dataset, before, ..
+            } => {
+                self.apply_diffusion_input(dataset_index!(*dataset), before.clone());
+            }
             Action::UpdateDatasetProcessing {
                 dataset, before, ..
             } => {

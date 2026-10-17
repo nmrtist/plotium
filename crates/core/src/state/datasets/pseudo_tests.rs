@@ -653,12 +653,18 @@ fn the_data_fingerprint_covers_coordinates_and_diffusion_metadata() {
     let stack = stack.clone();
     let axis = ds.data.pseudo_axis.clone().unwrap();
     let meta = ds.data.diffusion.unwrap();
-    let base = crate::state::dosy_data_fingerprint(&stack, &axis.values, &meta);
+    let base = crate::state::dosy_data_fingerprint(
+        &stack,
+        &crate::DiffusionInput::from_meta(&axis.values, &meta),
+    );
 
     let mut shifted = (*stack).clone();
     shifted.ppm.iter_mut().for_each(|value| *value += 0.5);
     assert_ne!(
-        crate::state::dosy_data_fingerprint(&shifted, &axis.values, &meta),
+        crate::state::dosy_data_fingerprint(
+            &shifted,
+            &crate::DiffusionInput::from_meta(&axis.values, &meta)
+        ),
         base,
         "a reference change moves the ppm axis and must be detected"
     );
@@ -666,7 +672,10 @@ fn the_data_fingerprint_covers_coordinates_and_diffusion_metadata() {
     let mut edited = meta;
     edited.big_delta *= 2.0;
     assert_ne!(
-        crate::state::dosy_data_fingerprint(&stack, &axis.values, &edited),
+        crate::state::dosy_data_fingerprint(
+            &stack,
+            &crate::DiffusionInput::from_meta(&axis.values, &edited)
+        ),
         base,
         "diffusion metadata reaches the fit and must be detected"
     );
@@ -674,14 +683,20 @@ fn the_data_fingerprint_covers_coordinates_and_diffusion_metadata() {
     let mut ruler = axis.values.clone();
     ruler[0] += 1e-3;
     assert_ne!(
-        crate::state::dosy_data_fingerprint(&stack, &ruler, &meta),
+        crate::state::dosy_data_fingerprint(
+            &stack,
+            &crate::DiffusionInput::from_meta(&ruler, &meta)
+        ),
         base,
         "the gradient ruler must be detected"
     );
 
     // Guard against the digest becoming trivially input-insensitive.
     assert_eq!(
-        crate::state::dosy_data_fingerprint(&stack, &axis.values, &meta),
+        crate::state::dosy_data_fingerprint(
+            &stack,
+            &crate::DiffusionInput::from_meta(&axis.values, &meta)
+        ),
         base
     );
     let _ = &mut ds;

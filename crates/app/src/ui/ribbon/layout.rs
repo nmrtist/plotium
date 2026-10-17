@@ -391,6 +391,7 @@ pub(super) fn group_order(tab: WorkflowTab, group: &str) -> u8 {
             "XPS",
             "Extract",
             "Regions",
+            "Diffusion",
             "Peaks",
             "Review",
             "Overlay",

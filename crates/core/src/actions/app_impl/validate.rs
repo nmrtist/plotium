@@ -99,6 +99,18 @@ pub(super) fn validate_action(
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
             }
         }
+        Action::SetDiffusionInput { dataset, after, .. } => {
+            let data = app
+                .doc
+                .dataset_index(*dataset)
+                .and_then(|i| app.doc.datasets[i].as_nmr2d())
+                .ok_or_else(|| ActionApplyError::StaleTarget(format!("NMR dataset {dataset}")))?;
+            if let Some(input) = after {
+                input
+                    .b_values(data.data.rows)
+                    .map_err(ActionApplyError::InvalidValue)?;
+            }
+        }
         Action::UpdateDatasetProcessing {
             dataset,
             before,

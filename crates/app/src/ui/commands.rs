@@ -101,6 +101,10 @@ pub enum CommandId {
     ClearRange,
     Regions,
     SeriesTable,
+    Dosy,
+    BuildDosy,
+    BuildIlt,
+    CancelDosy,
     DetectPeaks,
     PeakList,
     LineFit,
@@ -458,6 +462,49 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         CommandId::Regions => requires(
             is_series(),
             "Select a series dataset before drawing regions.",
+        ),
+        CommandId::Dosy => requires(
+            dataset().and_then(Dataset::as_nmr2d).is_some(),
+            "Select an NMR spectrum stack before opening DOSY.",
+        ),
+        CommandId::BuildDosy | CommandId::BuildIlt => {
+            let data = dataset().and_then(Dataset::as_nmr2d);
+            requires(
+                data.is_some(),
+                "Select an NMR spectrum stack before building DOSY.",
+            )
+            .and_then(|()| {
+                requires(
+                    data.is_some_and(|data| data.dosy_input_error().is_none()),
+                    "Process a frequency-domain spectrum stack calibrated in ppm.",
+                )
+            })
+            .and_then(|()| {
+                requires(
+                    data.is_some_and(|data| data.resolve_diffusion_input(None).is_ok()),
+                    "Confirm model parameters or provide b values.",
+                )
+            })
+            .and_then(|()| {
+                requires(
+                    data.is_some_and(|data| {
+                        app.session
+                            .compute
+                            .dosy_progress(data.resource_id)
+                            .is_none()
+                    }),
+                    "Wait for the current DOSY computation or cancel it.",
+                )
+            })
+        }
+        CommandId::CancelDosy => requires(
+            dataset().is_some_and(|data| {
+                app.session
+                    .compute
+                    .dosy_progress(data.resource_id())
+                    .is_some()
+            }),
+            "Start a DOSY computation before cancelling it.",
         ),
         CommandId::SeriesTable => requires(
             is_series(),

@@ -609,38 +609,42 @@ fn restore_dosy(
         dataset.dosy_provenance_warning = Some(warnings.join(" "));
         return;
     };
-    // Both methods hash the same inputs, so one reconstruction serves both.
-    if let (Some(axis), Some(meta)) = (
-        dataset.data.pseudo_axis.as_ref(),
-        dataset.data.diffusion.as_ref(),
-    ) {
-        let reconstructed = crate::state::dosy_data_fingerprint(stack, &axis.values, meta);
-        for (label, provenance) in [
-            (
-                "per-column DOSY",
-                dataset
-                    .dosy_map
-                    .as_ref()
-                    .and(dataset.dosy_provenance.as_ref()),
-            ),
-            (
-                "ILT DOSY",
-                dataset
-                    .ilt_map
-                    .as_ref()
-                    .and(dataset.ilt_provenance.as_ref()),
-            ),
-        ] {
-            let Some(provenance) = provenance else {
-                continue;
-            };
-            if reconstructed != provenance.data_fingerprint {
-                warnings.push(fingerprint_warning(
-                    label,
-                    &provenance.data_fingerprint,
-                    &reconstructed,
-                ));
-            }
+    for (label, provenance) in [
+        (
+            "per-column DOSY",
+            dataset
+                .dosy_map
+                .as_ref()
+                .and(dataset.dosy_provenance.as_ref()),
+        ),
+        (
+            "ILT DOSY",
+            dataset
+                .ilt_map
+                .as_ref()
+                .and(dataset.ilt_provenance.as_ref()),
+        ),
+    ] {
+        let Some(provenance) = provenance else {
+            continue;
+        };
+        let Some(input) = &provenance.encoding else {
+            warnings.push(format!(
+                "{label} has no diffusion input snapshot; rebuild the map."
+            ));
+            continue;
+        };
+        if let Err(error) = input.b_values(stack.traces.len()) {
+            warnings.push(format!("{label}: {error}"));
+            continue;
+        }
+        let reconstructed = crate::state::dosy_data_fingerprint(stack, input);
+        if reconstructed != provenance.data_fingerprint {
+            warnings.push(fingerprint_warning(
+                label,
+                &provenance.data_fingerprint,
+                &reconstructed,
+            ));
         }
     }
     // "The selected map is absent" is deliberately *not* stored here. It is a

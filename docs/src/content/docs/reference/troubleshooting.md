@@ -34,9 +34,10 @@ open the workbook in Excel once and save it to refresh the cached values.
 most 24 components. Narrow the fit range or remove peak marks so fewer fall
 inside.
 
-**My DOSY map build was cancelled.** Changing a dataset's processing while a
-map is building cancels the build, because the map would no longer match the
-spectrum. Finish the processing changes, then rebuild the map.
+**My DOSY map build was cancelled.** Changing a dataset's processing or
+diffusion input while a map is building cancels the build, because the result
+would no longer match its inputs. Finish the changes, then rebuild the map.
+See [DOSY diffusion analysis](/guides/dosy/).
 
 **A statistics or window-statistics result reports an error instead of a
 number.** Plotium refuses to fabricate values from empty windows, non-finite

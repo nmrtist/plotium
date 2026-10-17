@@ -15,6 +15,7 @@ Plotium 有几个名字相近的分析工具。从你想测量什么出发：
 | 把重叠的谱峰分解为组分 | **谱峰拟合**（`D`） | 任意 1D 谱线 | 每峰的位置、高度、宽度、面积 |
 | 把拟合出的峰归组为多重峰并给出 J 耦合 | **多重峰分析**（谱峰拟合内） | 1D 谱 | 多重峰表与期刊格式描述 |
 | 用数学模型拟合 x-y 数据 | **曲线拟合** | 数据表（含系列表） | 带不确定度与诊断的参数 |
+| 构建化学位移 × 扩散系数图 | **DOSY…** | 具有有效扩散输入的频域谱堆叠 | 逐列或 ILT DOSY 图 |
 | 组间比较、相关性或正态性检验 | **统计** | 数据表 | 已保存的统计结果 |
 
 两个工具都像能用时的判断准则：
@@ -35,5 +36,5 @@ Plotium 有几个名字相近的分析工具。从你想测量什么出发：
 [同核 2D 对称审核](/zh-cn/guides/symmetry-review/)、
 [曲线拟合](/zh-cn/guides/curve-fitting/)、
 [统计](/zh-cn/guides/statistics/)，以及按数据类型的
-[伪 2D](/zh-cn/guides/pseudo-2d/) 与
+[伪 2D](/zh-cn/guides/pseudo-2d/)、[DOSY](/zh-cn/guides/dosy/) 与
 [电生理](/zh-cn/guides/electrophysiology/)指南。

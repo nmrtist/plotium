@@ -165,6 +165,8 @@ pub struct DosyResultProvenance {
     pub version: u32,
     pub input: DosyInvocation,
     pub data_fingerprint: String,
+    #[serde(default)]
+    pub encoding: Option<DiffusionInput>,
 }
 
 pub use plotium_analysis::series::ReduceOp;
@@ -278,3 +280,6 @@ mod tests {
 
 #[cfg(test)]
 mod nmr_test_support;
+
+mod diffusion_input;
+pub use diffusion_input::{DiffusionIncrement, DiffusionInput, DiffusionModel, IncrementId};

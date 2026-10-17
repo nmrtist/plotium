@@ -60,6 +60,7 @@ pub(crate) fn ilt_app(lambda: f64) -> (PlotiumApp, TargetRef) {
             },
         },
         data_fingerprint: "fixture".to_owned(),
+        encoding: None,
     });
     let id = dataset.resource_id;
     app.doc.datasets.push(Dataset::Nmr2D(Box::new(dataset)));

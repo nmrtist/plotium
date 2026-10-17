@@ -14,8 +14,10 @@ Open the **Analyze** tab and choose **Fit Curves** in the **Curve Fit** group.
 A task card opens over the canvas. In it:
 
 1. **Model** — pick a built-in or custom model. Plotium preselects a sensible
-   default: Stejskal–Tanner for a DOSY table, inversion recovery for a
-   relaxation-delay series, and mono-exponential otherwise.
+   default: **Diffusion (b values)** for extracted DOSY curves with recorded
+   diffusion input, Stejskal–Tanner for tables with gradient-based diffusion
+   metadata, inversion recovery for a relaxation-delay series, and
+   mono-exponential otherwise.
 2. **Data** — fit every curve in the table (**All curves**) or a single
    **Selected curve**.
 3. **Parameters** — when fitting all curves, tick **Share all free parameters
@@ -64,10 +66,12 @@ Plotium ships these models, grouped by kind:
 
 - **Relaxation** — Mono-exponential, Inversion recovery, Saturation recovery,
   Bi-exponential, Stretched exponential.
-- **Diffusion** — Stejskal–Tanner. On a DOSY table it reads the gradient and
-  diffusion parameters (γ, δ, Δ, and the recovery delay and shape factor) from
-  the table's metadata, so you don't enter them by hand. It needs those
-  parameters and reports if the table lacks them.
+- **Diffusion** — **Diffusion (b values)** fits `I = I₀ exp(−Db)` with b in
+  `s/m²` and D in `m²/s`; extracted DOSY curves use the confirmed diffusion
+  input for their b axis. **Stejskal–Tanner** fits against gradient strength
+  using diffusion parameters (γ, δ, Δ, recovery delay, and gradient shape
+  factor) from table metadata and reports missing parameters. See
+  [DOSY diffusion analysis](/guides/dosy/) for input confirmation and map building.
 - **General** — Linear.
 
 ## Custom models

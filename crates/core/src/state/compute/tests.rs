@@ -1,5 +1,6 @@
 use super::*;
 use num_complex::Complex64;
+use plotium_io::DiffusionMeta;
 use plotium_io::{Dim, Domain, NmrData2D, QuadMode};
 use plotium_processing::{PhaseParams, Preset2D, ProcessingStep, StepKind};
 
@@ -230,8 +231,7 @@ fn a_processing_request_reports_the_analysis_it_cancels() {
             dataset(1),
             0,
             stack,
-            vec![0.0, 1.0, 2.0],
-            diffusion_meta(),
+            crate::DiffusionInput::from_meta(&[0.0, 1.0, 2.0], &diffusion_meta()),
             "X".into(),
             "test".into(),
         )
@@ -261,8 +261,7 @@ fn a_cancelled_analysis_stops_blocking_a_re_run() {
             dataset(2),
             0,
             stack_spectrum(),
-            vec![0.0, 1.0, 2.0],
-            diffusion_meta(),
+            crate::DiffusionInput::from_meta(&[0.0, 1.0, 2.0], &diffusion_meta()),
             "X".into(),
             "test".into(),
         )
@@ -345,12 +344,10 @@ fn cancelled_ilt_job_reports_acknowledgement_without_a_result() {
         epoch: 0,
         token,
         stack,
-        b_factors: vec![0.0, 1.0, 2.0],
         d_grid: vec![1e-10, 1e-9],
         lambda: 0.01,
         params: IltParams::default(),
-        values: vec![0.0, 1.0, 2.0],
-        meta: diffusion_meta(),
+        input: crate::DiffusionInput::from_meta(&[0.0, 1.0, 2.0], &diffusion_meta()),
         nucleus: "X".into(),
         source: "test".into(),
     });
