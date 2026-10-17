@@ -1,5 +1,5 @@
 # Dependency security, duplicate-version, and source policy for Plotium.
-# `cargo pr-check` runs only advisories, bans, and sources; license checking
+# `cargo dependency-check` runs advisories, bans, and sources; license checking
 # is intentionally excluded.
 
 [graph]
@@ -13,6 +13,7 @@ targets = [
 ]
 
 [advisories]
+unmaintained = "workspace"
 ignore = [
     # Transitive through resvg/svg2pdf. RustSec lists no safe upgrade; remove
     # these exceptions when those upstream projects migrate to maintained font

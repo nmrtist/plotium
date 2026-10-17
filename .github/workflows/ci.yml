@@ -33,6 +33,7 @@ jobs:
     outputs:
       rust: ${{ steps.classify.outputs.rust }}
       docs: ${{ steps.classify.outputs.docs }}
+      dependencies: ${{ steps.classify.outputs.dependencies }}
     steps:
       - name: Classify changed paths
         id: classify
@@ -41,6 +42,7 @@ jobs:
         run: |
           rust=true
           docs=true
+          dependencies=true
           files=""
           case "${{ github.event_name }}" in
             pull_request)
@@ -65,7 +67,12 @@ jobs:
           if [ -n "$files" ]; then
             rust=false
             docs=false
+            dependencies=false
             while IFS= read -r file; do
+              case "$file" in
+                Cargo.toml|*/Cargo.toml|Cargo.lock|deny.toml|.cargo/config.toml|xtask/*|.github/workflows/*)
+                  dependencies=true ;;
+              esac
               case "$file" in
                 # Workflow changes must prove every job still works.
                 .github/*) rust=true; docs=true ;;
@@ -79,9 +86,10 @@ jobs:
           fi
           echo "rust=$rust" >> "$GITHUB_OUTPUT"
           echo "docs=$docs" >> "$GITHUB_OUTPUT"
-          echo "rust=$rust docs=$docs"
+          echo "dependencies=$dependencies" >> "$GITHUB_OUTPUT"
+          echo "rust=$rust docs=$docs dependencies=$dependencies"
 
-  # Formatting, source sizes, and dependency policy are platform-independent
+  # Formatting and source sizes are platform-independent
   # and build nothing but xtask itself, so one cheap uncached runner fails
   # within minutes. Always runs: it is fast and covers every file kind.
   quick:
@@ -91,19 +99,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-
       - name: Update Rust toolchain
         run: |
           rustup update --no-self-update stable
           rustup default stable
           rustup component add rustfmt
 
-      - name: Check formatting, source sizes, and dependency policy
+      - name: Check formatting and source sizes
         run: cargo xtask pr-check quick
+
+  dependencies:
+    name: dependency policy
+    needs: changes
+    if: needs.changes.outputs.dependencies == 'true'
+    uses: ./.github/workflows/dependency-check.yml
 
   lint:
     name: lint (${{ matrix.os }})
@@ -191,7 +200,7 @@ jobs:
   # renames never require touching the protection settings.
   conclusion:
     name: conclusion
-    needs: [changes, quick, lint, test, docs]
+    needs: [changes, quick, dependencies, lint, test, docs]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

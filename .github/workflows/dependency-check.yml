@@ -1,0 +1,42 @@
+name: Dependency check
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: dependency policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Update Rust toolchain
+        run: |
+          rustup update --no-self-update stable
+          rustup default stable
+
+      - name: Check dependency policy
+        id: check
+        run: cargo dependency-check
+
+      - name: Summarize dependency check
+        if: always()
+        env:
+          RESULT: ${{ steps.check.outcome }}
+        run: |
+          {
+            echo "## Dependency check: $RESULT"
+            echo
+            echo 'See the job logs for findings. Reproduce locally with `cargo dependency-check`.'
+            echo 'Resolve findings or document justified exceptions in `deny.toml`.'
+          } >> "$GITHUB_STEP_SUMMARY"

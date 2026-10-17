@@ -1,5 +1,7 @@
 [alias]
 pr-check = "run -q -p xtask -- pr-check"
+dependency-check = "run -q -p xtask -- dependency-check"
+release-check = "run -q -p xtask -- release-check"
 licenses = "run -q -p xtask -- licenses"
 xtask = "run -q -p xtask --"
 

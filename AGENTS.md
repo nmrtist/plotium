@@ -74,9 +74,11 @@ These instructions apply to the entire repository.
   modules over large files. Extract tests to a sibling `*_tests.rs` referenced
   with `#[path]` when a file approaches it.
 - Run `cargo pr-check` before completing code changes. It checks formatting,
-  source sizes, dependency advisories, duplicate versions and sources,
-  a default-configuration build of both frontends, Clippy with warnings denied,
-  and the reference-backend test suite. It requires `cargo-deny`.
+  source sizes, a default-configuration build of both frontends, Clippy with
+  warnings denied, and the reference-backend test suite. For dependency or
+  dependency-policy changes, also run `cargo dependency-check` (requires
+  `cargo-deny`). Before preparing a release, run `cargo release-check`, which
+  runs both checks, and resolve findings or document justified exceptions.
 
 ## Documentation
 

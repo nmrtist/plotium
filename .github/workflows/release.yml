@@ -52,8 +52,12 @@ jobs:
               output.write(f'version={version}\nchannel={match[1] or "stable"}\n')
           PY
 
-  build:
+  dependencies:
     needs: version
+    uses: ./.github/workflows/dependency-check.yml
+
+  build:
+    needs: [version, dependencies]
     strategy:
       fail-fast: false
       matrix:

@@ -35,6 +35,15 @@ fn run() -> Result<(), String> {
             }
             licenses()
         }
+        Some(command @ ("dependency-check" | "release-check")) => {
+            if args.next().is_some() {
+                return Err(format!("usage: cargo {command}"));
+            }
+            if command == "release-check" {
+                pr_check(None)?;
+            }
+            run_cargo_deny_step(&repo_root()?, 1, 1)
+        }
         Some(command) => Err(format!("unknown xtask command: {command}")),
         None => Err("usage: cargo xtask <command>".to_owned()),
     }
@@ -75,14 +84,13 @@ enum PrCheckStep {
         args: &'static [&'static str],
     },
     RustFileSizes,
-    DependencyPolicy,
 }
 
 fn pr_check(stage: Option<PrCheckStage>) -> Result<(), String> {
     use PrCheckStage::{Lint, Quick, Test};
-    use PrCheckStep::{Cargo, DependencyPolicy, RustFileSizes};
+    use PrCheckStep::{Cargo, RustFileSizes};
 
-    let steps: [(PrCheckStage, PrCheckStep); 6] = [
+    let steps: [(PrCheckStage, PrCheckStep); 5] = [
         (
             Quick,
             Cargo {
@@ -91,7 +99,6 @@ fn pr_check(stage: Option<PrCheckStage>) -> Result<(), String> {
             },
         ),
         (Quick, RustFileSizes),
-        (Quick, DependencyPolicy),
         // Cheap, and it fails long before Clippy would: the default feature
         // set of both frontends is the one contributors build, and nothing
         // else here compiles it.
@@ -167,7 +174,6 @@ fn pr_check(stage: Option<PrCheckStage>) -> Result<(), String> {
         match step {
             Cargo { name, args } => run_cargo_step(&repo_root, index, total, name, args)?,
             RustFileSizes => assert_rust_file_sizes(&repo_root, index, total)?,
-            DependencyPolicy => run_cargo_deny_step(&repo_root, index, total)?,
         }
     }
 
@@ -298,6 +304,8 @@ fn run_cargo_deny_step(repo_root: &Path, index: usize, total: usize) -> Result<(
 
     if output.status.success() {
         println!("ok ({})", format_duration(started_at.elapsed()));
+        print_stream("stdout", &output.stdout);
+        print_stream("stderr", &output.stderr);
         return Ok(());
     }
 

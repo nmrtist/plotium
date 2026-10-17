@@ -7,7 +7,6 @@ commands from the repository root:
 
 ```sh
 rustup component add rustfmt clippy
-cargo install --locked cargo-deny
 cargo run -p plotium
 ```
 
@@ -19,6 +18,8 @@ For the edit/check/test loop, target the frontend or crate you changed:
 | Run the CLI | `cargo run -p plotium-cli -- --help` |
 | Test a changed crate (example) | `cargo test -p plotium-core` |
 | Build the shipping app / assess performance | `cargo release-build` |
+| Check dependency policy | `cargo dependency-check` |
+| Check a release locally | `cargo release-check` |
 
 Development builds optimize numerical processing crates, but leave the UI and
 renderer unoptimized. Use a release build to assess rendering performance.
@@ -67,9 +68,19 @@ layout and deployment details.
 - Add or update tests for changed behavior, especially numerical results and
   import edge cases. For UI changes, also check the affected interaction in the app.
 - Run `cargo pr-check` for Rust changes. It checks formatting, the 800-line Rust
-  source limit, dependencies, both frontends, Clippy, and reference-backend tests.
+  source limit, both frontends, Clippy, and reference-backend tests.
   To rerun a failed stage, use `cargo pr-check quick`, `cargo pr-check lint`, or
   `cargo pr-check test`.
+- For dependency or dependency-policy changes, install `cargo-deny` with
+  `cargo install --locked cargo-deny` and run `cargo dependency-check`.
+  It checks advisories, duplicate versions, and dependency sources for the
+  reference backend on all shipping platforms; it does not check licenses.
+  CI runs the same command when Cargo manifests, `Cargo.lock`, `deny.toml`,
+  Cargo aliases, xtask, or workflows change. Ordinary PRs skip this check.
+  Duplicate versions are warnings; unmaintained transitive dependencies do not
+  block the check. Resolve findings or record a justified exception in
+  `deny.toml`, including the reason and when to review it (for example, on a
+  relevant dependency upgrade).
 - Update the manual for user-visible changes and build it as described above.
 - Explain the problem, the resulting behavior, and how you validated the change
   in the pull request. Include screenshots for visual changes.
@@ -77,14 +88,22 @@ layout and deployment details.
   out of commits. Use minimal anonymized samples; never include confidential,
   personal, or proprietary data in code, issues, or pull requests.
 
+The [Dependency check workflow](.github/workflows/dependency-check.yml) can also
+be run manually in Actions. It has no scheduled runs. Findings appear in the
+job logs, with a status summary on the workflow run.
+
 ## Publish a release
 
 The [Release workflow](.github/workflows/release.yml) packages the desktop app
 and CLI for Windows x86-64, Linux x86-64, and macOS Intel / Apple Silicon.
-It does not rerun CI or require extra secrets.
+It rechecks dependency policy before packaging, without rerunning the rest of
+CI or requiring extra secrets.
 
-1. Set `[workspace.package].version` in `Cargo.toml`, refresh `Cargo.lock`, and
-   merge the change. Wait for CI to pass on the release commit.
+1. Set `[workspace.package].version` in `Cargo.toml` and refresh `Cargo.lock`.
+   Install `cargo-deny` if needed, then run `cargo release-check` locally. This
+   runs `cargo pr-check` followed by `cargo dependency-check`. Resolve findings
+   or document justified exceptions before submitting the version PR. Merge
+   the change and wait for CI to pass on the release commit.
 2. Tag that commit with the Cargo version prefixed by `v`, then push the tag:
 
    ```sh
@@ -94,6 +113,11 @@ It does not rerun CI or require extra secrets.
 
 3. Download the packages from the generated Release draft, check the desktop
    app, CLI, and license notices on each platform, then edit the notes and publish.
+
+The release dependency check is a final safeguard: a new advisory published
+after local or PR checks can still stop packaging. Reproduce with
+`cargo dependency-check`, address the finding, and prepare a new release commit
+and tag rather than moving an existing tag.
 
 Use `v0.1.0` for a regular pre-1.0 release. Only `-alpha.N` and `-beta.N`
 suffixes are supported for prereleases; they also select the updater channel.
