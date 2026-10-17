@@ -15,7 +15,7 @@ pub(super) fn stejskal_tanner_binding_profile(
     let meta = table.meta.diffusion.ok_or_else(|| {
         "Stejskal–Tanner needs diffusion parameters from the source DOSY data.".to_owned()
     })?;
-    let effective_delay = meta.big_delta - meta.shape_factor * meta.delta - 0.5 * meta.tau;
+    let effective_delay = meta.to_meta().effective_delay();
     if !meta.gamma.is_finite()
         || !meta.delta.is_finite()
         || !meta.big_delta.is_finite()
@@ -112,7 +112,7 @@ impl TableDataset {
             row_ids: rows.row_ids,
             x,
             series,
-            meta: self.meta,
+            meta: self.meta.clone(),
         })
     }
 }

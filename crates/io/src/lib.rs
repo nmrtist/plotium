@@ -718,3 +718,5 @@ pub fn load_path(path: impl AsRef<Path>) -> Result<LoadResult, IoError> {
     }
 }
 pub mod image;
+
+pub mod diffusion_facts;

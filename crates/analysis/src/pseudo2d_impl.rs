@@ -186,22 +186,33 @@ pub fn fit_diffusion_cancellable(
     meta: &DiffusionMeta,
     cancelled: &impl Fn() -> bool,
 ) -> Option<DiffusionFit> {
+    let b_series = DecaySeries {
+        x: series.x.iter().map(|&g| meta.b_factor(g)).collect(),
+        y: series.y.clone(),
+    };
+    fit_diffusion_b_cancellable(&b_series, cancelled)
+}
+
+pub fn fit_diffusion_b_cancellable(
+    series: &DecaySeries,
+    cancelled: &impl Fn() -> bool,
+) -> Option<DiffusionFit> {
     let n = series.len();
-    if n < 3 {
+    if n < 3 || crate::diffusion_encoding::validate_b_values(&series.x, n).is_err() {
         return None;
     }
-    let b: Vec<f64> = series.x[..n].iter().map(|&g| meta.b_factor(g)).collect();
+    let b = &series.x[..n];
     let y: Vec<f64> = series.y[..n].to_vec();
 
     // Log-linear initial guess: ln I = ln I0 − D·b, weighted by I² so bright
     // points (small log noise) dominate.
-    let (ln_i0, slope) = weighted_log_line(&b, &y)?;
+    let (ln_i0, slope) = weighted_log_line(b, &y)?;
     let mut d = -slope;
     let mut i0 = ln_i0.exp();
 
     // Refine on the true nonlinear residual.
     let model = |p: &[f64], x: f64| p[0] * (-p[1] * x).exp();
-    if let Some(p) = levenberg_marquardt_cancellable(&b, &y, &[i0, d], model, 60, cancelled) {
+    if let Some(p) = levenberg_marquardt_cancellable(b, &y, &[i0, d], model, 60, cancelled) {
         i0 = p[0];
         d = p[1];
     }
@@ -213,8 +224,8 @@ pub fn fit_diffusion_cancellable(
     }
 
     let pred = |x: f64| model(&[i0, d], x);
-    let r2 = r_squared(&b, &y, pred);
-    let sigma_d = param_sigma(&b, &y, &[i0, d], model, 1);
+    let r2 = r_squared(b, &y, pred);
+    let sigma_d = param_sigma(b, &y, &[i0, d], model, 1);
     Some(DiffusionFit { d, i0, r2, sigma_d })
 }
 
@@ -383,13 +394,23 @@ pub fn diffusion_map_cancellable(
     snr_frac: f64,
     cancelled: &impl Fn() -> bool,
 ) -> Option<DiffusionMap> {
+    let b_values: Vec<_> = axis_values.iter().map(|&g| meta.b_factor(g)).collect();
+    diffusion_map_b_cancellable(stack, &b_values, snr_frac, cancelled)
+}
+
+pub fn diffusion_map_b_cancellable(
+    stack: &impl SpectrumStack,
+    b_values: &[f64],
+    snr_frac: f64,
+    cancelled: &impl Fn() -> bool,
+) -> Option<DiffusionMap> {
     let coordinates = stack.coordinates();
     let traces = stack.traces();
     let cols = coordinates.len();
-    let n = stack.increments().min(axis_values.len());
+    let n = stack.increments();
     let mut d = vec![f64::NAN; cols];
     let mut amp = vec![0.0; cols];
-    if n < 3 || cols == 0 {
+    if crate::diffusion_encoding::validate_b_values(b_values, n).is_err() || cols == 0 {
         return Some(DiffusionMap {
             ppm: coordinates.to_vec(),
             d,
@@ -409,10 +430,10 @@ pub fn diffusion_map_cancellable(
             continue;
         }
         let series = DecaySeries {
-            x: axis_values[..n].to_vec(),
+            x: b_values[..n].to_vec(),
             y,
         };
-        if let Some(fit) = fit_diffusion_cancellable(&series, meta, cancelled) {
+        if let Some(fit) = fit_diffusion_b_cancellable(&series, cancelled) {
             // Require a sane fit to keep noise from smearing the map.
             if fit.r2 > 0.8 && fit.d.is_finite() && fit.d > 0.0 {
                 d[c] = fit.d;

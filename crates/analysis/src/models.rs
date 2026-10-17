@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 
 /// Stable ids for the built-in models, so integrations select a builtin by
 /// name instead of repeating the UUID literal.
+pub const DIFFUSION_B_ID: &str = "88888888-8888-4888-8888-888888888888";
 pub const MONO_EXPONENTIAL_ID: &str = "11111111-1111-4111-8111-111111111111";
 pub const INVERSION_RECOVERY_ID: &str = "22222222-2222-4222-8222-222222222222";
 pub const SATURATION_RECOVERY_ID: &str = "33333333-3333-4333-8333-333333333333";
@@ -62,6 +63,18 @@ fn build_builtin_models() -> Vec<FitModelDefinition> {
             ],
         ),
         stejskal_tanner(),
+        explicit(
+            DIFFUSION_B_ID,
+            "Diffusion (b values)",
+            "Diffusion",
+            "y = I0*exp(-D*b)",
+            &["b"],
+            &["y"],
+            vec![
+                data_parameter("I0", "max(y)"),
+                positive_parameter("D", 1e-10),
+            ],
+        ),
         explicit(
             BI_EXPONENTIAL_ID,
             "Bi-exponential",

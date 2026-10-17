@@ -16,6 +16,7 @@ what you want to measure:
 | Separate overlapping spectral peaks into components | **Peak Fit** (`D`) | Any 1D trace | Per-peak position, height, width, area |
 | Group fitted peaks into multiplets with J couplings | **Analyze multiplets** (in Peak Fit) | 1D spectra | Multiplet table and journal-style descriptors |
 | Fit x-y data to a mathematical model | **Fit Curves** | Data tables (including series tables) | Parameters with uncertainties and diagnostics |
+| Build a chemical-shift × diffusion map | **DOSY…** | Frequency-domain spectrum stacks with valid diffusion input | Per-column or ILT DOSY map |
 | Compare groups, test correlation or normality | **Statistics** | Data tables | Saved statistical results |
 
 Rules of thumb when two tools seem to apply:
@@ -38,5 +39,6 @@ Where to go next: [Peaks and regions](/guides/peaks-and-regions/),
 [2D volume integration](/guides/2d-integration/),
 [Homonuclear 2D symmetry review](/guides/symmetry-review/),
 [Curve fitting](/guides/curve-fitting/), [Statistics](/guides/statistics/),
-and the per-technique guides for [pseudo-2D](/guides/pseudo-2d/) and
+and the per-technique guides for [pseudo-2D](/guides/pseudo-2d/),
+[DOSY](/guides/dosy/), and
 [electrophysiology](/guides/electrophysiology/).

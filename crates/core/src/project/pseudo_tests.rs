@@ -417,8 +417,13 @@ fn mismatched_fingerprint_keeps_the_stored_map_and_reports_both_fingerprints() {
     };
     let reconstructed = crate::state::dosy_data_fingerprint(
         stack,
-        &restored.data.pseudo_axis.as_ref().unwrap().values,
-        restored.data.diffusion.as_ref().unwrap(),
+        restored
+            .dosy_provenance
+            .as_ref()
+            .unwrap()
+            .encoding
+            .as_ref()
+            .unwrap(),
     );
     assert_ne!(stored, &reconstructed);
     assert!(warning.contains(&stored[..12]), "{warning}");

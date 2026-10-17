@@ -25,3 +25,5 @@ pub mod symmetry;
 pub mod xps;
 
 pub use stack::SpectrumStack;
+
+pub mod diffusion_encoding;

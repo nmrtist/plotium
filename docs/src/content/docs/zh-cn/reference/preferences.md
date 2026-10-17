@@ -43,8 +43,8 @@ description: 偏好设置窗口中的每一项设置，按类别列出。
 
 - **Default ILT regularization (λ)**——为没有以往 ILT 结果可参照的数据集
   构建 ILT DOSY 图时所用的 λ。允许范围 `0.000001` 到 `1000`，默认 `0.01`。
-  在 **Experiment**（实验）卡片中输入的 λ 只作用于该数据集，不会改动这里的
-  默认值。参见[伪 2D 分析](/zh-cn/guides/pseudo-2d/)。
+  在 **DOSY** 卡片中输入的 λ 只作用于该数据集，不会改动这里的
+  默认值。参见 [DOSY 扩散分析](/zh-cn/guides/dosy/)。
 
 ## Export（导出）
 

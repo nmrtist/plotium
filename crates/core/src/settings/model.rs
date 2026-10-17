@@ -250,6 +250,8 @@ impl TaskCardSize {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TaskCardSettings {
+    #[serde(default = "default_standard_card_size")]
+    pub dosy: TaskCardSize,
     #[serde(default = "default_processing_card_size")]
     pub processing: TaskCardSize,
     #[serde(default = "default_craft_card_size")]
@@ -277,6 +279,7 @@ const fn default_craft_card_size() -> TaskCardSize {
 impl Default for TaskCardSettings {
     fn default() -> Self {
         Self {
+            dosy: default_standard_card_size(),
             processing: default_processing_card_size(),
             craft: default_craft_card_size(),
             regions: default_standard_card_size(),
@@ -288,6 +291,7 @@ impl Default for TaskCardSettings {
 
 impl TaskCardSettings {
     pub(crate) fn sanitize(&mut self) {
+        sanitize_card_size(&mut self.dosy, default_standard_card_size());
         sanitize_card_size(&mut self.processing, default_processing_card_size());
         sanitize_card_size(&mut self.craft, default_craft_card_size());
         sanitize_card_size(&mut self.regions, default_standard_card_size());

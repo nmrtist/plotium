@@ -22,7 +22,7 @@ fn pseudo_data() -> plotium_io::NmrData2D {
             name: "Gradient".into(),
             kind: plotium_io::PseudoKind::Gradient,
             values: vec![0.02, 0.04, 0.06, 0.08],
-            unit: "mT/m".into(),
+            unit: "T/m".into(),
             source: plotium_io::AxisSource::EmbeddedList,
         }),
         diffusion: None,
@@ -47,7 +47,7 @@ fn pseudo_trace_items_keep_identity_and_format_display_units() {
         dataset.field_catalog.trace_collection(field).unwrap().items[0]
             .automatic_label()
             .as_deref(),
-        Some("20 mT/m")
+        Some("0.02 T/m")
     );
     dataset.rebuild().unwrap();
     assert_eq!(

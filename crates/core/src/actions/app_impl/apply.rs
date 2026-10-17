@@ -37,6 +37,9 @@ impl PlotiumApp {
                     }
                 }
             }
+            Action::SetDiffusionInput { dataset, after, .. } => {
+                self.apply_diffusion_input(dataset_index!(*dataset), after.clone());
+            }
             Action::UpdateDatasetProcessing { dataset, after, .. } => {
                 self.set_dataset_processing_state(dataset_index!(*dataset), after)
                     .map_err(ActionApplyError::InvalidValue)?;

@@ -198,6 +198,31 @@ fn execute_inner(
         CommandId::SelectRange => app.toggle_tool(Tool::SelectRegion),
         CommandId::ClearRange => app.clear_analysis_selection(),
         CommandId::Regions => toggle_regions(app),
+        CommandId::Dosy => {
+            if let Some(di) = app.active_dataset() {
+                super::tools::dosy::open_task(app, di);
+            }
+        }
+        CommandId::BuildDosy => {
+            if let Some(di) = app.active_dataset() {
+                app.request_dosy_map(di);
+            }
+        }
+        CommandId::BuildIlt => {
+            if let Some(di) = app.active_dataset() {
+                app.request_ilt_map(di);
+            }
+        }
+        CommandId::CancelDosy => {
+            if let Some(di) = app.active_dataset()
+                && let Some((kind, _)) = app
+                    .session
+                    .compute
+                    .dosy_progress(app.doc.datasets[di].resource_id())
+            {
+                app.cancel_compute(di, kind);
+            }
+        }
         CommandId::SeriesTable => open_active_region_table(app),
         CommandId::DetectPeaks => detect_peaks(app),
         CommandId::PeakList => reveal_tool_group(app, Tool::Peaks, ToolGroup::Peaks),

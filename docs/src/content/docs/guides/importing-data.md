@@ -295,7 +295,9 @@ evidence-limited compatibility boundary.
 
 DOSY, T1, and T2 experiments are detected automatically from the acquisition
 parameters and get their own analysis tools — see
-[Pseudo-2D analysis](/guides/pseudo-2d/).
+[Pseudo-2D analysis](/guides/pseudo-2d/) and
+[DOSY diffusion analysis](/guides/dosy/). Missing diffusion parameters can be
+supplied in the **DOSY** task card after import.
 
 For patch-clamp sweeps, filtering, time-window statistics, stimulus handling,
 and IV analysis, see [Electrophysiology](/guides/electrophysiology/).

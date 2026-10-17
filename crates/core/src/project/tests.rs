@@ -476,7 +476,7 @@ fn project_roundtrip_preserves_pseudo2d_metadata() {
     let axis = n.data.pseudo_axis.as_ref().expect("pseudo axis preserved");
     assert_eq!(axis.name, "g");
     assert_eq!(axis.kind, PseudoKind::Gradient);
-    assert_eq!(axis.unit, "mT/m");
+    assert_eq!(axis.unit, "T/m");
     assert_eq!(axis.source, AxisSource::LibraryEvidence);
     assert_eq!(axis.values.len(), 8);
     let meta = n.data.diffusion.as_ref().expect("diffusion meta preserved");

@@ -295,6 +295,7 @@ pub struct Nmr2DDataset {
     pub display: PseudoDisplay,
     /// Which DOSY map the `DosyMap` display renders, and (for ILT) its params.
     pub dosy_method: DosyMethod,
+    pub diffusion_input: Option<crate::DiffusionInput>,
     /// Per-column mono-exponential DOSY map (`DosyMethod::MonoExp`).
     pub dosy_map: Option<DiffusionMap>,
     /// Invocation and data identity for `dosy_map`.
@@ -453,6 +454,7 @@ impl Nmr2DDataset {
             lineage: None,
             display: PseudoDisplay::Stack,
             dosy_method: DosyMethod::MonoExp,
+            diffusion_input: None,
             dosy_map: None,
             dosy_provenance: None,
             ilt_map: None,
@@ -624,7 +626,8 @@ impl Nmr2DDataset {
     }
     /// Whether this is a pseudo-2D array with a recovered ruler (DOSY/relaxation).
     pub fn is_pseudo(&self) -> bool {
-        matches!(self.processed, Processed2D::Stack(_)) && self.data.pseudo_axis.is_some()
+        matches!(self.processed, Processed2D::Stack(_))
+            && (self.data.pseudo_axis.is_some() || self.diffusion_input.is_some())
     }
 
     pub fn allocate_step_id(&mut self) -> StepId {
@@ -672,3 +675,7 @@ fn set_pipeline_pivot_frac(pipe: &mut AxisPipeline, frac: f64) {
 mod pseudo_display_binding_tests;
 #[cfg(test)]
 mod pseudo_tests;
+
+#[cfg(test)]
+#[path = "datasets/diffusion_input_tests.rs"]
+mod diffusion_input_tests;

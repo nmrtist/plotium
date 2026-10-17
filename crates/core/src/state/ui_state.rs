@@ -263,6 +263,7 @@ pub struct UiState {
     /// One visible page in the top-right task dock. Other open task states stay
     /// alive and appear as labelled tabs.
     pub task_dock_active: Option<TaskDockTab>,
+    pub dosy_task_dataset: Option<DatasetId>,
     /// Dataset whose processing recipe is open in the task dock.
     pub processing_task_dataset: Option<DatasetId>,
     pub processing_task_collapsed: bool,
@@ -482,6 +483,7 @@ impl Default for UiState {
             data_browser_last_active: None,
             requested_tool_group: None,
             task_dock_active: None,
+            dosy_task_dataset: None,
             processing_task_dataset: None,
             processing_task_collapsed: false,
             processing_surface_feedback: None,

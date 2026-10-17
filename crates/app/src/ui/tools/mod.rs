@@ -80,6 +80,7 @@ pub(crate) fn render_curve_fit_task(app: &mut PlotiumApp, ui: &mut Ui) {
 
 pub(crate) fn render_statistics_task(app: &mut PlotiumApp, ui: &mut Ui) {
     statistics::render_task(app, ui);
+    dosy::render_task(app, ui);
 }
 
 pub(crate) fn render_processing_task(app: &mut PlotiumApp, ui: &mut Ui) {
@@ -556,3 +557,5 @@ fn integrate_2d_group(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
         });
     }
 }
+
+pub(crate) mod dosy;

@@ -210,6 +210,11 @@ pub enum Action {
         before: PanelState,
         after: PanelState,
     },
+    SetDiffusionInput {
+        dataset: DatasetId,
+        before: Option<crate::DiffusionInput>,
+        after: Option<crate::DiffusionInput>,
+    },
     UpdateDatasetProcessing {
         dataset: DatasetId,
         before: DatasetProcessingState,
@@ -606,6 +611,7 @@ impl Action {
             Self::SetSeriesPresentation { .. } => "display setting",
             Self::SetAxisOverrides { .. } => "axis setting",
             Self::UpdateDatasetProcessing { .. } => "data processing",
+            Self::SetDiffusionInput { .. } => "diffusion analysis input",
             Self::MoveResizeObject { .. }
             | Self::SetObjectFrames { .. }
             | Self::ArrangeObjects { .. } => "object layout",
@@ -622,6 +628,7 @@ impl Action {
             Self::Composite(actions) => actions.iter().all(Self::is_noop),
             Self::SetAsset { .. } => false,
             Self::ReplacePanelState { .. } => false,
+            Self::SetDiffusionInput { before, after, .. } => before == after,
             Self::UpdateDatasetProcessing { before, after, .. } => before == after,
             Self::SetObjectViewport { before, after, .. } => before == after,
             Self::SetXViewportLinks { before, after, .. } => before == after,

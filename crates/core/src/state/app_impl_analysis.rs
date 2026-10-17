@@ -16,9 +16,8 @@ impl PlotiumApp {
             self.session.status = error.into();
             return;
         }
-        if d2.data.diffusion.is_none() {
-            self.session.status =
-                "This dataset has no diffusion parameters (not a DOSY array).".into();
+        if let Err(error) = d2.resolve_diffusion_input(None) {
+            self.session.status = error;
             return;
         }
         let any = d2.build_dosy_map();
@@ -60,21 +59,8 @@ impl PlotiumApp {
             self.session.status = error.into();
             return;
         }
-        if d2.data.diffusion.is_none() {
-            self.session.status =
-                "This dataset has no diffusion parameters (not a DOSY array).".into();
-            return;
-        }
-        let is_gradient = d2
-            .data
-            .pseudo_axis
-            .as_ref()
-            .map(|a| a.kind == plotium_io::PseudoKind::Gradient)
-            .unwrap_or(false);
-        if !is_gradient {
-            self.session.status =
-                "ILT DOSY needs a gradient-encoded ruler (this array is not gradient-encoded)."
-                    .into();
+        if let Err(error) = d2.resolve_diffusion_input(None) {
+            self.session.status = error;
             return;
         }
         let any = d2.build_ilt_map(params);

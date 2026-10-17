@@ -79,6 +79,12 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
             Applicability::ToolGroup(ToolGroup::MassSpectrometry),
         ),
         CommandId::Regions => (Analyze, "Regions", 0, SeriesOnly),
+        CommandId::Dosy => (
+            Analyze,
+            "Diffusion",
+            0,
+            Applicability::ToolGroup(ToolGroup::Nmr2dExperiment),
+        ),
         CommandId::SeriesTable => (Analyze, "Regions", 0, SeriesOnly),
         CommandId::LineFit | CommandId::RunPeakFit => (
             Analyze,

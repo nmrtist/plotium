@@ -5,10 +5,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use plotium_analysis::diffusion::{DiffusionMap, diffusion_map_cancellable};
+use plotium_analysis::diffusion::{DiffusionMap, diffusion_map_b_cancellable};
 use plotium_analysis::ilt::{IltResult, ilt_map_cancellable};
 use plotium_figure::Figure;
-use plotium_io::{DiffusionMeta, NmrData, nmr_view::NmrSource};
+use plotium_io::{NmrData, nmr_view::NmrSource};
 use plotium_processing::{
     Params2D, Processed2D, StackSpectrum,
     craft::{CraftInvocation, CraftResult, process_craft_cancellable},
@@ -62,6 +62,7 @@ pub enum EnqueueError {
     Busy(ComputeKind),
     /// The worker pool is gone, so no background work can run this session.
     WorkersUnavailable,
+    InvalidDiffusionInput,
 }
 
 /// Which scalar payload a processing result populates. The field identity is
@@ -99,14 +100,10 @@ enum Job {
         epoch: u64,
         token: CancellationToken,
         stack: Arc<StackSpectrum>,
-        b_factors: Vec<f64>,
         d_grid: Vec<f64>,
         lambda: f64,
         params: IltParams,
-        /// Raw ruler and metadata kept beside the derived b-factors so the worker
-        /// can fingerprint the same inputs the per-column path does.
-        values: Vec<f64>,
-        meta: DiffusionMeta,
+        input: crate::DiffusionInput,
         nucleus: String,
         source: String,
     },
@@ -116,8 +113,7 @@ enum Job {
         epoch: u64,
         token: CancellationToken,
         stack: Arc<StackSpectrum>,
-        values: Vec<f64>,
-        meta: DiffusionMeta,
+        input: crate::DiffusionInput,
         nucleus: String,
         source: String,
     },
@@ -320,15 +316,17 @@ impl ComputeService {
         dataset: DatasetId,
         epoch: u64,
         stack: Arc<StackSpectrum>,
-        b_factors: Vec<f64>,
         d_grid: Vec<f64>,
         lambda: f64,
         params: IltParams,
-        values: Vec<f64>,
-        meta: DiffusionMeta,
+        mut input: crate::DiffusionInput,
         nucleus: String,
         source: String,
     ) -> Result<(), EnqueueError> {
+        input
+            .b_values(stack.traces.len())
+            .map_err(|_| EnqueueError::InvalidDiffusionInput)?;
+        input.increments.sort_by_key(|entry| entry.id);
         if let Some(kind) = self.blocking_work_for(dataset) {
             return Err(EnqueueError::Busy(kind));
         }
@@ -351,12 +349,10 @@ impl ComputeService {
                 epoch,
                 token,
                 stack,
-                b_factors,
                 d_grid,
                 lambda,
                 params,
-                values,
-                meta,
+                input,
                 nucleus,
                 source,
             })
@@ -374,11 +370,14 @@ impl ComputeService {
         dataset: DatasetId,
         epoch: u64,
         stack: Arc<StackSpectrum>,
-        values: Vec<f64>,
-        meta: DiffusionMeta,
+        mut input: crate::DiffusionInput,
         nucleus: String,
         source: String,
     ) -> Result<(), EnqueueError> {
+        input
+            .b_values(stack.traces.len())
+            .map_err(|_| EnqueueError::InvalidDiffusionInput)?;
+        input.increments.sort_by_key(|entry| entry.id);
         if let Some(kind) = self.blocking_work_for(dataset) {
             return Err(EnqueueError::Busy(kind));
         }
@@ -401,8 +400,7 @@ impl ComputeService {
                 epoch,
                 token,
                 stack,
-                values,
-                meta,
+                input,
                 nucleus,
                 source,
             })

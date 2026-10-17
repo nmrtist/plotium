@@ -119,8 +119,11 @@ pub struct RegionColumnProvenance {
 }
 
 /// Model constants a fit preset may need, copied from the source acquisition.
-#[derive(Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TableMeta {
+    /// Encoding evidence belongs to the extracted values, including frozen tables.
+    #[serde(default)]
+    pub diffusion_input: Option<crate::DiffusionInput>,
     pub diffusion: Option<DiffusionConstants>,
 }
 

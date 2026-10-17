@@ -9,7 +9,7 @@ use crate::{
     PseudoDisplay, apply_peak_labels, build_dosy_figure, build_ilt_figure,
     build_processed_1d_figure, build_stack_figure, extract_region_series,
 };
-use plotium_analysis::diffusion::{DiffusionMap, diffusion_map};
+use plotium_analysis::diffusion::DiffusionMap;
 use plotium_analysis::ilt::{IltResult, ilt_map, log_grid};
 use plotium_figure::{Axis, Color, Figure};
 use plotium_io::{AfmData, Domain, ElectricalQuantity, ElectricalUnit, ElectrophysiologyData};

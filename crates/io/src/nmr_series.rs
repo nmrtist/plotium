@@ -45,6 +45,7 @@ pub struct SeriesSummary {
     pub experiment: Option<String>,
     pub pseudo_axis: Option<PseudoAxis>,
     pub diffusion: Option<DiffusionMeta>,
+    pub jeol_diffusion: Option<crate::diffusion_facts::JeolDiffusionFacts>,
     pub nus: Option<NusSummary>,
 }
 
@@ -92,7 +93,7 @@ impl NmrSeriesSource {
                 values: axes[0].coordinate_values()?,
                 unit: match axes[0].unit {
                     Some(AxisUnit::Second) => "s",
-                    Some(AxisUnit::TeslaPerMeter) => "mT/m",
+                    Some(AxisUnit::TeslaPerMeter) => "T/m",
                     Some(AxisUnit::Tesla) => "T",
                     Some(AxisUnit::Hertz) => "Hz",
                     Some(AxisUnit::Ppm) => "ppm",
@@ -115,10 +116,6 @@ impl NmrSeriesSource {
                     .as_str()
                 {
                     "SQUARE" => 1.0 / 3.0,
-                    "SINE" => 0.3125,
-                    "SQUARE_SINE" => 0.30167,
-                    "TRAPEZOID" => 0.32545,
-                    "S_RECTANGLE" => 0.32526,
                     _ => return None,
                 };
                 Some(DiffusionMeta {
@@ -150,6 +147,15 @@ impl NmrSeriesSource {
                 .and_then(|metadata| metadata.pulse_program().map(str::to_owned)),
             pseudo_axis,
             diffusion,
+            jeol_diffusion: raw
+                .and_then(|raw| raw.provenance().source_metadata().as_jeol())
+                .cloned()
+                .map(|parameters| crate::diffusion_facts::JeolDiffusionFacts {
+                    parameters,
+                    gradient_axis: acquisition
+                        .and_then(|metadata| metadata.diffusion())
+                        .map(|metadata| metadata.gradient_axis()),
+                }),
             nus,
         };
         Ok(Self { source, summary })

@@ -746,10 +746,13 @@ pub(super) fn run_curve_fit(app: &mut PlotiumApp, di: usize) {
     app.fit_table_columns(di, &model, all, column, global, options);
 }
 
-/// A sensible default preset for a freshly opened table: DOSY meta → Stejskal–
-/// Tanner; a delay ruler → inversion recovery; otherwise a mono-exponential.
+/// Captured b encoding takes priority over acquisition gradient constants;
+/// delay rulers use inversion recovery, other tables a mono-exponential.
 fn default_fit_model(table: &TableDataset) -> &'static str {
     use plotium_analysis::models;
+    if table.meta.diffusion_input.is_some() {
+        return models::DIFFUSION_B_ID;
+    }
     if table.meta.diffusion.is_some() {
         return models::STEJSKAL_TANNER_ID;
     }
@@ -783,3 +786,7 @@ pub(crate) fn fmt_val_sigma(v: f64, s: f64) -> String {
         format!("{v:.4} ± {s:.4}")
     }
 }
+
+#[cfg(test)]
+#[path = "curve_fit_tests.rs"]
+mod tests;

@@ -76,6 +76,12 @@ pub(super) fn read_region_analysis(
         .ok_or_else(|| {
             ProjectError::Invalid("2D NMR recipe is missing region analysis state".to_owned())
         })?;
+    dataset.diffusion_input = recipe
+        .extensions
+        .get("plotium.diffusion_input")
+        .map(|value| serde_json::from_value(value.clone()))
+        .transpose()?
+        .flatten();
     dataset.region_analysis = serde_json::from_value(extension.clone()).map_err(|error| {
         ProjectError::Invalid(format!("invalid region analysis state: {error}"))
     })?;
@@ -90,6 +96,10 @@ pub(super) fn nmr2d_recipe_extensions(
     dosy: Option<serde_json::Value>,
 ) -> serde_json::Value {
     let mut extensions = serde_json::Map::new();
+    extensions.insert(
+        "plotium.diffusion_input".into(),
+        serde_json::json!(&dataset.diffusion_input),
+    );
     extensions.insert(
         "plotium.nus_request".into(),
         serde_json::json!(dataset.nus_request),
