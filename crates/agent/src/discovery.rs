@@ -130,6 +130,10 @@ impl Lease {
     }
     pub fn publish(&mut self, discovery: &Discovery) -> io::Result<()> {
         let mut temp = tempfile::NamedTempFile::new_in(&self.dir)?;
+        // Windows file ownership follows the token default, not the directory
+        // owner. Restrict the actual file before writing or publishing a token.
+        #[cfg(windows)]
+        crate::windows_private::restrict(temp.path())?;
         serde_json::to_writer(&mut temp, discovery)?;
         temp.flush()?;
         temp.as_file().sync_all()?;

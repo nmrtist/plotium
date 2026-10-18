@@ -61,10 +61,15 @@ fn no_reparse(path: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-pub(super) fn restrict(dir: &Path) -> io::Result<()> {
-    no_reparse(dir)?;
+pub(super) fn restrict(path: &Path) -> io::Result<()> {
+    no_reparse(path)?;
     let storage = user()?;
-    let name = wide(dir);
+    let name = wide(path);
+    let inheritance = if path.is_dir() {
+        SUB_CONTAINERS_AND_OBJECTS_INHERIT
+    } else {
+        NO_INHERITANCE
+    };
     // SAFETY: TOKEN_USER and its SID live in aligned storage through both calls.
     // The ACL is released only after SetNamedSecurityInfoW has copied it.
     unsafe {
@@ -72,7 +77,7 @@ pub(super) fn restrict(dir: &Path) -> io::Result<()> {
         let access = EXPLICIT_ACCESS_W {
             grfAccessPermissions: FILE_ALL_ACCESS,
             grfAccessMode: SET_ACCESS,
-            grfInheritance: SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+            grfInheritance: inheritance,
             Trustee: TRUSTEE_W {
                 pMultipleTrustee: null_mut(),
                 MultipleTrusteeOperation: NO_MULTIPLE_TRUSTEE,
@@ -87,11 +92,15 @@ pub(super) fn restrict(dir: &Path) -> io::Result<()> {
             return Err(io::Error::from_raw_os_error(result as i32));
         }
         let _allocation = LocalAllocation(acl.cast());
+        // Elevated tokens may default new objects to the Administrators group.
+        // Pin ownership as well as access to the same user checked by validate.
         let result = SetNamedSecurityInfoW(
             name.as_ptr(),
             SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-            null_mut(),
+            OWNER_SECURITY_INFORMATION
+                | DACL_SECURITY_INFORMATION
+                | PROTECTED_DACL_SECURITY_INFORMATION,
+            sid,
             null_mut(),
             acl,
             null(),
@@ -100,7 +109,7 @@ pub(super) fn restrict(dir: &Path) -> io::Result<()> {
             return Err(io::Error::from_raw_os_error(result as i32));
         }
     }
-    validate(dir)
+    validate(path)
 }
 pub(super) fn validate(path: &Path) -> io::Result<()> {
     no_reparse(path)?;
@@ -150,4 +159,45 @@ pub(super) fn validate(path: &Path) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restriction_pins_directory_and_file_to_current_user_and_rejects_public_access() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("mcp");
+        std::fs::create_dir(&directory).unwrap();
+        restrict(&directory).unwrap();
+        let file = directory.join("service.json");
+        std::fs::write(&file, "{}").unwrap();
+        // File owners use the creating token's default, independently of the
+        // parent's owner; exercise both objects on elevated Windows runners.
+        restrict(&file).unwrap();
+        for path in [&directory, &file] {
+            validate(path).unwrap();
+            let name = wide(path);
+            // SAFETY: The path is live and a null DACL deliberately grants
+            // everyone access, which validation must reject even for our owner.
+            let result = unsafe {
+                SetNamedSecurityInfoW(
+                    name.as_ptr(),
+                    SE_FILE_OBJECT,
+                    DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                    null_mut(),
+                    null_mut(),
+                    null(),
+                    null(),
+                )
+            };
+            assert_eq!(result, 0);
+            assert_eq!(
+                validate(path).unwrap_err().kind(),
+                io::ErrorKind::PermissionDenied
+            );
+            restrict(path).unwrap();
+        }
+    }
 }
