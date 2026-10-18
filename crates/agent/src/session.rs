@@ -72,7 +72,8 @@ struct Inspect {
 #[serde(deny_unknown_fields)]
 struct InspectProperty {
     expected_revision: DocumentRevision,
-    ids: Vec<String>,
+    ids: Option<Vec<String>>,
+    targets: Option<Vec<TargetRef>>,
     key: String,
 }
 #[derive(Deserialize)]
@@ -80,7 +81,8 @@ struct InspectProperty {
 struct Plan {
     tool_id: String,
     parameters: Value,
-    ids: Vec<String>,
+    ids: Option<Vec<String>>,
+    targets: Option<Vec<TargetRef>>,
     expected_revision: DocumentRevision,
 }
 #[derive(Deserialize)]
@@ -90,6 +92,26 @@ struct Execute {
 }
 fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, Failure> {
     serde_json::from_value(value).map_err(|e| Failure::new("invalid_parameters", e.to_string()))
+}
+fn selector(
+    ids: Option<Vec<String>>,
+    targets: Option<Vec<TargetRef>>,
+) -> Result<TargetSelector, Failure> {
+    match (ids, targets) {
+        (Some(ids), None) if !ids.is_empty() => Ok(TargetSelector::Explicit { ids }),
+        (None, Some(targets))
+            if !targets.is_empty()
+                && targets
+                    .iter()
+                    .all(|target| matches!(target.component, Some(ComponentRef::Series(_)))) =>
+        {
+            Ok(TargetSelector::Components { targets })
+        }
+        _ => Err(Failure::new(
+            "invalid_parameters",
+            "Supply exactly one nonempty ids or targets array; targets require Series components",
+        )),
+    }
 }
 fn check_property(parameters: &Value) -> Result<(), Failure> {
     if PROPERTIES
@@ -170,6 +192,16 @@ impl Session {
             return Ok(json!(execute_tool(app, plan, authority)?));
         }
         barrier()?;
+        if matches!(name, "plotium_plan" | "plotium_properties_inspect") {
+            for key in ["ids", "targets"] {
+                if arguments.get(key).is_some_and(|value| !value.is_array()) {
+                    return Err(Failure::new(
+                        "invalid_parameters",
+                        "ids and targets must be arrays",
+                    ));
+                }
+            }
+        }
         if name == "plotium_get_state" {
             let _: Empty = decode(arguments)?;
             let revision = DocumentRevision(app.doc.automation_revision);
@@ -198,24 +230,26 @@ impl Session {
                     "Only rename and supported display properties can be planned",
                 ));
             }
-            if args.ids.is_empty() {
+            let targets = selector(args.ids, args.targets)?;
+            if args.tool_id == "resource.rename"
+                && matches!(targets, TargetSelector::Components { .. })
+            {
                 return Err(Failure::new(
                     "invalid_parameters",
-                    "Supply explicit stable target IDs",
+                    "Rename requires resource ids",
                 ));
             }
             if args.tool_id != "resource.rename" {
                 check_property(&args.parameters)?;
             }
-            let plan = plan_tool(
-                app,
-                request(
-                    &args.tool_id,
-                    args.parameters,
-                    args.ids,
-                    args.expected_revision,
-                ),
-            )?;
+            let mut request = request(
+                &args.tool_id,
+                args.parameters,
+                vec![],
+                args.expected_revision,
+            );
+            request.targets = targets;
+            let plan = plan_tool(app, request)?;
             if args.tool_id == "resource.rename"
                 && plan.frozen_targets.targets.iter().any(|r| {
                     !matches!(
@@ -263,7 +297,10 @@ impl Session {
                 let args: InspectProperty = decode(arguments)?;
                 let parameters = json!({"key": args.key});
                 check_property(&parameters)?;
-                (TOOL_INSPECT, parameters, args.ids, args.expected_revision)
+                let mut request = request(TOOL_INSPECT, parameters, vec![], args.expected_revision);
+                request.targets = selector(args.ids, args.targets)?;
+                let plan = plan_tool(app, request)?;
+                return Ok(json!(execute_tool(app, plan, ExecutionAuthority::Read)?));
             }
             _ => return Err(Failure::new("unsupported_operation", "Unknown tool")),
         };

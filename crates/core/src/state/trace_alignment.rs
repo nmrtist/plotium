@@ -274,7 +274,7 @@ impl PlotiumApp {
         }
         let after = self.merge_display_binding(display_owner, &before, displayed_after);
         self.execute_action(Action::set_series_presentation(
-            ci,
+            self.doc.canvases[ci].resource_id,
             request.object,
             before,
             after,

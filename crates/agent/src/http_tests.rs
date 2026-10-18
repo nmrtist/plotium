@@ -153,7 +153,9 @@ fn stop_revokes_token_rejects_queue_and_restart_changes_credentials() {
 
 #[test]
 fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
-    let (mut app, _) = crate::display_tests::fixture(false);
+    let (mut app, targets) = crate::component_tests::fixture();
+    let resource_id = targets[0].resource.id.clone();
+    let original = crate::component_tests::values(&app, &targets);
     let before = app.doc.automation_revision;
     let mut connection = Connection::start(|| {}).unwrap();
     let mut config = StreamableHttpClientTransportConfig::with_uri(connection.url.clone());
@@ -171,14 +173,17 @@ fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
             let search = client.call_tool(CallToolRequestParams::new("plotium_resources_search").with_arguments(
                 json!({"expected_revision": revision, "query": {"kinds":["plotium.canvas.object"], "name_contains":"Plot"}}).as_object().unwrap().clone()
             )).await.unwrap();
-            let id = search.structured_content.unwrap()["value"]["targets"][0]["id"].clone();
+            let found = search.structured_content.unwrap();
+            let id = found["value"]["targets"].as_array().unwrap().iter()
+                .find(|target| target["id"] == resource_id).unwrap()["id"].clone();
             assert!(id.is_string());
             let inspect = client.call_tool(CallToolRequestParams::new("plotium_properties_inspect").with_arguments(
                 json!({"expected_revision": revision, "ids":[id],"key":"series.line.stroke_width"}).as_object().unwrap().clone()
             )).await.unwrap();
             assert_eq!(inspect.is_error, Some(false));
+            let target = inspect.structured_content.unwrap()["value"]["readings"][0]["target"].clone();
             let plan = client.call_tool(CallToolRequestParams::new("plotium_plan").with_arguments(
-                json!({"expected_revision": revision, "ids":[id],"tool_id":"properties.set","parameters":{"key":"series.line.stroke_width","value":1.5}}).as_object().unwrap().clone()
+                json!({"expected_revision": revision, "targets":[target],"tool_id":"properties.set","parameters":{"key":"series.line.stroke_width","value":1.5}}).as_object().unwrap().clone()
             )).await.unwrap();
             let plan_id = plan.structured_content.unwrap()["plan_id"].clone();
             let result = client.call_tool(CallToolRequestParams::new("plotium_execute").with_arguments(
@@ -199,9 +204,15 @@ fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
         }).await.unwrap();
     });
     assert!(app.doc.automation_revision > before);
+    let changed = crate::component_tests::values(&app, &targets);
+    assert_ne!(changed[0], original[0]);
+    assert_eq!(changed[1..], original[1..]);
     assert!(app.can_undo());
     app.undo();
+    assert_eq!(crate::component_tests::values(&app, &targets), original);
     assert!(app.can_redo());
+    app.redo();
+    assert_eq!(crate::component_tests::values(&app, &targets), changed);
 }
 
 #[test]

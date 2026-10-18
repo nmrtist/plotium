@@ -261,7 +261,7 @@ pub(super) fn data_section(app: &mut PlotiumApp, ci: usize, object: ObjectId, ui
     {
         let after = app.merge_display_binding(display_owner, &persisted_binding, after);
         app.execute_action(Action::set_series_presentation(
-            ci,
+            app.doc.canvases[ci].resource_id,
             object,
             persisted_binding,
             after,

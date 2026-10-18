@@ -295,13 +295,13 @@ pub(super) fn validate_action(
                 }
             }
         }
+        Action::SetSeriesPresentation { .. } => validate_presentation_targets(app, action)?,
         Action::SetObjectViewport { canvas, object, .. }
         | Action::SetAxisOverrides { canvas, object, .. }
         | Action::MoveResizeObject { canvas, object, .. }
         | Action::SetPanelMeta { canvas, object, .. }
         | Action::SetObjectFlags { canvas, object, .. }
         | Action::SetDataBinding { canvas, object, .. }
-        | Action::SetSeriesPresentation { canvas, object, .. }
         | Action::SetChartType { canvas, object, .. }
         | Action::SetStackSpec { canvas, object, .. }
         | Action::SetAxisProjections { canvas, object, .. }
@@ -333,6 +333,35 @@ pub(super) fn validate_action(
                 candidate
                     .validate_x_viewport_links()
                     .map_err(ActionApplyError::InvalidValue)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Presentation actions retain stable page identity through history replay.
+pub(super) fn validate_presentation_targets(
+    app: &PlotiumApp,
+    action: &Action,
+) -> Result<(), ActionApplyError> {
+    match action {
+        Action::SetSeriesPresentation { canvas, object, .. } => {
+            if app
+                .doc
+                .canvas_index(*canvas)
+                .and_then(|index| app.doc.canvases[index].object(*object))
+                .and_then(|object| object.plot())
+                .is_none()
+            {
+                return Err(ActionApplyError::StaleTarget(format!(
+                    "object {object} on canvas {canvas}"
+                )));
+            }
+        }
+        Action::Composite(actions) => {
+            for action in actions {
+                validate_presentation_targets(app, action)?;
             }
         }
         _ => {}

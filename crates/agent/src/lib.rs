@@ -218,3 +218,6 @@ mod display_tests;
 mod http_tests;
 #[cfg(test)]
 mod session_tests;
+
+#[cfg(test)]
+mod component_tests;

@@ -377,6 +377,7 @@ pub fn execute_workflow(
                     tool_id: node.tool_id.clone(),
                     parameters: effective_parameters,
                     frozen_targets: FrozenTargetSet {
+                        component_targets: Vec::new(),
                         revision,
                         targets: Vec::new(),
                         reasons: Vec::new(),

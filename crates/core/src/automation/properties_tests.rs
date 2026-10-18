@@ -83,3 +83,6 @@ mod outbound_tests;
 mod planning_tests;
 #[path = "properties_tests_rejections.rs"]
 mod rejection_tests;
+
+#[path = "properties_tests_components.rs"]
+mod component_tests;

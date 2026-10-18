@@ -32,8 +32,27 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
             actual: provider.revision().0,
         });
     }
+    if matches!(request.targets, TargetSelector::Components { .. })
+        && !properties::is_property_tool(&request.tool_id)
+    {
+        return Err(AutomationError::InvalidSelector(
+            "components are only supported by property tools".into(),
+        ));
+    }
     let frozen_targets = freeze_targets(&provider, &request.targets)?;
-    let targets = declared_targets(&provider, descriptor, &frozen_targets);
+    let targets = if frozen_targets.component_targets.is_empty() {
+        declared_targets(&provider, descriptor, &frozen_targets)
+    } else {
+        frozen_targets
+            .component_targets
+            .iter()
+            .map(|target| PlannedTarget {
+                target: target.clone(),
+                status: TargetCompatibility::Compatible,
+                reason: String::new(),
+            })
+            .collect()
+    };
     // The one per-tool planning seam. The uniform gate above answers "may this
     // tool touch this resource at all", which is the same question for every
     // tool; a property tool additionally has to expand one resource into the

@@ -52,7 +52,7 @@ pub(crate) struct PropertyTransaction {
 
 enum TargetSnapshot {
     Binding {
-        canvas: usize,
+        canvas: CanvasId,
         object: ObjectId,
         before: DataBinding,
     },
@@ -245,6 +245,12 @@ impl PropertyTransaction {
         canvas: usize,
         object: ObjectId,
     ) -> Result<&mut DataBinding, super::PropertyError> {
+        let canvas = app
+            .doc
+            .canvases
+            .get(canvas)
+            .ok_or_else(|| super::PropertyError::UnknownTarget(object.to_string()))?
+            .resource_id;
         let binding = self.bindings.entry(app, canvas, object)?;
         if !self.target_before.iter().any(|snapshot| {
             matches!(snapshot, TargetSnapshot::Binding { canvas: candidate_canvas, object: candidate_object, .. } if *candidate_canvas == canvas && *candidate_object == object)
@@ -578,14 +584,14 @@ impl PropertyTransaction {
 
 #[derive(Default)]
 struct BindingPlan {
-    entries: Vec<(usize, ObjectId, DataBinding, DataBinding)>,
+    entries: Vec<(CanvasId, ObjectId, DataBinding, DataBinding)>,
 }
 
 impl BindingPlan {
     fn entry(
         &mut self,
         app: &PlotiumApp,
-        canvas: usize,
+        canvas: CanvasId,
         object: ObjectId,
     ) -> Result<&mut DataBinding, super::PropertyError> {
         if let Some(index) = self
@@ -597,8 +603,8 @@ impl BindingPlan {
         }
         let binding = app
             .doc
-            .canvases
-            .get(canvas)
+            .canvas_index(canvas)
+            .and_then(|index| app.doc.canvases.get(index))
             .and_then(|canvas| canvas.object(object))
             .and_then(|object| object.plot())
             .map(|plot| plot.binding.clone())

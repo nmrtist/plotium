@@ -82,7 +82,11 @@ pub(super) fn refine_plan(
             expanded.push(planned);
             continue;
         }
-        let components = app.resource_property_targets(&planned.target.resource, definition);
+        let components = if planned.target.component.is_some() {
+            vec![planned.target.clone()]
+        } else {
+            app.resource_property_targets(&planned.target.resource, definition)
+        };
         if components.is_empty() {
             expanded.push(PlannedTarget {
                 target: planned.target,

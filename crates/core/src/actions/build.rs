@@ -225,7 +225,7 @@ impl Action {
     }
 
     pub fn set_series_presentation(
-        canvas: usize,
+        canvas: crate::state::CanvasId,
         object: ObjectId,
         before: DataBinding,
         after: DataBinding,

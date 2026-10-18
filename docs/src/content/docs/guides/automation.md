@@ -262,25 +262,64 @@ changing it to 1.5 pt, then apply the saved plan.” The tool sequence is:
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}` locates resources.
    Resolve results to explicit stable IDs; `plotium_resources_inspect` reads
    descriptors using `ids` and `expected_revision`.
-3. `plotium_properties_list` with `{}` lists supported IDs and scopes.
-   `plotium_properties_inspect` takes `ids`, `key` and `expected_revision` and
-   returns current values, defaults, bounds and applicability.
-4. `plotium_plan` takes `tool_id` (`resource.rename`, `properties.set` or
-   `properties.reset`), `parameters`, `ids` and `expected_revision`. For example:
+3. `plotium_properties_list` with `{}` lists supported IDs and scopes. Discover
+   curve addresses with `plotium_properties_inspect`:
+
+   ```json
+   {"ids":["CANVAS_UUID/OBJECT_ID"],"key":"series.line.stroke_width","expected_revision":7}
+   ```
+
+   The response's `value.readings` contains one row per applicable curve. Copy
+   the complete `value.readings[0].target` for the curve you want, for example:
 
    ```json
    {
-     "tool_id": "properties.set",
-     "parameters": { "key": "series.line.stroke_width", "value": 1.5 },
-     "ids": ["CANVAS_UUID/OBJECT_ID"],
-     "expected_revision": 7
+     "resource": {
+       "id":"CANVAS_UUID/OBJECT_ID",
+       "kind":"plotium.canvas.object",
+       "parent_id":"CANVAS_UUID",
+       "local_id":"OBJECT_ID"
+     },
+     "component":{"kind":"series","id":0}
    }
    ```
 
-5. Review the returned `preflight`, then call `plotium_execute` with only
+4. Pass that target unchanged to `plotium_plan` to edit exactly that curve:
+
+   ```json
+   {
+     "tool_id":"properties.set",
+     "parameters":{"key":"series.line.stroke_width","value":1.5},
+     "targets":[{
+       "resource":{
+         "id":"CANVAS_UUID/OBJECT_ID",
+         "kind":"plotium.canvas.object",
+         "parent_id":"CANVAS_UUID",
+         "local_id":"OBJECT_ID"
+       },
+       "component":{"kind":"series","id":0}
+     }],
+     "expected_revision":7
+   }
+   ```
+
+5. Review `preflight`, then call `plotium_execute` with only
    `{"plan_id":"RETURNED_PLAN_ID"}`. Plotium immediately displays the change;
-   **Undo** and **Redo** work in the desktop. Repeating the current value is
+   **Undo** restores it and **Redo** reapplies it. Repeating the current value is
    reported as skipped. A batch applies as one undo step.
+
+Both property inspection and planning require exactly one nonempty `ids` or
+`targets` array. `ids` expands each resource to all components addressed by the
+property; `targets` addresses only the supplied Series components. Series IDs
+are local to their plot, so always copy the full target, including its resource.
+Duplicate targets are processed once. A missing component or forged resource
+identity rejects the entire request; an existing curve to which the property
+does not apply is skipped. Inspection returns values, defaults, bounds and
+applicability. To inspect just one curve, use `targets` in the inspection request.
+To reset it, plan `properties.reset` with `{"key":"series.line.stroke_width"}`
+and the same target. Component addressing supports only the five listed display
+properties; processing parameters are unavailable. `resource.rename` requires
+`ids`.
 
 Tool responses include structured content and its JSON text representation.
 Project reads and preflight require the current `expected_revision`; fetch the

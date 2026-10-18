@@ -232,6 +232,8 @@ pub struct SelectionReason {
 pub struct FrozenTargetSet {
     pub revision: DocumentRevision,
     pub targets: Vec<ResourceRef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub component_targets: Vec<TargetRef>,
     pub reasons: Vec<SelectionReason>,
     pub total_matches: usize,
     pub truncated: bool,
@@ -241,6 +243,7 @@ pub struct FrozenTargetSet {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TargetSelector {
     Explicit { ids: Vec<String> },
+    Components { targets: Vec<TargetRef> },
     CurrentSelection,
     Query { query: ResourceQuery },
     WorkflowInput { name: String },

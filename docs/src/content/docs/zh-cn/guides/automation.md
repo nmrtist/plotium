@@ -232,23 +232,58 @@ stdio 连接。
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}`。先将结果解析为
    显式稳定 ID；`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
 3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性及范围。
-   `plotium_properties_inspect` 接受 `ids`、`key` 和 `expected_revision`，
-   返回当前值、默认值、数值范围及可用性。
-4. `plotium_plan` 接受 `tool_id`（`resource.rename`、`properties.set` 或
-   `properties.reset`）、`parameters`、`ids` 和 `expected_revision`，例如：
+   使用 `plotium_properties_inspect` 查询曲线地址：
+
+   ```json
+   {"ids":["CANVAS_UUID/OBJECT_ID"],"key":"series.line.stroke_width","expected_revision":7}
+   ```
+
+   返回的 `value.readings` 为每条适用曲线提供一行。复制所选曲线的完整
+   `value.readings[0].target`，例如：
 
    ```json
    {
-     "tool_id": "properties.set",
-     "parameters": { "key": "series.line.stroke_width", "value": 1.5 },
-     "ids": ["CANVAS_UUID/OBJECT_ID"],
-     "expected_revision": 7
+     "resource": {
+       "id":"CANVAS_UUID/OBJECT_ID",
+       "kind":"plotium.canvas.object",
+       "parent_id":"CANVAS_UUID",
+       "local_id":"OBJECT_ID"
+     },
+     "component":{"kind":"series","id":0}
    }
    ```
 
-5. 查看返回的 `preflight` 后，以 `{"plan_id":"RETURNED_PLAN_ID"}` 调用
-   `plotium_execute`。桌面立即显示修改，支持 **Undo** 和 **Redo**。
+4. 将该 target 原样传入 `plotium_plan`，仅修改这一条曲线：
+
+   ```json
+   {
+     "tool_id":"properties.set",
+     "parameters":{"key":"series.line.stroke_width","value":1.5},
+     "targets":[{
+       "resource":{
+         "id":"CANVAS_UUID/OBJECT_ID",
+         "kind":"plotium.canvas.object",
+         "parent_id":"CANVAS_UUID",
+         "local_id":"OBJECT_ID"
+       },
+       "component":{"kind":"series","id":0}
+     }],
+     "expected_revision":7
+   }
+   ```
+
+5. 查看 `preflight` 后，仅以 `{"plan_id":"RETURNED_PLAN_ID"}` 调用
+   `plotium_execute`。桌面立即显示修改；**Undo** 恢复原值，**Redo** 重新应用。
    相同值报告为跳过；整批修改合并为一次撤销。
+
+属性查询和预检必须且只能提供一个非空的 `ids` 或 `targets` 数组。
+`ids` 将每个资源展开为该属性对应的所有组件；`targets` 只操作指定的 Series 组件。
+Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息的完整 target。
+重复目标仅处理一次；组件不存在或资源身份被伪造时整次请求拒绝；曲线存在但属性
+不适用时报告为跳过。查询会返回当前值、默认值、范围及可用性；只查询一条曲线时，
+也可将查询参数改为 `targets`。恢复默认值时，用同一 target 预检 `properties.reset`，
+参数为 `{"key":"series.line.stroke_width"}`。组件寻址仅支持所列五项显示属性，
+不开放处理参数。`resource.rename` 仍须使用 `ids`。
 
 工具结果同时提供结构化内容及 JSON 文本。项目读取与预检要求当前
 `expected_revision`；修改或撤销后重新获取状态。执行时重新检查保存的 revision

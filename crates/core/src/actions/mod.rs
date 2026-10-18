@@ -329,7 +329,7 @@ pub enum Action {
     /// viewport. Property-catalog edits use this boundary; adding, removing or
     /// reordering data still uses `SetDataBinding` and refits the plot.
     SetSeriesPresentation {
-        canvas: usize,
+        canvas: crate::state::CanvasId,
         object: ObjectId,
         before: DataBinding,
         after: DataBinding,

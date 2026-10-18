@@ -57,6 +57,11 @@ impl PlotiumApp {
         let Some(action) = self.session.undo_stack.pop() else {
             return;
         };
+        if let Err(error) = validate::validate_presentation_targets(self, &action) {
+            self.session.undo_stack.push(action);
+            self.session.status = error.to_string();
+            return;
+        }
         let label = action.undo_label();
         self.revert_action(&action);
         self.session.redo_stack.push(action);
@@ -462,7 +467,7 @@ impl PlotiumApp {
             return;
         };
         self.execute_action(Action::set_series_presentation(
-            edit.canvas,
+            self.doc.canvases[edit.canvas].resource_id,
             edit.object,
             edit.before,
             after,

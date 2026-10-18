@@ -155,7 +155,9 @@ impl PlotiumApp {
                 before,
                 ..
             } => {
-                self.set_object_presentation(*canvas, *object, before);
+                if let Some(index) = self.doc.canvas_index(*canvas) {
+                    self.set_object_presentation(index, *object, before);
+                }
             }
             Action::SetChartType {
                 canvas,

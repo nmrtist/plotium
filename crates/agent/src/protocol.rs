@@ -78,6 +78,18 @@ impl ServerHandler for Handler {
 fn definitions() -> Vec<Tool> {
     let revision = json!({"type": "integer", "minimum": 0});
     let ids = json!({"type": "array", "items": {"type": "string"}, "minItems": 1});
+    let targets = json!({"type":"array", "minItems":1, "items": {
+        "type":"object", "additionalProperties":false, "required":["resource","component"],
+        "properties": {
+            "resource": {"type":"object", "additionalProperties":false, "required":["id","kind"], "properties": {
+                "id":{"type":"string"}, "kind":{"type":"string"},
+                "parent_id":{"type":["string","null"]}, "local_id":{"type":["string","null"]}
+            }},
+            "component":{"type":"object", "additionalProperties":false, "required":["kind","id"], "properties": {
+                "kind":{"const":"series"}, "id":{"type":"integer","minimum":0,"maximum":u64::MAX}
+            }}
+        }
+    }});
     let key = json!({"type": "string", "enum": crate::session::PROPERTIES.iter().map(|id| id.as_str()).collect::<Vec<_>>()});
     let registry = plotium_core::automation::ToolRegistry::built_in();
     let mut query = registry
@@ -94,11 +106,62 @@ fn definitions() -> Vec<Tool> {
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
         ("plotium_properties_list", "List supported display property IDs, labels and scopes. Does not create a run record.", json!({}), json!([])),
-        ("plotium_properties_inspect", "Read property values, defaults, bounds and applicability.", json!({"expected_revision": revision, "ids": ids, "key": key}), json!(["expected_revision", "ids", "key"])),
-        ("plotium_plan", "Preflight a supported edit on explicit IDs. Returns a one-use opaque plan_id; at most 32 pending plans.", json!({"expected_revision": revision, "ids": ids, "tool_id": {"enum": ["resource.rename", "properties.set", "properties.reset"]}, "parameters": {"type": "object", "description": "Core tool arguments: rename {name}; properties.set {key,value}; properties.reset {key}."}}), json!(["expected_revision", "ids", "tool_id", "parameters"])),
+        ("plotium_properties_inspect", "Read property values, defaults, bounds and applicability.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "key": key}), json!(["expected_revision", "key"])),
+        ("plotium_plan", "Preflight a supported edit on resource IDs or exact series targets. Returns a one-use opaque plan_id; at most 32 pending plans.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "tool_id": {"enum": ["resource.rename", "properties.set", "properties.reset"]}, "parameters": {"type": "object", "description": "Core tool arguments: rename {name}; properties.set {key,value}; properties.reset {key}."}}), json!(["expected_revision", "tool_id", "parameters"])),
         ("plotium_execute", "Submit a saved plan once. Requires current desktop write permission and unchanged revision. Undo is available in Plotium.", json!({"plan_id": {"type": "string"}}), json!(["plan_id"])),
     ].into_iter().map(|(name, description, properties, required)| {
-        let schema = json!({"type": "object", "properties": properties, "required": required, "additionalProperties": false});
+        let mut schema = json!({"type": "object", "properties": properties, "required": required, "additionalProperties": false});
+        if matches!(name, "plotium_properties_inspect" | "plotium_plan") {
+            schema["oneOf"] = json!([
+                {"required":["ids"], "not":{"required":["targets"]}},
+                {"required":["targets"], "not":{"required":["ids"]}}
+            ]);
+            if name == "plotium_plan" {
+                schema["allOf"] = json!([{"if":{"properties":{"tool_id":{"const":"resource.rename"}}},"then":{"required":["ids"],"not":{"required":["targets"]}}}]);
+            }
+        }
         Tool::new(name, description, schema.as_object().expect("local schema is an object").clone())
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exact_address_schemas_require_one_addressing_mode_and_series_identity() {
+        for tool in definitions().into_iter().filter(|tool| {
+            matches!(
+                tool.name.as_ref(),
+                "plotium_plan" | "plotium_properties_inspect"
+            )
+        }) {
+            let schema = Value::Object((*tool.input_schema).clone());
+            assert_eq!(
+                schema["oneOf"],
+                json!([
+                    {"required":["ids"],"not":{"required":["targets"]}},
+                    {"required":["targets"],"not":{"required":["ids"]}}
+                ])
+            );
+            assert_eq!(schema["properties"]["ids"]["minItems"], 1);
+            let targets = &schema["properties"]["targets"];
+            assert_eq!(targets["minItems"], 1);
+            assert_eq!(
+                targets["items"]["required"],
+                json!(["resource", "component"])
+            );
+            let component = &targets["items"]["properties"]["component"];
+            assert_eq!(component["required"], json!(["kind", "id"]));
+            assert_eq!(component["properties"]["kind"]["const"], "series");
+            assert_eq!(component["properties"]["id"]["maximum"], json!(u64::MAX));
+            assert_eq!(
+                targets["items"]["properties"]["resource"]["additionalProperties"],
+                false
+            );
+            if tool.name == "plotium_plan" {
+                assert_eq!(schema["allOf"][0]["then"]["required"], json!(["ids"]));
+            }
+        }
+    }
 }

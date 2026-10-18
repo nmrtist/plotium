@@ -1,12 +1,14 @@
 use super::{
-    AutomationError, CapabilityId, DataPreview, DocumentRevision, FrozenTargetSet,
+    AutomationError, CapabilityId, ComponentRef, DataPreview, DocumentRevision, FrozenTargetSet,
     ProjectBlueprint, ResourceDescriptor, ResourceKindId, ResourceQuery, ResourceRef,
-    SelectionReason, TargetSelector,
+    SelectionReason, TargetRef, TargetSelector,
 };
 use crate::state::{Dataset, PlotiumApp};
 use std::collections::BTreeMap;
 
 mod mass_spec;
+mod targets;
+pub use targets::freeze_targets;
 mod selection;
 mod statistics;
 mod xps;
@@ -68,6 +70,9 @@ pub const CAP_FIELD_XPS_SPECTRUM: &str = "field.xps.spectrum";
 /// implementing this trait; query and tool orchestration do not dispatch on a
 /// Rust data-domain enum.
 pub trait ResourceProvider {
+    fn component_exists(&self, _target: &TargetRef) -> bool {
+        false
+    }
     fn revision(&self) -> DocumentRevision;
     fn blueprint(&self) -> ProjectBlueprint;
     fn descriptors(&self) -> Vec<ResourceDescriptor>;
@@ -253,6 +258,17 @@ impl<'a> ProjectResourceProvider<'a> {
 }
 
 impl ResourceProvider for ProjectResourceProvider<'_> {
+    fn component_exists(&self, target: &TargetRef) -> bool {
+        let targets = match target.component {
+            Some(ComponentRef::Series(_)) => self.app.resource_series_targets(&target.resource),
+            Some(ComponentRef::ProcessingStep(_)) => {
+                self.app.resource_processing_step_targets(&target.resource)
+            }
+            None => return false,
+        };
+        targets.contains(target)
+    }
+
     fn revision(&self) -> DocumentRevision {
         DocumentRevision(self.app.doc.automation_revision)
     }
@@ -425,59 +441,6 @@ impl ResourceProvider for ProjectResourceProvider<'_> {
     }
 }
 
-pub fn freeze_targets(
-    provider: &impl ResourceProvider,
-    selector: &TargetSelector,
-) -> Result<FrozenTargetSet, AutomationError> {
-    match selector {
-        TargetSelector::Explicit { ids } => {
-            let mut targets = Vec::new();
-            let mut reasons = Vec::new();
-            for id in ids {
-                let descriptor = provider.inspect(id).ok_or_else(|| {
-                    AutomationError::InvalidSelector(format!("resource {id} does not exist"))
-                })?;
-                reasons.push(SelectionReason {
-                    resource_id: id.clone(),
-                    reason: "explicit stable id".to_owned(),
-                });
-                targets.push(descriptor.resource);
-            }
-            Ok(FrozenTargetSet {
-                revision: provider.revision(),
-                total_matches: targets.len(),
-                targets,
-                reasons,
-                truncated: false,
-            })
-        }
-        TargetSelector::CurrentSelection => {
-            let targets = provider.current_selection();
-            let reasons = targets
-                .iter()
-                .map(|target| SelectionReason {
-                    resource_id: target.id.clone(),
-                    reason: "current GUI selection".to_owned(),
-                })
-                .collect();
-            Ok(FrozenTargetSet {
-                revision: provider.revision(),
-                total_matches: targets.len(),
-                targets,
-                reasons,
-                truncated: false,
-            })
-        }
-        TargetSelector::Query { query } => Ok(search_resources(provider, query)),
-        TargetSelector::WorkflowInput { name } => Err(AutomationError::InvalidSelector(format!(
-            "workflow input '{name}' must be bound by the workflow executor"
-        ))),
-        TargetSelector::NodeOutput { node, port } => Err(AutomationError::InvalidSelector(
-            format!("node output {node}.{port} must be bound by the workflow executor"),
-        )),
-    }
-}
-
 pub fn search_resources(
     provider: &impl ResourceProvider,
     query: &ResourceQuery,
@@ -496,6 +459,7 @@ pub fn search_resources(
         .take(limit)
         .collect::<Vec<_>>();
     FrozenTargetSet {
+        component_targets: Vec::new(),
         revision: provider.revision(),
         targets: selected
             .iter()
