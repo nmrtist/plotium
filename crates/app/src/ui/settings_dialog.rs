@@ -22,7 +22,11 @@ pub(crate) use chrome::{apply_chrome_theme, surface_corner_radius, sync_chrome_t
 use chrome::{footer, rail_row};
 use controls::{render_recent, ui_scale_row, update_status_row};
 
-pub(super) fn settings_window(app: &mut PlotiumApp, ctx: &egui::Context) {
+pub(super) fn settings_window(
+    app: &mut PlotiumApp,
+    ctx: &egui::Context,
+    agent_connections: &mut crate::agent_connections::AgentConnections,
+) {
     if app.session.ui.settings_dialog.is_none() {
         return;
     }
@@ -40,7 +44,7 @@ pub(super) fn settings_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         ui.set_min_size(size);
         ui.heading("Preferences");
         ui.separator();
-        let (d, r) = window_body(ui, app, monitor.as_ref());
+        let (d, r) = window_body(ui, app, monitor.as_ref(), agent_connections);
         done = d;
         reset = r;
     });
@@ -116,6 +120,7 @@ fn window_body(
     ui: &mut Ui,
     app: &mut PlotiumApp,
     monitor: Option<&MonitorScaleStatus>,
+    agent_connections: &mut crate::agent_connections::AgentConnections,
 ) -> (bool, bool) {
     let mut done = false;
     let mut reset = false;
@@ -149,7 +154,7 @@ fn window_body(
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    render_category(ui, category, app, monitor);
+                    render_category(ui, category, app, monitor, agent_connections);
                 });
         });
 
@@ -161,6 +166,7 @@ fn render_category(
     cat: SettingsCategory,
     app: &mut PlotiumApp,
     monitor: Option<&MonitorScaleStatus>,
+    agent_connections: &mut crate::agent_connections::AgentConnections,
 ) {
     ui.add_space(2.0);
     match cat {
@@ -196,6 +202,7 @@ fn render_category(
             let draft = &mut app.session.ui.settings_dialog.as_mut().unwrap().draft;
             render_recent(ui, draft);
         }
+        SettingsCategory::AgentConnections => agent_connections.show(ui),
     }
 }
 

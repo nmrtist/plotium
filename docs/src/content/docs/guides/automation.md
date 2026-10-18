@@ -179,3 +179,121 @@ Workflow files are plain JSON and can also be run without the desktop app —
 see [the command line](/reference/cli/), which executes the same workflows
 headlessly. [File formats](/reference/file-formats/) describes the workflow
 and run-record files themselves.
+
+## Local agent connections (MCP)
+
+Open **Preferences → Agent connections**. **File → Agent connections…** and
+**Agent connections** in the command palette take you to the same settings page.
+Press **Start connection**.
+
+### Connect Codex CLI
+
+1. Install and sign in to Codex CLI (`--no-daemon` support is required; verified
+   with version 0.163.0).
+2. Press **Copy Codex launch command** in Plotium.
+3. Paste the command into a terminal and run it as-is: use zsh or bash on macOS
+   and Linux, or PowerShell on Windows. It starts a new Codex session with the
+   current connection address and token. No manual substitutions or separate
+   `export` / `codex mcp add` steps are needed.
+4. In Codex, enter `/mcp` and check that `plotium` is connected with seven
+   tools. Try: “Use plotium to inspect the current Plotium project without
+   changing it.”
+
+The command supplies temporary startup configuration and a token environment
+variable for that invocation. It uses an independent Codex process so an existing
+background service cannot retain an old environment. It does not write Codex
+configuration files. Run it from the folder you want Codex to work in. After
+stopping and restarting the Plotium connection, copy a new command and start a
+new Codex session.
+
+### Other MCP clients
+
+**Copy connection information** provides a generic JSON object with the actual
+`url` and authentication `headers`. Configure a client that supports HTTP MCP and
+custom authentication headers using those values. The shape is:
+
+```json
+{
+  "url": "http://127.0.0.1:PORT/mcp",
+  "headers": { "Authorization": "Bearer TOKEN" }
+}
+```
+
+The copied object already contains the actual port and token; your client's
+surrounding configuration may differ. Plotium does not edit other applications'
+settings. Each start chooses a new local port and secret token. Connection
+settings and permissions are never saved. Closing Preferences keeps the connection
+running. Stop the connection to revoke the token; project transitions and quitting
+also stop it. Only local clients can connect. Browser origins must match the
+server's own origin; cross-origin access is unavailable.
+
+### Permissions and supported operations
+
+Connections start with **Read and modify** access, so agents can apply supported
+edits immediately after connecting. Changes use Plotium's normal **Undo** and
+**Redo**. Choose **Read only** under **Access** to prevent further edits, including
+pending plans; queries and preflight remain available. The selected access applies
+to every client holding that connection token and lasts until the connection is
+stopped. A new connection starts with **Read and modify** again.
+
+Real Agent project reads and executions save run records and mark the project as
+unsaved; handshakes, tool listing and the static property catalog do not.
+
+The first version supports project and resource queries, renaming datasets,
+canvases and canvas objects, and these display properties only:
+
+| Property ID | Target |
+| --- | --- |
+| `series.line.stroke_width` | Plot object (its line series) |
+| `series.contour.line_width` | Plot object (its contour series) |
+| `series.contour.count` | Plot object (its contour series) |
+| `document.figure.typography.tick_pt` | `document` |
+| `document.figure.typography.label_pt` | `document` |
+
+Processing parameters, preferences, imports, computation, exports, image
+previews, built-in chat and stdio connections are outside this interface.
+
+An example agent task is: “Find my line plot, inspect its stroke width, preflight
+changing it to 1.5 pt, then apply the saved plan.” The tool sequence is:
+
+1. `plotium_get_state` with `{}` returns `revision`, project overview, selection
+   and connection permissions.
+2. `plotium_resources_search` with `expected_revision` and a `query` such as
+   `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}` locates resources.
+   Resolve results to explicit stable IDs; `plotium_resources_inspect` reads
+   descriptors using `ids` and `expected_revision`.
+3. `plotium_properties_list` with `{}` lists supported IDs and scopes.
+   `plotium_properties_inspect` takes `ids`, `key` and `expected_revision` and
+   returns current values, defaults, bounds and applicability.
+4. `plotium_plan` takes `tool_id` (`resource.rename`, `properties.set` or
+   `properties.reset`), `parameters`, `ids` and `expected_revision`. For example:
+
+   ```json
+   {
+     "tool_id": "properties.set",
+     "parameters": { "key": "series.line.stroke_width", "value": 1.5 },
+     "ids": ["CANVAS_UUID/OBJECT_ID"],
+     "expected_revision": 7
+   }
+   ```
+
+5. Review the returned `preflight`, then call `plotium_execute` with only
+   `{"plan_id":"RETURNED_PLAN_ID"}`. Plotium immediately displays the change;
+   **Undo** and **Redo** work in the desktop. Repeating the current value is
+   reported as skipped. A batch applies as one undo step.
+
+Tool responses include structured content and its JSON text representation.
+Project reads and preflight require the current `expected_revision`; fetch the
+state again after edits or Undo. Execution rechecks the saved revision and current
+permission. Plans are single-use, including failed submissions, and at most 32
+can be pending. Restarting the connection clears them. Requests cancelled before
+desktop execution are skipped without changing the project. Cancellation cannot
+roll back an edit that has already started its atomic commit; use **Undo**.
+
+Errors include stable codes: `permission_denied`, `expired_plan`,
+`stale_revision`, `busy`, `invalid_parameters`, `unsupported_operation`,
+`plan_limit`, `request_cancelled`, `connection_stopped` and `execution_failed`.
+A `busy` response is retryable after the active edit, recovery confirmation or background project
+operation finishes. For stale or expired plans, read state and preflight again.
+The Agent connections settings page shows recent operations and errors without
+opening itself in response to background activity.

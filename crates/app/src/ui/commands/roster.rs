@@ -21,6 +21,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::OpenFolder,
         CommandId::ImportNmrSampling,
         CommandId::RunBatchWorkflow,
+        CommandId::AgentConnections,
         CommandId::RunScientificScript,
         CommandId::ClearRecentFiles,
         CommandId::HelpManual,

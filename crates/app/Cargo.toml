@@ -19,6 +19,7 @@ datafusion = ["plotium-core/datafusion"]
 [dependencies]
 nmr.workspace = true
 plotium-core.workspace = true
+plotium-agent.workspace = true
 plotium-analysis.workspace = true
 plotium-io.workspace = true
 plotium-figure.workspace = true

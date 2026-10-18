@@ -11,7 +11,9 @@ fn run_all_categories(app: &mut PlotiumApp, size: egui::Vec2) {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)),
             ..Default::default()
         };
-        let _ = ctx.run_ui(input, |ui| settings_window(app, ui.ctx()));
+        let _ = ctx.run_ui(input, |ui| {
+            settings_window(app, ui.ctx(), &mut Default::default())
+        });
     }
 }
 

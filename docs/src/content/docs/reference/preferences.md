@@ -4,9 +4,10 @@ description: Every setting in the Preferences window, by category.
 ---
 
 Open Preferences with `Ctrl` + `,` (`Cmd` + `,` on macOS) or from the menus.
-Changes are saved automatically and usually apply immediately; changes to
+Preference changes are saved automatically and usually apply immediately; changes to
 **Graphics processor** apply after a restart. **Reset to Defaults** restores
-everything except your recent-files list.
+saved preferences except your recent-files list. Agent connections have a separate
+session lifetime, described below.
 
 ## General
 
@@ -72,3 +73,16 @@ everything except your recent-files list.
 The files, folders, and projects you opened recently — the same list as
 **File → Open Recent** and the welcome screen — with a **Clear recent files**
 button.
+
+## Agent connections
+
+Start or stop a local MCP connection to the current project. **Access** defaults
+to **Read and modify**, with Undo and Redo available for edits; choose **Read only**
+to prevent further edits. **Copy Codex launch command** supplies a
+ready-to-run command; **Copy connection information** supplies generic JSON for
+other clients. Recent operations and errors appear on the same page.
+
+Connections and permissions are never saved. Closing Preferences keeps the
+connection running; stopping it, switching projects or quitting revokes access.
+Each restart needs a new copied command or connection configuration. See
+[Automation](/guides/automation/#local-agent-connections-mcp) for setup and scope.

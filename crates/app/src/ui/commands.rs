@@ -34,6 +34,7 @@ pub enum CommandId {
     OpenFolder,
     ImportNmrSampling,
     RunBatchWorkflow,
+    AgentConnections,
     RunScientificScript,
     OpenRecent(usize),
     ClearRecentFiles,

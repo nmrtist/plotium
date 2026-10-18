@@ -214,6 +214,7 @@ fn sidebar_toggle_keeps_a_parked_card_and_its_drag_gesture() {
                     app,
                     &mut clipboard,
                     &mut workflow,
+                    &mut Default::default(),
                     &mut title,
                     ui,
                     false,

@@ -146,6 +146,7 @@ fn rail_icon(cat: SettingsCategory) -> &'static str {
         SettingsCategory::Processing => icon::WAVEFORM,
         SettingsCategory::Export => icon::EXPORT,
         SettingsCategory::Recent => icon::CLOCK_COUNTER_CLOCKWISE,
+        SettingsCategory::AgentConnections => icon::PLUG,
     }
 }
 

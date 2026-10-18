@@ -212,7 +212,7 @@ fn app_home_route_opens_preferences_scrolls_and_highlights_the_row() {
 
     let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
-        crate::ui::settings_dialog::settings_window(&mut app, ui.ctx());
+        crate::ui::settings_dialog::settings_window(&mut app, ui.ctx(), &mut Default::default());
     });
 
     let focus = app

@@ -3,6 +3,7 @@
 // Release Windows builds are GUI apps: suppress the console window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod agent_connections;
 mod fonts;
 mod graphics;
 mod observability;
@@ -120,6 +121,7 @@ struct Shell {
     next_recovery_at: Instant,
     clipboard_table_paste: ui::clipboard_table::ClipboardTablePaste,
     batch_workflow: ui::batch_workflow::AutomationUi,
+    agent_connections: agent_connections::AgentConnections,
     shot: Option<shot::ShotDriver>,
     scale: scale::ScaleDriver,
     last_window_title: Option<String>,
@@ -129,6 +131,7 @@ struct Shell {
 
 impl Shell {
     fn shutdown(&mut self) {
+        self.agent_connections.stop();
         if let Some(job) = self.manual_save_job.take() {
             match job.handle.join() {
                 Ok(Ok(_)) => {}
@@ -182,53 +185,6 @@ impl Shell {
             }),
         });
         ctx.request_repaint_after(Duration::from_millis(100));
-    }
-
-    fn poll_manual_project_save(&mut self, ctx: &egui::Context) {
-        let finished = self
-            .manual_save_job
-            .as_ref()
-            .is_some_and(|job| job.handle.is_finished());
-        if !finished {
-            if self.manual_save_job.is_some() {
-                ctx.request_repaint_after(Duration::from_millis(100));
-            }
-            return;
-        }
-        let job = self
-            .manual_save_job
-            .take()
-            .expect("finished project save worker is present");
-        let result = match job.handle.join() {
-            Ok(result) => result,
-            Err(_) => Err(plotium_core::project::ProjectError::Invalid(
-                "project save worker failed unexpectedly".to_owned(),
-            )),
-        };
-        let saved = self.app.complete_project_save(
-            job.operation_id,
-            &job.path,
-            job.include_view_snapshots,
-            job.captured_generation,
-            result,
-        );
-        self.app.session.ui.project_save_in_progress = false;
-        if job.continue_transition {
-            if let Some(transition) = self.app.session.ui.project_transition.as_mut() {
-                transition.phase = if transition_ready_after_save(
-                    saved,
-                    job.captured_generation,
-                    self.app.doc.edit_generation,
-                ) {
-                    plotium_core::state::ProjectTransitionPhase::Ready
-                } else {
-                    plotium_core::state::ProjectTransitionPhase::NeedsConfirmation
-                };
-            }
-        } else if !saved {
-            self.app.session.ui.save_project_options = true;
-        }
-        ctx.request_repaint();
     }
 
     fn drive_project_transition(&mut self, ctx: &egui::Context) {
@@ -504,6 +460,7 @@ impl Shell {
                             )
                         },
                     );
+                    self.agent_connections.stop();
                     self.app = app;
                     self.pending_recovery = None;
                     self.recovery_written = true;
@@ -700,6 +657,7 @@ fn main() -> eframe::Result<()> {
                 next_recovery_at: Instant::now() + RECOVERY_INTERVAL,
                 clipboard_table_paste: Default::default(),
                 batch_workflow: Default::default(),
+                agent_connections: Default::default(),
                 shot: shot::ShotDriver::from_env(),
                 // The screenshot harness scripts its own zoom; adaptive scale
                 // must not fight it.

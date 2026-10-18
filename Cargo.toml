@@ -10,6 +10,7 @@ members = [
     "crates/figure",
     "crates/render",
     "crates/core",
+    "crates/agent",
     "crates/cli",
     "crates/app",
     "xtask",
@@ -24,6 +25,7 @@ default-members = [
     "crates/figure",
     "crates/render",
     "crates/core",
+    "crates/agent",
     "crates/cli",
     "crates/app",
     "xtask",
@@ -111,6 +113,7 @@ plotium-analysis = { path = "crates/analysis" }
 plotium-processing = { path = "crates/processing" }
 plotium-figure = { path = "crates/figure" }
 plotium-render = { path = "crates/render" }
+plotium-agent = { path = "crates/agent" }
 plotium-core = { path = "crates/core", default-features = false }
 
 [profile.dev]

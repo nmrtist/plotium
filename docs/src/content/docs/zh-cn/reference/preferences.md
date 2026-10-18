@@ -5,7 +5,8 @@ description: 偏好设置窗口中的每一项设置，按类别列出。
 
 用 `Ctrl` + `,`（macOS 为 `Cmd` + `,`）或从菜单打开偏好设置。修改会自动
 保存，通常立即生效；**Graphics processor** 的更改在重启后生效。
-**Reset to Defaults** 恢复全部默认值，但保留最近文件列表。
+**Reset to Defaults** 恢复已保存偏好设置的默认值，但保留最近文件列表。
+Agent 连接仅对本次开启生效，详见下文。
 
 ## General（通用）
 
@@ -57,3 +58,14 @@ description: 偏好设置窗口中的每一项设置，按类别列出。
 
 最近打开的文件、文件夹和项目——与 **File → Open Recent** 及欢迎页相同
 的列表——并提供 **Clear recent files** 按钮。
+
+## Agent connections（Agent 连接）
+
+开启或停止当前项目的本机 MCP 连接。**Access** 默认选择 **Read and modify**
+（读取和修改），修改可撤销和重做；选择 **Read only**（只读）可阻止后续修改。**Copy Codex launch command** 提供可直接执行的启动命令；
+**Copy connection information** 提供其他客户端所需的通用 JSON。
+同一页面显示最近操作与错误。
+
+连接和授权均不保存。关闭偏好设置不影响连接；停止连接、切换项目或退出会撤销
+访问权限。每次重新开启后须重新复制命令或连接配置。配置步骤与支持范围见
+[自动化](/zh-cn/guides/automation/#本机-agent-连接mcp)。

@@ -161,3 +161,103 @@ Diagnostic History** 中，附带每个文件的路径、大小和 SHA-256 校�
 工作流文件是纯 JSON，也可以脱离桌面应用运行——见
 [命令行](/zh-cn/reference/cli/)，它以无界面方式执行同样的工作流。工作流
 与运行记录文件本身的说明见[文件格式](/zh-cn/reference/file-formats/)。
+
+## 本机 agent 连接（MCP）
+
+打开 **Preferences → Agent connections**。菜单 **File → Agent connections…**
+和命令面板中的 **Agent connections** 都会跳转到同一个设置页面。
+点击 **Start connection**。
+
+### 连接 Codex CLI
+
+1. 安装 Codex CLI 并登录（须支持 `--no-daemon`；已用 0.163.0 版本验证）。
+2. 在 Plotium 中点击 **Copy Codex launch command**。
+3. 将命令原样粘贴到终端执行：macOS 和 Linux 使用 zsh 或 bash，Windows
+   使用 PowerShell。命令自动填入当前地址和密钥，启动新的 Codex 会话，
+   无需手动替换内容，也无需另行执行 `export` 或 `codex mcp add`。
+4. 在 Codex 中输入 `/mcp`，确认 `plotium` 已连接且有七个工具。
+   可以先发送：“使用 plotium 查看当前 Plotium 项目，暂时不要修改。”
+
+命令使用临时启动配置和仅对本次调用生效的密钥环境变量，并启动独立 Codex
+进程，避免已有后台服务沿用旧环境。命令不写入 Codex 配置文件。请在希望 Codex
+工作的目录中执行。停止并重新开启 Plotium 连接后，需要重新复制命令并启动
+新的 Codex 会话。
+
+### 其他 MCP 客户端
+
+**Copy connection information** 提供含有实际 `url` 和认证 `headers` 的
+通用 JSON 对象。外部客户端须支持 HTTP MCP 和自定义认证头，其结构如下：
+
+```json
+{
+  "url": "http://127.0.0.1:PORT/mcp",
+  "headers": { "Authorization": "Bearer TOKEN" }
+}
+```
+
+复制内容已经填入实际端口和密钥；不同客户端的外围配置可能不同。Plotium
+不修改其他软件的设置。每次开启均分配新的本机端口和随机密钥，不保存连接
+配置和授权。关闭设置页面不会停止连接；停止连接、切换项目或退出会撤销密钥。
+仅接受本机连接；浏览器请求的 Origin 必须与服务自身来源一致，不开放跨域访问。
+
+### 权限与支持范围
+
+连接默认使用 **Read and modify**（读取和修改），agent 连接后即可执行支持的
+修改，并可通过 Plotium 的 **Undo** 与 **Redo** 撤销和重做。
+在 **Access** 中选择 **Read only**（只读）会立即阻止后续修改，包括待执行计划；
+查询和预检仍然可用。访问权限适用于所有持有该连接密钥的客户端，停止连接后
+失效；重新开启连接时恢复默认的 **Read and modify**。
+
+实际 Agent 项目读取和执行均保存运行记录，使项目进入未保存状态；握手、工具
+发现及静态属性目录查询不生成运行记录。
+
+首版支持项目和资源查询、数据集／画布／画布对象重命名，以及以下显示属性：
+
+| 属性 ID | 目标 |
+| --- | --- |
+| `series.line.stroke_width` | 图对象中的线图序列 |
+| `series.contour.line_width` | 图对象中的等高线序列 |
+| `series.contour.count` | 图对象中的等高线序列 |
+| `document.figure.typography.tick_pt` | `document` |
+| `document.figure.typography.label_pt` | `document` |
+
+此接口暂不支持处理参数、应用偏好、导入、计算、导出、图像预览、内置聊天及
+stdio 连接。
+
+示例任务：“找到我的线图，读取线宽，预检改为 1.5 pt，再执行保存的计划。”
+工具调用顺序如下：
+
+1. 用 `{}` 调用 `plotium_get_state`，取得 `revision`、项目概况、选择和连接权限。
+2. `plotium_resources_search` 接受 `expected_revision` 和 `query`，例如
+   `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}`。先将结果解析为
+   显式稳定 ID；`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
+3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性及范围。
+   `plotium_properties_inspect` 接受 `ids`、`key` 和 `expected_revision`，
+   返回当前值、默认值、数值范围及可用性。
+4. `plotium_plan` 接受 `tool_id`（`resource.rename`、`properties.set` 或
+   `properties.reset`）、`parameters`、`ids` 和 `expected_revision`，例如：
+
+   ```json
+   {
+     "tool_id": "properties.set",
+     "parameters": { "key": "series.line.stroke_width", "value": 1.5 },
+     "ids": ["CANVAS_UUID/OBJECT_ID"],
+     "expected_revision": 7
+   }
+   ```
+
+5. 查看返回的 `preflight` 后，以 `{"plan_id":"RETURNED_PLAN_ID"}` 调用
+   `plotium_execute`。桌面立即显示修改，支持 **Undo** 和 **Redo**。
+   相同值报告为跳过；整批修改合并为一次撤销。
+
+工具结果同时提供结构化内容及 JSON 文本。项目读取与预检要求当前
+`expected_revision`；修改或撤销后重新获取状态。执行时重新检查保存的 revision
+和当前权限。计划仅可提交一次，失败后也需重新预检；最多保留 32 个待执行计划，
+重启连接会清空计划。桌面开始执行前已取消的请求不会修改项目；已进入原子
+提交的修改无法通过取消回滚，请使用 **Undo**。
+
+稳定错误码包括 `permission_denied`、`expired_plan`、`stale_revision`、`busy`、
+`invalid_parameters`、`unsupported_operation`、`plan_limit`、
+`request_cancelled`、`connection_stopped` 和 `execution_failed`。`busy` 可在编辑手势、
+恢复确认或后台项目操作结束后重试；过期计划及 revision 冲突需重新读取和预检。
+Agent connections 设置页面显示最近操作和错误，后台反馈不会自行打开设置页面。

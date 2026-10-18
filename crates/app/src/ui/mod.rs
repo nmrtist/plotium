@@ -68,10 +68,12 @@ pub(crate) use windows::handle_close_request;
 use windows::*;
 use workspace_geometry::resolve as workspace_geometry;
 
+#[allow(clippy::too_many_arguments)] // Desktop-owned services stay outside PlotiumApp.
 pub fn render(
     app: &mut PlotiumApp,
     clipboard_table_paste: &mut clipboard_table::ClipboardTablePaste,
     batch_workflow: &mut batch_workflow::AutomationUi,
+    agent_connections: &mut crate::agent_connections::AgentConnections,
     last_window_title: &mut Option<String>,
     ui: &mut Ui,
     input_blocked: bool,
@@ -86,9 +88,6 @@ pub fn render(
     sync_chrome_theme(&ctx, app.settings.appearance.theme);
     clipboard_table_paste.begin_frame(app, &ctx);
     file_dialogs::image_import::poll(app, &ctx);
-    if app.poll_data_import() {
-        ctx.request_repaint_after(std::time::Duration::from_millis(16));
-    }
     file_dialogs::image_import::large_image_consent_window(app, &ctx);
     if let Some(payload) = app.poll_data_export() {
         copy_table_export(&ctx, payload);
@@ -208,7 +207,7 @@ pub fn render(
     export_options_window(app, &ctx);
     data_export_dialog::data_export_window(app, &ctx);
     file_dialogs::table_import_preview_window(app, &ctx);
-    settings_window(app, &ctx);
+    settings_window(app, &ctx, agent_connections);
     command_palette::command_palette_window(app, clipboard_table_paste, &ctx);
     menus::about_window(app, &ctx);
     quit_confirm_window(app, &ctx);

@@ -52,6 +52,12 @@ fn execute_inner(
         CommandId::OpenFile => super::file_dialogs::open_file(app),
         CommandId::OpenFolder => super::file_dialogs::open_folder(app),
         CommandId::ImportNmrSampling => super::file_dialogs::nmr_sampling::open(app),
+        CommandId::AgentConnections => {
+            app.open_settings();
+            if let Some(dialog) = app.session.ui.settings_dialog.as_mut() {
+                dialog.category = plotium_core::state::SettingsCategory::AgentConnections;
+            }
+        }
         CommandId::RunBatchWorkflow => super::batch_workflow::AutomationUi::request_open(ctx),
         CommandId::RunScientificScript => {
             super::batch_workflow::AutomationUi::request_run_script(ctx)

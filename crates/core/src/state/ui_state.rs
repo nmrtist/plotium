@@ -47,7 +47,7 @@ pub struct AuthorDrag {
     pub current: [f32; 2],
 }
 
-/// A rail row in the Preferences panel, mapping 1:1 to a `Settings` sub-struct.
+/// A rail row in Preferences, including controls that only live for this session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SettingsCategory {
     #[default]
@@ -56,15 +56,17 @@ pub enum SettingsCategory {
     Processing,
     Export,
     Recent,
+    AgentConnections,
 }
 
 impl SettingsCategory {
-    pub const ALL: [SettingsCategory; 5] = [
+    pub const ALL: [SettingsCategory; 6] = [
         SettingsCategory::General,
         SettingsCategory::Appearance,
         SettingsCategory::Processing,
         SettingsCategory::Export,
         SettingsCategory::Recent,
+        SettingsCategory::AgentConnections,
     ];
 
     pub const fn label(self) -> &'static str {
@@ -74,6 +76,7 @@ impl SettingsCategory {
             SettingsCategory::Processing => "Processing",
             SettingsCategory::Export => "Export",
             SettingsCategory::Recent => "Recent",
+            SettingsCategory::AgentConnections => "Agent connections",
         }
     }
 
@@ -84,6 +87,7 @@ impl SettingsCategory {
             SettingsCategory::Processing => "preferences.processing",
             SettingsCategory::Export => "preferences.export",
             SettingsCategory::Recent => "preferences.recent",
+            SettingsCategory::AgentConnections => "preferences.agent_connections",
         }
     }
 }
