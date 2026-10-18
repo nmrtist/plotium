@@ -4364,6 +4364,7 @@ dependencies = [
  "rfd",
  "rhai",
  "serde_json",
+ "tempfile",
  "tiff",
  "uuid",
  "windows-sys 0.61.2",
@@ -4375,6 +4376,7 @@ name = "plotium-agent"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "libc",
  "num-complex",
  "plotium-core",
  "plotium-io",
@@ -4382,9 +4384,11 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-util",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

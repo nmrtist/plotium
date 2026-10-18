@@ -93,6 +93,7 @@ export default defineConfig({
 						{ slug: 'reference/ui-overview' },
 						{ slug: 'reference/ribbon' },
 						{ slug: 'reference/preferences' },
+						{ slug: 'reference/mcp' },
 						{ slug: 'reference/file-formats' },
 						{ slug: 'reference/updates' },
 						{ slug: 'reference/troubleshooting' },

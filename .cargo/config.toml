@@ -7,5 +7,5 @@ xtask = "run -q -p xtask --"
 
 # Development and shipping builds use the reference table executor. DataFusion
 # remains available through a separate, explicit maintenance build.
-release-build = "build --locked --release -p plotium"
+release-build = "build --locked --release -p plotium -p plotium-agent"
 datafusion-build = "build --locked --release -p plotium --features datafusion"

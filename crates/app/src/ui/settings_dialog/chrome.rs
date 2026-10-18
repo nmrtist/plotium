@@ -129,14 +129,16 @@ pub(super) fn rail_row(ui: &mut Ui, cat: SettingsCategory, selected: bool) -> Re
         FontId::proportional(15.0),
         color,
     );
-    painter.text(
-        pos2(rect.left() + 38.0, cy),
-        Align2::LEFT_CENTER,
-        cat.label(),
+    let mut job = egui::text::LayoutJob::simple_singleline(
+        cat.label().into(),
         crate::typography::headline_font(),
         color,
     );
-    resp
+    job.wrap = egui::text::TextWrapping::truncate_at_width((width - 46.0).max(0.0));
+    let galley = ui.fonts_mut(|fonts| fonts.layout_job(job));
+    let text_top = cy - galley.size().y / 2.0;
+    painter.galley(pos2(rect.left() + 38.0, text_top), galley, color);
+    resp.on_hover_text(cat.label())
 }
 
 fn rail_icon(cat: SettingsCategory) -> &'static str {

@@ -2,11 +2,13 @@
 use crate::{Connection, Failure, PendingRequest};
 use plotium_core::{automation::*, state::PlotiumApp};
 use std::thread::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 pub(crate) struct PreviewFlight {
     pub(super) worker: JoinHandle<Result<ToolResult, AutomationError>>,
     pub(super) run: PreparedToolRun,
     pub(super) request: PendingRequest,
+    pub(super) cancellation: CancellationToken,
 }
 impl Connection {
     /// Dispatch all requests through one desktop entry point. Existing tools
@@ -17,6 +19,7 @@ impl Connection {
         request: PendingRequest,
         blocked: bool,
     ) -> Result<(), Failure> {
+        self.synchronize_project(app);
         if request.is_cancelled() {
             return Ok(());
         }
@@ -62,12 +65,15 @@ impl Connection {
         match prepared {
             Err(error) => respond(request, Err(error)),
             Ok((snapshot, run)) => {
-                let cancellation = request.cancellation.clone();
+                // A project switch cancels this child without cancelling the
+                // HTTP request that must carry its project_changed response.
+                let cancellation = request.cancellation.child_token();
+                let worker_cancellation = cancellation.clone();
                 let active = self.active.clone();
                 let worker = std::thread::Builder::new()
                     .name("plotium-preview".into())
                     .spawn(move || {
-                        if cancellation.is_cancelled()
+                        if worker_cancellation.is_cancelled()
                             || !active.load(std::sync::atomic::Ordering::Acquire)
                         {
                             return Err(AutomationError::PreviewCancelled);
@@ -80,6 +86,7 @@ impl Connection {
                             worker,
                             run,
                             request,
+                            cancellation,
                         });
                         Ok(())
                     }
@@ -99,6 +106,7 @@ impl Connection {
         }
     }
     pub fn poll_preview(&mut self, app: &mut PlotiumApp) -> Result<(), Failure> {
+        self.synchronize_project(app);
         if !self
             .preview
             .as_ref()

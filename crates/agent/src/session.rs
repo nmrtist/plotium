@@ -69,6 +69,7 @@ impl From<&AutomationError> for Failure {
 #[derive(Default)]
 pub struct Session {
     pub allow_modify: bool,
+    context: Option<plotium_core::state::ProjectContextId>,
     plans: HashMap<String, ToolPlan>,
     imports: HashMap<String, PreparedTableImport>,
     transforms: HashMap<String, PreparedTableTransform>,
@@ -176,9 +177,13 @@ impl Session {
         &mut self,
         app: &mut PlotiumApp,
         name: &str,
-        arguments: Value,
+        mut arguments: Value,
         blocked: bool,
     ) -> Result<Value, Failure> {
+        let changed = self.synchronize_context(app);
+        if changed && name == "plotium_execute" {
+            return Err(project_changed());
+        }
         let barrier = || {
             if blocked {
                 Err(Failure::new(
@@ -191,6 +196,11 @@ impl Session {
         };
         if name == "plotium_execute" {
             let args: Execute = decode(arguments)?;
+            if let Some((context, _)) = args.plan_id.split_once(':')
+                && context != app.session.project_context.to_string()
+            {
+                return Err(project_changed());
+            }
             // Consume even on authorization, busy or revision failure.
             let plan = self.plans.remove(&args.plan_id).ok_or_else(|| {
                 Failure::new(
@@ -238,6 +248,9 @@ impl Session {
             run.finish(app, &outcome)?;
             return Ok(json!(outcome?));
         }
+        if !matches!(name, "plotium_get_state" | "plotium_properties_list") {
+            check_context(app, &mut arguments)?;
+        }
         if matches!(name, "plotium_plan" | "plotium_properties_inspect") {
             for key in ["ids", "targets"] {
                 if arguments.get(key).is_some_and(|value| !value.is_array()) {
@@ -261,7 +274,7 @@ impl Session {
                 ExecutionAuthority::Read,
             )?;
             return Ok(
-                json!({"revision": app.doc.automation_revision, "project": result.value,
+                json!({"project_context": app.session.project_context, "revision": app.doc.automation_revision, "project": result.value,
                 "selection": selection, "connection_capabilities": crate::capabilities::manifest(self.allow_modify), "permissions": {"allow_reversible_modify": self.allow_modify}}),
             );
         }
@@ -315,7 +328,7 @@ impl Session {
                         "Pending curve plans exceed 2,000,000 curve rows; execute a pending plan first",
                     ));
                 }
-                let id = uuid::Uuid::new_v4().to_string();
+                let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
                 let value = json!({"plan_id":id,"preflight":plan});
                 if serde_json::to_vec(&value)
                     .map_err(|e| Failure::new("execution_failed", e.to_string()))?
@@ -369,7 +382,7 @@ impl Session {
                     "32 plans are pending; execute a plan or restart the connection",
                 ));
             }
-            let id = uuid::Uuid::new_v4().to_string();
+            let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
             let result = json!({"plan_id": id, "preflight": plan});
             self.plans.insert(id, plan);
             return Ok(result);
@@ -486,6 +499,12 @@ pub fn ensure_idle(app: &PlotiumApp) -> Result<(), Failure> {
             "Finish the current edit or project operation and retry",
         ));
     }
+    if !app.session.project_present {
+        return Err(Failure::new(
+            "no_project",
+            "Open a project first / 请先打开项目",
+        ));
+    }
     Ok(())
 }
 
@@ -493,9 +512,10 @@ impl Session {
     pub(crate) fn prepare_preview(
         &self,
         app: &mut PlotiumApp,
-        arguments: Value,
+        mut arguments: Value,
         blocked: bool,
     ) -> Result<(ImagePreviewSnapshot, PreparedToolRun), Failure> {
+        check_context(app, &mut arguments)?;
         if blocked {
             return Err(Failure::new(
                 "busy",
@@ -536,5 +556,42 @@ impl Session {
                 Err(failure)
             }
         }
+    }
+}
+
+fn project_changed() -> Failure {
+    Failure::new(
+        "project_changed",
+        "Project changed; read plotium_get_state and replan with the new project_context. Never reuse old targets or plans.",
+    )
+}
+fn check_context(app: &PlotiumApp, arguments: &mut Value) -> Result<(), Failure> {
+    let context = arguments
+        .as_object_mut()
+        .and_then(|a| a.remove("expected_project_context"))
+        .ok_or_else(|| {
+            Failure::new(
+                "invalid_parameters",
+                "expected_project_context is required; read plotium_get_state first",
+            )
+        })?;
+    let expected: plotium_core::state::ProjectContextId = decode(context)?;
+    if expected != app.session.project_context {
+        return Err(project_changed());
+    }
+    Ok(())
+}
+impl Session {
+    pub fn synchronize_context(&mut self, app: &PlotiumApp) -> bool {
+        let changed = self
+            .context
+            .is_some_and(|id| id != app.session.project_context);
+        if changed || app.session.ui.project_transition.is_some() {
+            self.plans.clear();
+            self.imports.clear();
+            self.transforms.clear();
+        }
+        self.context = Some(app.session.project_context);
+        changed
     }
 }

@@ -15,6 +15,7 @@ impl ServerHandler for Handler {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("Plotium", env!("CARGO_PKG_VERSION")))
+            .with_instructions("Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. Never replay a tool call after a disconnection.")
     }
     async fn list_tools(
         &self,
@@ -157,6 +158,27 @@ pub(crate) fn definitions() -> Vec<Tool> {
             .expect("local required fields")
             .push(json!("expected_revision"));
         tools.push(Tool::new(name,"Read native table data at explicit document and table revisions; no selection fallback.",schema.as_object().expect("local schema").clone()));
+    }
+    for tool in &mut tools {
+        if !matches!(
+            tool.name.as_ref(),
+            "plotium_get_state" | "plotium_execute" | "plotium_properties_list"
+        ) {
+            let schema = std::sync::Arc::make_mut(&mut tool.input_schema);
+            schema
+                .get_mut("properties")
+                .and_then(Value::as_object_mut)
+                .expect("local properties")
+                .insert(
+                    "expected_project_context".into(),
+                    json!({"type":"string","format":"uuid"}),
+                );
+            schema
+                .get_mut("required")
+                .and_then(Value::as_array_mut)
+                .expect("local requirements")
+                .push(json!("expected_project_context"));
+        }
     }
     tools
 }

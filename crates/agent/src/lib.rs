@@ -1,11 +1,15 @@
 //! Authenticated, ephemeral local MCP connection and bounded desktop bridge.
 mod capabilities;
-mod client_config;
+pub mod client_config;
+pub mod connector;
+pub mod discovery;
 mod imports;
 mod preview;
 mod protocol;
 mod session;
 mod transforms;
+#[cfg(windows)]
+mod windows_private;
 
 use axum::{
     Router,
@@ -49,6 +53,9 @@ pub struct Connection {
     active: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
     pub session: Session,
+    instance_id: uuid::Uuid,
+    lease: Option<discovery::Lease>,
+    activity: Arc<std::sync::Mutex<Activity>>,
     preview: Option<preview::PreviewFlight>,
     import: Option<imports::ImportFlight>,
     transform: Option<transforms::TransformFlight>,
@@ -74,7 +81,11 @@ impl Connection {
             cancel: cancel.clone(),
             wake: Arc::new(wake),
         };
+        let instance_id = uuid::Uuid::new_v4();
+        let activity = Arc::new(std::sync::Mutex::new(Activity::default()));
         let guard = Guard {
+            instance_id,
+            activity: activity.clone(),
             bearer: format!("Bearer {token}"),
             authority: authority.clone(),
             origin: origin.clone(),
@@ -107,6 +118,8 @@ impl Connection {
                         );
                         let router = Router::new()
                             .nest_service("/mcp", transport)
+                            .route("/status", axum::routing::get(status))
+                            .with_state(guard.clone())
                             .layer(middleware::from_fn_with_state(guard, authenticate));
                         axum::serve(tokio::net::TcpListener::from_std(listener)?, router)
                             .with_graceful_shutdown(worker_cancel.cancelled_owned())
@@ -133,6 +146,9 @@ impl Connection {
         Ok(Self {
             url,
             token,
+            instance_id,
+            activity,
+            lease: None,
             requests,
             errors,
             cancel,
@@ -143,6 +159,66 @@ impl Connection {
             import: None,
             transform: None,
         })
+    }
+    pub fn start_published(wake: impl Fn() + Send + Sync + 'static) -> std::io::Result<Self> {
+        Self::start_in(discovery::runtime_dir()?, wake)
+    }
+    pub(crate) fn start_in(
+        dir: std::path::PathBuf,
+        wake: impl Fn() + Send + Sync + 'static,
+    ) -> std::io::Result<Self> {
+        let mut lease = discovery::Lease::acquire(dir)?;
+        let mut connection = Self::start(wake)?;
+        lease.publish(&discovery::Discovery {
+            version: 1,
+            instance_id: connection.instance_id,
+            url: connection.url.clone(),
+            token: connection.token.clone(),
+        })?;
+        connection.lease = Some(lease);
+        Ok(connection)
+    }
+    pub fn activity(&self) -> Activity {
+        self.activity
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+    pub fn is_running(&self) -> bool {
+        self.active.load(Ordering::Acquire)
+    }
+    /// Drop all document-bound work before polling completions in a new context.
+    pub fn synchronize_project(&mut self, app: &plotium_core::state::PlotiumApp) {
+        if self.session.synchronize_context(app) || app.session.ui.project_transition.is_some() {
+            if let Some(flight) = self.preview.take() {
+                flight.cancellation.cancel();
+                if flight
+                    .request
+                    .response
+                    .send(Err(Failure::new(
+                        "project_changed",
+                        "Project changed; reread state and replan",
+                    )))
+                    .is_err()
+                { /* Client disconnected. */ }
+            }
+            if let Some(flight) = self.transform.take() {
+                flight.cancel();
+            }
+            if let Some(flight) = self.import.take() {
+                flight.cancel();
+            }
+            while let Ok(request) = self.requests.try_recv() {
+                if request
+                    .response
+                    .send(Err(Failure::new(
+                        "project_changed",
+                        "Project changed; reread state and replan",
+                    )))
+                    .is_err()
+                { /* Client disconnected. */ }
+            }
+        }
     }
     pub fn connection_info(&self) -> String {
         serde_json::json!({"url": self.url, "headers": {"Authorization": format!("Bearer {}", self.token)}}).to_string()
@@ -181,6 +257,7 @@ impl Connection {
         }
         self.session = Session::default();
         self.token.clear();
+        self.lease = None;
     }
 }
 impl Drop for Connection {
@@ -198,6 +275,8 @@ impl Drop for Connection {
 #[derive(Clone)]
 struct Guard {
     bearer: String,
+    instance_id: uuid::Uuid,
+    activity: Arc<std::sync::Mutex<Activity>>,
     authority: String,
     origin: String,
     active: Arc<AtomicBool>,
@@ -224,6 +303,13 @@ async fn authenticate(
     {
         return Err(StatusCode::FORBIDDEN);
     }
+    {
+        let mut activity = guard.activity.lock().unwrap_or_else(|p| p.into_inner());
+        activity.last = Some(std::time::Instant::now());
+        if value("x-plotium-client") == Some("claude-desktop") {
+            activity.desktop_seen = true;
+        }
+    }
     Ok(next.run(request).await)
 }
 
@@ -248,3 +334,22 @@ mod binding_tests;
 
 #[cfg(test)]
 mod creation_tests;
+
+#[derive(Clone, Default)]
+pub struct Activity {
+    pub last: Option<std::time::Instant>,
+    pub desktop_seen: bool,
+}
+async fn status(
+    State(guard): State<Guard>,
+) -> ([(axum::http::header::HeaderName, &'static str); 1], String) {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        serde_json::json!({"version":1,"instance_id":guard.instance_id}).to_string(),
+    )
+}
+
+#[cfg(test)]
+mod context_tests;
+#[cfg(test)]
+mod rendezvous_tests;

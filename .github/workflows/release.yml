@@ -104,8 +104,8 @@ jobs:
       - name: Install cargo-about on Intel macOS
         if: matrix.target == 'x86_64-apple-darwin'
         run: cargo install cargo-about --version 0.9.1 --locked --features cli
-      - name: Build default frontends
-        run: cargo build --locked --release --target "$TARGET" -p plotium -p plotium-cli
+      - name: Build release binaries
+        run: cargo build --locked --release --target "$TARGET" -p plotium -p plotium-agent
       - name: Collect license notices
         run: |
           mkdir -p dist/package
@@ -113,8 +113,8 @@ jobs:
             --manifest-path crates/app/Cargo.toml -c xtask/about.toml \
             xtask/about.hbs -o dist/package/THIRD-PARTY-LICENSES.html
           cargo about generate --locked --fail --target "$TARGET" \
-            --manifest-path crates/cli/Cargo.toml -c xtask/about.toml \
-            xtask/about.hbs -o dist/package/CLI-THIRD-PARTY-LICENSES.html
+            --manifest-path crates/agent/Cargo.toml -c xtask/about.toml \
+            xtask/about.hbs -o dist/package/MCP-THIRD-PARTY-LICENSES.html
       - name: Package and smoke-test
         run: |
           python - <<'PY'
@@ -126,11 +126,11 @@ jobs:
 
           package = Path('dist/package')
           suffix = '.exe' if os.environ['PLATFORM'].startswith('windows-') else ''
-          for name in ('plotium', 'plotium-cli'):
+          for name in ('plotium', 'plotium-mcp'):
               shutil.copy2(Path('target') / os.environ['TARGET'] / 'release' / (name + suffix), package)
           for name in ('LICENSE', 'COPYRIGHT.md', 'README.md'):
               shutil.copy2(name, package)
-          shutil.copy2('crates/cli/README.md', package / 'CLI-README.md')
+          subprocess.run(['python', '.github/scripts/package_mcp.py'], check=True)
           archive = Path('dist') / f'plotium-{os.environ["VERSION"]}-{os.environ["PLATFORM"]}.zip'
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as output:
               for path in sorted(package.iterdir()):
@@ -139,9 +139,9 @@ jobs:
               if output.testzip() is not None:
                   raise SystemExit('Release archive failed its CRC check')
               output.extractall('dist/smoke')
-          cli = Path('dist/smoke') / ('plotium-cli' + suffix)
-          cli.chmod(0o755)
-          subprocess.run([str(cli.resolve()), '--help'], check=True)
+          connector = Path('dist/smoke') / ('plotium-mcp' + suffix)
+          connector.chmod(0o755)
+          subprocess.run(['python', '.github/scripts/package_mcp.py', 'smoke', str(connector)], check=True)
           PY
       - uses: actions/upload-artifact@v7
         with:
@@ -173,13 +173,11 @@ jobs:
           pattern: release-*
           path: dist
           merge-multiple: true
-      - name: Add matching source and checksums
+      - name: Generate checksums
         run: |
           test "$(find dist -maxdepth 1 -name '*.zip' | wc -l)" -eq 4
-          git archive --format=tar.gz --prefix="plotium-$VERSION/" \
-            --output="dist/plotium-$VERSION-source.tar.gz" HEAD
           cd dist
-          sha256sum *.zip *.tar.gz > SHA256SUMS
+          sha256sum *.zip > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Create or update release draft
         run: |
@@ -191,4 +189,4 @@ jobs:
             gh release create "$TAG" --verify-tag --draft --title "Plotium $VERSION" \
               --generate-notes "${flags[@]}"
           fi
-          gh release upload "$TAG" dist/*.zip dist/*.tar.gz dist/SHA256SUMS --clobber
+          gh release upload "$TAG" dist/*.zip dist/SHA256SUMS --clobber

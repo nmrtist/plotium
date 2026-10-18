@@ -30,6 +30,7 @@ pub fn prepare(downloaded: &Path) -> Result<InstallPlan, UpdateError> {
         .ok_or_else(|| UpdateError::Protocol("update has no staging directory".into()))?
         .to_owned();
     let new_binary = extract_binary(downloaded, &target)?;
+    super::companions::extract(downloaded, &staging)?;
     let helper_name = if cfg!(windows) {
         "plotium-update-helper.exe"
     } else {
@@ -116,6 +117,14 @@ pub(super) fn apply_staged_update(
         ))
     })?;
 
+    if let Err(error) = super::companions::apply(staging, target) {
+        if let Err(rollback) =
+            std::fs::remove_file(target).and_then(|()| std::fs::rename(old_path(target), target))
+        {
+            eprintln!("Plotium executable rollback failed: {rollback}");
+        }
+        return Err(error);
+    }
     let relaunch = staging.join(RELAUNCH_MARKER).exists();
     // Remove everything except a still-running Windows helper. That final
     // file and directory are removed by `cleanup_after_restart` next launch.

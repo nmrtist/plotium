@@ -5,6 +5,7 @@
 //! self-contained local servers with `PLOTIUM_UPDATE_URL`.
 
 mod channel;
+mod companions;
 mod install;
 mod protocol;
 mod service;

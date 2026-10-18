@@ -1,3 +1,18 @@
+/// Ephemeral identity of one installed project; never serialized in project files.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct ProjectContextId(uuid::Uuid);
+impl std::fmt::Display for ProjectContextId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl Default for ProjectContextId {
+    fn default() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
+
 use super::{Document, PlotiumApp};
 
 /// A document-level operation that replaces or removes the current project.

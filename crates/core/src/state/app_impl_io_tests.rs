@@ -157,3 +157,21 @@ mod install_loaded_project_tests {
         );
     }
 }
+
+#[test]
+fn failed_mcp_preference_flush_keeps_live_choice_and_project_install_preserves_it() {
+    let mut app = PlotiumApp::new_with_settings(crate::settings::Settings::default());
+    app.settings.agent.enabled = true;
+    app.settings.agent.access = crate::settings::AgentAccess::ReadOnly;
+    assert!(!app.persist_settings_with(|_| Err(std::io::Error::other("read only"))));
+    assert!(app.session.status.contains("Couldn't save preferences"));
+    let first = app.session.project_context;
+    let loaded = PlotiumApp::new_with_settings(Default::default());
+    app.install_loaded_project(loaded);
+    assert_ne!(app.session.project_context, first);
+    assert!(app.settings.agent.enabled);
+    assert_eq!(
+        app.settings.agent.access,
+        crate::settings::AgentAccess::ReadOnly
+    );
+}

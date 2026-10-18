@@ -4,7 +4,8 @@ use plotium_core::{data::*, state::*};
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 fn fixture() -> PlotiumApp {
-    let mut app = PlotiumApp::new();
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.start_new_project();
     let table = TableDataset::from_materialized(
         vec![
             (
@@ -48,7 +49,7 @@ fn args(app: &PlotiumApp) -> Value {
             ],
         ),
     };
-    json!({"tool_id":"data.transform","ids":[t.resource_id],"expected_revision":app.doc.automation_revision,"parameters":{"mode":"table_data_only","name":"Scaled","memory_limit_bytes":16*1024*1024,"plan":RelPlanV1::new(root)}})
+    json!({"expected_project_context":app.session.project_context,"tool_id":"data.transform","ids":[t.resource_id],"expected_revision":app.doc.automation_revision,"parameters":{"mode":"table_data_only","name":"Scaled","memory_limit_bytes":16*1024*1024,"plan":RelPlanV1::new(root)}})
 }
 fn pending(
     args: Value,
@@ -116,7 +117,7 @@ fn transform_plan_is_data_only_permission_checked_and_consumed_on_failed_execute
         p["transform"]["output"]["dataset_id"]
     );
     assert!(app.doc.canvases.is_empty());
-    let read = json!({"expected_revision":app.doc.automation_revision,"dataset_id":r["value"]["output"]["dataset_id"],"table_revision":r["value"]["output"]["table_revision"],"include_provenance":true});
+    let read = json!({"expected_project_context":app.session.project_context,"expected_revision":app.doc.automation_revision,"dataset_id":r["value"]["output"]["dataset_id"],"table_revision":r["value"]["output"]["table_revision"],"include_provenance":true});
     s.allow_modify = false;
     let rows = s
         .call(&mut app, "plotium_table_read_rows", read.clone())
@@ -269,6 +270,7 @@ fn real_http_transform_creates_a_native_plot_and_returns_its_preview() {
     };
     let mut app = fixture();
     let a = args(&app);
+    let context = app.session.project_context;
     let mut c = Connection::start(|| {}).unwrap();
     let mut config = StreamableHttpClientTransportConfig::with_uri(c.url.clone());
     config.auth_header = Some(c.token.clone());
@@ -279,17 +281,17 @@ fn real_http_transform_creates_a_native_plot_and_returns_its_preview() {
             let tools=client.list_all_tools().await.unwrap();assert_eq!(tools.len(),11);
             let p=client.call_tool(call("plotium_plan",a)).await.unwrap();assert_eq!(p.is_error,Some(false));let p=p.structured_content.unwrap();assert_eq!(p["transform"]["status"],"prepared");
             let r=client.call_tool(call("plotium_execute",json!({"plan_id":p["plan_id"]}))).await.unwrap();assert_eq!(r.is_error,Some(false));let r=r.structured_content.unwrap();let out=&r["value"]["output"];
-            let rows=client.call_tool(call("plotium_table_read_rows",json!({"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(rows.is_error,Some(false));let v=rows.structured_content.unwrap();assert_eq!(v["value"]["rows"][2]["values"][2]["value"],8.);assert_eq!(v["value"]["rows"][2]["sources"][0]["input_position"],2);
-            let metadata=client.call_tool(call("plotium_table_columns",json!({"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(metadata.is_error,Some(false));let metadata=metadata.structured_content.unwrap();let m=&metadata["value"];
+            let rows=client.call_tool(call("plotium_table_read_rows",json!({"expected_project_context":context,"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(rows.is_error,Some(false));let v=rows.structured_content.unwrap();assert_eq!(v["value"]["rows"][2]["values"][2]["value"],8.);assert_eq!(v["value"]["rows"][2]["sources"][0]["input_position"],2);
+            let metadata=client.call_tool(call("plotium_table_columns",json!({"expected_project_context":context,"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(metadata.is_error,Some(false));let metadata=metadata.structured_content.unwrap();let m=&metadata["value"];
             let state=client.call_tool(call("plotium_get_state",json!({}))).await.unwrap().structured_content.unwrap();
             let constraints=&state["connection_capabilities"]["operation_constraints"];
             assert!(constraints["data.transform"]["schema"].is_object());assert!(constraints["plot.create"]["schema"].is_object());
-            let create=client.call_tool(call("plotium_plan",json!({"expected_revision":state["revision"],"tool_id":"plot.create","parameters":{"parent":state["connection_capabilities"]["document_root"],"name":"Processed native plot","series":[{"kind":"line","source":{"dataset_id":m["dataset_id"],"field_id":m["fields"][0]["field_id"],"table_id":m["table_id"],"table_revision":m["table_revision"],"x_column_id":m["columns"][0]["column_id"],"y_column_id":m["columns"][2]["column_id"],"y_error_column_id":null}}]}}))).await.unwrap();assert_eq!(create.is_error,Some(false));let create=create.structured_content.unwrap();
+            let create=client.call_tool(call("plotium_plan",json!({"expected_project_context":context,"expected_revision":state["revision"],"tool_id":"plot.create","parameters":{"parent":state["connection_capabilities"]["document_root"],"name":"Processed native plot","series":[{"kind":"line","source":{"dataset_id":m["dataset_id"],"field_id":m["fields"][0]["field_id"],"table_id":m["table_id"],"table_revision":m["table_revision"],"x_column_id":m["columns"][0]["column_id"],"y_column_id":m["columns"][2]["column_id"],"y_error_column_id":null}}]}}))).await.unwrap();assert_eq!(create.is_error,Some(false));let create=create.structured_content.unwrap();
             let created=client.call_tool(call("plotium_execute",json!({"plan_id":create["plan_id"]}))).await.unwrap();assert_eq!(created.is_error,Some(false));let created=created.structured_content.unwrap();
             let canvas=created["value"]["creation"]["canvas"].clone();let target=created["value"]["bindings"][0]["target"].clone();
-            let detail=client.call_tool(call("plotium_document_inspect",json!({"expected_revision":created["after_revision"],"target":target,"view":"self"}))).await.unwrap();assert_eq!(detail.is_error,Some(false));let detail=detail.structured_content.unwrap();
+            let detail=client.call_tool(call("plotium_document_inspect",json!({"expected_project_context":context,"expected_revision":created["after_revision"],"target":target,"view":"self"}))).await.unwrap();assert_eq!(detail.is_error,Some(false));let detail=detail.structured_content.unwrap();
             assert_eq!(detail["value"]["node"]["source"]["dataset"]["id"],out["dataset_id"]);
-            let image=client.call_tool(call("plotium_render_preview",json!({"expected_revision":created["after_revision"],"target":canvas,"max_edge":320}))).await.unwrap();assert_eq!(image.is_error,Some(false));assert!(image.content.iter().any(|c|c.as_image().is_some()));assert_eq!(image.structured_content.unwrap()["value"]["render_revision"],created["after_revision"]);
+            let image=client.call_tool(call("plotium_render_preview",json!({"expected_project_context":context,"expected_revision":created["after_revision"],"target":canvas,"max_edge":320}))).await.unwrap();assert_eq!(image.is_error,Some(false));assert!(image.content.iter().any(|c|c.as_image().is_some()));assert_eq!(image.structured_content.unwrap()["value"]["render_revision"],created["after_revision"]);
             client.cancel().await.unwrap();
         });
         tokio::time::timeout(Duration::from_secs(30),async{while !client.is_finished(){while let Some(r)=c.next_request(){c.dispatch_request(&mut app,r,false).unwrap();}c.poll_transform(&mut app,false).unwrap();c.poll_preview(&mut app).unwrap();tokio::time::sleep(Duration::from_millis(2)).await;}client.await.unwrap();}).await.unwrap();
@@ -313,4 +315,52 @@ fn real_http_transform_creates_a_native_plot_and_returns_its_preview() {
         app.doc.canvases[0].objects[0].plot().unwrap().binding,
         binding
     );
+}
+
+#[test]
+fn project_switch_rejects_transform_inputs_plans_and_background_completion() {
+    let mut app = fixture();
+    let mut c = Connection::start(|| {}).unwrap();
+    let arguments = args(&app);
+    let plan = c
+        .session
+        .call(&mut app, "plotium_plan", arguments.clone())
+        .unwrap();
+    let (request, mut response) = pending(arguments.clone());
+    let cancellation = request.cancellation.clone();
+    c.dispatch_request(&mut app, request, false).unwrap();
+    assert!(c.transform.is_some());
+    let revision = app.doc.automation_revision;
+    app.start_new_project();
+    assert_eq!(app.doc.automation_revision, revision);
+    c.poll_transform(&mut app, false).unwrap();
+    assert!(c.transform.is_none());
+    assert!(!cancellation.is_cancelled());
+    assert_eq!(
+        response.try_recv().unwrap().unwrap_err().code,
+        "project_changed"
+    );
+    assert_eq!(
+        c.session
+            .call(&mut app, "plotium_plan", arguments)
+            .unwrap_err()
+            .code,
+        "project_changed"
+    );
+    assert!(app.doc.automation_runs.is_empty());
+    c.session
+        .call(&mut app, "plotium_get_state", json!({}))
+        .unwrap();
+    assert_eq!(
+        c.session
+            .call(
+                &mut app,
+                "plotium_execute",
+                json!({"plan_id":plan["plan_id"]})
+            )
+            .unwrap_err()
+            .code,
+        "project_changed"
+    );
+    assert!(app.doc.datasets.is_empty());
 }

@@ -6,8 +6,7 @@ description: Every setting in the Preferences window, by category.
 Open Preferences with `Ctrl` + `,` (`Cmd` + `,` on macOS) or from the menus.
 Preference changes are saved automatically and usually apply immediately; changes to
 **Graphics processor** apply after a restart. **Reset to Defaults** restores
-saved preferences except your recent-files list. Agent connections have a separate
-session lifetime, described below.
+saved preferences except your recent-files list. AI connection preferences are described below.
 
 ## General
 
@@ -74,15 +73,26 @@ The files, folders, and projects you opened recently — the same list as
 **File → Open Recent** and the welcome screen — with a **Clear recent files**
 button.
 
-## Agent connections
+## AI connections (MCP)
 
-Start or stop a local MCP connection to the current project. **Access** defaults
-to **Read and modify**, with Undo and Redo available for edits; choose **Read only**
-to prevent further edits. **Copy Codex launch command** supplies a
-ready-to-run command; **Copy connection information** supplies generic JSON for
-other clients. Recent operations and errors appear on the same page.
+Connect an external AI client to inspect your project and make supported edits.
+Click the robot in the Ribbon to open this page directly.
 
-Connections and permissions are never saved. Closing Preferences keeps the
-connection running; stopping it, switching projects or quitting revokes access.
-Each restart needs a new copied command or connection configuration. See
-[Automation](/guides/automation/#local-agent-connections-mcp) for setup and scope.
+| Control | What it does |
+| --- | --- |
+| **Enable MCP** | Allows local AI clients to connect. Off by default; your choice is remembered across restarts |
+| **Access → Read and modify** | Allows supported edits, with normal Undo and Redo. This is the default permission |
+| **Access → Read only** | Allows inspection and previews; blocks further edits, including prepared changes |
+| Codex / Claude Code → **Add** | Adds Plotium to the installed client's MCP configuration |
+| **Add to Claude Desktop…** | Opens the extension installer on macOS and Windows; confirm installation in Claude Desktop |
+| **Manual configuration and diagnostics** | Provides configuration for other clients and connection details for troubleshooting |
+
+Permissions apply to every connected client and project and are remembered when
+you restart Plotium. Closing Preferences or switching projects keeps access
+available. Turning MCP off stops access immediately and discards pending edits;
+client configuration is retained. Exiting Plotium also stops access.
+
+**Configured** confirms client setup. Recent client activity shows whether a
+client has actually contacted Plotium. This page also shows recent operations and
+errors. See [AI client connections](/guides/automation/#local-agent-connections-mcp)
+for setup, example requests, robot status and troubleshooting.

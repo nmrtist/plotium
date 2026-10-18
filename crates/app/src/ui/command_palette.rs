@@ -56,7 +56,11 @@ impl PaletteItem {
             ""
         };
         Self {
-            haystack: command.label.to_lowercase(),
+            haystack: if command.id == CommandId::AgentConnections {
+                format!("{} AI MCP Codex Claude", command.label).to_lowercase()
+            } else {
+                command.label.to_lowercase()
+            },
             label: command.label,
             detail: command.shortcut.unwrap_or_default(),
             prefix,

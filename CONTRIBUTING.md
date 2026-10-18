@@ -10,6 +10,10 @@ rustup component add rustfmt clippy
 cargo run -p plotium
 ```
 
+For MCP integration work, first run `cargo build -p plotium-agent --bin plotium-mcp`.
+The desktop app installs this sibling executable into its stable user data path
+when MCP is enabled. Protocol and connector code live in `crates/agent/`.
+
 For the edit/check/test loop, target the frontend or crate you changed:
 
 | Purpose | Command |
@@ -95,7 +99,10 @@ job logs, with a status summary on the workflow run.
 ## Publish a release
 
 The [Release workflow](.github/workflows/release.yml) packages the desktop app
-and CLI for Windows x86-64, Linux x86-64, and macOS Intel / Apple Silicon.
+and native MCP connector for Windows x86-64, Linux x86-64, and macOS
+Intel / Apple Silicon. macOS and Windows archives also contain the native
+Claude Desktop extension. The workflow exercises the connector's actual stdio
+initialization and tool discovery before and after archive extraction.
 It rechecks dependency policy before packaging, without rerunning the rest of
 CI or requiring extra secrets.
 
@@ -112,7 +119,7 @@ CI or requiring extra secrets.
    ```
 
 3. Download the packages from the generated Release draft, check the desktop
-   app, CLI, and license notices on each platform, then edit the notes and publish.
+   app, MCP connector, and license notices on each platform, then edit the notes and publish.
 
 The release dependency check is a final safeguard: a new advisory published
 after local or PR checks can still stop packaging. Reproduce with
@@ -122,8 +129,8 @@ and tag rather than moving an existing tag.
 Use `v0.1.0` for a regular pre-1.0 release. Only `-alpha.N` and `-beta.N`
 suffixes are supported for prereleases; they also select the updater channel.
 
-The draft includes unsigned portable ZIPs with license notices, matching source,
-and `SHA256SUMS`. Platform requirements are in the
+The draft includes unsigned portable ZIPs with license notices and `SHA256SUMS`.
+Platform requirements are in the
 [installation guide](https://plotium.nmrtist.space/getting-started/installation/).
 
 For a rehearsal, use **Actions → Release → Run workflow** on the chosen ref;

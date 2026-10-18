@@ -38,9 +38,10 @@ impl Session {
     pub(crate) fn prepare_transform_plan(
         &self,
         app: &PlotiumApp,
-        arguments: Value,
+        mut arguments: Value,
         blocked: bool,
     ) -> Result<(ToolPlan, TableTransformSnapshot), Failure> {
+        check_context(app, &mut arguments)?;
         // Permission precedes potentially expensive IR decoding.
         self.check_transform_ready(app, blocked, 0)?;
         let args: Plan = decode(arguments)?;
@@ -80,7 +81,7 @@ impl Session {
         let mut plan = plan_tool(app, plan.request)?;
         plan.estimated_changes =
             vec!["Create one native derived table; no canvas or plot is created.".into()];
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
         let value = json!({"plan_id":id,"preflight":plan,"transform":prepared.preflight()?});
         if serde_json::to_vec(&value)
             .map_err(|e| Failure::new("execution_failed", e.to_string()))?

@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 fn fixture() -> PlotiumApp {
     let (mut app, _) = crate::component_tests::fixture();
+    app.session.project_present = true;
     app.doc.canvases.truncate(1);
     let c = &mut app.doc.canvases[0];
     let mut object = c.objects[0].clone();
@@ -24,15 +25,17 @@ fn inspect(
     target: Value,
     view: &str,
 ) -> Result<Value, crate::Failure> {
+    let context = app.session.project_context;
     s.call(
         app,
         "plotium_document_inspect",
-        json!({"expected_revision":app.doc.automation_revision,"target":target,"view":view}),
+        json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"target":target,"view":view}),
     )
 }
 #[test]
 fn session_discovery_walks_to_exact_series_and_preserves_original_tools() {
     let mut app = fixture();
+    let context = app.session.project_context;
     let mut s = Session::default();
     let before = app.doc.automation_revision;
     let runs = app.doc.automation_runs.len();
@@ -52,7 +55,7 @@ fn session_discovery_walks_to_exact_series_and_preserves_original_tools() {
         .call(
             &mut app,
             "plotium_properties_inspect",
-            json!({"expected_revision":before,"targets":[t],"key":"series.line.stroke_width"}),
+            json!({"expected_project_context":context,"expected_revision":before,"targets":[t],"key":"series.line.stroke_width"}),
         )
         .unwrap();
     assert_eq!(property["value"]["readings"][0]["target"], t);
@@ -83,6 +86,7 @@ fn session_discovery_walks_to_exact_series_and_preserves_original_tools() {
 #[test]
 fn new_queries_reject_forgery_stale_selection_and_invalid_shape() {
     let mut app = fixture();
+    let context = app.session.project_context;
     let mut s = Session::default();
     let target = json!(app.series_targets(0, app.doc.canvases[0].objects[0].id)[0]);
     for (key, value) in [
@@ -100,10 +104,10 @@ fn new_queries_reject_forgery_stale_selection_and_invalid_shape() {
         );
     }
     for args in [
-        json!({"expected_revision":app.doc.automation_revision,"view":"self"}),
-        json!({"expected_revision":app.doc.automation_revision,"target":target,"view":"self","extra":true}),
-        json!({"expected_revision":app.doc.automation_revision,"target":target,"view":"children","limit":201}),
-        json!({"expected_revision":app.doc.automation_revision,"target":target,"view":"self","offset":1}),
+        json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"view":"self"}),
+        json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"target":target,"view":"self","extra":true}),
+        json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"target":target,"view":"children","limit":201}),
+        json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"target":target,"view":"self","offset":1}),
     ] {
         assert_eq!(
             s.call(&mut app, "plotium_document_inspect", args)
@@ -118,7 +122,7 @@ fn new_queries_reject_forgery_stale_selection_and_invalid_shape() {
         s.call(
             &mut app,
             "plotium_document_inspect",
-            json!({"expected_revision":old,"target":target,"view":"children"})
+            json!({"expected_project_context":context,"expected_revision":old,"target":target,"view":"children"})
         )
         .unwrap_err()
         .code,
@@ -128,7 +132,7 @@ fn new_queries_reject_forgery_stale_selection_and_invalid_shape() {
         s.call_when_available(
             &mut app,
             "plotium_document_inspect",
-            json!({"expected_revision":old+1,"target":target,"view":"self"}),
+            json!({"expected_project_context":context,"expected_revision":old+1,"target":target,"view":"self"}),
             true
         )
         .unwrap_err()
@@ -181,6 +185,7 @@ fn five_static_definitions_and_connection_gate_are_the_same_supported_subset() {
     );
     assert_eq!(plan["currently_permitted"], true);
     let mut app = fixture();
+    let context = app.session.project_context;
     let mut s = Session::default();
     let revision = app.doc.automation_revision;
     for operation in [
@@ -189,6 +194,6 @@ fn five_static_definitions_and_connection_gate_are_the_same_supported_subset() {
         "figure.export",
         "document.inspect",
     ] {
-        assert_eq!(s.call(&mut app,"plotium_plan",json!({"expected_revision":revision,"ids":["document"],"tool_id":operation,"parameters":{}})).unwrap_err().code,"unsupported_operation");
+        assert_eq!(s.call(&mut app,"plotium_plan",json!({"expected_project_context":context,"expected_revision":revision,"ids":["document"],"tool_id":operation,"parameters":{}})).unwrap_err().code,"unsupported_operation");
     }
 }

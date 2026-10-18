@@ -1,5 +1,6 @@
 mod activity;
 pub(crate) mod affordance;
+mod ai_connection;
 pub(crate) mod align;
 pub(crate) mod arithmetic;
 pub(crate) mod batch_workflow;

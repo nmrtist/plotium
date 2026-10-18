@@ -3,6 +3,8 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
+    #[serde(default)]
+    pub agent: AgentSettings,
     #[serde(default = "current_schema_version")]
     pub schema_version: u32,
     #[serde(default = "current_app_version")]
@@ -337,9 +339,25 @@ impl RecentFiles {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentSettings {
+    pub enabled: bool,
+    pub access: AgentAccess,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentAccess {
+    ReadOnly,
+    #[default]
+    ReadAndModify,
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            agent: AgentSettings::default(),
             schema_version: current_schema_version(),
             app_version: current_app_version(),
             general: GeneralSettings::default(),

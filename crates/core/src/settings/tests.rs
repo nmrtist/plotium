@@ -216,3 +216,18 @@ fn recent_files_note_dedupes_fronts_and_truncates() {
         1
     );
 }
+
+#[test]
+fn mcp_preferences_default_off_and_persist_read_only_in_v1() {
+    let defaults: super::Settings = serde_json::from_str("{}").unwrap();
+    assert!(!defaults.agent.enabled);
+    assert_eq!(defaults.agent.access, super::AgentAccess::ReadAndModify);
+    let mut saved = defaults;
+    saved.agent.enabled = true;
+    saved.agent.access = super::AgentAccess::ReadOnly;
+    let restored: super::Settings =
+        serde_json::from_slice(&serde_json::to_vec(&saved).unwrap()).unwrap();
+    assert_eq!(restored.schema_version, 1);
+    assert!(restored.agent.enabled);
+    assert_eq!(restored.agent.access, super::AgentAccess::ReadOnly);
+}

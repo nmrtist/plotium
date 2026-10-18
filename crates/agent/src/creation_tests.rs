@@ -5,6 +5,7 @@ use std::time::Duration;
 
 fn fixture() -> PlotiumApp {
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
     let cols = [
         ("x", vec![0., 1., 2.]),
         ("y", vec![1., 2., 4.]),
@@ -25,10 +26,11 @@ fn fixture() -> PlotiumApp {
     app
 }
 fn args(app: &PlotiumApp) -> Value {
+    let context = app.session.project_context;
     let t = app.doc.datasets[0].as_table().unwrap();
     let r = &t.typed_state.envelope.revision;
     let c = &r.snapshot.schema.columns;
-    json!({"expected_revision":app.doc.automation_revision,"tool_id":PLOT_CREATE,"parameters":{"parent":document_root_target(),"name":"Native single plot","series":[{"kind":"line","source":{"dataset_id":t.resource_id,"field_id":app.doc.datasets[0].default_field_id().unwrap(),"table_id":r.table_id,"table_revision":r.id,"x_column_id":c[0].id,"y_column_id":c[1].id,"y_error_column_id":c[2].id}}]}})
+    json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"tool_id":PLOT_CREATE,"parameters":{"parent":document_root_target(),"name":"Native single plot","series":[{"kind":"line","source":{"dataset_id":t.resource_id,"field_id":app.doc.datasets[0].default_field_id().unwrap(),"table_id":r.table_id,"table_revision":r.id,"x_column_id":c[0].id,"y_column_id":c[1].id,"y_error_column_id":c[2].id}}]}})
 }
 #[test]
 fn creation_permissions_one_use_revision_and_invalid_batch_are_precise() {
@@ -227,6 +229,7 @@ fn creation_real_http_discovery_execute_png_and_precise_property_edit() {
         },
     };
     let mut app = fixture();
+    let context = app.session.project_context;
     let a = args(&app);
     let mut connection = Connection::start(|| {}).unwrap();
     connection.session.allow_modify = true;
@@ -243,16 +246,16 @@ fn creation_real_http_discovery_execute_png_and_precise_property_edit() {
             let p=client.call_tool(call("plotium_plan",a)).await.unwrap().structured_content.unwrap();
             let result=client.call_tool(call("plotium_execute",json!({"plan_id":p["plan_id"]}))).await.unwrap();assert_eq!(result.is_error,Some(false));let r=result.structured_content.unwrap();
             let canvas=r["value"]["creation"]["canvas"].clone();let curve=r["value"]["bindings"][0]["target"].clone();
-            let detail=client.call_tool(call("plotium_document_inspect",json!({"expected_revision":1,"target":curve,"view":"self"}))).await.unwrap();assert_eq!(detail.is_error,Some(false));
+            let detail=client.call_tool(call("plotium_document_inspect",json!({"expected_project_context":context,"expected_revision":1,"target":curve,"view":"self"}))).await.unwrap();assert_eq!(detail.is_error,Some(false));
             for rev in [1,2] {
-                let image=client.call_tool(call("plotium_render_preview",json!({"expected_revision":rev,"target":canvas,"max_edge":320}))).await.unwrap();
+                let image=client.call_tool(call("plotium_render_preview",json!({"expected_project_context":context,"expected_revision":rev,"target":canvas,"max_edge":320}))).await.unwrap();
                 assert_eq!(image.is_error,Some(false));assert!(image.content.iter().any(|c|c.as_image().is_some()));assert_eq!(image.structured_content.unwrap()["value"]["render_revision"],rev);
                 if rev==1 {
-                    let p=client.call_tool(call("plotium_plan",json!({"expected_revision":1,"tool_id":"properties.set","targets":[curve],"parameters":{"key":"series.line.stroke_width","value":1.5}}))).await.unwrap().structured_content.unwrap();
+                    let p=client.call_tool(call("plotium_plan",json!({"expected_project_context":context,"expected_revision":1,"tool_id":"properties.set","targets":[curve],"parameters":{"key":"series.line.stroke_width","value":1.5}}))).await.unwrap().structured_content.unwrap();
                     let r=client.call_tool(call("plotium_execute",json!({"plan_id":p["plan_id"]}))).await.unwrap();assert_eq!(r.is_error,Some(false));
                 }
             }
-            let stale=client.call_tool(call("plotium_render_preview",json!({"expected_revision":1,"target":canvas}))).await.unwrap();assert_eq!(stale.is_error,Some(true));assert!(!stale.content.iter().any(|c|c.as_image().is_some()));
+            let stale=client.call_tool(call("plotium_render_preview",json!({"expected_project_context":context,"expected_revision":1,"target":canvas}))).await.unwrap();assert_eq!(stale.is_error,Some(true));assert!(!stale.content.iter().any(|c|c.as_image().is_some()));
             client.cancel().await.unwrap();
         });
         tokio::time::timeout(Duration::from_secs(30),async {
@@ -282,6 +285,7 @@ fn creation_real_http_discovery_execute_png_and_precise_property_edit() {
 #[test]
 fn line_width_changes_preserve_native_sources_and_automatic_axis_ranges() {
     let mut app = fixture();
+    let context = app.session.project_context;
     let mut s = crate::Session::default();
     s.allow_modify = true;
     let a = args(&app);
@@ -294,7 +298,7 @@ fn line_width_changes_preserve_native_sources_and_automatic_axis_ranges() {
     let binding = before.binding.clone();
     let x = before.viewport.view_x;
     let y = before.viewport.view_y;
-    let p=s.call(&mut app,"plotium_plan",json!({"expected_revision":1,"tool_id":"properties.set","targets":[curve],"parameters":{"key":"series.line.stroke_width","value":1.5}})).unwrap();
+    let p=s.call(&mut app,"plotium_plan",json!({"expected_project_context":context,"expected_revision":1,"tool_id":"properties.set","targets":[curve],"parameters":{"key":"series.line.stroke_width","value":1.5}})).unwrap();
     s.call(&mut app, "plotium_execute", json!({"plan_id":p["plan_id"]}))
         .unwrap();
     let after = app.doc.canvases[0].objects[0].plot().unwrap();

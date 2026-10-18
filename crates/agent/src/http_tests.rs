@@ -19,6 +19,7 @@ fn real_http_mcp_handshake_discovery_bridge_and_authentication() {
         .build()
         .unwrap();
     let mut app = plotium_core::state::PlotiumApp::new();
+    app.session.project_present = true;
     runtime.block_on(async {
         let client = tokio::spawn(async move {
             let http = reqwest::Client::builder().no_proxy().build().unwrap();
@@ -154,6 +155,8 @@ fn stop_revokes_token_rejects_queue_and_restart_changes_credentials() {
 #[test]
 fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
     let (mut app, targets) = crate::component_tests::fixture();
+    let context = app.session.project_context;
+    app.session.project_present = true;
     let resource_id = targets[0].resource.id.clone();
     let original = crate::component_tests::values(&app, &targets);
     let before = app.doc.automation_revision;
@@ -171,29 +174,29 @@ fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
             let state = client.call_tool(CallToolRequestParams::new("plotium_get_state")).await.unwrap();
             let revision = state.structured_content.unwrap()["revision"].clone();
             let root = client.call_tool(CallToolRequestParams::new("plotium_document_inspect").with_arguments(
-                json!({"expected_revision":revision,"target":plotium_core::automation::document_root_target(),"view":"children"}).as_object().unwrap().clone()
+                json!({"expected_project_context":context,"expected_revision":revision,"target":plotium_core::automation::document_root_target(),"view":"children"}).as_object().unwrap().clone()
             )).await.unwrap();
             assert_eq!(root.is_error,Some(false));
             assert_eq!(root.structured_content.unwrap()["value"]["total"],2);
             let search = client.call_tool(CallToolRequestParams::new("plotium_resources_search").with_arguments(
-                json!({"expected_revision": revision, "query": {"kinds":["plotium.canvas.object"], "name_contains":"Plot"}}).as_object().unwrap().clone()
+                json!({"expected_project_context":context,"expected_revision": revision, "query": {"kinds":["plotium.canvas.object"], "name_contains":"Plot"}}).as_object().unwrap().clone()
             )).await.unwrap();
             let found = search.structured_content.unwrap();
             let id = found["value"]["targets"].as_array().unwrap().iter()
                 .find(|target| target["id"] == resource_id).unwrap()["id"].clone();
             assert!(id.is_string());
             let inspect = client.call_tool(CallToolRequestParams::new("plotium_properties_inspect").with_arguments(
-                json!({"expected_revision": revision, "ids":[id],"key":"series.line.stroke_width"}).as_object().unwrap().clone()
+                json!({"expected_project_context":context,"expected_revision": revision, "ids":[id],"key":"series.line.stroke_width"}).as_object().unwrap().clone()
             )).await.unwrap();
             assert_eq!(inspect.is_error, Some(false));
             let target = inspect.structured_content.unwrap()["value"]["readings"][0]["target"].clone();
             let structure = client.call_tool(CallToolRequestParams::new("plotium_document_inspect").with_arguments(
-                json!({"expected_revision":revision,"target":target,"view":"self"}).as_object().unwrap().clone()
+                json!({"expected_project_context":context,"expected_revision":revision,"target":target,"view":"self"}).as_object().unwrap().clone()
             )).await.unwrap();
             assert_eq!(structure.is_error,Some(false));
             assert_eq!(structure.structured_content.unwrap()["value"]["node"]["source"]["status"],"resolved");
             let plan = client.call_tool(CallToolRequestParams::new("plotium_plan").with_arguments(
-                json!({"expected_revision": revision, "targets":[target],"tool_id":"properties.set","parameters":{"key":"series.line.stroke_width","value":1.5}}).as_object().unwrap().clone()
+                json!({"expected_project_context":context,"expected_revision": revision, "targets":[target],"tool_id":"properties.set","parameters":{"key":"series.line.stroke_width","value":1.5}}).as_object().unwrap().clone()
             )).await.unwrap();
             let plan_id = plan.structured_content.unwrap()["plan_id"].clone();
             let result = client.call_tool(CallToolRequestParams::new("plotium_execute").with_arguments(
@@ -201,7 +204,7 @@ fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
             )).await.unwrap();
             assert_eq!(result.structured_content.unwrap()["targets"][0]["outcome"], "succeeded");
             let stale = client.call_tool(CallToolRequestParams::new("plotium_document_inspect").with_arguments(
-                json!({"expected_revision":revision,"target":target,"view":"self"}).as_object().unwrap().clone()
+                json!({"expected_project_context":context,"expected_revision":revision,"target":target,"view":"self"}).as_object().unwrap().clone()
             )).await.unwrap();
             assert_eq!(stale.is_error,Some(true));
             assert_eq!(stale.structured_content.unwrap()["error"]["code"],"stale_revision");
@@ -278,10 +281,12 @@ fn cancelling_a_queued_execute_closes_its_desktop_response() {
 fn cancelled_queued_edit_is_skipped_before_desktop_execution() {
     let mut connection = Connection::start(|| {}).unwrap();
     let mut app = plotium_core::state::PlotiumApp::new_with_settings(Default::default());
+    app.start_new_project();
+    let context = app.session.project_context;
     connection.session.allow_modify = true;
     let plan = connection.session.call(&mut app, "plotium_plan", json!({
         "tool_id":"properties.set", "parameters":{"key":"document.figure.typography.tick_pt","value":15},
-        "ids":["document"], "expected_revision":0,
+        "ids":["document"], "expected_project_context":context,"expected_revision":0,
     })).unwrap();
     let runs = app.doc.automation_runs.len();
     let (send, requests) = mpsc::channel(1);

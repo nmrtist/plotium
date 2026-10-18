@@ -4,9 +4,10 @@ impl Session {
     pub(crate) fn prepare_import_plan(
         &self,
         app: &PlotiumApp,
-        arguments: Value,
+        mut arguments: Value,
         blocked: bool,
     ) -> Result<(ToolPlan, TableImportParams), Failure> {
+        check_context(app, &mut arguments)?;
         let args: Plan = decode(arguments)?;
         if args.parameters.get("mode").and_then(Value::as_str) != Some("table_data_only") {
             return Err(Failure::new(
@@ -71,7 +72,7 @@ impl Session {
             "Import {} native tables; {} failed inputs. No plots are created.",
             summary["prepared_files"], summary["failed_files"]
         )];
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
         let value = json!({"plan_id":id,"preflight":plan,"import":summary});
         if serde_json::to_vec(&value)
             .map_err(|e| Failure::new("execution_failed", e.to_string()))?
@@ -97,6 +98,7 @@ impl Session {
         name: &str,
         mut arguments: Value,
     ) -> Result<Value, Failure> {
+        check_context(app, &mut arguments)?;
         let revision: DocumentRevision = decode(
             arguments
                 .as_object_mut()

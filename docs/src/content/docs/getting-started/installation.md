@@ -19,9 +19,17 @@ the `plotium` executable. No installer or administrator rights are required.
 | macOS Intel | `macos-x86_64.zip` | macOS 13+ |
 | macOS Apple Silicon | `macos-aarch64.zip` | macOS 13+ |
 
-Each archive also includes `plotium-cli`, license notices, and a CLI README.
 The release's `SHA256SUMS` file lists checksums for all archives. Packages are
 unsigned portable executables; macOS packages do not contain an `.app` bundle.
+
+### Optional: connect an AI client
+
+To use Codex, Claude Code or Claude Desktop with Plotium, keep `plotium-mcp`
+(`plotium-mcp.exe` on Windows) beside the main executable. macOS and Windows
+packages also include `plotium.mcpb`, the Claude Desktop extension.
+
+When you are ready, follow [Connect your AI client](/guides/automation/#connect-your-ai-client).
+Each client only needs to be added once.
 
 ## First launch
 

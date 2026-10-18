@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 fn fixture() -> PlotiumApp {
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
     let cols = [
         ("x", vec![0., 1., 2.]),
         ("y", vec![1., 2., 4.]),
@@ -39,12 +40,13 @@ fn fixture() -> PlotiumApp {
     app
 }
 fn args(app: &PlotiumApp, y: usize) -> Value {
+    let context = app.session.project_context;
     let t = app.doc.datasets[0].as_table().unwrap();
     let r = &t.typed_state.envelope.revision;
     let c = &r.snapshot.schema.columns;
     let o = &app.doc.canvases[0].objects[0];
     let s = &o.plot().unwrap().binding.series[0];
-    json!({"expected_revision":app.doc.automation_revision,"tool_id":CURVE_BIND,"parameters":{"edits":[{"target":app.series_target(0,o.id,s.id).unwrap(),"source":{"dataset_id":t.resource_id,"field_id":s.source.field,"table_id":r.table_id,"table_revision":r.id,"x_column_id":c[0].id,"y_column_id":c[y].id,"y_error_column_id":c[3].id}}]}})
+    json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"tool_id":CURVE_BIND,"parameters":{"edits":[{"target":app.series_target(0,o.id,s.id).unwrap(),"source":{"dataset_id":t.resource_id,"field_id":s.source.field,"table_id":r.table_id,"table_revision":r.id,"x_column_id":c[0].id,"y_column_id":c[y].id,"y_error_column_id":c[3].id}}]}})
 }
 #[test]
 fn binding_session_permissions_atomicity_revision_and_one_use_plans() {
@@ -154,6 +156,7 @@ fn binding_real_http_mcp_plans_executes_and_returns_native_preview() {
         },
     };
     let mut app = fixture();
+    let context = app.session.project_context;
     let a = args(&app, 2);
     let canvas = TargetRef::resource(app.doc.canvases[0].resource_id.into());
     let mut connection = Connection::start(|| {}).unwrap();
@@ -186,7 +189,7 @@ fn binding_real_http_mcp_plans_executes_and_returns_native_preview() {
             let image = client
                 .call_tool(call(
                     "plotium_render_preview",
-                    json!({"expected_revision":1,"target":canvas,"max_edge":320}),
+                    json!({"expected_project_context":context,"expected_revision":1,"target":canvas,"max_edge":320}),
                 ))
                 .await
                 .unwrap();

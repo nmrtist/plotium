@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 
 pub(super) fn fixture(contour: bool) -> (PlotiumApp, String) {
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
     let dataset = if contour {
         let dim = |nucleus: &str| plotium_io::Dim {
             spectral_width_hz: 4000.0,
@@ -80,12 +81,13 @@ fn invoke(
     tool: &str,
     parameters: Value,
 ) -> Value {
+    let context = app.session.project_context;
     let rev = revision(app);
     let plan = session
         .call(
             app,
             "plotium_plan",
-            json!({"tool_id": tool, "parameters":parameters,"ids":[id],"expected_revision":rev}),
+            json!({"tool_id": tool, "parameters":parameters,"ids":[id],"expected_project_context":context,"expected_revision":rev}),
         )
         .unwrap();
     session
@@ -100,6 +102,8 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
         (true, "series.contour.count", json!(12)),
     ] {
         let (mut app, id) = fixture(contour);
+        let context = app.session.project_context;
+        app.session.project_present = true;
         let mut session = Session::default();
         session.allow_modify = true;
         let rev = revision(&mut app);
@@ -107,7 +111,7 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
             .call(
                 &mut app,
                 "plotium_properties_inspect",
-                json!({"ids":[id],"key":key,"expected_revision":rev}),
+                json!({"ids":[id],"key":key,"expected_project_context":context,"expected_revision":rev}),
             )
             .unwrap();
         let before = inspect["value"]["readings"][0]["value"].clone();
@@ -124,7 +128,7 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
             .call(
                 &mut app,
                 "plotium_properties_inspect",
-                json!({"ids":[id],"key":key,"expected_revision":rev}),
+                json!({"ids":[id],"key":key,"expected_project_context":context,"expected_revision":rev}),
             )
             .unwrap();
         assert_eq!(
@@ -150,7 +154,7 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
             .call(
                 &mut app,
                 "plotium_properties_inspect",
-                json!({"ids":[id],"key":key,"expected_revision":rev}),
+                json!({"ids":[id],"key":key,"expected_project_context":context,"expected_revision":rev}),
             )
             .unwrap();
         assert_eq!(inspect["value"]["readings"][0]["value"], before);
@@ -173,6 +177,8 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
 #[test]
 fn inapplicable_targets_are_skipped_and_deleted_targets_cannot_execute() {
     let (mut app, id) = fixture(false);
+    let context = app.session.project_context;
+    app.session.project_present = true;
     let mut session = Session::default();
     session.allow_modify = true;
     let result = invoke(
@@ -184,7 +190,7 @@ fn inapplicable_targets_are_skipped_and_deleted_targets_cannot_execute() {
     );
     assert_eq!(result["targets"][0]["outcome"], "skipped");
     let rev = revision(&mut app);
-    let p = session.call(&mut app, "plotium_plan", json!({"tool_id":"resource.rename","parameters":{"name":"Renamed"},"ids":[id],"expected_revision":rev})).unwrap();
+    let p = session.call(&mut app, "plotium_plan", json!({"tool_id":"resource.rename","parameters":{"name":"Renamed"},"ids":[id],"expected_project_context":context,"expected_revision":rev})).unwrap();
     let object = app.doc.canvases[0].objects[0].clone();
     app.execute_action(plotium_core::actions::Action::DeleteObject {
         canvas: 0,

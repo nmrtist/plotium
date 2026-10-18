@@ -110,7 +110,7 @@ impl PlotiumApp {
     /// its ID and completion-order counters) and the feedback acknowledgement
     /// watermark that refers to it — or every pre-load report would resurface
     /// in the banner after each project open.
-    pub(crate) fn install_loaded_project(&mut self, mut loaded: PlotiumApp) {
+    pub fn install_loaded_project(&mut self, mut loaded: PlotiumApp) {
         let settings = self.settings.clone();
         let save_include_view_snapshots = loaded.doc.save_include_view_snapshots;
         loaded.session.operation_history = std::mem::take(&mut self.session.operation_history);

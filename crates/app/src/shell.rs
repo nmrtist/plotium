@@ -207,6 +207,7 @@ mod tests {
     #[test]
     fn nonvisual_poll_finishes_save_and_unblocks_project_requests() {
         let mut app = PlotiumApp::new_with_settings(Default::default());
+        app.start_new_project();
         let ctx = egui::Context::default();
         let (send, receive) = std::sync::mpsc::channel();
         let mut save_job = Some(ManualProjectSaveJob {
@@ -254,6 +255,7 @@ mod tests {
     #[test]
     fn nonvisual_poll_drains_import_completion_and_unblocks_project_requests() {
         let mut app = PlotiumApp::new_with_settings(Default::default());
+        app.start_new_project();
         let ctx = egui::Context::default();
         let mut save_job = None;
         let mut session = plotium_agent::Session::default();

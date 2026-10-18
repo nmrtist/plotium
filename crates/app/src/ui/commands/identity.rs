@@ -54,7 +54,7 @@ pub(super) fn command_identity(
         CommandId::OpenFile => plain("Open File…", Some(icon::FILE)),
         CommandId::OpenFolder => plain("Open Folder…", Some(icon::FOLDER)),
         CommandId::ImportNmrSampling => plain("Import NMR with Sampling Table…", Some(icon::FILE)),
-        CommandId::AgentConnections => plain("Agent connections…", None),
+        CommandId::AgentConnections => plain("AI connections (MCP)…", None),
         CommandId::RunBatchWorkflow => plain("Automation…", Some(icon::PLAY)),
         CommandId::RunScientificScript => plain("Run Scientific Script", Some(icon::PLAY)),
         CommandId::OpenRecent(i) => (

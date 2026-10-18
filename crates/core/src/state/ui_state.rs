@@ -76,7 +76,7 @@ impl SettingsCategory {
             SettingsCategory::Processing => "Processing",
             SettingsCategory::Export => "Export",
             SettingsCategory::Recent => "Recent",
-            SettingsCategory::AgentConnections => "Agent connections",
+            SettingsCategory::AgentConnections => "AI connections (MCP)",
         }
     }
 
@@ -620,6 +620,7 @@ pub struct Session {
     /// Distinguishes the welcome state from an intentionally created, still
     /// empty untitled project.
     pub project_present: bool,
+    pub project_context: super::ProjectContextId,
     pub active_canvas: Option<usize>,
     /// Pan/zoom of the board that holds every page-frame.
     pub board: BoardViewport,

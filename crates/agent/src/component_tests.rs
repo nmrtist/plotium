@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 
 pub(super) fn fixture() -> (PlotiumApp, Vec<TargetRef>) {
     let (mut app, _) = crate::display_tests::fixture(false);
+    app.session.project_present = true;
     let plot = app.doc.canvases[0].objects[0].plot_mut().unwrap();
     let mut second = plot.binding.series[0].clone();
     second.id = plot.allocate_series_id();
@@ -47,6 +48,7 @@ fn call(
     mut args: Value,
 ) -> Result<Value, crate::Failure> {
     args["expected_revision"] = json!(app.doc.automation_revision);
+    args["expected_project_context"] = json!(app.session.project_context);
     session.call(app, name, args)
 }
 fn edit(session: &mut Session, app: &mut PlotiumApp, targets: Value, reset: bool) -> Value {
@@ -70,6 +72,7 @@ fn edit(session: &mut Session, app: &mut PlotiumApp, targets: Value, reset: bool
 #[test]
 fn exact_edits_deduplicate_preserve_owners_and_replay_after_page_reorder() {
     let (mut app, targets) = fixture();
+    app.session.project_present = true;
     assert_eq!(targets[0].component, targets[2].component);
     let before = values(&app, &targets);
     let mut session = Session::default();
@@ -125,6 +128,7 @@ fn exact_edits_deduplicate_preserve_owners_and_replay_after_page_reorder() {
 #[test]
 fn malformed_addresses_and_unsupported_operations_are_rejected_atomically() {
     let (mut app, targets) = fixture();
+    app.session.project_present = true;
     let before = values(&app, &targets);
     let mut session = Session::default();
     let target = json!(targets[0]);
@@ -220,6 +224,7 @@ fn malformed_addresses_and_unsupported_operations_are_rejected_atomically() {
 #[test]
 fn exact_plans_recheck_permissions_revision_busy_and_single_use() {
     let (mut app, targets) = fixture();
+    app.session.project_present = true;
     let before = values(&app, &targets);
     let mut session = Session::default();
     for failure in ["permission_denied", "stale_revision", "busy"] {
@@ -270,6 +275,7 @@ fn exact_plans_recheck_permissions_revision_busy_and_single_use() {
 fn presentation_history_reports_missing_page_or_object() {
     for remove_page in [true, false] {
         let (mut app, targets) = fixture();
+        app.session.project_present = true;
         let mut session = Session::default();
         session.allow_modify = true;
         edit(&mut session, &mut app, json!([targets[0]]), false);

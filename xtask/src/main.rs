@@ -112,6 +112,8 @@ fn pr_check(stage: Option<PrCheckStage>) -> Result<(), String> {
                     "plotium",
                     "-p",
                     "plotium-cli",
+                    "-p",
+                    "plotium-agent",
                     "--locked",
                     "--quiet",
                 ],

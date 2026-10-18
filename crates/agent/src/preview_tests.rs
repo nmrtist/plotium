@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 fn fixture() -> PlotiumApp {
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
     let mut c = CanvasDocument::new("Preview test".into(), [100., 50.]);
     let id = c.allocate_object_id();
     c.objects.push(ContentItem {
@@ -18,7 +19,8 @@ fn fixture() -> PlotiumApp {
     app
 }
 fn args(app: &PlotiumApp) -> Value {
-    json!({"expected_revision":app.doc.automation_revision,"target":TargetRef::resource(app.doc.canvases[0].resource_id.into()),"max_edge":320})
+    let context = app.session.project_context;
+    json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"target":TargetRef::resource(app.doc.canvases[0].resource_id.into()),"max_edge":320})
 }
 fn pending(arguments: Value) -> (PendingRequest, oneshot::Receiver<Result<Value, Failure>>) {
     let (response, receive) = oneshot::channel();
@@ -287,6 +289,7 @@ fn worker_failure_reaches_client_and_leaves_a_failed_run() {
     connection.preview = Some(crate::preview::PreviewFlight {
         worker: std::thread::spawn(|| panic!("controlled renderer failure")),
         run,
+        cancellation: request.cancellation.child_token(),
         request,
     });
     let until = Instant::now() + Duration::from_secs(5);

@@ -19,8 +19,8 @@ impl Drop for Input {
         std::fs::remove_file(&self.0).unwrap();
     }
 }
-fn arguments(file: &Input, revision: u64) -> Value {
-    json!({"tool_id":"data.import","parameters":{"mode":"table_data_only","paths":[file.0],"header":"present"},"expected_revision":revision})
+fn arguments(file: &Input, revision: u64, context: ProjectContextId) -> Value {
+    json!({"tool_id":"data.import","parameters":{"mode":"table_data_only","paths":[file.0],"header":"present"},"expected_project_context":context,"expected_revision":revision})
 }
 fn pending(
     args: Value,
@@ -55,14 +55,18 @@ fn data_only_import_requires_permission_and_one_use_plan() {
     let f = Input::new();
     let mut s = Session::default();
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
+    let context = app.session.project_context;
     assert_eq!(
-        s.call(&mut app, "plotium_plan", arguments(&f, 0))
+        s.call(&mut app, "plotium_plan", arguments(&f, 0, context))
             .unwrap_err()
             .code,
         "permission_denied"
     );
     s.allow_modify = true;
-    let plan = s.call(&mut app, "plotium_plan", arguments(&f, 0)).unwrap();
+    let plan = s
+        .call(&mut app, "plotium_plan", arguments(&f, 0, context))
+        .unwrap();
     assert!(app.doc.datasets.is_empty());
     assert_eq!(plan["import"]["status"], "prepared");
     let proposed = plan["import"]["items"][0]["metadata"]["dataset_id"].clone();
@@ -82,7 +86,9 @@ fn data_only_import_requires_permission_and_one_use_plan() {
         "expired_plan"
     );
     assert!(app.doc.datasets.is_empty());
-    let plan = s.call(&mut app, "plotium_plan", arguments(&f, 0)).unwrap();
+    let plan = s
+        .call(&mut app, "plotium_plan", arguments(&f, 0, context))
+        .unwrap();
     let result = s
         .call(
             &mut app,
@@ -95,7 +101,7 @@ fn data_only_import_requires_permission_and_one_use_plan() {
     assert!(app.doc.canvases.is_empty());
     s.allow_modify = false;
     let metadata = &result["value"]["items"][0]["metadata"];
-    let read = json!({"expected_revision":1,"dataset_id":metadata["dataset_id"],"table_revision":metadata["table_revision"]});
+    let read = json!({"expected_project_context":context,"expected_revision":1,"dataset_id":metadata["dataset_id"],"table_revision":metadata["table_revision"]});
     assert_eq!(
         s.call(&mut app, "plotium_table_columns", read.clone())
             .unwrap()["value"]["total_rows"],
@@ -111,8 +117,10 @@ fn data_only_import_requires_permission_and_one_use_plan() {
 fn background_preflight_keeps_other_tools_available_and_returns_only_when_prepared() {
     let f = Input::new();
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
+    let context = app.session.project_context;
     let mut c = Connection::start(|| {}).unwrap();
-    let (req, mut rx) = pending(arguments(&f, 0));
+    let (req, mut rx) = pending(arguments(&f, 0, context));
     c.dispatch_request(&mut app, req, false).unwrap();
     assert!(app.doc.datasets.is_empty());
     assert!(rx.try_recv().is_err());
@@ -121,7 +129,7 @@ fn background_preflight_keeps_other_tools_available_and_returns_only_when_prepar
         .call(&mut app, "plotium_get_state", json!({}))
         .unwrap();
     assert_eq!(state["revision"], 0);
-    let (duplicate, rx2) = pending(arguments(&f, 0));
+    let (duplicate, rx2) = pending(arguments(&f, 0, context));
     assert_eq!(
         c.dispatch_request(&mut app, duplicate, false)
             .unwrap_err()
@@ -147,12 +155,38 @@ fn background_preflight_keeps_other_tools_available_and_returns_only_when_prepar
     );
 }
 #[test]
+fn project_change_stops_import_worker_without_cancelling_its_response() {
+    let file = Input::new();
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.start_new_project();
+    let mut connection = Connection::start(|| {}).unwrap();
+    let (request, response) = pending(arguments(&file, 0, app.session.project_context));
+    let request_cancellation = request.cancellation.clone();
+    connection
+        .dispatch_request(&mut app, request, false)
+        .unwrap();
+    let worker_cancellation = connection.import.as_ref().unwrap().cancellation.clone();
+    app.start_new_project();
+    connection.synchronize_project(&app);
+    assert!(worker_cancellation.is_cancelled());
+    assert!(!request_cancellation.is_cancelled());
+    assert_eq!(
+        response.blocking_recv().unwrap().unwrap_err().code,
+        "project_changed"
+    );
+    assert!(app.doc.datasets.is_empty());
+    assert!(app.doc.automation_runs.is_empty());
+    assert!(!app.doc.dirty);
+}
+#[test]
 fn cancelled_stopped_stale_or_revoked_preflight_never_installs_data() {
     let f = Input::new();
     for mode in ["cancel", "stop", "stale", "permission", "barrier"] {
         let mut app = PlotiumApp::new();
+        app.session.project_present = true;
+        let context = app.session.project_context;
         let mut c = Connection::start(|| {}).unwrap();
-        let (req, rx) = pending(arguments(&f, 0));
+        let (req, rx) = pending(arguments(&f, 0, context));
         let token = req.cancellation.clone();
         c.dispatch_request(&mut app, req, false).unwrap();
         match mode {
@@ -188,6 +222,8 @@ fn cancelled_stopped_stale_or_revoked_preflight_never_installs_data() {
 fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
     let mut s = Session::default();
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
+    let context = app.session.project_context;
     let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
     let caps = &state["connection_capabilities"];
     assert_eq!(caps["tools"].as_array().unwrap().len(), 11);
@@ -210,7 +246,7 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
             s.call(
                 &mut app,
                 "plotium_plan",
-                json!({"expected_revision":0,"ids":["document"],"tool_id":tool,"parameters":{}})
+                json!({"expected_project_context":context,"expected_revision":0,"ids":["document"],"tool_id":tool,"parameters":{}})
             )
             .unwrap_err()
             .code,
@@ -219,7 +255,7 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
     }
     let f = Input::new();
     s.allow_modify = true;
-    let mut args = arguments(&f, 0);
+    let mut args = arguments(&f, 0, context);
     args["ids"] = json!(["document"]);
     assert_eq!(
         s.call(&mut app, "plotium_plan", args).unwrap_err().code,
@@ -230,8 +266,10 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
 fn import_worker_failure_reaches_client_and_keeps_document_unchanged() {
     let f = Input::new();
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
+    let context = app.session.project_context;
     let mut c = Connection::start(|| {}).unwrap();
-    let args = arguments(&f, 0);
+    let args = arguments(&f, 0, context);
     let (plan, _) = c
         .session
         .prepare_import_plan(&app, args.clone(), false)
@@ -240,6 +278,7 @@ fn import_worker_failure_reaches_client_and_keeps_document_unchanged() {
     c.import = Some(ImportFlight {
         worker: std::thread::spawn(|| panic!("injected import worker failure")),
         plan,
+        cancellation: request.cancellation.child_token(),
         request,
     });
     assert_eq!(
@@ -266,8 +305,10 @@ fn real_http_import_columns_and_page_10001_use_the_same_native_table() {
         text.push_str(&format!("{i},{},row{i}\n", i * 2));
     }
     std::fs::write(&f.0, text).unwrap();
-    let args = arguments(&f, 0);
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
+    let context = app.session.project_context;
+    let args = arguments(&f, 0, context);
     let mut c = Connection::start(|| {}).unwrap();
     let mut config = StreamableHttpClientTransportConfig::with_uri(c.url.clone());
     config.auth_header = Some(c.token.clone());
@@ -308,7 +349,7 @@ fn real_http_import_columns_and_page_10001_use_the_same_native_table() {
             let metadata = &result["value"]["items"][0]["metadata"];
             let id = metadata["dataset_id"].clone();
             let revision = metadata["table_revision"].clone();
-            let p = json!({"dataset_id":id,"table_revision":revision,"expected_revision":1});
+            let p = json!({"dataset_id":id,"table_revision":revision,"expected_project_context":context,"expected_revision":1});
             let columns = call(&client, "plotium_table_columns", p.clone()).await;
             assert_eq!(columns["value"]["columns"].as_array().unwrap().len(), 3);
             assert_eq!(columns["value"]["total_rows"], 10005);

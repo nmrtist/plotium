@@ -61,5 +61,6 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 winresource = "0.1"
 
 [dev-dependencies]
+tempfile.workspace = true
 ab_glyph = "0.2"
 tiff.workspace = true

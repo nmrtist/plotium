@@ -6,7 +6,7 @@ description: 偏好设置窗口中的每一项设置，按类别列出。
 用 `Ctrl` + `,`（macOS 为 `Cmd` + `,`）或从菜单打开偏好设置。修改会自动
 保存，通常立即生效；**Graphics processor** 的更改在重启后生效。
 **Reset to Defaults** 恢复已保存偏好设置的默认值，但保留最近文件列表。
-Agent 连接仅对本次开启生效，详见下文。
+AI 连接启用状态和权限会持久保存，详见下文。
 
 ## General（通用）
 
@@ -59,13 +59,24 @@ Agent 连接仅对本次开启生效，详见下文。
 最近打开的文件、文件夹和项目——与 **File → Open Recent** 及欢迎页相同
 的列表——并提供 **Clear recent files** 按钮。
 
-## Agent connections（Agent 连接）
+## AI connections (MCP)
 
-开启或停止当前项目的本机 MCP 连接。**Access** 默认选择 **Read and modify**
-（读取和修改），修改可撤销和重做；选择 **Read only**（只读）可阻止后续修改。**Copy Codex launch command** 提供可直接执行的启动命令；
-**Copy connection information** 提供其他客户端所需的通用 JSON。
-同一页面显示最近操作与错误。
+连接外部 AI 客户端，让它查看项目并完成支持的编辑。点击 Ribbon 中的机器人图标
+可直接打开此页。
 
-连接和授权均不保存。关闭偏好设置不影响连接；停止连接、切换项目或退出会撤销
-访问权限。每次重新开启后须重新复制命令或连接配置。配置步骤与支持范围见
-[自动化](/zh-cn/guides/automation/#本机-agent-连接mcp)。
+| 控件 | 作用 |
+| --- | --- |
+| **Enable MCP** | 允许本机 AI 客户端连接。默认关闭，重启后记住选择 |
+| **Access → Read and modify** | 允许支持的编辑，可正常撤销和重做。这是默认权限 |
+| **Access → Read only** | 允许查看和预览，阻止后续编辑，包括已准备的修改 |
+| Codex / Claude Code → **Add** | 将 Plotium 添加到已安装客户端的 MCP 配置中 |
+| **Add to Claude Desktop…** | 在 macOS 和 Windows 上打开扩展安装包，请在 Claude Desktop 中确认安装 |
+| **Manual configuration and diagnostics** | 提供其他客户端所需的配置和排查连接问题的信息 |
+
+权限对所有已连接客户端和项目统一生效，重启 Plotium 后仍保留。关闭设置或切换
+项目不会停止访问。关闭 MCP 会立即停止访问并丢弃待执行修改，同时保留客户端配置；
+退出 Plotium 也会停止访问。
+
+**Configured** 表示客户端配置已完成；最近的客户端活动则表明客户端是否实际访问
+过 Plotium。页面也会显示最近操作和错误。连接步骤、示例请求、机器人状态和排障
+方法见 [AI 客户端连接](/zh-cn/guides/automation/#本机-agent-连接mcp)。

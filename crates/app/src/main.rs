@@ -4,6 +4,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod agent_connections;
+mod agent_install;
 mod fonts;
 mod graphics;
 mod observability;
@@ -460,8 +461,7 @@ impl Shell {
                             )
                         },
                     );
-                    self.agent_connections.stop();
-                    self.app = app;
+                    self.app.install_loaded_project(app);
                     self.pending_recovery = None;
                     self.recovery_written = true;
                     self.last_recovered_generation = Some(self.app.doc.edit_generation);

@@ -2,10 +2,26 @@
 use crate::{Connection, Failure, PendingRequest};
 use plotium_core::{automation::*, state::PlotiumApp};
 use std::thread::JoinHandle;
+use tokio_util::sync::CancellationToken;
 pub(crate) struct ImportFlight {
     worker: JoinHandle<Result<PreparedTableImport, AutomationError>>,
     plan: ToolPlan,
     request: PendingRequest,
+    cancellation: CancellationToken,
+}
+impl ImportFlight {
+    pub(crate) fn cancel(self) {
+        self.cancellation.cancel();
+        if self
+            .request
+            .response
+            .send(Err(Failure::new(
+                "project_changed",
+                "Project changed; reread state and replan",
+            )))
+            .is_err()
+        { /* Client disconnected. */ }
+    }
 }
 impl Connection {
     pub(crate) fn dispatch_import(
@@ -31,13 +47,16 @@ impl Connection {
                 Ok(p) => p,
                 Err(e) => return respond(request, Err(e)),
             };
-        let cancellation = request.cancellation.clone();
+        // Client cancellation reaches the worker, but a project change must
+        // stop only the worker so HTTP can still deliver project_changed.
+        let cancellation = request.cancellation.child_token();
+        let worker_cancellation = cancellation.clone();
         let active = self.active.clone();
         let worker = std::thread::Builder::new()
             .name("plotium-table-import".into())
             .spawn(move || {
                 PreparedTableImport::prepare(params, || {
-                    cancellation.is_cancelled()
+                    worker_cancellation.is_cancelled()
                         || !active.load(std::sync::atomic::Ordering::Acquire)
                 })
             });
@@ -47,6 +66,7 @@ impl Connection {
                     worker,
                     plan,
                     request,
+                    cancellation,
                 });
                 Ok(())
             }
@@ -60,6 +80,7 @@ impl Connection {
         }
     }
     pub fn poll_import(&mut self, app: &mut PlotiumApp, blocked: bool) -> Result<(), Failure> {
+        self.synchronize_project(app);
         if !self.import.as_ref().is_some_and(|f| f.worker.is_finished()) {
             return Ok(());
         }

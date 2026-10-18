@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 fn app() -> PlotiumApp {
     let mut app = PlotiumApp::new();
+    app.session.project_present = true;
     app.doc
         .canvases
         .push(CanvasDocument::new("Figure".into(), [120.0, 80.0]));
@@ -19,8 +20,9 @@ fn plan(
     parameters: Value,
     ids: Value,
 ) -> Result<Value, Failure> {
+    let context = app.session.project_context;
     let revision = app.doc.automation_revision;
-    session.call(app, "plotium_plan", json!({"tool_id": tool, "parameters": parameters, "ids": ids, "expected_revision": revision}))
+    session.call(app, "plotium_plan", json!({"tool_id": tool, "parameters": parameters, "ids": ids, "expected_project_context":context,"expected_revision": revision}))
 }
 fn typography(session: &mut Session, app: &mut PlotiumApp, value: f64) -> Value {
     plan(
@@ -111,6 +113,7 @@ fn manual_edit_undo_delete_and_permission_revocation_block_old_plans() {
 #[test]
 fn closed_capability_boundary_and_parameter_validation() {
     let mut app = app();
+    let context = app.session.project_context;
     let mut session = Session::default();
     for key in [
         "settings.appearance.accent.color",
@@ -135,7 +138,7 @@ fn closed_capability_boundary_and_parameter_validation() {
                 .call(
                     &mut app,
                     "plotium_properties_inspect",
-                    json!({"key":key,"ids":["document"],"expected_revision":0})
+                    json!({"key":key,"ids":["document"],"expected_project_context":context,"expected_revision":0})
                 )
                 .unwrap_err()
                 .code,

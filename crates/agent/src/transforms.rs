@@ -14,6 +14,20 @@ pub(crate) struct TransformFlight {
     plan: ToolPlan,
     request: PendingRequest,
 }
+impl TransformFlight {
+    pub(crate) fn cancel(self) {
+        self.cancel.store(true, Ordering::Relaxed);
+        if self
+            .request
+            .response
+            .send(Err(Failure::new(
+                "project_changed",
+                "Project changed; reread state and replan",
+            )))
+            .is_err()
+        { /* Client disconnected. */ }
+    }
+}
 impl Connection {
     pub(crate) fn dispatch_transform(
         &mut self,
@@ -63,6 +77,7 @@ impl Connection {
         }
     }
     pub fn poll_transform(&mut self, app: &mut PlotiumApp, blocked: bool) -> Result<(), Failure> {
+        self.synchronize_project(app);
         let Some(flight) = &self.transform else {
             return Ok(());
         };

@@ -19,9 +19,17 @@ Plotium 是原生桌面应用，支持 Windows、macOS 和 Linux。
 | macOS Intel | `macos-x86_64.zip` | macOS 13+ |
 | macOS Apple Silicon | `macos-aarch64.zip` | macOS 13+ |
 
-每个压缩包还包含 `plotium-cli`、许可证声明和 CLI README。
 发行版的 `SHA256SUMS` 文件列出了所有压缩包的校验和。
 这些包是未签名的便携可执行文件，macOS 包不包含 `.app` 应用包。
+
+### 可选：连接 AI 客户端
+
+如需在 Plotium 中使用 Codex、Claude Code 或 Claude Desktop，请将 `plotium-mcp`
+（Windows 下为 `plotium-mcp.exe`）保留在主程序旁。macOS 和 Windows 包还包含
+Claude Desktop 扩展 `plotium.mcpb`。
+
+准备好后，按[连接 AI 客户端](/zh-cn/guides/automation/#连接-ai-客户端)中的步骤操作。
+每个客户端只需添加一次。
 
 ## 首次启动
 

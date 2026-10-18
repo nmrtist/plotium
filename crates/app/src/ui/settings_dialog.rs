@@ -202,7 +202,7 @@ fn render_category(
             let draft = &mut app.session.ui.settings_dialog.as_mut().unwrap().draft;
             render_recent(ui, draft);
         }
-        SettingsCategory::AgentConnections => agent_connections.show(ui),
+        SettingsCategory::AgentConnections => agent_connections.show(ui, app),
     }
 }
 

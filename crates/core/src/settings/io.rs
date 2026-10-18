@@ -14,7 +14,9 @@ pub fn load() -> Settings {
 
 pub fn save(settings: &Settings) -> io::Result<()> {
     let Some(path) = paths::settings_file() else {
-        return Ok(());
+        return Err(io::Error::other(
+            "Could not locate the Plotium preferences directory",
+        ));
     };
     save_to_path(&path, settings)
 }
