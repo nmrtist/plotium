@@ -59,13 +59,10 @@ fn search_dirs() -> Vec<PathBuf> {
             versions.reverse();
             dirs.extend(versions);
         }
-        #[cfg(windows)]
-        {
-            let npm = home.join("AppData/Roaming/npm/node_modules/@openai/codex");
-            for base in [&npm, &npm.join("node_modules/@openai/codex-win32-x64")] {
-                dirs.push(base.join("vendor/x86_64-pc-windows-msvc/codex"));
-            }
-        }
+    }
+    #[cfg(windows)]
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        dirs.push(PathBuf::from(appdata).join("npm"));
     }
     dirs.extend([
         PathBuf::from("/opt/homebrew/bin"),
@@ -74,7 +71,10 @@ fn search_dirs() -> Vec<PathBuf> {
     dirs
 }
 pub(crate) fn locate(client: Client) -> Option<PathBuf> {
-    for dir in search_dirs() {
+    locate_in(client, &search_dirs())
+}
+fn locate_in(client: Client, directories: &[PathBuf]) -> Option<PathBuf> {
+    for dir in directories {
         let path = dir.join(format!(
             "{}{}",
             client.executable(),
@@ -83,8 +83,34 @@ pub(crate) fn locate(client: Client) -> Option<PathBuf> {
         if path.is_file() {
             return Some(path);
         }
+        #[cfg(windows)]
+        if client == Client::Codex
+            && let Some(path) = windows_codex_in(dir, std::env::consts::ARCH)
+        {
+            return Some(path);
+        }
     }
     None
+}
+#[cfg(any(windows, test))]
+fn windows_codex_in(prefix: &Path, architecture: &str) -> Option<PathBuf> {
+    let (package, target) = match architecture {
+        "x86_64" => ("codex-win32-x64", "x86_64-pc-windows-msvc"),
+        "aarch64" => ("codex-win32-arm64", "aarch64-pc-windows-msvc"),
+        _ => return None,
+    };
+    // npm exposes .cmd/.ps1 launchers on PATH. Resolve their native payload so
+    // registration needs neither a shell nor Node.js in the desktop's PATH.
+    let packages = prefix.join("node_modules/@openai");
+    let codex = packages.join("codex");
+    [
+        codex.join("node_modules/@openai").join(package),
+        packages.join(package),
+        codex,
+    ]
+    .into_iter()
+    .map(|base| base.join("vendor").join(target).join("bin/codex.exe"))
+    .find(|path| path.is_file())
 }
 fn home() -> Option<PathBuf> {
     std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)

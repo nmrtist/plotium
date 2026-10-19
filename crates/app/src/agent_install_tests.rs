@@ -1,4 +1,81 @@
 use super::*;
+
+#[test]
+fn windows_npm_codex_discovery_handles_architectures_and_package_layouts() {
+    for (architecture, package, target) in [
+        ("x86_64", "codex-win32-x64", "x86_64-pc-windows-msvc"),
+        ("aarch64", "codex-win32-arm64", "aarch64-pc-windows-msvc"),
+    ] {
+        for relative in [
+            format!("codex/node_modules/@openai/{package}"),
+            package.to_owned(),
+            "codex".to_owned(),
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let prefix = temp.path().join("custom npm \u{7528}\u{6237} path");
+            fs::create_dir_all(&prefix).unwrap();
+            fs::write(prefix.join("codex.cmd"), "npm launcher").unwrap();
+            fs::write(prefix.join("codex.ps1"), "npm launcher").unwrap();
+            assert_eq!(windows_codex_in(&prefix, architecture), None);
+
+            let native = prefix
+                .join("node_modules/@openai")
+                .join(relative)
+                .join("vendor")
+                .join(target)
+                .join("bin/codex.exe");
+            fs::create_dir_all(native.parent().unwrap()).unwrap();
+            fs::write(&native, "native payload").unwrap();
+            assert_eq!(windows_codex_in(&prefix, architecture), Some(native));
+            let other = if architecture == "x86_64" {
+                "aarch64"
+            } else {
+                "x86_64"
+            };
+            assert_eq!(windows_codex_in(&prefix, other), None);
+            assert_eq!(windows_codex_in(&prefix, "unsupported"), None);
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_client_discovery_preserves_path_order_and_prefers_direct_executables() {
+    let temp = tempfile::tempdir().unwrap();
+    let prefix = temp.path().join("npm");
+    let standalone = temp.path().join("standalone");
+    fs::create_dir_all(&prefix).unwrap();
+    fs::create_dir_all(&standalone).unwrap();
+    fs::write(prefix.join("codex.cmd"), "npm launcher").unwrap();
+    let direct = standalone.join("codex.exe");
+    fs::write(&direct, "standalone payload").unwrap();
+    let directories = [prefix.clone(), standalone.clone()];
+    assert_eq!(locate_in(Client::Codex, &directories), Some(direct.clone()));
+    assert_eq!(locate_in(Client::ClaudeCode, &directories), None);
+
+    let (package, target) = match std::env::consts::ARCH {
+        "x86_64" => ("codex-win32-x64", "x86_64-pc-windows-msvc"),
+        "aarch64" => ("codex-win32-arm64", "aarch64-pc-windows-msvc"),
+        _ => return,
+    };
+    let native = prefix
+        .join("node_modules/@openai/codex/node_modules/@openai")
+        .join(package)
+        .join("vendor")
+        .join(target)
+        .join("bin/codex.exe");
+    fs::create_dir_all(native.parent().unwrap()).unwrap();
+    fs::write(&native, "native payload").unwrap();
+    assert_eq!(locate_in(Client::Codex, &directories), Some(native));
+    assert_eq!(
+        locate_in(Client::Codex, &[standalone, prefix.clone()]),
+        Some(direct)
+    );
+    let direct = prefix.join("codex.exe");
+    fs::write(&direct, "direct payload").unwrap();
+    assert_eq!(locate_in(Client::Codex, &directories), Some(direct));
+}
+
 #[test]
 fn installing_and_updating_connector_preserves_unicode_paths_and_previous_copy_on_failure() {
     let temp = tempfile::tempdir().unwrap();

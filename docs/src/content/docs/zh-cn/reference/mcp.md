@@ -7,6 +7,12 @@ description: Plotium 本机 MCP 客户端的手动配置、工具调用与限制
 
 ## 手动配置与诊断
 
+Windows 上，Plotium 从 `PATH` 查找独立的客户端可执行文件。对于通过 npm 安装的
+Codex，会在 `PATH` 中的 npm 前缀和默认的 `%APPDATA%\npm` 前缀内查找包中的原生
+可执行文件，支持 x64 和 ARM64 安装。使用自定义 npm 前缀时，请将它加入 `PATH`
+并重启 Plotium，或通过 **Choose executable…** 选择包内的 `codex.exe`。
+添加 Codex 客户端需要先安装 Codex CLI。
+
 在 **Preferences → AI connections (MCP)** 中展开 **Manual configuration and diagnostics**，
 点击 **Copy stable stdio configuration**。复制的 JSON 含实际连接器绝对路径；
 下例中的路径仅为占位符：

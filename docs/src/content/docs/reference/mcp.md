@@ -7,6 +7,13 @@ For connection setup and everyday tasks, start with [AI client connections](/gui
 
 ## Manual configuration and diagnostics
 
+On Windows, Plotium finds standalone client executables on `PATH`. For Codex
+installed with npm, it resolves the native executable inside the npm package,
+using prefixes on `PATH` and the default `%APPDATA%\npm` prefix. Both x64 and
+ARM64 installations are supported. For a custom npm prefix, add it to `PATH` and
+restart Plotium, or use **Choose executable…** to select the package's
+`codex.exe`. Adding a client requires the Codex CLI to be installed.
+
 In **Preferences → AI connections (MCP)**, expand **Manual configuration and diagnostics**
 and press **Copy stable stdio configuration**. The copied JSON contains the actual
 absolute connector path; the path below is a placeholder:
