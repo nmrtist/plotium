@@ -18,7 +18,10 @@ impl JeolDiffusionFacts {
         {
             return None;
         }
-        record.scaled_f64()
+        // Numeric scaling and the SI prefix are independent factors; always
+        // return seconds and leave physical duration validation to the model.
+        let seconds = record.scaled_f64()? * 10_f64.powi(i32::from(unit.prefix_exponent()));
+        seconds.is_finite().then_some(seconds)
     }
 
     pub fn text(&self, name: &str) -> Option<&str> {

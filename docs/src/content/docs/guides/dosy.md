@@ -158,6 +158,10 @@ relations. It calculates `C = Δ − 2δ/3 − (τ₁ + τ₂)/2` and
 Consistent evidence is accepted automatically; modified or incomplete evidence
 requires explicit model confirmation or direct b values.
 
+JEOL JDF timing imports combine the record's numeric scaling with its SI
+prefix and convert to seconds. For example, `0.0035 s`, `3.5 ms`, and
+`3500 µs` all give δ = `0.0035` seconds.
+
 Results record the analysis input, model and rule version, acquisition
 evidence, final b values, and data fingerprints. Input resolution prefers an
 explicit invocation input, then the selected result's recorded input, saved

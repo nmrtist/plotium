@@ -14,6 +14,7 @@ test inputs, not build output. None establishes independent vendor correctness.
 | `bruker-states` | Same bytes and dimensions with FnMODE=4; States has no alternate-increment sign modulation. |
 | `bruker-nus` | Same payload, FnTYPE=2, FnMODE=6, NusTD=8; full grid 4, two observations in order `[3,1]`; missing coordinates remain absent. |
 | `jeol-complex.jdf` | JDF v1, direct complex axis, float64 LE sections R=1,2,3,4 and I=0,0,0,0; 1 ms dwell, no established delay or nucleus. The descriptor remains complex despite all-zero I. |
+| `jeol-diffusion.jdf` | Original JDF v1, 14 gradients from 0.02 to 0.28 T/m, four complex direct points, millisecond timing records and an unrecognized synthetic pulse section. |
 | `varian.fid` | File version 1, status 0x11, one 28-byte block header, int16 BE samples 1,2,3,4 and block scale 1; public values `(2,-4),(6,-8)`. Eleven-field procpar headers. |
 | `varian-short-header.fid` | Reproduces the old Plotium test's three-field procpar records. Invalid input, not a request to relax the library's format validation. |
 | `varian-v0-status.fid` | Full procpar with file version 0 and status 0x11. nmr uses the version-0 complex bit 0x40, so this is scalar. The old Plotium reader treated 0x10 as complex for every version; review that separate issue against real version-0 files. |
@@ -28,3 +29,42 @@ layout exercised in nmr's `tests/unified.rs` and `tests/unified/jeol.rs`. Four
 Cartesian planes contain `plane*100 + row*10 + column`, with an indirect grid of
 8, four observations, three valid direct points, and no embedded sampling list.
 It contains no real vendor data and cannot establish vendor interpretation.
+
+## Diffusion-unit regression fixture
+
+Regenerate `jeol-diffusion.jdf` with `python generate_jeol_diffusion.py` in this
+directory (Python standard library only). It is built from zeroed bytes, not
+from a desktop acquisition or a vendor pulse program. The 1,360-byte big-endian
+header selects JDF v1, little-endian float64 samples and SmallTwoD tiles of edge
+4. Disk dimensions are 4 × 16, with the valid indirect range 0–13; two zero
+padding rows complete the tiles. The real section contains `1 + row + col/10`
+and the imaginary section is zero. The parameter area has a 16-byte little-endian
+header followed by 64-byte records. Each timing record has numeric scaler 0,
+primary unit bytes `0x11, 28` (milliseconds, power 1), and four empty unit
+descriptors. The trailing text declares 14 explicit gradient coordinates and
+an original pulse marker that must require user confirmation.
+
+Expected times in seconds are δ=0.0035, Δ=0.1, τ₁=τ₂=0.001,
+`diffusion_time`=0.1, `grad_1`=0.00175, `tau_e1`=`tau_e2`=0.00275,
+and `st_coef`=0.09666666666666667. Test variants rewrite these same records
+before reading temporary JDF files to exercise seconds, milliseconds,
+microseconds, positive/negative numeric scaling, integer values and invalid
+units. The embedded program remains unknown in every variant.
+
+The core regression checks all 14 b values against decimal constants computed
+independently with Python `decimal` at precision 40:
+
+```python
+from decimal import Decimal as D, getcontext
+getcontext().prec = 40
+c = D('0.1') - 2 * D('0.0035') / 3 - D('0.001')
+b = [(D('267522200.5') * D('0.0035') * D('0.02') * n) ** 2 * c
+     for n in range(1, 15)]
+```
+
+This uses the application's existing 1H γ=267522200.5 rad/(s·T) and gives
+33,899,436.5158249–6,644,289,557.10168 s/m². Independent reference
+b values generate noiseless `100 * exp(-1.2e-9 * b)` signals; the imported b
+values are used only for fitting. The fit must recover D=1.2e-9 m²/s within
+relative error 1e-6 and R² > 0.999999. This synthetic regression verifies the
+import-to-fit contract; it does not replace independent vendor evidence.
