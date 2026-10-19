@@ -62,5 +62,5 @@ winresource = "0.1"
 
 [dev-dependencies]
 tempfile.workspace = true
-ab_glyph = "0.2"
+skrifa.workspace = true
 tiff.workspace = true

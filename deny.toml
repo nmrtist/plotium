@@ -14,43 +14,16 @@ targets = [
 
 [advisories]
 unmaintained = "workspace"
-ignore = [
-    # Transitive through resvg/svg2pdf. RustSec lists no safe upgrade; remove
-    # these exceptions when those upstream projects migrate to maintained font
-    # libraries.
-    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is transitive and has no safe upgrade" },
-    { id = "RUSTSEC-2026-0206", reason = "rustybuzz is transitive and has no safe upgrade" },
-    { id = "RUSTSEC-2026-0249", reason = "smartstring is transitive through rhai; no safe upgrade is available" },
-    # Reviewed 2026-10-18: these informational maintenance advisories cover
-    # crates merged into zbus 6, rather than a reported vulnerability. The locked
-    # Linux accessibility stack (eframe/accesskit/atspi) still needs their old APIs;
-    # updating a leaf cannot migrate those callers. Keep accessibility enabled
-    # and remove these exceptions when that upstream stack moves to zbus 6.
-    # Only these advisory IDs are accepted; vulnerability checks stay enabled.
-    { id = "RUSTSEC-2026-0370", reason = "zvariant is transitive through Linux accessibility; migration to zbus 6 requires upstream API changes" },
-    { id = "RUSTSEC-2026-0371", reason = "zbus_names is transitive through Linux accessibility; migration to zbus 6 requires upstream API changes" },
-    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is transitive through Linux accessibility; migration to zbus 6 requires upstream API changes" },
-    # Reviewed 2026-10-17: calamine 0.36.0 reads ZIP entries as streams;
-    # rust_xlsxwriter 0.96.0 writes ZIPs and reads theme XML as a stream.
-    # Neither calls ZipArchive::extract or ZipStreamReader::extract, the APIs
-    # affected by these advisories. Their latest releases (0.36.1 / 0.99.1)
-    # still require zip <9. Remove these exceptions once both support zip >=9;
-    # re-audit the call paths on upgrades in the meantime. The ban below keeps
-    # old zip versions confined to these reviewed wrappers. Plotium's own ZIP
-    # extraction uses the workspace zip >=9 dependency.
-    { id = "RUSTSEC-2026-0367", reason = "ZIP extraction permission handling is unreachable through the reviewed Excel wrappers; see the zip ban" },
-    { id = "RUSTSEC-2026-0368", reason = "ZIP extraction symlink creation is unreachable through the reviewed Excel wrappers; see the zip ban" },
-    { id = "RUSTSEC-2026-0369", reason = "ZIP extraction chmod through symlinks is unreachable through the reviewed Excel wrappers; see the zip ban" },
-]
 
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"
 highlight = "simplest-path"
 deny = [
-    # Only these audited Excel dependencies may use zip's vulnerable versions.
-    # Any new direct consumer (including a Plotium crate) must use zip >=9.
-    { name = "zip", version = "<9.0.0", wrappers = ["calamine", "rust_xlsxwriter"], reason = "Old zip is permitted only behind Excel wrappers that do not call filesystem extraction APIs" },
+    # calamine >=0.37 and rust_xlsxwriter >=0.100 now use zip >=9 too. Prevent
+    # reintroducing the extraction vulnerabilities RUSTSEC-2026-0367/0368/0369
+    # through any consumer, including dependencies that only read ZIP streams.
+    { name = "zip", version = "<9.0.0", reason = "All ZIP consumers must use the patched extraction implementation" },
 ]
 
 [sources]

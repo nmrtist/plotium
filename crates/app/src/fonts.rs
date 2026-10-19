@@ -204,7 +204,7 @@ fn platform_family_queries() -> (Vec<Family<'static>>, Vec<Family<'static>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ab_glyph::{Font, FontRef};
+    use skrifa::{FontRef, MetadataProvider};
 
     fn fake_font(index: u32) -> LoadedFont {
         LoadedFont {
@@ -296,15 +296,13 @@ mod tests {
         .into_iter()
         .flatten()
         {
-            let face = FontRef::try_from_slice_and_index(&face.bytes, face.index)
-                .expect("valid system UI face");
-            assert_ne!(face.glyph_id('A').0, 0);
+            let face = FontRef::from_index(&face.bytes, face.index).expect("valid system UI face");
+            assert!(face.charmap().map('A').is_some());
         }
         if let Some(cjk) = platform.system_cjk_regular.as_ref() {
-            let cjk = FontRef::try_from_slice_and_index(&cjk.bytes, cjk.index)
-                .expect("valid system CJK face");
+            let cjk = FontRef::from_index(&cjk.bytes, cjk.index).expect("valid system CJK face");
             for ch in ['中', '文', '图'] {
-                assert_ne!(cjk.glyph_id(ch).0, 0, "missing glyph {ch}");
+                assert!(cjk.charmap().map(ch).is_some(), "missing glyph {ch}");
             }
         }
     }

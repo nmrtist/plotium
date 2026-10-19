@@ -83,7 +83,7 @@ fn render_multi_page(svgs: &[String]) -> Result<Vec<u8>, ExportError> {
 
 fn parse_svg(svg: &str) -> Result<svg2pdf::usvg::Tree, ExportError> {
     let mut options = svg2pdf::usvg::Options::default();
-    fonts::load_system_fonts(options.fontdb_mut());
+    fonts::load_pdf_system_fonts(options.fontdb_mut());
     svg2pdf::usvg::Tree::from_str(svg, &options)
         .map_err(|error| ExportError::SvgParse(error.to_string()))
 }

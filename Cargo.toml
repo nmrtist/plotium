@@ -64,14 +64,15 @@ substrait = { version = "0.63", default-features = false, features = ["serde"] }
 prost = "0.14"
 pbjson-types = "0.8"
 chrono-tz = "0.10"
-calamine = { version = "0.36", default-features = false, features = ["dates"] }
-rust_xlsxwriter = { version = "0.96", default-features = false, features = ["constant_memory"] }
+calamine = { version = "0.37", default-features = false, features = ["dates"] }
+rust_xlsxwriter = { version = "0.100", default-features = false, features = ["constant_memory"] }
 tokio = { version = "1", features = ["rt"] }
 egui = "0.34"
 eframe = { version = "0.34", default-features = true }
 egui_extras = { version = "0.34", default-features = false }
 egui-phosphor = "0.12"
-fontdb = "0.23"
+fontdb = "0.24"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 muda = { version = "0.19.3", default-features = false }
 rfd = "0.17"
 rhai = { version = "1", features = ["serde", "sync"] }
@@ -86,7 +87,7 @@ tempfile = "3"
 arboard = "3.6"
 libc = "0.2"
 pdf-writer = "0.12"
-resvg = "0.47"
+resvg = "0.48.1"
 svg2pdf = "0.13"
 raw-window-handle = "0.6"
 windows-sys = { version = "0.61", features = [

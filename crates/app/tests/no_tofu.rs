@@ -2,7 +2,7 @@
 //! stack can't render (shown as an empty box) — fix by swapping in an
 //! `egui_phosphor` icon.
 
-use ab_glyph::{Font, FontRef};
+use skrifa::{FontRef, MetadataProvider};
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -17,9 +17,9 @@ fn no_tofu_in_displayed_strings() {
         .collect();
     let faces: Vec<FontRef> = datas
         .iter()
-        .filter_map(|b| FontRef::try_from_slice(b).ok())
+        .map(|b| FontRef::new(b).expect("valid bundled UI font"))
         .collect();
-    let covered = |c: char| c.is_ascii() || faces.iter().any(|f| f.glyph_id(c).0 != 0);
+    let covered = |c: char| c.is_ascii() || faces.iter().any(|f| f.charmap().map(c).is_some());
 
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut offenders: Vec<String> = Vec::new();

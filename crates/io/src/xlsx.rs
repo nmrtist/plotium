@@ -172,7 +172,7 @@ impl StreamingXlsxWriter {
 
     pub fn add_worksheet(&mut self, name: &str, hidden: bool) -> Result<usize, XlsxIoError> {
         let index = self.output.worksheets().len();
-        let worksheet = self.output.add_worksheet_with_constant_memory();
+        let worksheet = self.output.add_worksheet_with_constant_memory()?;
         worksheet.set_name(name)?;
         worksheet.set_hidden(hidden);
         if !hidden {
