@@ -7,6 +7,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(feature = "macos-packaging")]
+mod macos_icon;
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("error: {error}");
@@ -17,6 +20,24 @@ fn main() {
 fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     match args.next().as_deref() {
+        #[cfg(feature = "macos-packaging")]
+        Some("macos-icon") => {
+            let output = args.next().ok_or("usage: macos-icon <output.icns>")?;
+            if args.next().is_some() {
+                return Err("usage: macos-icon <output.icns>".to_owned());
+            }
+            macos_icon::create(&repo_root()?, Path::new(&output))
+        }
+        #[cfg(feature = "macos-packaging")]
+        Some("macos-dmg-background") => {
+            let output = args
+                .next()
+                .ok_or("usage: macos-dmg-background <directory>")?;
+            if args.next().is_some() {
+                return Err("usage: macos-dmg-background <directory>".to_owned());
+            }
+            macos_icon::create_background(&repo_root()?, Path::new(&output))
+        }
         Some("pr-check") => {
             let stage = match args.next() {
                 None => None,

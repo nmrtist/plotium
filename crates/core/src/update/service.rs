@@ -15,6 +15,7 @@ const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
 #[derive(Clone, Debug, PartialEq)]
 pub enum UpdateStatus {
     Idle,
+    ManualInstall,
     Checking,
     UpToDate,
     Downloading {
@@ -42,6 +43,7 @@ impl UpdateStatus {
     pub fn label(&self) -> String {
         match self {
             UpdateStatus::Idle => String::new(),
+            UpdateStatus::ManualInstall => "Install updates by replacing Plotium.app from a new DMG. Your projects and preferences are kept.".into(),
             UpdateStatus::Checking => "Checking for updates…".into(),
             UpdateStatus::UpToDate => "You're up to date.".into(),
             UpdateStatus::Downloading {
@@ -73,6 +75,7 @@ impl UpdateStatus {
 /// the frame loop drains without blocking. Automatic checks fail silently
 /// (back to `Idle`); manual checks surface their errors.
 pub struct UpdateService {
+    manual_install: bool,
     status: UpdateStatus,
     rx: Option<Receiver<UpdateStatus>>,
     manual: bool,
@@ -83,7 +86,14 @@ pub struct UpdateService {
 
 impl UpdateService {
     pub fn new(settings: &UpdateSettings) -> Self {
+        let manual_install = std::env::current_exe()
+            .is_ok_and(|path| crate::installation::requires_manual_update(&path));
+        Self::new_with_delivery(settings, manual_install)
+    }
+
+    fn new_with_delivery(settings: &UpdateSettings, manual_install: bool) -> Self {
         let mut service = Self {
+            manual_install,
             status: UpdateStatus::Idle,
             rx: None,
             manual: false,
@@ -98,6 +108,11 @@ impl UpdateService {
     /// Reconcile to a settings snapshot. Idempotent; safe to call on every
     /// settings edit. Enabling auto-check schedules a near-immediate check.
     pub fn configure(&mut self, settings: &UpdateSettings) {
+        if self.manual_install {
+            self.status = UpdateStatus::ManualInstall;
+            self.next_auto_check = None;
+            return;
+        }
         let channel = settings.channel.resolve();
         let channel_changed = channel != self.channel;
         self.channel = channel;
@@ -131,6 +146,10 @@ impl UpdateService {
         &self.status
     }
 
+    pub fn requires_manual_install(&self) -> bool {
+        self.manual_install
+    }
+
     pub fn is_busy(&self) -> bool {
         self.rx.is_some()
     }
@@ -144,6 +163,9 @@ impl UpdateService {
     /// check. Returns true while a check/download is in flight so the caller
     /// keeps repainting.
     pub fn tick(&mut self) -> bool {
+        if self.manual_install {
+            return false;
+        }
         if let Some(rx) = &self.rx {
             let mut finished = false;
             while let Ok(status) = rx.try_recv() {
@@ -193,6 +215,10 @@ impl UpdateService {
 
     /// Extract a downloaded update and prepare its post-exit helper.
     pub fn install(&mut self) {
+        if self.manual_install {
+            self.status = UpdateStatus::ManualInstall;
+            return;
+        }
         if self.rx.is_some() {
             return;
         }
@@ -228,6 +254,10 @@ impl UpdateService {
     }
 
     fn start_check(&mut self, manual: bool) {
+        if self.manual_install {
+            self.status = UpdateStatus::ManualInstall;
+            return;
+        }
         if self.rx.is_some() {
             self.manual = self.manual || manual;
             return;
@@ -319,6 +349,24 @@ fn run_check(channel: UpdateChannel, tx: Sender<UpdateStatus>) {
 mod tests {
     use super::*;
     use crate::update::UpdateChannelSetting;
+
+    #[test]
+    fn bundle_never_downloads_or_stages_binary_updates_and_keeps_settings() {
+        let settings = UpdateSettings::default();
+        let mut service = UpdateService::new_with_delivery(&settings, true);
+        assert!(service.requires_manual_install());
+        service.configure(&settings);
+        service.check_now();
+        service.install();
+        assert!(!service.tick());
+        assert!(!service.is_busy());
+        assert_eq!(service.next_check_delay(), None);
+        assert_eq!(service.status(), &UpdateStatus::ManualInstall);
+        assert!(settings.auto_check);
+        let portable = UpdateService::new_with_delivery(&settings, false);
+        assert!(!portable.requires_manual_install());
+        assert!(portable.next_check_delay().is_some());
+    }
 
     #[test]
     fn changing_channel_discards_in_flight_results() {

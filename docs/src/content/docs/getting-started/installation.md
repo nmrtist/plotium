@@ -9,24 +9,34 @@ Plotium is a native desktop application for Windows, macOS, and Linux.
 
 Prebuilt packages are published on the
 [GitHub releases page](https://github.com/nmrtist/plotium/releases).
-Download the archive for your platform, unpack it anywhere you like, and run
-the `plotium` executable. No installer or administrator rights are required.
+On macOS, download the DMG for your processor and open it. Drag the large
+**Plotium.app** icon on the left onto **Applications** on the right. Eject the disk image, then open Plotium from Applications
+in Finder. Installation does not require running a terminal command.
 
-| Platform | Archive suffix | Requirement |
+On Windows and Linux, unpack the ZIP anywhere you like and run `plotium`.
+These portable packages do not need an installer.
+
+| Platform | Download suffix | Requirement |
 | --- | --- | --- |
 | Windows x86-64 | `windows-x86_64.zip` | 64-bit Windows |
 | Linux x86-64 | `linux-x86_64.zip` | glibc 2.35+ (for example Ubuntu 22.04+), graphical desktop |
-| macOS Intel | `macos-x86_64.zip` | macOS 13+ |
-| macOS Apple Silicon | `macos-aarch64.zip` | macOS 13+ |
+| macOS Intel | `macos-x86_64.dmg` | macOS 13+ |
+| macOS Apple Silicon | `macos-aarch64.dmg` | macOS 13+ |
 
-The release's `SHA256SUMS` file lists checksums for all archives. Packages are
-unsigned portable executables; macOS packages do not contain an `.app` bundle.
+The release's `SHA256SUMS` file covers all ZIPs and DMGs. The macOS portable
+ZIPs remain available under their existing names and contain the flat executables
+and MCP companions, not an application bundle.
+
+The current DMGs contain **ad-hoc-signed, unnotarized** apps. This verifies local
+bundle integrity, not an Apple-identified developer or approval for Internet
+distribution. Gatekeeper can block a downloaded copy; see First launch below.
 
 ### Optional: connect an AI client
 
-To use Codex, Claude Code or Claude Desktop with Plotium, keep `plotium-mcp`
-(`plotium-mcp.exe` on Windows) beside the main executable. macOS and Windows
-packages also include `plotium.mcpb`, the Claude Desktop extension.
+The macOS application bundle already includes the MCP connector and Claude
+Desktop extension. Keep the app intact; do not move files out of its Contents.
+For portable ZIP installations, keep `plotium-mcp` (`plotium-mcp.exe` on Windows)
+beside the main executable. macOS and Windows ZIPs also include `plotium.mcpb`.
 
 When you are ready, follow [Connect your AI client](/guides/automation/#connect-your-ai-client).
 Each client only needs to be added once.
@@ -38,12 +48,20 @@ may warn before the first run:
 
 - **Windows** — if SmartScreen reports an unrecognized app, choose
   **More info → Run anyway**.
-- **macOS** — if Gatekeeper blocks the app, right-click it, choose **Open**,
-  and confirm; macOS remembers the choice.
+- **macOS** — follow the actual Gatekeeper message. Current DMGs are not
+  Developer ID signed or notarized, so a local build launching successfully does
+  not establish that a downloaded copy will be accepted. See Apple's
+  [safety guidance](https://support.apple.com/en-us/102445) before deciding whether
+  to allow an app. Do not ignore a malware or damaged-app warning.
 
 On first launch Plotium shows a welcome screen. Drag a data file onto the window
 or use **File → Open File…** to get started — the
 [quick tour](/getting-started/quick-tour/) walks through the interface.
+
+Double-click a `.plotium` project in Finder to open it in Plotium. If several
+copies of Plotium are installed, use **Open With** to choose the intended copy.
+Processing recipes (`.plotiumproc`) are applied to datasets inside Plotium;
+they are not registered as standalone Finder documents.
 
 ## Where Plotium keeps its settings
 
@@ -61,9 +79,12 @@ them. Deleting the folder resets Plotium to its defaults.
 
 ## Updating and uninstalling
 
-Plotium checks for new versions and updates itself in the background — see
-[Updates](/reference/updates/). To uninstall, delete the application folder
-and, if you want a clean slate, the configuration folder above.
+For a macOS `.app` installation, quit Plotium with **Command-Q**, download the
+new DMG, and replace Plotium.app in Applications. This keeps your projects and
+preferences. Bundle installations do not use the portable binary updater.
+Portable ZIP installations retain background updates; see [Updates](/reference/updates/).
+To uninstall, delete Plotium.app (or the portable application folder) and,
+if you want a clean slate, the configuration folder above.
 
 ## Building from source
 

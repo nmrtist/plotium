@@ -148,6 +148,7 @@ impl eframe::App for Shell {
         {
             // Native menus and Dock events must also work with no visible window.
             if self.pending_recovery.is_none() {
+                self.open_documents.poll(&mut self.app, ctx);
                 self.native_menu
                     .poll(&mut self.app, &mut self.clipboard_table_paste, ctx);
             }

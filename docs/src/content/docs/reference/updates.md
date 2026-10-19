@@ -3,6 +3,21 @@ title: Updates
 description: How Plotium checks for, downloads, and installs new versions.
 ---
 
+## macOS application bundles: replace the app from a DMG
+
+Quit Plotium with **Command-Q**, download the new DMG for your processor, and
+replace Plotium.app in Applications. Your projects and preferences are kept.
+**Preferences → General** links to downloads and shows the installed version;
+automatic updates and channel controls are disabled for bundle installations.
+The saved preferences are retained for portable installations.
+
+The portable updater replaces individual executables. It is not used inside
+`.app` bundles because that would invalidate their signature and leave bundle
+metadata out of sync. Current DMGs are ad-hoc signed and unnotarized; see
+[Installation](/getting-started/installation/#first-launch) for first-launch conditions.
+
+## Portable ZIP installations
+
 Plotium keeps itself up to date. With automatic updates enabled (the default),
 it periodically checks for new versions. Updates are downloaded and securely
 verified in the background, so you can keep working. They are applied when

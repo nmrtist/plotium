@@ -6,6 +6,7 @@ pub mod data_export;
 pub mod delimited;
 pub mod export;
 pub mod fit_model_library;
+pub mod installation;
 pub mod layout;
 pub mod operation;
 pub mod origin;

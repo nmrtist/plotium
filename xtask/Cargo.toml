@@ -5,3 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+resvg = { workspace = true, optional = true }
+
+[features]
+macos-packaging = ["dep:resvg"]

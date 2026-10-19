@@ -135,6 +135,8 @@ struct Shell {
     last_window_title: Option<String>,
     #[cfg(target_os = "macos")]
     native_menu: ui::native_menu::NativeMenu,
+    #[cfg(target_os = "macos")]
+    open_documents: ui::native_documents::OpenDocuments,
 }
 
 impl Shell {
@@ -516,6 +518,8 @@ fn main() -> eframe::Result<()> {
         renderer,
         ..Default::default()
     };
+    #[cfg(target_os = "macos")]
+    let open_documents = ui::native_documents::OpenDocuments::new();
     let graphics_started = Arc::new(AtomicBool::new(false));
     let graphics_started_in_app = Arc::clone(&graphics_started);
     let run_result = eframe::run_native(
@@ -587,6 +591,8 @@ fn main() -> eframe::Result<()> {
                 ui::native_menu::NativeMenu::new(&app, &cc.egui_ctx).map_err(|error| {
                     std::io::Error::other(format!("failed to install macOS menu: {error}"))
                 })?;
+            #[cfg(target_os = "macos")]
+            open_documents.set_context(&cc.egui_ctx);
             let observed_edit_generation = app.doc.edit_generation;
             Ok(Box::new(Shell {
                 app,
@@ -610,6 +616,8 @@ fn main() -> eframe::Result<()> {
                 last_window_title: None,
                 #[cfg(target_os = "macos")]
                 native_menu,
+                #[cfg(target_os = "macos")]
+                open_documents,
             }))
         }),
     );

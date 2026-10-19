@@ -22,6 +22,8 @@ pub(crate) mod file_dialogs;
 pub(crate) mod file_drop;
 mod menus;
 #[cfg(target_os = "macos")]
+pub(crate) mod native_documents;
+#[cfg(target_os = "macos")]
 mod native_lifecycle;
 #[cfg(target_os = "macos")]
 pub(crate) mod native_menu;

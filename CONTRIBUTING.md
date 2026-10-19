@@ -96,6 +96,81 @@ The [Dependency check workflow](.github/workflows/dependency-check.yml) can also
 be run manually in Actions. It has no scheduled runs. Findings appear in the
 job logs, with a status summary on the workflow run.
 
+## Package a macOS application locally
+
+Build a DMG that can be dragged into Applications, together with the unchanged
+portable ZIP. On macOS with Python 3.10+, Apple command-line tools, and the matching
+Rust target:
+
+```sh
+cargo install cargo-about --version 0.9.1 --locked --features cli
+python3 -m venv /tmp/plotium-packaging-python
+/tmp/plotium-packaging-python/bin/python -m pip install -r .github/scripts/requirements-packaging.txt
+/tmp/plotium-packaging-python/bin/python .github/scripts/package_macos.py --target aarch64-apple-darwin
+# On an Intel Mac, use --target x86_64-apple-darwin instead.
+```
+
+The script builds the default reference-executor GUI and MCP connector with
+`MACOSX_DEPLOYMENT_TARGET=13.0`, collects license notices, renders the existing SVG
+brand assets at each ICNS resolution, signs locally with an ad-hoc identity, and
+creates `dist/plotium-<version>-macos-<architecture>.dmg`. Finder opens a compact
+icon-view window with 160-point icons: Plotium on the left, Applications on the
+right, with a right-pointing arrow between them. The arrow is a Retina-aware
+background, not a third draggable item. The layout and its on-volume background
+reference are written and checked without running Finder on CI.
+The script also mounts the final
+DMG read-only, verifies its Applications shortcut, copies the app to
+`dist/installed-macos-<architecture>/Plotium.app`, and validates that installed
+copy. It never installs into Applications or launches the GUI automatically.
+Quit any running test copy before rebuilding packages into the same output folder.
+Use `--skip-build` only with matching release binaries already built for macOS 13;
+CI calls the same implementation with that option. `CARGO_TARGET_DIR` is respected.
+For cross-packaging on the other macOS architecture, install that Rust target
+and pass `--skip-connector-smoke`. This preserves all static/package checks but
+explicitly records that the connector was not executed; CI on the matching
+architecture never uses this flag. It does not establish GUI runtime acceptance.
+
+`dist/macos-validation-macos-<architecture>.json` records the actual Mach-O
+architecture, deployment target, dependencies, signature, quarantine attribute,
+and Gatekeeper assessment. A rejected Gatekeeper assessment is recorded, not
+reported as acceptance. These DMGs are **ad-hoc signed, not Developer ID signed or
+notarized**. Local mounting and launching do not establish Internet-download
+acceptance. No packaging step removes quarantine or changes Gatekeeper policy.
+
+For interactive acceptance, copy from the mounted DMG to a separate test folder,
+eject it, then launch that copy through Finder. Check project open/edit/save/reopen,
+Finder project opens both cold and while running, unsaved-change confirmation,
+window close/Dock reopen/Quit, and a damaged project error. Confirm the MCP
+connector and Claude Desktop extension still resolve inside the app. Do not
+overwrite an existing installation during development. Record the tested OS and
+architecture; other architectures need their own runtime acceptance.
+
+Cargo metadata is the only version source. `CFBundleShortVersionString` is
+`X.Y.Z`; `PlotiumCargoVersion` keeps the complete SemVer. `CFBundleVersion` is
+`X.Y.(Z * 1000000 + stage + N)`, with stage 0 for alpha, 100000 for beta, and
+200000 for stable (N = 0 for stable). For example, `0.1.0-beta.1` becomes
+`0.1.100001`, and `0.1.0` becomes `0.1.200000`. Prerelease N must be 0–99999;
+Apple version components must fit signed 32-bit integers. Invalid values fail
+instead of being truncated. This deterministic mapping needs no separate counter.
+The application About panel continues to show the Cargo version.
+
+Test packaging contracts and vector rendering with:
+
+```sh
+/tmp/plotium-packaging-python/bin/python -B -m unittest discover -s .github/scripts -p 'test_*.py'
+cargo test --locked -p xtask --features macos-packaging
+```
+
+The pinned Python tools only write and inspect Finder layout metadata during
+packaging/tests; they are not application runtime dependencies. The optional
+xtask feature reuses the workspace SVG renderer.
+
+Trusted public distribution additionally requires authorized Developer ID
+signing with hardened runtime, notarization, stapling, and validation of the
+final Internet-downloaded DMG and installed app. Configure credentials and call
+Apple's service only with separate authorization; ad-hoc checks cannot replace
+that release gate.
+
 ## Publish a release
 
 The [Release workflow](.github/workflows/release.yml) packages the desktop app
@@ -129,12 +204,16 @@ and tag rather than moving an existing tag.
 Use `v0.1.0` for a regular pre-1.0 release. Only `-alpha.N` and `-beta.N`
 suffixes are supported for prereleases; they also select the updater channel.
 
-The draft includes unsigned portable ZIPs with license notices and `SHA256SUMS`.
+The draft includes the existing four portable ZIPs, two macOS DMGs, license
+notices, and `SHA256SUMS` covering all six packages. macOS DMGs are ad-hoc signed
+and unnotarized; the portable ZIP contract is unchanged.
 Platform requirements are in the
 [installation guide](https://plotium.nmrtist.space/getting-started/installation/).
 
 For a rehearsal, use **Actions → Release → Run workflow** on the chosen ref;
-this uploads Actions artifacts without creating a release. Failed runs can be
+this builds and validates the same six-package asset set and uploads it as
+`validated-release`, without creating a release. Per-architecture macOS validation
+reports are separate Actions artifacts. Failed runs can be
 retried to finish a draft; published releases require a new version.
 
 ## Contribution licensing

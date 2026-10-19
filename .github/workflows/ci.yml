@@ -105,6 +105,12 @@ jobs:
           rustup default stable
           rustup component add rustfmt
 
+      - name: Test release packaging contracts
+        run: |
+          python3 -m venv "$RUNNER_TEMP/plotium-packaging-python"
+          "$RUNNER_TEMP/plotium-packaging-python/bin/python" -m pip install -r .github/scripts/requirements-packaging.txt
+          "$RUNNER_TEMP/plotium-packaging-python/bin/python" -B -m unittest discover -s .github/scripts -p 'test_*.py'
+
       - name: Check formatting and source sizes
         run: cargo xtask pr-check quick
 
@@ -166,6 +172,10 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
+
+      - name: Test vector icon generation
+        if: runner.os == 'macOS'
+        run: cargo test --locked -p xtask --features macos-packaging
 
       - name: Run the reference-backend test suite
         run: cargo xtask pr-check test

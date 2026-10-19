@@ -9,6 +9,27 @@ import tempfile
 import threading
 import zipfile
 
+EXPECTED_TOOLS = {
+    "plotium_get_state", "plotium_resources_search", "plotium_resources_inspect",
+    "plotium_properties_list", "plotium_properties_inspect", "plotium_plan", "plotium_execute",
+    "plotium_document_inspect", "plotium_figure_diagnose", "plotium_render_preview", "plotium_preview_plan",
+    "plotium_table_columns", "plotium_table_read_rows", "plotium_save_status", "plotium_export_status",
+}
+UNBOUND_TOOLS = {
+    "plotium_get_state", "plotium_properties_list", "plotium_execute",
+    "plotium_save_status", "plotium_export_status",
+}
+
+
+def validate_tools(tools):
+    names = [tool["name"] for tool in tools]
+    assert len(names) == len(EXPECTED_TOOLS) and set(names) == EXPECTED_TOOLS, names
+    for tool in tools:
+        if tool["name"] not in UNBOUND_TOOLS:
+            required = tool["inputSchema"]["required"]
+            assert "expected_project_context" in required, tool["name"]
+            assert "expected_revision" in required, tool["name"]
+
 
 def smoke(executable):
     process = subprocess.Popen(
@@ -36,10 +57,7 @@ def smoke(executable):
         send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
         tools = messages.get(timeout=10)["result"]["tools"]
-        assert len(tools) == 11
-        for tool in tools:
-            if tool["name"] not in ("plotium_get_state", "plotium_execute", "plotium_properties_list"):
-                assert "expected_project_context" in tool["inputSchema"]["required"]
+        validate_tools(tools)
     finally:
         process.stdin.close()
         try:
@@ -50,11 +68,12 @@ def smoke(executable):
     assert process.returncode == 0
 
 
-def package(directory, platform, version):
+def package(directory, platform, version, runtime_smoke=True):
     suffix = ".exe" if platform.startswith("windows-") else ""
     binary = directory / ("plotium-mcp" + suffix)
     binary.chmod(0o755)
-    smoke(binary)
+    if runtime_smoke:
+        smoke(binary)
     if not platform.startswith(("macos-", "windows-")):
         return
     manifest = {
@@ -81,7 +100,8 @@ def package(directory, platform, version):
             extracted = Path(temporary) / binary.name
             extracted.write_bytes(output.read("server/" + binary.name))
             extracted.chmod(0o755)
-            smoke(extracted)
+            if runtime_smoke:
+                smoke(extracted)
 
 
 if __name__ == "__main__":

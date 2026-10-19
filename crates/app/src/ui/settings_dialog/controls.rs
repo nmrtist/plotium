@@ -83,6 +83,15 @@ fn empty_state(ui: &mut Ui, text: &str) {
 }
 
 pub(super) fn update_status_row(ui: &mut Ui, updates: &mut UpdateService) {
+    if updates.requires_manual_install() {
+        ui.label(format!("Installed version {}.", env!("CARGO_PKG_VERSION")));
+        ui.label(updates.status().label());
+        ui.hyperlink_to(
+            "Download Plotium updates",
+            "https://github.com/nmrtist/plotium/releases",
+        );
+        return;
+    }
     setting_row(
         ui,
         "Check for updates",

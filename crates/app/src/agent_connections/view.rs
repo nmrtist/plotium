@@ -140,13 +140,35 @@ impl AgentConnections {
 }
 #[cfg(any(target_os = "macos", windows))]
 fn desktop_bundle() -> Result<std::path::PathBuf, String> {
-    let path = std::env::current_exe()
-        .map_err(|e| e.to_string())?
-        .with_file_name("plotium.mcpb");
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let path = desktop_bundle_path(&executable);
     if !path.is_file() {
         return Err("The Claude Desktop extension is missing. Reinstall the complete Plotium release package.".into());
     }
     Ok(path)
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn desktop_bundle_path(executable: &std::path::Path) -> std::path::PathBuf {
+    #[cfg(target_os = "macos")]
+    if let Some(contents) = plotium_core::installation::macos_bundle_contents(executable) {
+        return contents.join("Resources/plotium.mcpb");
+    }
+    executable.with_file_name("plotium.mcpb")
+}
+
+#[cfg(all(test, target_os = "macos"))]
+#[test]
+fn extension_resolves_from_bundle_resources_or_existing_portable_sibling() {
+    use std::path::{Path, PathBuf};
+    assert_eq!(
+        desktop_bundle_path(Path::new("/tmp/Plotium.app/Contents/MacOS/plotium")),
+        PathBuf::from("/tmp/Plotium.app/Contents/Resources/plotium.mcpb")
+    );
+    assert_eq!(
+        desktop_bundle_path(Path::new("/tmp/portable/plotium")),
+        PathBuf::from("/tmp/portable/plotium.mcpb")
+    );
 }
 #[cfg(any(target_os = "macos", windows))]
 fn open_bundle(path: std::path::PathBuf) -> Result<(), String> {

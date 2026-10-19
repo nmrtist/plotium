@@ -29,7 +29,8 @@ saved preferences except your recent-files list. AI connection preferences are d
 - **Automatic updates** and **Update channel** — see
   [Updates](/reference/updates/). This section also shows the installed
   version, a **Check now** button, and **Restart now** once an update is
-  ready.
+  ready. macOS `.app` installations instead show a DMG download link; automatic
+  updates and channel controls are disabled without changing saved preferences.
 
 ## Appearance
 

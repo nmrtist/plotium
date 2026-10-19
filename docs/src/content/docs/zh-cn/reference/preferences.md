@@ -24,7 +24,8 @@ AI 连接启用状态和权限会持久保存，详见下文。
   历史保存。每份副本可能与项目一样大；选 Off 关闭。
 - **Automatic updates** 与 **Update channel**——见
   [更新](/zh-cn/reference/updates/)。此区域还显示已安装版本、
-  **Check now** 按钮，以及更新就绪后的 **Restart now**。
+  **Check now** 按钮，以及更新就绪后的 **Restart now**。macOS `.app` 安装
+  改为显示 DMG 下载链接；自动更新和通道控件不可用，保存的偏好设置保持不变。
 
 ## Appearance（外观）
 

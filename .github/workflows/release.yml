@@ -31,26 +31,7 @@ jobs:
         id: version
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import re
-          import subprocess
-
-          metadata = json.loads(subprocess.check_output([
-              'cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1',
-          ]))
-          version = next(p['version'] for p in metadata['packages'] if p['name'] == 'plotium')
-          number = r'(?:0|[1-9][0-9]*)'
-          match = re.fullmatch(rf'{number}\.{number}\.{number}(?:-(alpha|beta)\.{number})?', version)
-          if not match:
-              raise SystemExit('Use X.Y.Z, X.Y.Z-alpha.N, or X.Y.Z-beta.N; these match the updater channels.')
-          if os.environ['TAG'] and os.environ['TAG'] != f'v{version}':
-              raise SystemExit(f'Tag must match Cargo.toml: expected v{version}')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f'version={version}\nchannel={match[1] or "stable"}\n')
-          PY
+        run: python3 .github/scripts/release_version.py
 
   dependencies:
     needs: version
@@ -106,54 +87,65 @@ jobs:
         run: cargo install cargo-about --version 0.9.1 --locked --features cli
       - name: Build release binaries
         run: cargo build --locked --release --target "$TARGET" -p plotium -p plotium-agent
-      - name: Collect license notices
+      - name: Package macOS app, DMG, and unchanged portable ZIP
+        if: runner.os == 'macOS'
         run: |
-          mkdir -p dist/package
-          cargo about generate --locked --fail --target "$TARGET" \
-            --manifest-path crates/app/Cargo.toml -c xtask/about.toml \
-            xtask/about.hbs -o dist/package/THIRD-PARTY-LICENSES.html
-          cargo about generate --locked --fail --target "$TARGET" \
-            --manifest-path crates/agent/Cargo.toml -c xtask/about.toml \
-            xtask/about.hbs -o dist/package/MCP-THIRD-PARTY-LICENSES.html
-      - name: Package and smoke-test
-        run: |
-          python - <<'PY'
-          import os
-          import shutil
-          import subprocess
-          import zipfile
-          from pathlib import Path
-
-          package = Path('dist/package')
-          suffix = '.exe' if os.environ['PLATFORM'].startswith('windows-') else ''
-          for name in ('plotium', 'plotium-mcp'):
-              shutil.copy2(Path('target') / os.environ['TARGET'] / 'release' / (name + suffix), package)
-          for name in ('LICENSE', 'COPYRIGHT.md', 'README.md'):
-              shutil.copy2(name, package)
-          subprocess.run(['python', '.github/scripts/package_mcp.py'], check=True)
-          archive = Path('dist') / f'plotium-{os.environ["VERSION"]}-{os.environ["PLATFORM"]}.zip'
-          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as output:
-              for path in sorted(package.iterdir()):
-                  output.write(path, path.name)
-          with zipfile.ZipFile(archive) as output:
-              if output.testzip() is not None:
-                  raise SystemExit('Release archive failed its CRC check')
-              output.extractall('dist/smoke')
-          connector = Path('dist/smoke') / ('plotium-mcp' + suffix)
-          connector.chmod(0o755)
-          subprocess.run(['python', '.github/scripts/package_mcp.py', 'smoke', str(connector)], check=True)
-          PY
+          python3 -m venv "$RUNNER_TEMP/plotium-packaging-python"
+          "$RUNNER_TEMP/plotium-packaging-python/bin/python" -m pip install -r .github/scripts/requirements-packaging.txt
+          "$RUNNER_TEMP/plotium-packaging-python/bin/python" .github/scripts/package_macos.py --target "$TARGET" --skip-build
+      - name: Package existing portable ZIP
+        if: runner.os != 'macOS'
+        run: python3 .github/scripts/package_portable.py --target "$TARGET" --skip-build
       - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.platform }}
-          path: dist/plotium-*.zip
+          path: |
+            dist/plotium-*.zip
+            dist/plotium-*.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'macOS'
+        with:
+          name: macos-verification-${{ matrix.platform }}
+          path: dist/macos-validation-*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  collect:
+    needs: [version, build]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Require four ZIPs and both DMGs; generate and verify checksums
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          python3 .github/scripts/collect_release.py dist "$VERSION"
+          cd dist && sha256sum --check SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: validated-release
+          path: |
+            dist/plotium-*.zip
+            dist/plotium-*.dmg
+            dist/SHA256SUMS
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
 
   draft:
     if: github.event_name == 'push'
-    needs: [version, build]
+    needs: [version, collect]
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
@@ -170,15 +162,10 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
-          pattern: release-*
+          name: validated-release
           path: dist
-          merge-multiple: true
-      - name: Generate checksums
-        run: |
-          test "$(find dist -maxdepth 1 -name '*.zip' | wc -l)" -eq 4
-          cd dist
-          sha256sum *.zip > SHA256SUMS
-          sha256sum --check SHA256SUMS
+      - name: Verify collected assets before attaching
+        run: cd dist && sha256sum --check SHA256SUMS
       - name: Create or update release draft
         run: |
           if gh release view "$TAG" --json isDraft > release.json; then
@@ -189,4 +176,4 @@ jobs:
             gh release create "$TAG" --verify-tag --draft --title "Plotium $VERSION" \
               --generate-notes "${flags[@]}"
           fi
-          gh release upload "$TAG" dist/*.zip dist/SHA256SUMS --clobber
+          gh release upload "$TAG" dist/*.zip dist/*.dmg dist/SHA256SUMS --clobber

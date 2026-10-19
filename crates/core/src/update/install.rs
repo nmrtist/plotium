@@ -25,6 +25,7 @@ pub struct InstallPlan {
 /// staging directory. No installed file is touched while Plotium is running.
 pub fn prepare(downloaded: &Path) -> Result<InstallPlan, UpdateError> {
     let target = std::env::current_exe()?;
+    require_portable_target(&target)?;
     let staging = downloaded
         .parent()
         .ok_or_else(|| UpdateError::Protocol("update has no staging directory".into()))?
@@ -151,6 +152,7 @@ pub(super) fn apply_staged_update(
 
 /// Transactionally replace `target`, rolling back if the new copy fails.
 pub(super) fn swap_binary(new_binary: &Path, target: &Path) -> Result<(), UpdateError> {
+    require_portable_target(target)?;
     let old = old_path(target);
     let _ = std::fs::remove_file(&old);
     std::fs::rename(target, &old)?;
@@ -189,10 +191,35 @@ fn old_path(target: &Path) -> PathBuf {
 /// updates. Active downloads and prepared updates contain additional files,
 /// so another running Plotium instance can never lose its staging directory.
 pub fn cleanup_after_restart() {
-    if let Ok(current) = std::env::current_exe() {
+    if let Ok(current) = std::env::current_exe()
+        && !crate::installation::requires_manual_update(&current)
+    {
         let _ = std::fs::remove_file(old_path(&current));
     }
     cleanup_completed_staging(&std::env::temp_dir());
+}
+
+fn require_portable_target(target: &Path) -> Result<(), UpdateError> {
+    if crate::installation::requires_manual_update(target) {
+        return Err(UpdateError::Protocol(
+            "Replace the complete Plotium.app using a new DMG; binary-only updates would invalidate the bundle signature.".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+#[test]
+fn bundle_swap_is_rejected_before_touching_the_installed_executable() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("Plotium.app/Contents/MacOS/plotium");
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, b"installed executable").unwrap();
+    let source = temp.path().join("update");
+    std::fs::write(&source, b"new executable").unwrap();
+    assert!(swap_binary(&source, &target).is_err());
+    assert_eq!(std::fs::read(&target).unwrap(), b"installed executable");
+    assert!(!old_path(&target).exists());
 }
 
 pub(super) fn cleanup_completed_staging(temp_dir: &Path) {
