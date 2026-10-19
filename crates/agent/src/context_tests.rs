@@ -44,8 +44,7 @@ fn missing_project_and_transition_cancellation_have_explicit_results() {
     assert_eq!(
         session
             .call(&mut app, "plotium_get_state", json!({}))
-            .unwrap_err()
-            .code,
+            .unwrap()["availability"]["project_read"]["reason"]["code"],
         "no_project"
     );
     app.start_new_project();
@@ -54,8 +53,7 @@ fn missing_project_and_transition_cancellation_have_explicit_results() {
     assert_eq!(
         session
             .call(&mut app, "plotium_get_state", json!({}))
-            .unwrap_err()
-            .code,
+            .unwrap()["availability"]["project_read"]["reason"]["code"],
         "busy"
     );
     app.session.ui.project_transition = None;

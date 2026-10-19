@@ -155,7 +155,7 @@ fn closed_capability_boundary_and_parameter_validation() {
         )
         .unwrap_err()
         .code,
-        "unsupported_operation"
+        "permission_denied"
     );
     assert_eq!(
         plan(
@@ -223,8 +223,7 @@ fn busy_plan_consumption_limit_and_read_audit() {
     assert_eq!(
         session
             .call(&mut app, "plotium_get_state", json!({}))
-            .unwrap_err()
-            .code,
+            .unwrap()["availability"]["project_read"]["reason"]["code"],
         "busy"
     );
     app.session.ui.phase_edit_active = false;
@@ -283,8 +282,7 @@ fn queued_import_blocks_project_access_before_background_insertion() {
     assert_eq!(
         session
             .call(&mut app, "plotium_get_state", json!({}))
-            .unwrap_err()
-            .code,
+            .unwrap()["availability"]["project_read"]["reason"]["code"],
         "busy"
     );
     assert_eq!(

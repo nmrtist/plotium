@@ -53,7 +53,7 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 已认证状态查询、每五秒心跳、静态属性目录以及保存协调（预检、提交与
 `plotium_save_status`），以及导出预检／提交／状态查询均不生成审计记录。
 
-连接支持 CSV/TSV 仅数据导入、原生表格查询、画布预览、图面几何诊断、文档结构、原生建图及页面／面板／文字／本地图片编辑、显式数值曲线绑定、受支持的表格处理、单元格补丁、已存配方显式刷新和
+连接支持原生采集导入、CSV/TSV 仅数据导入、原生表格查询、画布预览、图面几何诊断、文档结构、原生建图及页面／面板／文字／本地图片编辑、显式数值曲线绑定、受支持的表格处理、单元格补丁、已存配方显式刷新和
 资源查询、数据集／画布／画布对象重命名，以及以下显示属性：
 
 | 属性 ID | 目标 | 取值 |
@@ -78,7 +78,47 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 | `series.contour.count` | 图对象＋Series | 1–256 |
 | `document.figure.typography.tick_pt / document.figure.typography.label_pt` | document | 1–72 pt |
 
-此接口暂不支持处理参数、应用偏好、其他格式导入、其他计算及内置聊天。
+此接口暂不支持处理参数、应用偏好、新格式解析、科学处理、DOSY 计算、科学结果建图、完整任务管理及内置聊天。
+
+## 从欢迎页导入原生数据
+
+只打开 Plotium 即可调用 `plotium_get_state {}`；后台工作、恢复或保存阻塞项目访问时也可查询。
+响应新增 `project_present` 以及 `availability` 中的 `project_read`、`project_modify`、
+`native_import`，各项包含 `available` 和可为空的 `{code,message}` 原因。
+欢迎页返回 `project: null` 和空选择；忙碌时 `project` 与 `selection` 均为 `null`。
+这些查询不创建项目或文档审计记录；空闲且已有项目时保留正常审计。
+所有状态下均可发现完整连接能力。
+
+启用 **读取并修改**，从状态复制 `project_context` 和 `revision`，再调用 `plotium_plan`：
+
+```json
+{
+  "expected_project_context": "PROJECT_CONTEXT",
+  "expected_revision": 0,
+  "tool_id": "data.import",
+  "parameters": {"paths": ["C:/Data/experiment.jdf"]}
+}
+```
+
+请使用实际绝对路径。原生导入接受桌面加载器支持的明确数据文件及原子采集目录，
+例如 Bruker 采集或处理数据目录；可读取采集必需的伴随文件，不递归批量发现或扫描相邻实验。
+此操作不支持 ZIP 归档、项目文件或新格式。可选 `sampling_declaration` 沿用核心导入约定。
+完整共享 schema 位于 `connection_capabilities.operation_constraints["data.import"].schema`。
+
+预检在后台完成，`import.items[].metadata` 返回各输入的格式、维度、警告、失败原因和拟创建的
+数据集／画布 ID。预检不创建项目或资源。调用 `plotium_execute {"plan_id":"PLAN_ID"}`
+提交冻结数据；预检后修改或删除源文件不影响执行。成功提交原生数据集和默认画布，必要时通过
+正常文档修改生命周期显示项目，保留项目上下文和当前选择。已有项目始终追加资源。
+
+结果为 `succeeded`、`partial` 或 `failed`；所有成功项一次原子提交、一次撤销。
+撤销首批内容后留下空项目；重做恢复相同资源 ID。全部失败或取消则保留欢迎页。
+提交时重新检查权限、上下文和版本；即使执行被拒绝，计划也已消耗，不能重复使用。
+遇到 `project_changed` 后重新查询状态并预检。
+
+每批最多 16 个输入、1 个预检在途、最多 4 个保留的 prepared import（与表格导入共享）。
+所有保留计划及在途预检的原生冻结负载保守预留合计最多 512 MiB；超限返回
+`import_budget_exceeded`。预检响应最多 256 KiB。本接口不开放科学处理或 DOSY 执行。
+CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限制。
 
 ## 不依赖名称发现结构
 

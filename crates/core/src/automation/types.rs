@@ -540,6 +540,8 @@ pub enum AutomationError {
     DiagnosticCancelled,
     #[error("figure diagnostic budget exceeded: {0}")]
     DiagnosticBudget(String),
+    #[error("native import budget exceeded: {0}")]
+    NativeImportBudget(String),
     #[error("preview request cancelled")]
     PreviewCancelled,
     #[error("preview budget exceeded: {0}")]

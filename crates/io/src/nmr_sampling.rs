@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{io::Read, path::Path, sync::Arc};
 
 /// Invocation data only. The checked declaration is persisted inside snapshot v1.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SamplingDeclaration {
     pub assertion_id: String,
@@ -16,7 +16,7 @@ pub struct SamplingDeclaration {
     pub component_counts: Vec<usize>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IndexBase {
     Zero,

@@ -53,7 +53,7 @@ pub struct TableImportParams {
     pub schema_path: Option<PathBuf>,
 }
 pub fn is_table_import(value: &Value) -> bool {
-    value.get("mode").is_some()
+    value.get("mode").and_then(Value::as_str) == Some("table_data_only")
 }
 pub fn table_import_schema() -> Value {
     json!({"type":"object","additionalProperties":false,"required":["mode","paths"],"properties":{

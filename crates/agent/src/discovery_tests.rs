@@ -200,7 +200,7 @@ fn static_definitions_and_connection_gate_are_the_same_supported_subset() {
     let context = app.session.project_context;
     let mut s = Session::default();
     let revision = app.doc.automation_revision;
-    for operation in ["data.import", "render.preview", "document.inspect"] {
+    for operation in ["render.preview", "document.inspect"] {
         assert_eq!(s.call(&mut app,"plotium_plan",json!({"expected_project_context":context,"expected_revision":revision,"ids":["document"],"tool_id":operation,"parameters":{}})).unwrap_err().code,"unsupported_operation");
     }
 }

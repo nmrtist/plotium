@@ -72,7 +72,7 @@ pub(super) fn validate_parameters(
         "data.import" if is_table_import(&value) => {
             parse::<TableImportParams>(tool, value)?.validate()
         }
-        "data.import" => parse::<ImportParams>(tool, value).map(drop),
+        "data.import" => parse::<NativeImportParams>(tool, value)?.validate(),
         "data.transform" if is_table_transform(&value) => parse_table_transform(value).map(drop),
         "data.transform" => parse::<TransformParams>(tool, value).map(drop),
         "figure.export" => parse::<ExportParams>(tool, value).map(drop),
@@ -136,13 +136,6 @@ pub(super) struct SchemeParams {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct ImportParams {
-    pub paths: Vec<PathBuf>,
-    #[serde(default)]
-    pub sampling_declaration: Option<plotium_io::nmr_sampling::SamplingDeclaration>,
-}
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct TransformParams {
     pub plan: plotium_data::RelPlanV1,
     pub name: String,
@@ -183,26 +176,9 @@ schema!(CompareParams, [], ["before" => "array"]);
 schema!(RenameParams, ["name" => "string"], []);
 schema!(ThemeParams, ["theme_id" => "string"], []);
 schema!(SchemeParams, ["path" => "string"], ["compatible_only" => "boolean"]);
-impl V1Schema for ImportParams {
+impl V1Schema for NativeImportParams {
     fn schema() -> serde_json::Value {
-        // Workflow bindings inspect top-level parameter properties. Keep paths
-        // there for existing callers while constraining the two invocation forms.
-        let legacy = object_schema(&[("paths", "array")], &[("sampling_declaration", "object")]);
-        let table = table_import_schema();
-        let mut combined = legacy.clone();
-        combined["properties"]
-            .as_object_mut()
-            .expect("local schema properties")
-            .extend(
-                table["properties"]
-                    .as_object()
-                    .expect("local table properties")
-                    .clone(),
-            );
-        // Limits belong to the new form, not the existing acquisition importer.
-        combined["properties"]["paths"] = legacy["properties"]["paths"].clone();
-        combined["oneOf"] = serde_json::json!([legacy, table]);
-        combined
+        data_import_schema()
     }
 }
 impl V1Schema for TableColumnsParams {
@@ -472,7 +448,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
             "data.import",
             "Import data",
             "Import canonical datasets into the project",
-            ImportParams,
+            NativeImportParams,
             [],
             [],
             EffectLevel::Reversible,

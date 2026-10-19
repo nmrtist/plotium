@@ -397,6 +397,7 @@ impl PlotiumApp {
                 dataset_index,
                 canvas_index,
                 canvas_resource_id,
+                prepared_canvas,
                 dataset,
                 canvas_name,
                 size_mm,
@@ -437,12 +438,14 @@ impl PlotiumApp {
                     if *canvas_index != self.doc.canvases.len() {
                         return Ok(());
                     }
-                    let mut canvas = crate::workflow::build_default_canvas_for_dataset(
-                        &self.doc.datasets[*dataset_index],
-                        *dataset_index,
-                        canvas_name.clone(),
-                        *size_mm,
-                    );
+                    let mut canvas = prepared_canvas.as_deref().cloned().unwrap_or_else(|| {
+                        crate::workflow::build_default_canvas_for_dataset(
+                            &self.doc.datasets[*dataset_index],
+                            *dataset_index,
+                            canvas_name.clone(),
+                            *size_mm,
+                        )
+                    });
                     canvas.resource_id.clone_from(canvas_resource_id);
                     canvas.board_pos = crate::state::next_board_frame_pos(self, canvas.size_pt());
                     for object in &mut canvas.objects {
