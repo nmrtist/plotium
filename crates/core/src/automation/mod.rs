@@ -2,6 +2,8 @@
 //! agents. The public boundary is deliberately semantic: callers can inspect,
 //! select and invoke registered tools, but cannot construct document actions.
 
+mod native_import;
+pub use native_import::*;
 mod table_import;
 mod table_provenance;
 mod table_read;

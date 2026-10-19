@@ -447,14 +447,14 @@ fn import_and_page_budgets_and_duplicate_columns_are_enforced() {
 }
 
 #[test]
-fn legacy_import_keeps_original_path_conditions_and_schema_binding_entry() {
+fn native_import_shares_bounded_schema_and_rejects_non_explicit_paths() {
     let app = PlotiumApp::new();
     let paths = vec!["relative-acquisition.dx"; 17];
-    assert!(plan_tool(&app, request(&app, "data.import", json!({"paths":paths}))).is_ok());
+    assert!(plan_tool(&app, request(&app, "data.import", json!({"paths":paths}))).is_err());
     let registry = ToolRegistry::built_in();
     let schema = &registry.get("data.import").unwrap().parameter_schema;
     assert_eq!(schema["type"], "object");
     assert_eq!(schema["properties"]["paths"]["type"], "array");
-    assert!(schema["properties"]["paths"].get("maxItems").is_none());
-    assert!(schema["properties"]["paths"].get("minItems").is_none());
+    assert_eq!(schema["properties"]["paths"]["maxItems"], 16);
+    assert_eq!(schema["properties"]["paths"]["minItems"], 1);
 }

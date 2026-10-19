@@ -7,6 +7,7 @@ mod guides;
 #[cfg(test)]
 mod plan_budget_tests;
 pub(crate) mod save;
+mod state;
 mod table;
 mod transform;
 
@@ -75,6 +76,7 @@ impl From<&AutomationError> for Failure {
                 "stale_revision"
             }
             AutomationError::TableTransformCancelled => "request_cancelled",
+            AutomationError::NativeImportBudget(_) => "import_budget_exceeded",
             AutomationError::TableTransformBudget(_) => "transform_budget_exceeded",
             AutomationError::DiagnosticCancelled => "request_cancelled",
             AutomationError::DiagnosticBudget(_) => "diagnostic_budget_exceeded",
@@ -102,7 +104,7 @@ pub struct Session {
     pub(crate) diagnostic: Option<crate::diagnostics::RetainedScan>,
     context: Option<plotium_core::state::ProjectContextId>,
     plans: HashMap<String, ToolPlan>,
-    imports: HashMap<String, PreparedTableImport>,
+    imports: HashMap<String, PreparedDataImport>,
     transforms: HashMap<String, PreparedTableOperation>,
     saves: HashMap<String, save::SavePlan>,
     exports: HashMap<String, export::ExportPlan>,
@@ -262,7 +264,17 @@ impl Session {
             })?;
             let prepared = self.imports.remove(&args.plan_id);
             let transform = self.transforms.remove(&args.plan_id);
-            barrier()?;
+            if prepared.as_ref().is_some_and(PreparedDataImport::is_native) {
+                if blocked {
+                    return Err(Failure::new(
+                        "busy",
+                        "Resolve recovery or save operation and retry",
+                    ));
+                }
+                ensure_not_busy(app)?;
+            } else {
+                barrier()?;
+            }
             let authority = if self.allow_modify {
                 ExecutionAuthority::ReversibleModify
             } else {
@@ -271,12 +283,29 @@ impl Session {
             return Ok(json!(if let Some(prepared) = transform {
                 execute_prepared_table_operation(app, plan, prepared, authority)?
             } else if let Some(prepared) = prepared {
-                execute_prepared_table_import(app, plan, prepared, authority)?
+                execute_prepared_data_import(app, plan, prepared, authority)?
             } else {
                 execute_tool(app, plan, authority)?
             }));
         }
-        barrier()?;
+        if name == "plotium_get_state" {
+            let _: Empty = decode(arguments)?;
+            return self.get_state(app, blocked);
+        }
+        let native_import = name == "plotium_plan"
+            && arguments.get("tool_id").and_then(Value::as_str) == Some("data.import")
+            && !is_table_import(&arguments["parameters"]);
+        if native_import {
+            if blocked {
+                return Err(Failure::new(
+                    "busy",
+                    "Resolve recovery or save operation and retry",
+                ));
+            }
+            ensure_not_busy(app)?;
+        } else {
+            barrier()?;
+        }
         if matches!(name, "plotium_table_columns" | "plotium_table_read_rows") {
             return self.table_read(app, name, arguments);
         }
@@ -284,7 +313,11 @@ impl Session {
             && arguments.get("tool_id").and_then(Value::as_str) == Some("data.import")
         {
             let (plan, params) = self.prepare_import_plan(app, arguments, blocked)?;
-            let prepared = PreparedTableImport::prepare(params, || false)?;
+            let prepared = PreparedDataImport::prepare_with_budget(
+                params,
+                self.remaining_import_bytes(),
+                || false,
+            )?;
             return self.finish_import_plan(app, plan, prepared, blocked);
         }
         if name == "plotium_plan"
@@ -325,23 +358,6 @@ impl Session {
                     ));
                 }
             }
-        }
-        if name == "plotium_get_state" {
-            let _: Empty = decode(arguments)?;
-            let revision = DocumentRevision(app.doc.automation_revision);
-            let selection = ProjectResourceProvider::new(app).current_selection();
-            let result = execute_tool(
-                app,
-                plan_tool(
-                    app,
-                    request("project.get_blueprint", json!({}), vec![], revision),
-                )?,
-                ExecutionAuthority::Read,
-            )?;
-            return Ok(
-                json!({"project_context": app.session.project_context, "revision": app.doc.automation_revision, "project": result.value,
-                "selection": selection, "connection_capabilities": crate::capabilities::manifest(self.allow_modify), "permissions": {"allow_reversible_modify": self.allow_modify,"save":"per_request_desktop_authorization","export":"per_request_desktop_authorization"}, "save_state":{"current_path":app.doc.project_path,"persisted_revision":app.doc.project_revision,"dirty":app.doc.dirty,"edit_generation":app.doc.edit_generation,"receipts":app.session.external_saves.receipts().collect::<Vec<_>>()}}),
-            );
         }
         if name == "plotium_plan" {
             let args: Plan = decode(arguments)?;
@@ -544,7 +560,7 @@ impl Session {
 #[serde(deny_unknown_fields)]
 struct Empty {}
 
-pub fn ensure_idle(app: &PlotiumApp) -> Result<(), Failure> {
+pub fn ensure_not_busy(app: &PlotiumApp) -> Result<(), Failure> {
     let ui = &app.session.ui;
     if app.compute_busy()
         || app.session.data_imports.is_pending()
@@ -582,6 +598,11 @@ pub fn ensure_idle(app: &PlotiumApp) -> Result<(), Failure> {
             "Finish the current edit or project operation and retry",
         ));
     }
+    Ok(())
+}
+
+pub fn ensure_idle(app: &PlotiumApp) -> Result<(), Failure> {
+    ensure_not_busy(app)?;
     if !app.session.project_present {
         return Err(Failure::new(
             "no_project",

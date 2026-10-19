@@ -4,7 +4,7 @@ use plotium_core::{automation::*, state::PlotiumApp};
 use std::thread::JoinHandle;
 use tokio_util::sync::CancellationToken;
 pub(crate) struct ImportFlight {
-    worker: JoinHandle<Result<PreparedTableImport, AutomationError>>,
+    worker: JoinHandle<Result<PreparedDataImport, AutomationError>>,
     plan: ToolPlan,
     request: PendingRequest,
     cancellation: CancellationToken,
@@ -52,10 +52,11 @@ impl Connection {
         let cancellation = request.cancellation.child_token();
         let worker_cancellation = cancellation.clone();
         let active = self.active.clone();
+        let budget = self.session.remaining_import_bytes();
         let worker = std::thread::Builder::new()
-            .name("plotium-table-import".into())
+            .name("plotium-data-import".into())
             .spawn(move || {
-                PreparedTableImport::prepare(params, || {
+                PreparedDataImport::prepare_with_budget(params, budget, || {
                     worker_cancellation.is_cancelled()
                         || !active.load(std::sync::atomic::Ordering::Acquire)
                 })
@@ -106,6 +107,18 @@ impl Connection {
                     .finish_import_plan(app, flight.plan, p, blocked)
             })
         };
+        if let Err(error) = &result {
+            app.session.status = format!("Import preflight failed: {}", error.message);
+        } else if let Ok(value) = &result
+            && let Some(error) = value["import"]["items"]
+                .as_array()
+                .and_then(|items| items.iter().find_map(|i| i["error"].as_str()))
+        {
+            app.session.status = format!(
+                "Import preflight: {} ready, {} failed. {error}",
+                value["import"]["prepared_files"], value["import"]["failed_files"]
+            );
+        }
         let id = result
             .as_ref()
             .ok()

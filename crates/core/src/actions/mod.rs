@@ -549,6 +549,7 @@ pub enum Action {
         dataset_index: usize,
         canvas_index: usize,
         canvas_resource_id: crate::state::CanvasId,
+        prepared_canvas: Option<Box<CanvasDocument>>,
         dataset: Box<Dataset>,
         canvas_name: String,
         size_mm: [f32; 2],

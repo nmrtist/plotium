@@ -103,7 +103,7 @@ fn export_queue_is_rechecked_when_background_table_preparation_finishes() {
         let a = args(&app, tool, dir.path());
         if tool == "data.import" {
             let (plan, params) = s.prepare_import_plan(&app, a, false).unwrap();
-            let prepared = PreparedTableImport::prepare(params, || false).unwrap();
+            let prepared = PreparedDataImport::prepare(params, || false).unwrap();
             fill_exports(&mut s, &mut app, dir.path(), 32);
             s.finish_import_plan(&app, plan, prepared, false)
                 .err()

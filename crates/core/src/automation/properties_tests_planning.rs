@@ -17,7 +17,7 @@ fn relation_plan() -> serde_json::Value {
 }
 
 /// The per-tool planning seam is additive. Every tool that existed before it
-/// must still be planned by the shared gate alone: one planned target per frozen
+/// with resource selectors must still use the shared gate alone: one planned target per frozen
 /// resource, no component, and the shared reasons.
 #[test]
 fn the_planning_of_pre_existing_tools_is_unchanged() {
@@ -52,7 +52,6 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
             serde_json::json!({"path": "scheme.plotiumproc"}),
             &dataset,
         ),
-        ("data.import", serde_json::json!({"paths": []}), &canvas),
         ("data.transform", transform, &dataset),
         (
             "figure.export",
@@ -67,11 +66,11 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
             .filter(|d| !is_native_curve_tool(&d.id)
                 && !matches!(
                     d.id.as_str(),
-                    FIGURE_EDIT | TABLE_PATCH | TABLE_REFRESH | FIGURE_DIAGNOSE
+                    "data.import" | FIGURE_EDIT | TABLE_PATCH | TABLE_REFRESH | FIGURE_DIAGNOSE
                 ))
             .count()
             - 7,
-        "every tool that predates property, document discovery, image preview, table read and explicit curve binding tools is covered here"
+        "every resource-targeted tool that predates property, document discovery, image preview, table read and explicit curve binding tools is covered here"
     );
     for (tool_id, parameters, target) in cases {
         let plan = plan_tool(

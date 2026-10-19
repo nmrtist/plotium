@@ -26,10 +26,11 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
     }
     validate_parameters(&request.tool_id, request.parameters.clone())?;
     if request.tool_id == "data.import"
-        && is_table_import(&request.parameters)
         && request.targets != (TargetSelector::Explicit { ids: Vec::new() })
     {
-        return Err(AutomationError::InvalidSelector("Data-only import requires an explicitly empty project target; paths identify its inputs.".into()));
+        return Err(AutomationError::InvalidSelector(
+            "Import requires an explicitly empty project target; paths identify its inputs.".into(),
+        ));
     }
     if request.tool_id == "data.transform" && is_table_transform(&request.parameters) {
         TableTransformSnapshot::capture(app, &request)?;

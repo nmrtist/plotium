@@ -61,7 +61,7 @@ unsaved. Handshakes, tool listing, authenticated status, five-second heartbeats,
 the static property catalog and save coordination (planning, submission and
 `plotium_save_status`), and export planning/submission/status do not add audit records.
 
-The connection supports CSV/TSV data-only import, native table queries, canvas previews, figure geometry diagnostics,
+The connection supports native acquisition import and CSV/TSV data-only import, native table queries, canvas previews, figure geometry diagnostics,
 document structure, native plot creation and page/panel/text/local-image authoring, explicit numeric curve bindings, supported table transforms, cell patches, explicit saved-recipe refreshes and resource queries, renaming datasets,
 canvases and canvas objects, and these display properties only:
 
@@ -87,8 +87,61 @@ canvases and canvas objects, and these display properties only:
 | `series.contour.count` | Object + Series | 1–256 |
 | `document.figure.typography.tick_pt / document.figure.typography.label_pt` | document | 1–72 pt |
 
-Processing parameters, preferences, other import formats, other computation, built-in chat
+Processing parameters, preferences, new format parsers, scientific processing, DOSY computation, scientific-result plotting, full task management and built-in chat
 are outside this interface.
+
+## Import native data from the welcome page
+
+`plotium_get_state {}` works immediately after opening Plotium, including while
+background work, recovery or saving blocks project access. It adds
+`project_present` and `availability` entries for `project_read`, `project_modify`
+and `native_import`; each has `available` and a nullable `{code,message}` reason.
+On the welcome page, `project` is `null` and `selection` is empty. While busy,
+`project` and `selection` are both `null`. These queries create no project or
+project audit entry; idle queries of an existing project retain normal auditing.
+Connection capabilities remain discoverable in every state.
+
+Enable **Read and modify**, copy `project_context` and `revision` from state,
+then call `plotium_plan`:
+
+```json
+{
+  "expected_project_context": "PROJECT_CONTEXT",
+  "expected_revision": 0,
+  "tool_id": "data.import",
+  "parameters": {"paths": ["C:/Data/experiment.jdf"]}
+}
+```
+
+Use actual absolute paths. Native import accepts explicit data files and atomic
+acquisition directories supported by the desktop loader, such as Bruker acquisition
+or processed-data directories. It reads required companions without recursive batch
+discovery or scanning adjacent experiments. ZIP archives, project files and new
+formats are outside this operation. Optional `sampling_declaration` uses the core
+import contract. Discover the shared schema in
+`connection_capabilities.operation_constraints["data.import"].schema`.
+
+Preflight runs in the background and returns per-input format, dimensions,
+warnings, failures and proposed dataset/canvas IDs in `import.items[].metadata`.
+It creates no project or resources. Call `plotium_execute {"plan_id":"PLAN_ID"}`
+to commit frozen data; changing or deleting the source after preflight does not
+affect execution. Success adds native datasets and default canvases, displaying a
+project through the normal edit lifecycle when necessary, retaining its context
+and current selection. Existing projects always receive appended resources.
+
+Results report `succeeded`, `partial` or `failed`. All successful inputs commit
+atomically in one Undo step. Undo leaves an empty project when the batch was its
+first content; Redo restores the same resource IDs. All-failed or cancelled imports
+leave the welcome page unchanged. Permissions, context and revision are checked
+again at submission. Plans are single-use even when execution is refused. After
+`project_changed`, read state and preflight again.
+
+Native import allows 16 inputs per batch, one preflight in flight and four retained
+prepared imports, shared with table import. Conservative native frozen-payload
+reservations total at most 512 MiB across retained plans and the active preflight;
+oversized batches fail with `import_budget_exceeded`. Preflight responses are
+limited to 256 KiB. Scientific processing and DOSY execution are not exposed.
+CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and limits.
 
 ## Discover structure without relying on names
 

@@ -1,29 +1,33 @@
-//! Table planning retains prepared native data, not paths to re-read at execute.
+//! Import planning retains frozen native data, not paths to re-read at execute.
 use super::*;
 impl Session {
+    pub(crate) fn remaining_import_bytes(&self) -> usize {
+        NATIVE_IMPORT_BYTES.saturating_sub(
+            self.imports
+                .values()
+                .map(PreparedDataImport::reserved_bytes)
+                .sum(),
+        )
+    }
     pub(crate) fn prepare_import_plan(
         &self,
         app: &PlotiumApp,
         mut arguments: Value,
         blocked: bool,
-    ) -> Result<(ToolPlan, TableImportParams), Failure> {
+    ) -> Result<(ToolPlan, DataImportParams), Failure> {
         check_context(app, &mut arguments)?;
         let args: Plan = decode(arguments)?;
-        if args.parameters.get("mode").and_then(Value::as_str) != Some("table_data_only") {
-            return Err(Failure::new(
-                "unsupported_operation",
-                "Only explicit table_data_only CSV/TSV import is exposed",
-            ));
-        }
         self.check_import_ready(app, blocked)?;
         if args.tool_id != "data.import" || args.ids.is_some() || args.targets.is_some() {
             return Err(Failure::new(
                 "invalid_parameters",
-                "Data-only import takes explicit file paths, without ids or targets",
+                "Import takes explicit input paths, without ids or targets",
             ));
         }
-        let params: TableImportParams = decode(args.parameters.clone())?;
-        params.validate()?;
+        let params = DataImportParams::parse(args.parameters.clone())?;
+        if matches!(params, DataImportParams::Table(_)) {
+            ensure_idle(app)?;
+        }
         let plan = plan_tool(
             app,
             request(
@@ -48,7 +52,7 @@ impl Session {
                 "Resolve recovery or save operation and retry",
             ));
         }
-        ensure_idle(app)?;
+        ensure_not_busy(app)?;
         if self.pending_plan_count() >= 32 || self.imports.len() >= 4 {
             return Err(Failure::new(
                 "plan_limit",
@@ -61,15 +65,29 @@ impl Session {
         &mut self,
         app: &PlotiumApp,
         plan: ToolPlan,
-        prepared: PreparedTableImport,
+        prepared: impl Into<PreparedDataImport>,
         blocked: bool,
     ) -> Result<Value, Failure> {
         self.check_import_ready(app, blocked)?;
+        let prepared = prepared.into();
+        if self
+            .imports
+            .values()
+            .map(PreparedDataImport::reserved_bytes)
+            .sum::<usize>()
+            .saturating_add(prepared.reserved_bytes())
+            > NATIVE_IMPORT_BYTES
+        {
+            return Err(Failure::new(
+                "import_budget_exceeded",
+                "Pending native imports exceed 512 MiB; execute or discard a pending import first",
+            ));
+        }
         // Revalidate after background preparation against the actual live document.
         let mut plan = plan_tool(app, plan.request)?;
         let summary = prepared.preflight();
         plan.estimated_changes = vec![format!(
-            "Import {} native tables; {} failed inputs. No plots are created.",
+            "Import {} inputs; {} failed inputs.",
             summary["prepared_files"], summary["failed_files"]
         )];
         let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());

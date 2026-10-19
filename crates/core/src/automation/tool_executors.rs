@@ -230,107 +230,8 @@ pub(super) fn execute_import(
     app: &mut PlotiumApp,
     plan: &ToolPlan,
 ) -> Result<ToolResult, AutomationError> {
-    if is_table_import(&plan.request.parameters) {
-        let params = parse::<TableImportParams>("data.import", plan.request.parameters.clone())?;
-        return PreparedTableImport::prepare(params, || false)?.commit(app, plan);
-    }
-    let params: ImportParams = parse(&plan.request.tool_id, plan.request.parameters.clone())?;
-    if params.paths.is_empty() {
-        return Err(AutomationError::InvalidParameters {
-            tool_id: plan.request.tool_id.clone(),
-            message: "paths must contain at least one input".to_owned(),
-        });
-    }
-    let base_dataset = app.doc.datasets.len();
-    let base_canvas = app.doc.canvases.len();
-    let mut actions = Vec::new();
-    let mut produced = Vec::new();
-    let mut item_results = Vec::new();
-    for path in &params.paths {
-        let external = TargetRef::resource(ResourceRef {
-            id: path.display().to_string(),
-            kind: ResourceKindId::new(KIND_EXTERNAL_INPUT),
-            parent_id: None,
-            local_id: None,
-        });
-        let loaded = match params.sampling_declaration.clone().map_or_else(
-            || crate::workflow::load_dataset(path),
-            |declaration| crate::workflow::load_dataset_with_sampling(path, declaration),
-        ) {
-            Ok(loaded) => loaded,
-            Err(error) => {
-                item_results.push(TargetResult {
-                    target: external,
-                    outcome: TargetOutcome::Failed,
-                    message: error.to_string(),
-                    skip_reason: None,
-                    fingerprints: fingerprint_file(path, "selected_input")
-                        .into_iter()
-                        .collect(),
-                });
-                continue;
-            }
-        };
-        let fingerprints = input_fingerprints(&loaded.inspection);
-        produced.push(ResourceRef {
-            id: loaded.dataset.resource_id().to_string(),
-            kind: ResourceKindId::new(KIND_DATASET),
-            parent_id: None,
-            local_id: None,
-        });
-        let offset = actions.len();
-        actions.push(Action::InsertDatasetWithCanvas {
-            dataset_index: base_dataset + offset,
-            canvas_index: base_canvas + offset,
-            canvas_resource_id: crate::state::CanvasId::new(),
-            dataset: Box::new(loaded.dataset),
-            canvas_name: path
-                .file_stem()
-                .map(|value| value.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "Imported Data".to_owned()),
-            size_mm: crate::state::DEFAULT_CANVAS_SIZE_MM,
-            active_canvas_before: app.session.active_canvas,
-            active_dataset_before: app.active_dataset(),
-            inserted_into_existing_canvas: None,
-            inserted_object_id: None,
-        });
-        item_results.push(TargetResult {
-            target: external,
-            outcome: TargetOutcome::Succeeded,
-            message: "imported into the canonical Plotium data model".to_owned(),
-            skip_reason: None,
-            fingerprints,
-        });
-    }
-    if actions.is_empty() {
-        return Ok(ToolResult {
-            tool_id: plan.request.tool_id.clone(),
-            before_revision: DocumentRevision(app.doc.automation_revision),
-            after_revision: DocumentRevision(app.doc.automation_revision),
-            targets: item_results,
-            produced: Vec::new(),
-            modified: Vec::new(),
-            diagnostics: Vec::new(),
-            verification: Vec::new(),
-            value: serde_json::Value::Null,
-        });
-    }
-    let mut result = commit_actions(app, plan, actions, "imported")?;
-    produced.extend(
-        app.doc
-            .canvases
-            .iter()
-            .skip(base_canvas)
-            .map(|canvas| ResourceRef {
-                id: canvas.resource_id.to_string(),
-                kind: ResourceKindId::new(KIND_CANVAS),
-                parent_id: None,
-                local_id: None,
-            }),
-    );
-    result.produced = produced;
-    result.targets.extend(item_results);
-    Ok(result)
+    let params = DataImportParams::parse(plan.request.parameters.clone())?;
+    PreparedDataImport::prepare(params, || false)?.commit(app, plan)
 }
 
 pub(super) fn execute_transform(
@@ -649,24 +550,6 @@ fn sanitize_file_name(value: &str) -> String {
     } else {
         value.to_owned()
     }
-}
-
-fn input_fingerprints(inspection: &crate::workflow::InspectionReport) -> Vec<FingerprintRecord> {
-    let mut paths = vec![("selected_input", &inspection.provenance.selected_path)];
-    paths.push(("data", &inspection.provenance.data_path));
-    paths.extend(
-        inspection
-            .provenance
-            .parameter_paths
-            .iter()
-            .map(|path| ("parameter", path)),
-    );
-    let mut seen = BTreeSet::new();
-    paths
-        .into_iter()
-        .filter(|(_, path)| seen.insert((*path).clone()))
-        .filter_map(|(role, path)| fingerprint_file(path, role))
-        .collect()
 }
 
 fn fingerprint_file(path: &Path, role: &str) -> Option<FingerprintRecord> {

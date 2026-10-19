@@ -291,8 +291,7 @@ mod tests {
         assert_eq!(
             session
                 .call(&mut app, "plotium_get_state", serde_json::json!({}))
-                .unwrap_err()
-                .code,
+                .unwrap()["availability"]["project_read"]["reason"]["code"],
             "busy"
         );
         send.send(()).unwrap();
@@ -324,8 +323,7 @@ mod tests {
         assert_eq!(
             session
                 .call(&mut app, "plotium_get_state", serde_json::json!({}))
-                .unwrap_err()
-                .code,
+                .unwrap()["availability"]["project_read"]["reason"]["code"],
             "busy"
         );
         let deadline = Instant::now() + Duration::from_secs(5);

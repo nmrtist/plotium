@@ -410,3 +410,6 @@ mod candidate_lifecycle_tests;
 
 #[cfg(test)]
 mod candidate_fixture;
+
+#[cfg(test)]
+mod native_import_tests;

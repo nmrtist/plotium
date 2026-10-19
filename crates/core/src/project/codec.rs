@@ -239,15 +239,19 @@ pub fn write_dataset_blob(
     blob: &DatasetBlob<'_>,
 ) -> Result<()> {
     zip.start_file(path, options)?;
+    write_dataset_payload(zip, blob)
+}
+
+pub(crate) fn write_dataset_payload(writer: &mut impl Write, blob: &DatasetBlob<'_>) -> Result<()> {
     match blob {
-        DatasetBlob::Nmr(source) => super::nmr_snapshot::write(zip, source),
+        DatasetBlob::Nmr(source) => super::nmr_snapshot::write(writer, source),
         DatasetBlob::Electrophysiology(recording) => {
-            super::electrophysiology_convert::write_electrophysiology_blob(zip, recording)
+            super::electrophysiology_convert::write_electrophysiology_blob(writer, recording)
         }
-        DatasetBlob::Afm(data) => super::afm_convert::write_afm(zip, data),
-        DatasetBlob::MassSpec(dataset) => super::mass_spec_convert::write(zip, dataset),
-        DatasetBlob::Xrd(data) => super::xrd_convert::write(zip, data),
-        DatasetBlob::Xps(experiment) => super::xps_convert::write(zip, experiment),
+        DatasetBlob::Afm(data) => super::afm_convert::write_afm(writer, data),
+        DatasetBlob::MassSpec(dataset) => super::mass_spec_convert::write(writer, dataset),
+        DatasetBlob::Xrd(data) => super::xrd_convert::write(writer, data),
+        DatasetBlob::Xps(experiment) => super::xps_convert::write(writer, experiment),
     }
 }
 
