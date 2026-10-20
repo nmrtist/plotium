@@ -163,13 +163,21 @@ impl ServerHandler for Connector {
             Err(error) => eprintln!("Plotium MCP transport cleanup failed: {error}"),
         }
         Ok(match outcome {
-            Ok(result) => result.into(),
+            Ok(result) => relayed(result),
             Err(message) => {
                 CallToolResult::structured_error(Failure::new("connection_lost", message).value())
                     .into()
             }
         })
     }
+}
+/// The desktop hop negotiates its own protocol revision, and its server strips
+/// `resultType` for revisions before 2026-07-28. The stdio peer may negotiate a
+/// newer revision that requires the field, so restore the discriminator here;
+/// rmcp strips it again when the stdio peer is itself a legacy client.
+fn relayed(mut result: CallToolResult) -> CallToolResponse {
+    result.result_type.get_or_insert(ResultType::COMPLETE);
+    result.into()
 }
 pub fn run_stdio(desktop: bool) -> Result<(), Box<dyn std::error::Error>> {
     let runtime = tokio::runtime::Builder::new_current_thread()

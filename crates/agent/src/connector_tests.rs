@@ -185,3 +185,61 @@ fn native_stdio_facade_keeps_diagnostic_pages_until_stdio_cleanup() {
         }).await.unwrap();
     });
 }
+
+/// The desktop hop negotiates an older revision whose results omit
+/// `resultType`; a 2026-07-28 stdio peer still requires it on the wire.
+#[test]
+fn stdio_facade_restores_result_type_for_current_revision_peers() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let temp = tempfile::tempdir().unwrap();
+    let directory = temp.path().join("mcp");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let connector = Connector {
+            directory: directory.clone(),
+            client: reqwest::Client::builder().no_proxy().build().unwrap(),
+            identity: "claude-code",
+            diagnostic: Default::default(),
+        };
+        let mut connection = crate::Connection::start_in(directory, || {}).unwrap();
+        let mut app = plotium_core::state::PlotiumApp::new_with_settings(Default::default());
+        app.start_new_project();
+        let (server_io, client_io) = tokio::io::duplex(1024 * 1024);
+        let server = tokio::spawn(connector.serve(server_io));
+        let (read, mut write) = tokio::io::split(client_io);
+        // Stateless requests select the 2026-07-28 lifecycle only with complete
+        // inline client metadata, as Claude Code 2.1.302 sends it.
+        let meta = json!({
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": {"name": "probe", "version": "0"},
+            "io.modelcontextprotocol/clientCapabilities": {}
+        });
+        let call = tokio::spawn(async move {
+            let mut lines = BufReader::new(read).lines();
+            let mut send = async |request: serde_json::Value| {
+                write.write_all(format!("{request}\n").as_bytes()).await.unwrap();
+                let line = lines.next_line().await.unwrap().unwrap();
+                serde_json::from_str::<serde_json::Value>(&line).unwrap()
+            };
+            let discover = send(json!({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":meta}})).await;
+            assert!(
+                discover["result"]["supportedVersions"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("2026-07-28"))
+            );
+            send(json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plotium_get_state","arguments":{},"_meta":meta}})).await
+        });
+        pump(&mut connection, &mut app, &call).await;
+        let response = call.await.unwrap();
+        assert_eq!(response["result"]["resultType"], "complete", "{response}");
+        assert_eq!(
+            response["result"]["structuredContent"]["project_context"],
+            json!(app.session.project_context)
+        );
+        server.abort();
+    });
+}
