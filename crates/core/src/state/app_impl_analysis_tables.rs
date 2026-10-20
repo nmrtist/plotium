@@ -141,7 +141,7 @@ impl PlotiumApp {
 
     /// Build a fresh series table from any field that exposes ordered 1D
     /// members. Rows follow the member ruler; every region becomes one column.
-    fn build_region_table(
+    pub(crate) fn build_region_table(
         &self,
         dataset: usize,
         persisted_members: Option<(FieldId, &[plotium_data::TraceItemId])>,

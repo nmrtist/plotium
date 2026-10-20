@@ -61,6 +61,7 @@ impl PlotiumApp {
             session: Session {
                 project_present: false,
                 project_context: Default::default(),
+                scientific_tasks: Default::default(),
                 external_saves: Default::default(),
                 external_exports: Default::default(),
                 active_canvas: None,

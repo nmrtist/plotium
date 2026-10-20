@@ -162,6 +162,10 @@ pub enum DosyInvocation {
 /// Reproducibility metadata for one persisted DOSY result.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DosyResultProvenance {
+    #[serde(default)]
+    pub source_fields: Vec<automation::TaskFieldVersion>,
+    #[serde(default)]
+    pub columns: Vec<plotium_analysis::column_diagnostics::ColumnDiagnostic>,
     pub algorithm: String,
     pub version: u32,
     pub input: DosyInvocation,
@@ -283,4 +287,6 @@ mod tests {
 mod nmr_test_support;
 
 mod diffusion_input;
+mod diffusion_report;
 pub use diffusion_input::{DiffusionIncrement, DiffusionInput, DiffusionModel, IncrementId};
+pub use diffusion_report::*;

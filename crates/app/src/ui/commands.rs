@@ -518,6 +518,19 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                     .is_some_and(|state| !state.regions.is_empty()),
                 "Add at least one region before building a series table.",
             )
+        })
+        .and_then(|()| {
+            requires(
+                active_dataset.is_some_and(|di| {
+                    app.region_table_index(di).is_some()
+                        || app
+                            .session
+                            .compute
+                            .blocking_work_for(app.doc.datasets[di].resource_id())
+                            .is_none()
+                }),
+                "Wait for the source computation before extracting curves.",
+            )
         }),
         CommandId::DetectPeaks => requires(
             dataset().is_some_and(|dataset| {

@@ -4,6 +4,7 @@ mod axis_overrides;
 mod meta_edits;
 mod native_plot;
 mod processing;
+mod processing_snapshot;
 mod revert;
 mod table_edit;
 mod validate;

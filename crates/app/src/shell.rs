@@ -28,6 +28,11 @@ fn poll_background_work(
     if app.poll_external_export() {
         ctx.request_repaint_after(Duration::from_millis(50));
     }
+    if !app.settings.agent.enabled
+        || app.settings.agent.access != plotium_core::settings::AgentAccess::ReadAndModify
+    {
+        app.session.scientific_tasks.revoke_external_permissions();
+    }
     app.poll_compute();
     if app.poll_data_import() {
         ctx.request_repaint_after(Duration::from_millis(16));

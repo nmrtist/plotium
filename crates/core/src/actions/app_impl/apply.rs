@@ -66,8 +66,8 @@ impl PlotiumApp {
                     }
                 }
             }
-            Action::SetDiffusionInput { dataset, after, .. } => {
-                self.apply_diffusion_input(dataset_index!(*dataset), after.clone());
+            Action::InstallScientificState { after, .. } => {
+                self.install_processing_snapshots(after)?
             }
             Action::UpdateDatasetProcessing { dataset, after, .. } => {
                 self.set_dataset_processing_state(dataset_index!(*dataset), after)

@@ -6,6 +6,26 @@ use plotium_core::state::{
 };
 
 use super::task_card::{self, TaskCardGeometry};
+use crate::ui::commands::{self, CommandId};
+
+#[cfg(test)]
+#[path = "region_analysis_tests.rs"]
+mod tests;
+
+fn curve_action_label(app: &PlotiumApp, di: usize) -> &'static str {
+    if app.region_table_index(di).is_some() {
+        "View extracted curves"
+    } else if app
+        .session
+        .compute
+        .blocking_work_for(app.doc.datasets[di].resource_id())
+        .is_some()
+    {
+        "Waiting for source computation…"
+    } else {
+        "Extract curves"
+    }
+}
 
 pub(super) fn region_analysis_group(app: &mut PlotiumApp, di: usize, ui: &mut Ui) -> bool {
     ui.label(crate::typography::headline("Region analysis"));
@@ -102,8 +122,11 @@ pub(crate) fn render_task(app: &mut PlotiumApp, host: &mut Ui) {
                 if collapsed
                     && count > 0
                     && ui
-                        .small_button(icon::TABLE)
-                        .on_hover_text("View extracted curves")
+                        .add_enabled(
+                            commands::describe(app, CommandId::SeriesTable).enabled,
+                            Button::new(icon::TABLE).small(),
+                        )
+                        .on_hover_text(curve_action_label(app, di))
                         .clicked()
                 {
                     open_table = true;
@@ -318,9 +341,6 @@ fn region_task_body(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
     }
 
     ui.separator();
-    let count = app.doc.datasets[di]
-        .region_analysis()
-        .map_or(0, |state| state.regions.len());
     let table = app.region_table_index(di);
     if table.is_some() {
         ui.small(format!("{} Live series table · Synced", icon::CHECK));
@@ -328,9 +348,10 @@ fn region_task_body(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
     if drawing && ui.button("Done drawing").clicked() {
         app.set_tool(Tool::BrowseZoom);
     }
-    let next = format!("View extracted curves {}", icon::ARROW_RIGHT);
+    let command = commands::describe(app, CommandId::SeriesTable);
+    let next = format!("{} {}", curve_action_label(app, di), icon::ARROW_RIGHT);
     if ui
-        .add_enabled_ui(count > 0, |ui| {
+        .add_enabled_ui(command.enabled, |ui| {
             let text = egui::RichText::new(next)
                 .strong()
                 .color(ui.visuals().selection.stroke.color);
@@ -342,7 +363,7 @@ fn region_task_body(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
             )
         })
         .inner
-        .on_disabled_hover_text("Add at least one region to continue.")
+        .on_disabled_hover_text(command.disabled_reason.unwrap_or(""))
         .clicked()
     {
         open_region_table(app, di);
@@ -353,7 +374,7 @@ fn region_task_body(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
             .on_hover_text("Save an independent copy that will not update when regions change.")
             .clicked()
     {
-        app.freeze_region_table(di);
+        app.request_region_table_operation(di, false);
     }
 
     fit_mirror(app, di, &mirror, ui);
@@ -393,9 +414,15 @@ fn finish_label_edit(app: &mut PlotiumApp, dataset: plotium_core::state::Dataset
 }
 
 pub(crate) fn open_region_table(app: &mut PlotiumApp, di: usize) {
-    let created = app.region_table_index(di).is_none();
-    if created {
-        app.create_region_table(di);
+    let command = commands::describe(app, CommandId::SeriesTable);
+    if !command.enabled {
+        app.session.status = command.disabled_reason.unwrap_or("").into();
+        return;
+    }
+    if app.region_table_index(di).is_none() {
+        open_task(app, di);
+        app.request_region_table_operation(di, true);
+        return;
     }
     let Some(tj) = app.region_table_index(di) else {
         return;
@@ -411,9 +438,7 @@ pub(crate) fn open_region_table(app: &mut PlotiumApp, di: usize) {
     }
     app.focus_single(tj);
     super::curve_fit::open_task(app, tj);
-    if !created {
-        app.session.status = "Viewing extracted region curves.".to_owned();
-    }
+    app.session.status = "Viewing extracted region curves.".to_owned();
 }
 
 /// One summary line per fitted column of the linked series table. Computed

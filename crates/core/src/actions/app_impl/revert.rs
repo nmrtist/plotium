@@ -29,10 +29,10 @@ impl PlotiumApp {
                     self.revert_action(action);
                 }
             }
-            Action::SetDiffusionInput {
-                dataset, before, ..
-            } => {
-                self.apply_diffusion_input(dataset_index!(*dataset), before.clone());
+            Action::InstallScientificState { before, .. } => {
+                if let Err(error) = self.install_processing_snapshots(before) {
+                    self.session.status = error.to_string();
+                }
             }
             Action::UpdateDatasetProcessing {
                 dataset, before, ..

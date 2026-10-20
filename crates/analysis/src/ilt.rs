@@ -14,6 +14,7 @@ const SNR_FRAC: f64 = 0.02;
 /// `amp[c]` is the D distribution for ppm column `c`, aligned to `d_grid`.
 #[derive(Debug, Clone)]
 pub struct IltResult {
+    pub diagnostics: Vec<crate::column_diagnostics::ColumnDiagnostic>,
     pub ppm: Vec<f64>,
     pub d_grid: Vec<f64>,
     pub amp: Vec<Vec<f64>>,
@@ -57,10 +58,28 @@ pub fn fit_ilt_cancellable(
     lambda: f64,
     cancelled: &impl Fn() -> bool,
 ) -> Option<Vec<f64>> {
+    fit_ilt_report_cancellable(x, y, d_grid, lambda, cancelled).map(|r| r.amplitudes)
+}
+struct IltSolution {
+    amplitudes: Vec<f64>,
+    termination: String,
+    iterations: usize,
+}
+fn fit_ilt_report_cancellable(
+    x: &[f64],
+    y: &[f64],
+    d_grid: &[f64],
+    lambda: f64,
+    cancelled: &impl Fn() -> bool,
+) -> Option<IltSolution> {
     let n = x.len().min(y.len());
     let m = d_grid.len();
     if n == 0 || m == 0 {
-        return Some(vec![0.0; m]);
+        return Some(IltSolution {
+            amplitudes: vec![0.; m],
+            termination: "empty_input".into(),
+            iterations: 0,
+        });
     }
     let k = kernel(&x[..n], d_grid);
 
@@ -110,37 +129,81 @@ pub fn ilt_map_cancellable(
     lambda: f64,
     cancelled: &impl Fn() -> bool,
 ) -> Option<IltResult> {
+    ilt_map_progress(stack, b_factors, d_grid, lambda, cancelled, &|_, _| {})
+}
+/// Reports completed spectral columns; solver and acceptance rules are unchanged.
+pub fn ilt_map_progress(
+    stack: &impl SpectrumStack,
+    b_factors: &[f64],
+    d_grid: &[f64],
+    lambda: f64,
+    cancelled: &impl Fn() -> bool,
+    progress: &impl Fn(usize, usize),
+) -> Option<IltResult> {
     let coordinates = stack.coordinates();
     let traces = stack.traces();
     let cols = coordinates.len();
     let n = stack.increments().min(b_factors.len());
     let m = d_grid.len();
     let mut amp = vec![vec![0.0; m]; cols];
+    let mut diagnostics =
+        vec![crate::column_diagnostics::ColumnDiagnostic::rejected("invalid_input", n); cols];
     if n < 3 || cols == 0 || m == 0 {
         return Some(IltResult {
             ppm: coordinates.to_vec(),
             d_grid: d_grid.to_vec(),
             amp,
+            diagnostics,
         });
     }
     let global_peak = stack.max_magnitude().max(f64::MIN_POSITIVE);
     let threshold = global_peak * SNR_FRAC;
     let b = &b_factors[..n];
     for (c, slot) in amp.iter_mut().enumerate().take(cols) {
+        progress(c, cols);
         if cancelled() {
             return None;
         }
         let y: Vec<f64> = (0..n).map(|i| traces[i][c].norm()).collect();
         let peak = y.iter().cloned().fold(0.0, f64::max);
         if peak < threshold {
+            diagnostics[c] = crate::column_diagnostics::ColumnDiagnostic::rejected("low_signal", n);
             continue;
         }
-        *slot = fit_ilt_cancellable(b, &y, d_grid, lambda, cancelled)?;
+        let solution = fit_ilt_report_cancellable(b, &y, d_grid, lambda, cancelled)?;
+        *slot = solution.amplitudes;
+        let accepted = slot.iter().any(|v| *v > 0.);
+        let sse = b
+            .iter()
+            .zip(&y)
+            .map(|(b, y)| {
+                let prediction = d_grid
+                    .iter()
+                    .zip(slot.iter())
+                    .map(|(d, a)| a * (-b * d).exp())
+                    .sum::<f64>();
+                (y - prediction).powi(2)
+            })
+            .sum::<f64>();
+        diagnostics[c] = crate::column_diagnostics::ColumnDiagnostic {
+            accepted,
+            reason: (!accepted).then(|| "empty_nonnegative_solution".into()),
+            effective_points: n,
+            residual_sse: sse.is_finite().then_some(sse),
+            residual_rmse: sse.is_finite().then_some((sse / n as f64).sqrt()),
+            solver_termination: Some(solution.termination),
+            solver_iterations: Some(solution.iterations),
+            unavailable_reason: (!sse.is_finite())
+                .then(|| "Reconstruction residual is not finite.".into()),
+            ..Default::default()
+        };
     }
+    progress(cols, cols);
     Some(IltResult {
         ppm: coordinates.to_vec(),
         d_grid: d_grid.to_vec(),
         amp,
+        diagnostics,
     })
 }
 
@@ -148,7 +211,7 @@ pub fn ilt_map_cancellable(
 /// minimize `½aᵀG a − hᵀa` with `a ≥ 0` by the active-set method of Lawson &
 /// Hanson, reformulated on `G`/`h` (Bro & De Jong) so the inner solves are on
 /// the small passive submatrix via [`solve_linear`].
-fn fnnls(g: &[Vec<f64>], h: &[f64], cancelled: &impl Fn() -> bool) -> Option<Vec<f64>> {
+fn fnnls(g: &[Vec<f64>], h: &[f64], cancelled: &impl Fn() -> bool) -> Option<IltSolution> {
     let m = h.len();
     let mut x = vec![0.0; m];
     let mut passive = vec![false; m];
@@ -161,7 +224,10 @@ fn fnnls(g: &[Vec<f64>], h: &[f64], cancelled: &impl Fn() -> bool) -> Option<Vec
     let mut w = h.to_vec(); // gradient h − G·x at x = 0
 
     let max_outer = 3 * m + 10;
+    let mut iterations = 0;
+    let mut termination = "iteration_limit";
     for _ in 0..max_outer {
+        iterations += 1;
         if cancelled() {
             return None;
         }
@@ -176,7 +242,10 @@ fn fnnls(g: &[Vec<f64>], h: &[f64], cancelled: &impl Fn() -> bool) -> Option<Vec
         }
         let t = match t {
             Some(t) => t,
-            None => break,
+            None => {
+                termination = "optimality_tolerance";
+                break;
+            }
         };
         passive[t] = true;
 
@@ -190,6 +259,7 @@ fn fnnls(g: &[Vec<f64>], h: &[f64], cancelled: &impl Fn() -> bool) -> Option<Vec
                 Some(s) => s,
                 None => {
                     inner_ok = false;
+                    termination = "singular_passive_system";
                     break;
                 }
             };
@@ -242,7 +312,11 @@ fn fnnls(g: &[Vec<f64>], h: &[f64], cancelled: &impl Fn() -> bool) -> Option<Vec
             *v = 0.0;
         }
     }
-    Some(x)
+    Some(IltSolution {
+        amplitudes: x,
+        termination: termination.into(),
+        iterations,
+    })
 }
 
 fn solve_passive(g: &[Vec<f64>], h: &[f64], idx: &[usize]) -> Option<Vec<f64>> {

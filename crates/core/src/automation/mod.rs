@@ -28,13 +28,33 @@ mod preview;
 pub use candidate_preview::*;
 mod properties;
 pub use preview::*;
+mod dosy;
+mod region_fit;
+pub use region_fit::{DIFFUSION_FIT, DiffusionFitParams, REGIONS_EXTRACT, RegionExtractParams};
+mod frozen_scheme;
+mod prepared_processing;
+mod processing_edit;
 mod registry;
 mod resources;
+mod science;
+mod scientific_schema;
+pub use dosy::{ANALYSIS_RESULTS_INSPECT, AnalysisResultsParams, DOSY_BUILD, DosyBuildParams};
+mod task_receipts;
 mod tasks;
+pub use frozen_scheme::*;
+pub use processing_edit::{
+    PROCESSING_EDIT, PipelineEdit, ProcessingEditParams, processing_edit_schema,
+};
+pub use science::{
+    DIFFUSION_INSPECT, DIFFUSION_SET_INPUT, DiffusionInspectParams, DiffusionSetInputParams,
+    PROCESSING_INSPECT, diffusion_input_schema, inspect_diffusion_input,
+};
+pub use task_receipts::*;
 mod tool_executors;
 mod tools;
 mod types;
 mod workflow;
+mod workflow_processing;
 
 pub(crate) use document::content_geometry_detail;
 pub use document::{

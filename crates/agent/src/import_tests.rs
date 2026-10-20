@@ -227,7 +227,10 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
     let context = app.session.project_context;
     let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
     let caps = &state["connection_capabilities"];
-    assert_eq!(caps["tools"].as_array().unwrap().len(), 15);
+    assert_eq!(
+        caps["tools"].as_array().unwrap().len(),
+        crate::protocol::definitions().len()
+    );
     assert_eq!(caps["limits"]["table_read"]["max_rows"], 1000);
     assert_eq!(caps["limits"]["table_import"]["files"], 16);
     assert_eq!(
@@ -246,7 +249,7 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
         s.call(
             &mut app,
             "plotium_plan",
-            json!({"expected_project_context":context,"expected_revision":0,"ids":["document"],"tool_id":"processing.apply_scheme","parameters":{}})
+            json!({"expected_project_context":context,"expected_revision":0,"ids":["document"],"tool_id":"figure.apply_theme","parameters":{}})
         )
         .unwrap_err()
         .code,

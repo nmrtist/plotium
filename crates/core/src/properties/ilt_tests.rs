@@ -51,6 +51,8 @@ pub(crate) fn ilt_app(lambda: f64) -> (PlotiumApp, TargetRef) {
     let mut app = PlotiumApp::new_with_settings(Settings::default());
     let mut dataset = crate::nmr_test_support::load_2d(data()).unwrap();
     dataset.ilt_provenance = Some(DosyResultProvenance {
+        source_fields: Vec::new(),
+        columns: Vec::new(),
         algorithm: "ilt_map".to_owned(),
         version: 1,
         input: DosyInvocation::Ilt {

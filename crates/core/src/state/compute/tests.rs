@@ -106,6 +106,12 @@ fn repeated_processing_requests_coalesce_to_latest_recipe() {
     }
     completed.extend(service.try_drain());
     assert!(!service.is_busy());
+    assert!(
+        completed
+            .iter()
+            .all(|done| matches!(done, Done::Processing2D { .. } | Done::Cancelled { .. }))
+    );
+    completed.retain(|done| matches!(done, Done::Processing2D { .. }));
     assert_eq!(completed.len(), 1);
     let Done::Processing2D {
         fields,
@@ -330,7 +336,14 @@ fn cancelling_processing_discards_its_result_and_releases_the_service() {
     }
     completed.extend(service.try_drain());
     assert!(!service.is_busy());
-    assert!(completed.is_empty());
+    assert_eq!(completed.len(), 1);
+    assert!(matches!(
+        completed[0],
+        Done::Cancelled {
+            kind: ComputeKind::Processing2D,
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -521,7 +534,12 @@ fn held_processing_respects_estimate_to_geometry_boundary_and_cancellation() {
         }
         service.field_runtime.finish_geometry_request(&geometry);
         let delivered = service.try_drain();
-        assert_eq!(delivered.len(), usize::from(!cancel));
+        assert_eq!(delivered.len(), 1);
+        assert!(if cancel {
+            matches!(delivered[0], Done::Cancelled { .. })
+        } else {
+            matches!(delivered[0], Done::Processing2D { .. })
+        });
         assert!(!service.is_busy());
     }
 }

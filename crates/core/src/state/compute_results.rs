@@ -10,6 +10,10 @@ impl ComputeService {
         let mut field_completions = std::collections::HashSet::new();
         for done in done {
             match &done {
+                Done::AnalysisProgress { .. } | Done::AnalysisStarted { .. } => {
+                    out.push(done);
+                    continue;
+                }
                 Done::EstimateField { key, .. } | Done::EstimateFieldFailed { key, .. } => {
                     field_completions.insert(key.source.field.resource);
                     self.field_runtime.finish_estimate_request(key);
@@ -22,7 +26,8 @@ impl ComputeService {
                     out.push(done);
                     continue;
                 }
-                Done::Ilt { .. }
+                Done::Scientific { .. }
+                | Done::Ilt { .. }
                 | Done::Dosy { .. }
                 | Done::Craft { .. }
                 | Done::CraftFailed { .. }
@@ -64,7 +69,13 @@ impl ComputeService {
             if matching_active.is_some() {
                 self.active.remove(&(dataset, kind));
             }
-            if !cancelled_after_send && !matches!(done, Done::Cancelled { .. }) {
+            if cancelled_after_send {
+                out.push(Done::Cancelled {
+                    generation,
+                    dataset,
+                    kind,
+                });
+            } else {
                 out.push(done);
             }
         }
@@ -78,6 +89,11 @@ impl ComputeService {
 
 fn done_identity(done: &Done) -> Option<(DatasetId, ComputeKind, u64)> {
     match done {
+        Done::Scientific {
+            dataset,
+            generation,
+            ..
+        } => Some((*dataset, ComputeKind::Scientific, *generation)),
         Done::Ilt {
             dataset,
             generation,
@@ -114,7 +130,9 @@ fn done_identity(done: &Done) -> Option<(DatasetId, ComputeKind, u64)> {
             generation,
             kind,
         } => Some((*dataset, *kind, *generation)),
-        Done::EstimateField { .. }
+        Done::AnalysisProgress { .. }
+        | Done::AnalysisStarted { .. }
+        | Done::EstimateField { .. }
         | Done::EstimateFieldFailed { .. }
         | Done::BuildContour { .. }
         | Done::BuildContourFailed { .. } => None,

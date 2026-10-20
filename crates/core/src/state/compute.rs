@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use plotium_analysis::diffusion::{DiffusionMap, diffusion_map_b_cancellable};
-use plotium_analysis::ilt::{IltResult, ilt_map_cancellable};
+use plotium_analysis::diffusion::{DiffusionMap, diffusion_map_b_progress};
+use plotium_analysis::ilt::{IltResult, ilt_map_progress};
 use plotium_figure::Figure;
 use plotium_io::{NmrData, nmr_view::NmrSource};
 use plotium_processing::{
@@ -28,9 +28,15 @@ mod compute_field;
 pub(crate) use compute_field::FieldEnqueueError;
 #[path = "compute_worker.rs"]
 mod compute_worker;
+#[cfg(test)]
 use compute_worker::run_job;
+use compute_worker::worker_loop;
 #[path = "compute_results.rs"]
 mod compute_results;
+#[path = "compute_scientific.rs"]
+mod compute_scientific;
+pub use compute_scientific::ScientificOutput;
+pub(crate) use compute_scientific::ScientificWork;
 
 /// Which user-visible heavy operation is running. ILT/DOSY retain their own
 /// generation guard; scalar field artifacts use `FieldVersion` and
@@ -41,6 +47,7 @@ pub enum ComputeKind {
     Dosy,
     Processing2D,
     Craft,
+    Scientific,
 }
 
 impl ComputeKind {
@@ -50,6 +57,7 @@ impl ComputeKind {
             Self::Dosy => "DOSY computation",
             Self::Processing2D => "2D processing",
             Self::Craft => "CRAFT analysis",
+            Self::Scientific => "Scientific analysis",
         }
     }
 }
@@ -94,6 +102,12 @@ pub struct ProcessedFieldArtifact {
 }
 
 enum Job {
+    Scientific {
+        generation: u64,
+        dataset: DatasetId,
+        token: CancellationToken,
+        work: ScientificWork,
+    },
     Ilt {
         generation: u64,
         dataset: DatasetId,
@@ -189,6 +203,23 @@ struct ActiveJob {
 /// are checked against their newest request; field-derived results validate the
 /// `FieldVersion` embedded in their content-addressed key.
 pub enum Done {
+    AnalysisProgress {
+        generation: u64,
+        dataset: DatasetId,
+        kind: ComputeKind,
+        completed: usize,
+        total: usize,
+    },
+    Scientific {
+        generation: u64,
+        dataset: DatasetId,
+        result: Result<ScientificOutput, String>,
+    },
+    AnalysisStarted {
+        generation: u64,
+        dataset: DatasetId,
+        kind: ComputeKind,
+    },
     Ilt {
         generation: u64,
         dataset: DatasetId,
@@ -660,7 +691,12 @@ impl ComputeService {
                 aborted.push(*kind);
             }
         }
-        for kind in [ComputeKind::Ilt, ComputeKind::Dosy, ComputeKind::Craft] {
+        for kind in [
+            ComputeKind::Ilt,
+            ComputeKind::Dosy,
+            ComputeKind::Craft,
+            ComputeKind::Scientific,
+        ] {
             self.latest.remove(&(dataset, kind));
         }
         aborted
@@ -682,26 +718,12 @@ impl ComputeService {
         cancelled
     }
 
+    pub(crate) fn latest_generation(&self, dataset: DatasetId, kind: ComputeKind) -> Option<u64> {
+        self.latest.get(&(dataset, kind)).copied()
+    }
+
     pub fn is_current(&self, dataset: DatasetId, kind: ComputeKind, generation: u64) -> bool {
         self.latest.get(&(dataset, kind)) == Some(&generation)
-    }
-}
-
-fn worker_loop(job_rx: Arc<Mutex<Receiver<Job>>>, done_tx: Sender<Done>) {
-    loop {
-        let job = {
-            let Ok(receiver) = job_rx.lock() else {
-                break;
-            };
-            let Ok(job) = receiver.recv() else {
-                break;
-            };
-            job
-        };
-        let done = run_job(job);
-        if done_tx.send(done).is_err() {
-            break;
-        }
     }
 }
 

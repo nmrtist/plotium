@@ -20,6 +20,7 @@ mod arrange;
 mod native_plot;
 mod panel;
 pub use native_plot::NativePlotInsertion;
+mod diffusion_state;
 mod panel_swap;
 mod processing_state;
 mod transfer;
@@ -203,6 +204,10 @@ impl PanelState {
 
 #[derive(Clone)]
 pub enum Action {
+    InstallScientificState {
+        before: Vec<Dataset>,
+        after: Vec<Dataset>,
+    },
     Composite(Vec<Action>),
     CreatePlot {
         insertion: Box<NativePlotInsertion>,
@@ -216,11 +221,6 @@ pub enum Action {
         canvas: usize,
         before: PanelState,
         after: PanelState,
-    },
-    SetDiffusionInput {
-        dataset: DatasetId,
-        before: Option<crate::DiffusionInput>,
-        after: Option<crate::DiffusionInput>,
     },
     UpdateDatasetProcessing {
         dataset: DatasetId,
@@ -619,6 +619,7 @@ mod build;
 impl Action {
     pub fn undo_label(&self) -> &'static str {
         match self {
+            Self::InstallScientificState { .. } => "apply scientific changes",
             Self::InsertTableData { .. } => "import table data",
             Self::CreatePlot { .. } => "create native plot",
             Self::ReplacePanelState { .. } => "edit panel structure",
@@ -636,7 +637,6 @@ impl Action {
             Self::SetSeriesPresentation { .. } => "display setting",
             Self::SetAxisOverrides { .. } => "axis setting",
             Self::UpdateDatasetProcessing { .. } => "data processing",
-            Self::SetDiffusionInput { .. } => "diffusion analysis input",
             Self::MoveResizeObject { .. }
             | Self::SetObjectFrames { .. }
             | Self::ArrangeObjects { .. } => "object layout",
@@ -654,7 +654,6 @@ impl Action {
             Self::Composite(actions) => actions.iter().all(Self::is_noop),
             Self::SetAsset { .. } | Self::CreatePlot { .. } => false,
             Self::ReplacePanelState { .. } => false,
-            Self::SetDiffusionInput { before, after, .. } => before == after,
             Self::UpdateDatasetProcessing { before, after, .. } => before == after,
             Self::SetObjectViewport { before, after, .. } => before == after,
             Self::SetXViewportLinks { before, after, .. } => before == after,
@@ -713,6 +712,7 @@ impl Action {
             Self::SetFigureTypography { before, after } => before == after,
             Self::DeleteCanvas { .. }
             | Self::InsertCanvas { .. }
+            | Self::InstallScientificState { .. }
             | Self::InsertTableData { .. }
             | Self::InsertDatasetWithCanvas { .. }
             | Self::InsertObject { .. }

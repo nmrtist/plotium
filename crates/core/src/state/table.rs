@@ -121,10 +121,24 @@ pub struct RegionColumnProvenance {
 /// Model constants a fit preset may need, copied from the source acquisition.
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TableMeta {
+    /// Immutable extraction evidence, separate from a live table refresh recipe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region_extraction: Option<RegionExtractionProvenance>,
     /// Encoding evidence belongs to the extracted values, including frozen tables.
     #[serde(default)]
     pub diffusion_input: Option<crate::DiffusionInput>,
     pub diffusion: Option<DiffusionConstants>,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RegionExtractionProvenance {
+    #[serde(default)]
+    pub source_version: Option<crate::automation::TaskFieldVersion>,
+    #[serde(default)]
+    pub input_fingerprint: Option<String>,
+    pub source: TableProvenance,
+    pub document_revision: u64,
+    pub algorithm_version: u32,
 }
 
 /// Stejskal–Tanner constants held as plain fields so the table keeps them across

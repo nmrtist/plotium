@@ -223,12 +223,11 @@ pub fn process_file(
 }
 
 pub fn process_loaded_dataset(
-    mut loaded: LoadedDataset,
+    loaded: LoadedDataset,
     scheme: &Path,
     output: &Path,
     format: ExportFormat,
 ) -> Result<ProcessResult, WorkflowError> {
-    loaded.apply_scheme_file(scheme)?;
     let mut app = PlotiumApp::new_with_settings(crate::settings::Settings::default());
     app.session
         .compute
@@ -244,6 +243,49 @@ pub fn process_loaded_dataset(
             })
         })?;
     app.doc.datasets.push(loaded.dataset);
+    {
+        use crate::automation::*;
+        let failure = |e: AutomationError| {
+            WorkflowError::Scheme(crate::project::ProjectError::Invalid(e.to_string()))
+        };
+        let plan = plan_tool(
+            &app,
+            ToolRequest {
+                tool_id: "processing.apply_scheme".into(),
+                tool_version: 1,
+                parameters: serde_json::json!({"path":scheme}),
+                targets: TargetSelector::Explicit {
+                    ids: vec![app.doc.datasets[0].resource_id().to_string()],
+                },
+                expected_revision: DocumentRevision(app.doc.automation_revision),
+                caller: CallerType::Workflow,
+            },
+        )
+        .map_err(failure)?;
+        let task_id = plan.task_id.clone().ok_or_else(|| {
+            failure(AutomationError::Execution(
+                "Missing processing TaskId".into(),
+            ))
+        })?;
+        execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify).map_err(failure)?;
+        while app.compute_busy() {
+            app.poll_compute();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let receipt = app.session.scientific_tasks.get(&task_id).ok_or_else(|| {
+            failure(AutomationError::Execution(
+                "Processing receipt was lost".into(),
+            ))
+        })?;
+        if receipt.status != TaskStatus::Succeeded {
+            return Err(failure(AutomationError::Execution(
+                receipt
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "Processing did not complete".into()),
+            )));
+        }
+    }
     let canvas = build_default_canvas(&app.doc.datasets[0], &loaded.source);
     app.doc.canvases.push(canvas);
     app.rebuild_canvases_for(0);

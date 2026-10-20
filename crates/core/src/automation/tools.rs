@@ -114,7 +114,21 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
         .iter()
         .filter(|target| target.status == TargetCompatibility::Compatible)
         .count();
-    Ok(ToolPlan {
+    let frozen_scheme = if request.tool_id == "processing.apply_scheme" {
+        let params: SchemeParams = parse(&request.tool_id, request.parameters.clone())?;
+        Some(FrozenProcessingScheme::capture(&params.path)?)
+    } else {
+        None
+    };
+    let mut plan = ToolPlan {
+        desktop_region: None,
+        task_id: None,
+        submitted_plan_id: None,
+        scientific_input: None,
+        scientific_ilt_params: None,
+        processing_edit: None,
+        scientific_preparation: None,
+        frozen_scheme,
         figure_plan,
         binding_plan,
         request,
@@ -126,7 +140,31 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
         },
         outputs: tool_outputs(&descriptor.id),
         required_authority: descriptor.effect.required_authority(),
-    })
+    };
+    if plan.request.tool_id == DIFFUSION_SET_INPUT {
+        super::science::validate_input_update(app, &plan)?;
+    }
+    if plan.request.tool_id == PROCESSING_EDIT {
+        plan.processing_edit = Some(super::processing_edit::prepare(app, &plan)?);
+        plan.task_id = Some(TaskId(uuid::Uuid::new_v4().to_string()));
+    }
+    if plan.request.tool_id == "processing.apply_scheme" {
+        plan.scientific_preparation = Some(super::prepared_processing::prepare_scheme(app, &plan)?);
+        plan.task_id = Some(TaskId(uuid::Uuid::new_v4().to_string()));
+    }
+    if matches!(
+        plan.request.tool_id.as_str(),
+        REGIONS_EXTRACT | DIFFUSION_FIT
+    ) {
+        plan.scientific_preparation = Some(super::region_fit::prepare(app, &plan)?);
+        plan.task_id = Some(TaskId(uuid::Uuid::new_v4().to_string()));
+    }
+    if plan.request.tool_id == DOSY_BUILD {
+        plan.scientific_input = Some(super::dosy::prepare(app, &plan)?);
+        plan.scientific_ilt_params = super::dosy::resolved_ilt_params(app, &plan)?;
+        plan.task_id = Some(TaskId(uuid::Uuid::new_v4().to_string()));
+    }
+    Ok(plan)
 }
 
 /// The declared kind/capability gate every tool shares.
@@ -187,6 +225,20 @@ pub fn execute_tool(
     plan: ToolPlan,
     authority: ExecutionAuthority,
 ) -> Result<ToolResult, AutomationError> {
+    if let Some(id) = plan.task_id.as_ref() {
+        if let Some(receipt) = app.session.scientific_tasks.get(id) {
+            return Ok(readonly_value(
+                &plan.request.tool_id,
+                DocumentRevision(app.doc.automation_revision),
+                serde_json::json!({"task":receipt}),
+            ));
+        }
+        if app.session.scientific_tasks.was_consumed(id) {
+            return Err(AutomationError::Execution(
+                "task_not_found: the task receipt was evicted; do not replay it.".into(),
+            ));
+        }
+    }
     let caller = plan.request.caller;
     if caller == CallerType::Human {
         return execute_planned_tool(app, plan, authority);
@@ -434,6 +486,13 @@ pub(super) fn execute_planned_tool(
             super::curve_bindings::execute(app, &plan)?
         }
         "processing.apply_scheme" => execute_scheme(app, &plan)?,
+        REGIONS_EXTRACT | DIFFUSION_FIT => super::region_fit::execute(app, &plan)?,
+        DOSY_BUILD => super::dosy::execute(app, &plan)?,
+        ANALYSIS_RESULTS_INSPECT => super::dosy::inspect(app, &plan)?,
+        PROCESSING_EDIT => super::processing_edit::execute(app, &plan)?,
+        DIFFUSION_INSPECT | DIFFUSION_SET_INPUT | PROCESSING_INSPECT => {
+            super::science::execute(app, &plan)?
+        }
         TABLE_COLUMNS | TABLE_READ_ROWS => super::table_read::execute_table_read(app, &plan)?,
         "data.import" => execute_import(app, &plan)?,
         "data.transform" => execute_transform(app, &plan)?,

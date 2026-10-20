@@ -3,11 +3,13 @@ use super::*;
 fn maps() -> (DiffusionMap, IltResult) {
     (
         DiffusionMap {
+            diagnostics: Vec::new(),
             ppm: vec![1.0, 2.0],
             d: vec![1.1e-9, 1.2e-9],
             amp: vec![4.0, 5.0],
         },
         IltResult {
+            diagnostics: Vec::new(),
             ppm: vec![1.0, 2.0],
             d_grid: vec![1e-10, 1e-9, 1e-8],
             amp: vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]],
@@ -42,6 +44,7 @@ fn dosy_binary_round_trip_validates_shapes_truncation_and_trailing_data() {
     assert!(trailing.contains("trailing data"), "{trailing}");
 
     let malformed_dosy = DiffusionMap {
+        diagnostics: Vec::new(),
         ppm: vec![1.0, 2.0],
         d: vec![1.0],
         amp: vec![1.0, 2.0],
@@ -55,6 +58,7 @@ fn dosy_binary_round_trip_validates_shapes_truncation_and_trailing_data() {
     );
 
     let malformed_ilt = IltResult {
+        diagnostics: Vec::new(),
         ppm: vec![1.0],
         d_grid: vec![1.0, 2.0],
         amp: vec![vec![1.0]],

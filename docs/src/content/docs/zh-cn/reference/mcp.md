@@ -78,7 +78,7 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 | `series.contour.count` | 图对象＋Series | 1–256 |
 | `document.figure.typography.tick_pt / document.figure.typography.label_pt` | document | 1–72 pt |
 
-此接口暂不支持处理参数、应用偏好、新格式解析、科学处理、DOSY 计算、科学结果建图、完整任务管理及内置聊天。
+科学处理与任务接口见下文。应用偏好、新格式解析、科学结果自动建图及内置聊天暂不在此接口范围内。
 
 ## 从欢迎页导入原生数据
 
@@ -117,7 +117,7 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 
 每批最多 16 个输入、1 个预检在途、最多 4 个保留的 prepared import（与表格导入共享）。
 所有保留计划及在途预检的原生冻结负载保守预留合计最多 512 MiB；超限返回
-`import_budget_exceeded`。预检响应最多 256 KiB。本接口不开放科学处理或 DOSY 执行。
+`import_budget_exceeded`。预检响应最多 256 KiB。科学处理与 DOSY 使用独立的共享科学操作。
 CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限制。
 
 ## 不依赖名称发现结构
@@ -1177,7 +1177,7 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 不适用时报告为跳过。查询会返回当前值、默认值、范围及可用性；只查询一条曲线时，
 也可将查询参数改为 `targets`。恢复默认值时，用同一 target 预检 `properties.reset`，
 参数为 `{"key":"series.line.stroke_width"}`。组件寻址仅支持所列显示属性，
-不开放处理参数。`resource.rename` 仍须使用 `ids`。
+处理参数使用独立的 `processing.edit` 操作。`resource.rename` 仍须使用 `ids`。
 
 工具结果同时提供结构化内容及 JSON 文本。项目读取与预检要求当前
 `expected_revision`；修改或撤销后重新获取状态。执行时重新检查保存的 revision
@@ -1332,3 +1332,60 @@ SVG 8 MiB、逐文件编码结果 64 MiB。不查找外部资产、不替换成�
 桌面进程保留最近 16 批导出回执，跨重连及项目切换有效，退出应用即丢失。
 响应丢失后先查原 `export_id`，不重放导出。重启或 `unknown_export` 时先检查
 准确输出文件。重开可编辑项目后重新读取状态、发现目标；仅为新意图重新规划。
+
+
+## 科学操作与任务
+
+`plotium_processing_inspect`、`plotium_diffusion_inspect` 和
+`plotium_analysis_results_inspect` 是只读查询，使用显式 `ids`、
+`expected_project_context` 和 `expected_revision`。结果检查接受 `offset`、
+`limit`（1–100）；ILT 网格较大时请减小页长。发现信息中的
+`scientific_operations` 来自核心操作定义，含参数 schema、能力、权限及执行方式。
+
+以下写操作继续通过 `plotium_plan` / `plotium_execute`：
+
+| 操作 | 参数与目标 |
+| --- | --- |
+| `processing.edit` | 一个数据集；`edits` 中使用 `replace`、`enable`、`add`、`remove` 或 `move`；已有步骤使用稳定 StepId |
+| `processing.apply_scheme` | `path`，可选 `compatible_only`；方案字节、指纹和兼容目标配置在预检时冻结 |
+| `diffusion.set_input` | 一个数据集；完整 `input`；非法输入错误带结构化校验报告 |
+| `analysis.regions.extract` | 一个支持区域序列的字段；`regions` 引用已有 RegionId 或给出边界和指标；可选显式 `input` |
+| `analysis.diffusion.fit` | 一个原生表格；`response_column` 为稳定 ColumnId；可选原生 `options`；x 列单位必须为 `s/m²` |
+| `analysis.dosy.build` | 一个扩散来源字段；`method` 为 `mono_exp` 或 `ilt`；可选 `input` 和 ILT `params` |
+
+显式区域格式为
+`{"source":"explicit","bounds":[0.8,1.2],"metric":"Height","name":"Signal"}`；
+引用已有区域使用 `{"source":"existing","id":0}`。指标还包括 `Area`、
+`Mean`、`Max` 和 `Min`。区域提取生成独立原生表格，保留来源、区域到列的
+对应及扩散增量证据，不自动创建绘图。
+
+除输入设置外，上述写操作返回 `ToolResult.value.task`。预检即分配
+`task_id`；`queued` 只表示已登记。使用 `plotium_tasks_get({task_id})`、
+`plotium_tasks_list({offset,limit})` 查询，使用
+`plotium_tasks_cancel({task_id})` 取消（需要修改权限）。状态为
+`queued / running / committing / succeeded / failed / cancelled / stale`。
+回执包括原始 plan_id、项目归属、起止版本、来源字段版本、阶段、已完成列数、
+失败代码、资源引用和终态摘要；未知总量为 `null`。回执查询不受忙碌或项目切换阻塞。
+
+回执由应用进程持有，断线不会取消已提交任务；同一进程内重连可继续查询。
+保留所有活跃任务及最近 128 个终态回执，进程退出后不保证保留。
+`task_not_found` 表示未知或已淘汰，不能据此自动重算。重复执行已消费的科学
+计划只返回现有回执。取消幂等，提交前取消保证不写入，终态后取消返回已有终态。
+
+计算冻结输入后进入原有 ComputeService。主线程严格复核项目、文档版本、
+字段版本、代次、取消状态及调用权限；计算期间任何文档编辑都会使任务过期。
+成功时一次提交配置、结果和关联表格，形成一个 Undo 步骤；Redo 复用计算结果。
+后台完成不会打开或关闭面板。同步工作流保留 `processing.apply_scheme`，等待其提交后
+才执行后续节点；其他后台科学操作请使用单步调用并等待终态。
+
+扩散检查区分可执行、缺失参数、证据待确认和输入非法，报告问题代码、参数路径、
+预期单位、实际值、证据和修复建议。b 值按 IncrementId 对齐并统一为 `s/m²`，
+D 为 `m²/s`；原始输入单位及换算来源保留。解析优先级为显式输入、目标结果
+来源、已存默认值／采集信息。JEOL 检查完整程序身份、梯度形状、时间及厂商系数。
+
+单指数结果包括 D、I₀、D 标准误、有效点数、R²、残差和拒绝原因。
+ILT 返回 D 网格、λ、非负解、重建残差及求解终止信息，不附单指数置信度。
+`empty` 表示没有可接受的科学结果；不可用数值为 `null`，附原因。
+结果检查分页返回逐列诊断，来源记录保留算法版本、实际参数及输入指纹。
+
+衰减拟合成功后，任务的 `produced` 列表包含稳定的 `plotium.analysis` 资源。将其 ID 传给 `plotium_analysis_results_inspect`，即可直接读取该项分析。

@@ -10,11 +10,10 @@ use super::registry::*;
 use super::*;
 use crate::actions::Action;
 use crate::export::{ExportFormat, ExportPageScope, ExportSettings};
-use crate::project::{SchemeApplicationPolicy, load_scheme, plan_scheme_application};
 use crate::state::PlotiumApp;
 use crate::theme::Theme;
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 pub(super) fn execute_search(
@@ -163,67 +162,7 @@ pub(super) fn execute_scheme(
     app: &mut PlotiumApp,
     plan: &ToolPlan,
 ) -> Result<ToolResult, AutomationError> {
-    let params: SchemeParams = parse(&plan.request.tool_id, plan.request.parameters.clone())?;
-    let scheme =
-        load_scheme(&params.path).map_err(|error| AutomationError::Execution(error.to_string()))?;
-    let indices = compatible_targets(plan)
-        .filter_map(|target| dataset_index(app, &target.id))
-        .collect::<Vec<_>>();
-    let scheme_plan = plan_scheme_application(&scheme, &app.doc.datasets, &indices);
-    let policy = if params.compatible_only {
-        SchemeApplicationPolicy::CompatibleOnly
-    } else {
-        SchemeApplicationPolicy::StrictAll
-    };
-    let prepared = scheme_plan.prepare(policy).ok_or_else(|| {
-        AutomationError::Execution(
-            "no compatible processing targets, or strict policy rejected the selection".to_owned(),
-        )
-    })?;
-    let applied_ids = prepared
-        .applied_targets
-        .iter()
-        .filter_map(|index| app.doc.datasets.get(*index))
-        .map(|dataset| dataset.resource_id().to_string())
-        .collect::<BTreeSet<_>>();
-    let skipped = scheme_plan
-        .targets()
-        .iter()
-        .filter_map(|target| {
-            target.result.incompatibility_reason().map(|reason| {
-                let id = app
-                    .doc
-                    .datasets
-                    .get(target.dataset)
-                    .map(|dataset| dataset.resource_id().to_string())
-                    .unwrap_or_else(|| format!("stale-{}", target.dataset));
-                (id, reason.to_owned())
-            })
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut result = commit_actions(
-        app,
-        plan,
-        vec![prepared.action],
-        "processing scheme applied",
-    )?;
-    result
-        .modified
-        .retain(|target| applied_ids.contains(&target.id));
-    for target in &mut result.targets {
-        if let Some(reason) = skipped.get(&target.target.resource.id) {
-            target.outcome = TargetOutcome::Skipped;
-            target.message.clone_from(reason);
-        }
-    }
-    if let Some(fingerprint) = fingerprint_file(&params.path, "processing_scheme") {
-        result.diagnostics.push(format!(
-            "processing scheme sha256 {} ({})",
-            fingerprint.sha256,
-            fingerprint.path.display()
-        ));
-    }
-    Ok(result)
+    super::prepared_processing::execute(app, plan)
 }
 
 pub(super) fn execute_import(
@@ -434,7 +373,7 @@ pub(super) fn execute_export(
     })
 }
 
-fn commit_actions(
+pub(super) fn commit_actions(
     app: &mut PlotiumApp,
     plan: &ToolPlan,
     actions: Vec<Action>,

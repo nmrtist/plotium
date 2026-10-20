@@ -311,3 +311,17 @@ workflow, see [Automation](/guides/automation/).
 
 To reduce the original complex FID directly to fitted resonance parameters,
 see [CRAFT for 1D NMR](/guides/craft/).
+
+
+## Automation interface
+
+Desktop, CLI and MCP reuse native processing and scientific computation semantics.
+See [MCP scientific operations and tasks](/reference/mcp/#scientific-operations-and-tasks)
+for operations and parameter schemas, or use CLI
+[`tool run`](/reference/cli/#single-step-scientific-operations). Pipeline edits,
+schemes, region extraction, diffusion fitting and DOSY/ILT return process-owned
+task receipts; wait for termination before consuming results. Background commits
+form one Undo step and Redo reuses results. Document edits during computation make
+work stale. Diffusion inspection reports SI units and source evidence; result
+inspection provides paginated diagnostics. `empty` does not establish a scientific
+conclusion.

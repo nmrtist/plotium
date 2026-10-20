@@ -279,7 +279,7 @@ fn real_http_transform_creates_a_native_plot_and_returns_its_preview() {
         let client=tokio::spawn(async move {
             let http=reqwest::Client::builder().no_proxy().build().unwrap();let client=().serve(StreamableHttpClientTransport::with_client(http,config)).await.unwrap();
             let call=|name:&'static str,args:Value|CallToolRequestParams::new(name).with_arguments(args.as_object().unwrap().clone());
-            let tools=client.list_all_tools().await.unwrap();assert_eq!(tools.len(),15);
+            let tools=client.list_all_tools().await.unwrap();assert_eq!(tools.len(),crate::protocol::definitions().len());
             let p=client.call_tool(call("plotium_plan",a)).await.unwrap();assert_eq!(p.is_error,Some(false));let p=p.structured_content.unwrap();assert_eq!(p["transform"]["status"],"prepared");
             let r=client.call_tool(call("plotium_execute",json!({"plan_id":p["plan_id"]}))).await.unwrap();assert_eq!(r.is_error,Some(false));let r=r.structured_content.unwrap();let out=&r["value"]["output"];
             let rows=client.call_tool(call("plotium_table_read_rows",json!({"expected_project_context":context,"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(rows.is_error,Some(false));let v=rows.structured_content.unwrap();assert_eq!(v["value"]["rows"][2]["values"][2]["value"],8.);assert_eq!(v["value"]["rows"][2]["sources"][0]["input_position"],2);

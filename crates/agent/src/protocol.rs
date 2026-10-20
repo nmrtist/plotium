@@ -185,6 +185,47 @@ pub(crate) fn definitions() -> Vec<Tool> {
             .push(json!("expected_revision"));
         tools.push(Tool::new(name,"Read native table data at explicit document and table revisions; no selection fallback.",schema.as_object().expect("local schema").clone()));
     }
+    for (name, id) in [
+        (
+            "plotium_analysis_results_inspect",
+            plotium_core::automation::ANALYSIS_RESULTS_INSPECT,
+        ),
+        (
+            "plotium_diffusion_inspect",
+            plotium_core::automation::DIFFUSION_INSPECT,
+        ),
+        (
+            "plotium_processing_inspect",
+            plotium_core::automation::PROCESSING_INSPECT,
+        ),
+    ] {
+        let mut schema = registry
+            .get(id)
+            .expect("registered scientific inspection")
+            .parameter_schema
+            .clone();
+        schema["properties"]["expected_revision"] = revision.clone();
+        schema["properties"]["ids"] =
+            json!({"type":"array","minItems":1,"maxItems":1,"items":{"type":"string"}});
+        schema["required"] = json!(["expected_revision", "ids"]);
+        tools.push(Tool::new(
+            name,
+            "Inspect scientific inputs or processing pipelines using the shared core operation.",
+            schema.as_object().expect("local scientific schema").clone(),
+        ));
+    }
+    for name in [
+        "plotium_tasks_get",
+        "plotium_tasks_list",
+        "plotium_tasks_cancel",
+    ] {
+        let schema = if name == "plotium_tasks_list" {
+            json!({"type":"object","additionalProperties":false,"properties":{"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":128}}})
+        } else {
+            json!({"type":"object","additionalProperties":false,"required":["task_id"],"properties":{"task_id":{"type":"string"}}})
+        };
+        tools.push(Tool::new(name, "Query or cancel retained scientific tasks. Disconnect does not cancel work; unknown or evicted tasks must never be replayed automatically.", schema.as_object().expect("local task schema").clone()));
+    }
     tools.push(Tool::new("plotium_save_status", "Read a retained desktop save receipt after submission or reconnect, without an audit mutation. Queued/running is not success. Never replay an unknown save.", json!({"type":"object","additionalProperties":false,"required":["save_id"],"properties":{"save_id":{"type":"string"}}}).as_object().expect("local schema").clone()));
     tools.push(Tool::new("plotium_export_status", "Read retained per-file native export receipts without an audit mutation, including after reconnect. Never replay unknown exports.", json!({"type":"object","additionalProperties":false,"required":["export_id"],"properties":{"export_id":{"type":"string"}}}).as_object().expect("local schema").clone()));
     for tool in &mut tools {
@@ -195,6 +236,9 @@ pub(crate) fn definitions() -> Vec<Tool> {
                 | "plotium_properties_list"
                 | "plotium_save_status"
                 | "plotium_export_status"
+                | "plotium_tasks_get"
+                | "plotium_tasks_list"
+                | "plotium_tasks_cancel"
         ) {
             let schema = std::sync::Arc::make_mut(&mut tool.input_schema);
             schema

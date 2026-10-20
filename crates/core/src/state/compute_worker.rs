@@ -3,8 +3,33 @@
 use super::*;
 use crate::state::{MONO_EXP_SNR_FRAC, ilt_provenance, mono_exp_provenance};
 
+#[cfg(test)]
 pub(super) fn run_job(job: Job) -> Done {
+    run_job_progress(job, &|_, _| {})
+}
+fn run_job_progress(job: Job, progress: &impl Fn(usize, usize)) -> Done {
     match job {
+        Job::Scientific {
+            generation,
+            dataset,
+            token,
+            work,
+        } => {
+            let result = work(token.clone());
+            if token.is_cancelled() {
+                Done::Cancelled {
+                    generation,
+                    dataset,
+                    kind: ComputeKind::Scientific,
+                }
+            } else {
+                Done::Scientific {
+                    generation,
+                    dataset,
+                    result,
+                }
+            }
+        }
         Job::Ilt {
             generation,
             dataset,
@@ -19,10 +44,11 @@ pub(super) fn run_job(job: Job) -> Done {
             source,
         } => {
             let cancelled = || token.is_cancelled();
-            let provenance = ilt_provenance(&stack, &input, params);
+            let mut provenance = ilt_provenance(&stack, &input, params);
             let b_factors: Vec<_> = input.increments.iter().map(|entry| entry.b).collect();
-            match ilt_map_cancellable(&*stack, &b_factors, &d_grid, lambda, &cancelled) {
+            match ilt_map_progress(&*stack, &b_factors, &d_grid, lambda, &cancelled, progress) {
                 Some(result) if !cancelled() => {
+                    provenance.columns = result.diagnostics.clone();
                     let Some(figure) =
                         build_ilt_figure_cancellable(&result, &nucleus, &source, &cancelled)
                             .map(Arc::new)
@@ -61,8 +87,8 @@ pub(super) fn run_job(job: Job) -> Done {
             source,
         } => {
             let cancelled = || token.is_cancelled();
-            let provenance = mono_exp_provenance(&stack, &input);
-            match diffusion_map_b_cancellable(
+            let mut provenance = mono_exp_provenance(&stack, &input);
+            match diffusion_map_b_progress(
                 &*stack,
                 &input
                     .increments
@@ -71,8 +97,10 @@ pub(super) fn run_job(job: Job) -> Done {
                     .collect::<Vec<_>>(),
                 MONO_EXP_SNR_FRAC,
                 &cancelled,
+                progress,
             ) {
                 Some(result) if !cancelled() => {
+                    provenance.columns = result.diagnostics.clone();
                     let Some(figure) =
                         build_dosy_figure_cancellable(&result, &nucleus, &source, &cancelled)
                             .map(Arc::new)
@@ -256,4 +284,78 @@ fn processed_field_artifacts(
             }
         })
         .collect()
+}
+
+pub(super) fn worker_loop(job_rx: Arc<Mutex<Receiver<Job>>>, done_tx: Sender<Done>) {
+    loop {
+        let job = {
+            let Ok(receiver) = job_rx.lock() else {
+                break;
+            };
+            let Ok(job) = receiver.recv() else {
+                break;
+            };
+            job
+        };
+        let identity = match &job {
+            Job::Scientific {
+                generation,
+                dataset,
+                ..
+            } => Some((*generation, *dataset, ComputeKind::Scientific)),
+            Job::Ilt {
+                generation,
+                dataset,
+                ..
+            } => Some((*generation, *dataset, ComputeKind::Ilt)),
+            Job::Dosy {
+                generation,
+                dataset,
+                ..
+            } => Some((*generation, *dataset, ComputeKind::Dosy)),
+            _ => None,
+        };
+        let done = if let Some((generation, dataset, kind)) = identity {
+            if done_tx
+                .send(Done::AnalysisStarted {
+                    generation,
+                    dataset,
+                    kind,
+                })
+                .is_err()
+            {
+                break;
+            }
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run_job_progress(job, &|completed, total| {
+                    if (completed == 0
+                        || completed == total
+                        || completed.is_multiple_of((total / 100).max(1)))
+                        && done_tx
+                            .send(Done::AnalysisProgress {
+                                generation,
+                                dataset,
+                                kind,
+                                completed,
+                                total,
+                            })
+                            .is_err()
+                    {
+                        // The application has exited; no receipt consumer remains.
+                        eprintln!("Plotium scientific progress receiver disconnected");
+                    }
+                })
+            }))
+            .unwrap_or(Done::Failed {
+                generation,
+                dataset,
+                kind,
+            })
+        } else {
+            run_job_progress(job, &|_, _| {})
+        };
+        if done_tx.send(done).is_err() {
+            break;
+        }
+    }
 }

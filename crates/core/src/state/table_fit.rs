@@ -67,6 +67,22 @@ impl FitAnalysisTable {
 }
 
 impl TableDataset {
+    pub(crate) fn region_extraction_fingerprint(
+        &self,
+        regions: &[super::RegionColumnProvenance],
+    ) -> Result<String, String> {
+        use sha2::{Digest, Sha256};
+        let view = self.fit_analysis_view()?;
+        // Resource IDs differ between callers. Hash the exact scientific input
+        // to the decay analysis, including units, metric and encoding evidence.
+        let input = serde_json::json!({"x":view.x.values,
+            "responses":view.series.iter().map(|s|&s.value.values).collect::<Vec<_>>(),
+            "regions":regions.iter().map(|r|(&r.bounds,&r.metric,&r.label,&r.unit)).collect::<Vec<_>>(),
+            "encoding":self.meta.diffusion_input});
+        let bytes = serde_json::to_vec(&input).map_err(|e| e.to_string())?;
+        Ok(format!("{:x}", Sha256::digest(bytes)))
+    }
+
     pub(super) fn fit_analysis_view(&self) -> Result<FitAnalysisTable, String> {
         let snapshot = &self.typed_state.envelope.revision.snapshot;
         let x = self

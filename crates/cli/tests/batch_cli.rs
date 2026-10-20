@@ -107,7 +107,12 @@ fn batch_cli_exit_stdout_and_saved_manifest_form_one_contract() {
         .output()
         .unwrap();
 
-    assert_eq!(output.status.code(), Some(7));
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout: Value = serde_json::from_slice(&output.stdout).unwrap();
     let saved: Value = serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
     assert_eq!(stdout, saved);
@@ -122,6 +127,22 @@ fn batch_cli_exit_stdout_and_saved_manifest_form_one_contract() {
     assert_eq!(
         stdout["nodes"][0]["result"]["targets"][1]["outcome"],
         "failed"
+    );
+    assert_eq!(
+        stdout["nodes"][1]["result"]["value"]["task"]["status"],
+        "succeeded"
+    );
+    assert_eq!(
+        stdout["nodes"][1]["result"]["targets"][0]["outcome"],
+        "succeeded"
+    );
+    assert!(
+        stdout["nodes"][1]["result"]["after_revision"]
+            .as_u64()
+            .unwrap()
+            > stdout["nodes"][1]["result"]["before_revision"]
+                .as_u64()
+                .unwrap()
     );
     assert!(root.join("out/good.svg").exists());
     assert!(String::from_utf8_lossy(&output.stderr).contains("running workflow"));
@@ -171,5 +192,84 @@ fn invalid_workflow_uses_usage_exit_code() {
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("expected schema"));
     assert!(!root.join("manifest.json").exists());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn single_tool_waits_for_atomic_processing_and_saves_native_results() {
+    let root = temp_dir();
+    let input = root.join("input.dx");
+    jcamp(&input);
+    let request = root.join("operation.json");
+    std::fs::write(&request,r#"{"tool_id":"processing.edit","parameters":{"edits":[{"op":"add","axis":"direct","kind":"Invert"}]}}"#).unwrap();
+    let project = root.join("result.plotium");
+    let output = Command::new(env!("CARGO_BIN_EXE_plotium-cli"))
+        .arg("tool")
+        .arg("run")
+        .arg(&input)
+        .arg("--request")
+        .arg(&request)
+        .arg("--output")
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["value"]["task"]["status"], "succeeded");
+    assert_eq!(result["value"]["task"]["operation"], "processing.edit");
+    assert!(
+        !result["value"]["task"]["sources"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let source = plotium_core::workflow::load_dataset(&input).unwrap();
+    let restored = plotium_core::project::load_project(&project).unwrap();
+    let before = source.dataset.as_nmr().unwrap().processed.values();
+    let after = restored.doc.datasets[0]
+        .as_nmr()
+        .unwrap()
+        .processed
+        .values();
+    assert!(
+        before
+            .iter()
+            .zip(after)
+            .all(|(a, b)| (a + b).norm() < 1e-12)
+    );
+    let descriptor = Command::new(env!("CARGO_BIN_EXE_plotium-cli"))
+        .args(["tool", "describe", "analysis.dosy.build"])
+        .output()
+        .unwrap();
+    assert!(descriptor.status.success());
+    let descriptor: Value = serde_json::from_slice(&descriptor.stdout).unwrap();
+    assert_eq!(descriptor["task_kind"], "background");
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn synchronous_dag_rejects_background_science_before_loading_inputs() {
+    let root = temp_dir();
+    let workflow = root.join("background.json");
+    std::fs::write(&workflow,r#"{"schema":"plotium.workflow.v1","inputs":{},"nodes":[{"id":"dosy","tool_id":"analysis.dosy.build","parameters":{"method":"mono_exp"},"targets":{"kind":"explicit","ids":[]}}]}"#).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_plotium-cli"))
+        .arg("batch")
+        .arg("--workflow")
+        .arg(&workflow)
+        .arg("--manifest")
+        .arg(root.join("receipt.json"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("asynchronous DAG scheduling is not supported"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     std::fs::remove_dir_all(root).unwrap();
 }

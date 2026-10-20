@@ -413,3 +413,6 @@ mod candidate_fixture;
 
 #[cfg(test)]
 mod native_import_tests;
+
+#[cfg(test)]
+mod science_tests;

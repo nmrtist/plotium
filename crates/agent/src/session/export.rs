@@ -97,6 +97,10 @@ impl Session {
         if self.allow_modify != allow {
             self.permission_epoch = self.permission_epoch.wrapping_add(1);
             self.revoke_exports();
+            self.scientific_permission.cancel();
+            if allow {
+                self.scientific_permission = TaskCancellation::default();
+            }
         }
         self.allow_modify = allow;
     }

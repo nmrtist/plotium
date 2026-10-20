@@ -27,3 +27,8 @@ pub mod xps;
 pub use stack::SpectrumStack;
 
 pub mod diffusion_encoding;
+
+pub mod column_diagnostics;
+
+#[cfg(test)]
+mod column_diagnostics_tests;
