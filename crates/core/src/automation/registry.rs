@@ -48,6 +48,9 @@ pub(super) fn validate_parameters(
     value: serde_json::Value,
 ) -> Result<(), AutomationError> {
     match tool {
+        FIELD_PLOT_CREATE | DIFFUSION_PLOT_CREATE => {
+            parse::<ScientificPlotParams>(tool, value).map(drop)
+        }
         REGIONS_EXTRACT => parse::<RegionExtractParams>(tool, value).map(drop),
         DIFFUSION_FIT => parse::<DiffusionFitParams>(tool, value).map(drop),
         DOSY_BUILD => parse::<DosyBuildParams>(tool, value).map(drop),
@@ -568,6 +571,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
     ]
     .into_iter()
     .map(make_descriptor)
+    .chain(super::scientific_plot::descriptors())
     .chain(super::science::descriptors())
     .chain(super::dosy::descriptors())
     .chain(super::region_fit::descriptors())

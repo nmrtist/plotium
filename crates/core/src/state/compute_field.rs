@@ -21,6 +21,75 @@ pub enum FieldEnqueueError {
 }
 
 impl ComputeService {
+    /// Populate a disposable presentation context before freezing a new plot.
+    /// Using the ordinary resolver and geometry builder keeps its first preview
+    /// identical to the eventual desktop render, rather than freezing empty axes
+    /// while an unavailable worker is supposed to generate contours.
+    pub(crate) fn prepare_frozen_contour(
+        &mut self,
+        dataset: &Dataset,
+        series: &crate::state::SeriesBinding,
+    ) -> Result<(), String> {
+        let plotium_figure::SeriesEncoding::Contour(spec) = &series.encoding else {
+            return Ok(());
+        };
+        let field = FieldRef {
+            resource: series.source.resource,
+            field: series.source.field,
+        };
+        let version = self
+            .field_version_for(field)
+            .map_err(|e| format!("Cannot freeze field version: {e:?}"))?;
+        let snapshot = dataset
+            .field_snapshot(field.field, version, None)
+            .ok_or("Contour field payload is unavailable")?;
+        let summary = snapshot
+            .summary
+            .ok_or("Contour field has no finite summary")?;
+        let source = snapshot.source;
+        let grid = Arc::new(
+            snapshot
+                .payload
+                .scalar_grid()
+                .ok_or("Contour field is not a scalar grid")?
+                .clone(),
+        );
+        self.remember_field_summary(&snapshot);
+        self.remember_field_grid(source, Arc::clone(&grid));
+        let resolve = |compute: &mut Self| {
+            crate::state::resolve_contour_levels(source, spec, summary, |key| {
+                compute.estimate_for(key).cloned()
+            })
+        };
+        if let crate::state::ContourResolution::Pending(keys) = resolve(self) {
+            for key in keys {
+                let estimate = run_estimate_field(key.clone(), Arc::clone(&grid))?;
+                if !self.finish_estimate(key, estimate, Some(version)) {
+                    return Err("Frozen contour estimate was rejected".into());
+                }
+            }
+        }
+        let crate::state::ContourResolution::Ready {
+            levels,
+            unreachable,
+        } = resolve(self)
+        else {
+            return Err("Frozen contour levels are unavailable".into());
+        };
+        if !unreachable.is_empty() {
+            return Err("Contour threshold exceeds the field's peak".into());
+        }
+        let key = ContourGeometryCacheKey { source, levels };
+        let geometry = run_build_contour(key.clone(), grid)?;
+        if geometry.omitted.is_some() {
+            return Err("Frozen contours exceed the native segment budget".into());
+        }
+        if !self.finish_contour(key, geometry, Some(version)) {
+            return Err("Frozen contour geometry was rejected".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn cached_field_grid(
         &mut self,
         source: VersionedFieldRef,

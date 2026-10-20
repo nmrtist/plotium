@@ -36,6 +36,9 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 临时 HTTP 诊断信息包含密钥，服务重启后失效，仅用于高级诊断，不是保存的客户端
 配置。发现文件只面向当前用户和本机；不支持远程或 WSL 跨环境访问。
 
+升级 Plotium 后，请重启 AI 客户端中的 Plotium MCP 连接，以加载更新后的工具。
+如果连接器安装失败，请打开 **AI connections (MCP)** 查看错误并点击 **Retry**。
+
 ## 权限与支持范围
 
 支持的修改使用 Plotium 的 **Undo** 与 **Redo**。只读立即阻止后续修改执行，包括
@@ -1417,3 +1420,33 @@ ILT 返回 D 网格、λ、非负解、重建残差及求解终止信息，不�
 结果检查分页返回逐列诊断，来源记录保留算法版本、实际参数及输入指纹。
 
 衰减拟合成功后，任务的 `produced` 列表包含稳定的 `plotium.analysis` 资源。将其 ID 传给 `plotium_analysis_results_inspect`，即可直接读取该项分析。
+
+## 科学结果原生建图
+
+通过 `plotium_plan`、`plotium_execute` 调用以下可撤销操作。两者的
+`parameters` 都为 `{source: ResourceRef, name: string}`，省略顶层 `ids`、
+`targets`；先发现完整来源引用和 schema。
+
+| 操作 | 来源与原生产物 |
+| --- | --- |
+| `plot.field.create` | 一个原生字段，包括单指数 `nmr.dosy_map` 或 ILT `nmr.ilt_map`；新建画布，固定绑定该字段及其原生编码。 |
+| `analysis.diffusion.plot` | 一个仅含单组响应数据的扩散拟合分析；新建冻结表格及画布，包含 b–强度散点、已存拟合曲线、残差面板、D 标准误、R² 和有效点数。 |
+
+预检的 `preflight.scientific_plot.summary` 返回拟议的 `canvas`、`source`、
+`produced`、科学 `evidence`，执行后 `value` 返回同一摘要。建图不重新计算科学结果。
+过期或空 DOSY 结果，以及过期、未收敛、多组响应拟合，须先修正。
+无法估计的 D 不确定度明确标为不可用。字段准备最多 4,000,000 个元素、200 条序列，
+支持 20,480 点光谱的默认 128 行 ILT；拟合图最多 20,000 行。
+图中的点、等高线顶点和热图单元与显式曲线行共享 2,000,000 的待执行预算；
+等高线图按生成的顶点数计入该预算，热图按单元数计入。
+一次 Undo 移除新资源，Redo 恢复相同身份及数据。切换数据集显示模式不改变字段图来源。
+冻结拟合表格保留来源表格血缘；自动化运行记录保留所选分析、行选择、提取证据和扩散输入。
+
+将 `value.canvas` 传给 `plotium_figure_diagnose`、`plotium_render_preview`，
+并实际查看 PNG。图像有效并不代表科学结果有效：
+
+1. 从欢迎页调用 `plotium_get_state`，导入采集数据，检查处理状态，等待处理任务成功。
+2. 检查扩散单位、IncrementId 对应关系、缺失参数和实验依据；只有证据充分时才提交已确认输入。
+3. 提取前明确区域规则、边界、指标和重叠处理策略。等待提取完成，再按返回的响应 ColumnId 拟合。
+4. 检查准确的分析资源：有效性、`m²/s` 单位的 D、标准误、有效点数、R²、残差、拒绝行和来源，再生成原生图。独立计算并检查单指数或 ILT DOSY，核对接受／拒绝列、算法设置、输入指纹及与区域拟合的数值一致性；ILT 使用求解诊断，不使用单指数置信度。
+5. 为 DOSY 结果字段建图，检查资源身份与状态、几何诊断及两张 PNG 的坐标轴、曲线、等高线、残差和标签可读性，明确报告科学或图像问题。

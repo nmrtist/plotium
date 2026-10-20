@@ -65,7 +65,14 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
     } else {
         None
     };
-    let frozen_targets = if request.tool_id == FIGURE_EDIT {
+    let scientific_plot = if is_scientific_plot_tool(&request.tool_id) {
+        Some(super::scientific_plot::prepare(app, &request)?)
+    } else {
+        None
+    };
+    let frozen_targets = if is_scientific_plot_tool(&request.tool_id) {
+        super::scientific_plot::freeze(&request)?
+    } else if request.tool_id == FIGURE_EDIT {
         super::figure_edit::freeze(&request)?
     } else if request.tool_id == PLOT_CREATE {
         super::plot_creation::freeze(&request)?
@@ -127,6 +134,7 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
         None
     };
     let mut plan = ToolPlan {
+        scientific_plot,
         desktop_region: None,
         task_id: None,
         submitted_plan_id: None,
@@ -486,6 +494,7 @@ pub(super) fn execute_planned_tool(
         "results.compare" => execute_compare(app, &plan)?,
         "resource.rename" => execute_rename(app, &plan)?,
         "figure.apply_theme" => execute_theme(app, &plan)?,
+        FIELD_PLOT_CREATE | DIFFUSION_PLOT_CREATE => super::scientific_plot::execute(app, &plan)?,
         PLOT_CREATE => super::plot_creation::execute(app, &plan)?,
         FIGURE_EDIT => super::figure_edit::execute(app, &plan)?,
         CURVE_BIND | CURVE_MATERIALIZE | CURVE_APPEND => {

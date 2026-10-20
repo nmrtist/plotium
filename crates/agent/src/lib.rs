@@ -418,3 +418,6 @@ mod native_import_tests;
 
 #[cfg(test)]
 mod science_tests;
+
+#[cfg(test)]
+mod scientific_plot_tests;
