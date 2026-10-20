@@ -67,7 +67,7 @@ impl Connector {
             result = client.service.call_tool(request) => result.map_err(|_| "Plotium disconnected; read state and begin a new scan. No call was replayed."),
         };
         Ok(match outcome {
-            Ok(result) => result.into(),
+            Ok(result) => relayed(result),
             Err(message) => {
                 // Dropping the service cancels the transport and invalidates its
                 // retained server cursor, including when the stdio caller cancels.
