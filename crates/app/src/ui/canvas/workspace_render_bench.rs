@@ -8,6 +8,125 @@ const SCREEN_HEIGHT: f32 = 1_000.0;
 const WARMUP_FRAMES: usize = 3;
 const MEASURED_FRAMES: usize = 30;
 
+/// Exercises the desktop UI without a window/GPU. The external data stays out
+/// of the repository; use the same build profile for before/after comparisons.
+#[test]
+#[ignore = "requires PLOTIUM_DOSY_REFERENCE_FILE"]
+fn bench_dosy_desktop_frames() {
+    let path = std::env::var_os("PLOTIUM_DOSY_REFERENCE_FILE").expect("reference JDF path");
+    let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+    let start = Instant::now();
+    app.load_from(Path::new(&path));
+    assert_eq!(app.doc.datasets.len(), 1, "{}", app.session.status);
+    wait_for_compute(&mut app);
+    println!("import/processing: {:?}", start.elapsed());
+    desktop_frames(&mut app, "stack");
+    let start = Instant::now();
+    app.request_dosy_map(0);
+    wait_for_compute(&mut app);
+    app.set_pseudo_display(0, plotium_core::PseudoDisplay::DosyMap);
+    wait_for_compute(&mut app);
+    let data = app.doc.datasets[0].as_nmr2d().unwrap();
+    let map = data.dosy_map.as_ref().expect("DOSY map");
+    assert!(
+        app.doc
+            .canvases
+            .iter()
+            .flat_map(|canvas| &canvas.objects)
+            .filter_map(|object| object.plot())
+            .any(|plot| !plot.figure().contours.is_empty()),
+        "the benchmark must display the map"
+    );
+    println!(
+        "DOSY build: {:?}; acquired={}x{}; columns={} fitted={}",
+        start.elapsed(),
+        data.data.rows,
+        data.data.cols,
+        map.ppm.len(),
+        map.d.iter().filter(|d| d.is_finite() && **d > 0.0).count(),
+    );
+    use std::hash::{Hash, Hasher};
+    let mut digest = std::collections::hash_map::DefaultHasher::new();
+    for value in map.ppm.iter().chain(&map.d).chain(&map.amp) {
+        value.to_bits().hash(&mut digest);
+    }
+    format!("{:?}", map.diagnostics).hash(&mut digest);
+    println!("DOSY numerical/diagnostic digest: {:016x}", digest.finish());
+    let start = Instant::now();
+    std::hint::black_box(app.doc.datasets[0].field_descriptors());
+    println!("one descriptor discovery: {:?}", start.elapsed());
+    desktop_frames(&mut app, "DOSY");
+    run_detail(&app, ScreenRenderDetail::Full);
+    run_detail(&app, ScreenRenderDetail::Interactive);
+    if let Some(directory) = std::env::var_os("PLOTIUM_DOSY_BENCH_OUTPUT_DIR") {
+        let directory = Path::new(&directory);
+        std::fs::create_dir_all(directory).unwrap();
+        let canvas = &app.doc.canvases[0];
+        std::fs::write(
+            directory.join("dosy.svg"),
+            plotium_render::svg::export_document(&build_render_document(canvas)),
+        )
+        .unwrap();
+        let raster = plotium_core::export::rasterize_canvas(
+            canvas,
+            plotium_core::export::RasterOptions::new(144),
+        )
+        .unwrap();
+        std::fs::write(directory.join("dosy.png"), raster.to_png().unwrap()).unwrap();
+    }
+}
+
+fn desktop_frames(app: &mut PlotiumApp, label: &str) {
+    let ctx = crate::typography::test_context();
+    let mut clipboard = crate::ui::clipboard_table::ClipboardTablePaste::default();
+    let mut automation = crate::ui::batch_workflow::AutomationUi::default();
+    let mut connections = crate::agent_connections::AgentConnections::default();
+    let mut title = None;
+    let mut samples = Vec::new();
+    let mut tessellation = Vec::new();
+    for frame in 0..13 {
+        let start = Instant::now();
+        let output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(SCREEN_WIDTH, SCREEN_HEIGHT),
+                )),
+                events: vec![egui::Event::PointerMoved(egui::pos2(
+                    800.0 + frame as f32,
+                    500.0,
+                ))],
+                ..Default::default()
+            },
+            |ui| {
+                crate::ui::render(
+                    app,
+                    &mut clipboard,
+                    &mut automation,
+                    &mut connections,
+                    &mut title,
+                    ui,
+                    false,
+                    crate::ui::RibbonChrome::default(),
+                );
+            },
+        );
+        let ui_time = start.elapsed();
+        let start = Instant::now();
+        std::hint::black_box(ctx.tessellate(output.shapes, output.pixels_per_point));
+        if frame >= 3 {
+            samples.push(ui_time);
+            tessellation.push(start.elapsed());
+        }
+    }
+    samples.sort_unstable();
+    tessellation.sort_unstable();
+    println!(
+        "{label} desktop UI: median={:?} p95={:?}; tessellation median={:?} p95={:?}",
+        samples[5], samples[9], tessellation[5], tessellation[9]
+    );
+}
+
 #[test]
 #[ignore = "requires PLOTIUM_BENCH_NMR_DIR and a release build"]
 fn bench_multi_page_nmr_workspace_navigation() {
