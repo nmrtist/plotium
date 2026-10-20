@@ -442,7 +442,10 @@ impl Session {
                     "Discover supported operations in connection_capabilities.editable_operations",
                 ));
             }
-            if is_native_curve_tool(&args.tool_id) || args.tool_id == FIGURE_EDIT {
+            if is_native_curve_tool(&args.tool_id)
+                || is_scientific_plot_tool(&args.tool_id)
+                || args.tool_id == FIGURE_EDIT
+            {
                 if !self.allow_modify {
                     return Err(Failure::new(
                         "permission_denied",
@@ -473,15 +476,24 @@ impl Session {
                 let pending_rows = self
                     .plans
                     .values()
-                    .filter_map(|p| p.binding_plan.as_ref())
-                    .map(|p| p.curve_rows())
+                    .map(|p| {
+                        p.binding_plan.as_ref().map_or(0, |b| b.curve_rows())
+                            + p.scientific_plot
+                                .as_ref()
+                                .map_or(0, |s| s.retained_elements)
+                    })
                     .sum::<usize>();
-                if pending_rows + plan.binding_plan.as_ref().map_or(0, |p| p.curve_rows())
+                if pending_rows
+                    + plan.binding_plan.as_ref().map_or(0, |p| p.curve_rows())
+                    + plan
+                        .scientific_plot
+                        .as_ref()
+                        .map_or(0, |s| s.retained_elements)
                     > 2_000_000
                 {
                     return Err(Failure::new(
                         "plan_limit",
-                        "Pending curve plans exceed 2,000,000 curve rows; execute a pending plan first",
+                        "Pending plot plans exceed 2,000,000 retained curve rows or geometry vertices; execute a pending plan first",
                     ));
                 }
                 let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());

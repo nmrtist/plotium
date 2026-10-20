@@ -1,6 +1,6 @@
 use super::solvers::{integrate_ode, solve_implicit};
 use super::*;
-use crate::fit::{jac_step, solve_linear};
+use crate::fit::solve_linear;
 use crate::fit_model::{ConstantDefinition, Expression};
 
 pub(super) fn dataset_constant(
@@ -348,7 +348,15 @@ pub(super) fn numeric_jacobian(
     let mut jacobian = vec![vec![0.0; slots.len()]; residuals.len()];
     let mut shifted = values.to_vec();
     for column in 0..slots.len() {
-        let h = jac_step(values[column]);
+        // A fixed absolute floor can exceed the parameter itself (e.g. D in
+        // m²/s), distorting both optimization and covariance. Central
+        // differences balance rounding and truncation at cbrt(epsilon).
+        let scale = if values[column] == 0.0 {
+            1.0
+        } else {
+            values[column].abs()
+        };
+        let h = (scale * f64::EPSILON.cbrt()).max(f64::MIN_POSITIVE);
         shifted[column] = (values[column] + h).min(slots[column].upper);
         let plus = residual_vector(
             compiled,
@@ -381,6 +389,10 @@ pub(super) fn numeric_jacobian(
     }
     Ok(jacobian)
 }
+
+#[cfg(test)]
+#[path = "engine_tests.rs"]
+mod tests;
 
 pub(super) fn normal_equations(
     jacobian: &[Vec<f64>],

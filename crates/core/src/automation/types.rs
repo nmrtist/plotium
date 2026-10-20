@@ -343,6 +343,8 @@ pub struct PlannedTarget {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolPlan {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scientific_plot: Option<super::ScientificPlotPlan>,
     /// Native desktop delivery is never accepted from serialized callers.
     #[serde(skip)]
     pub(crate) desktop_region: Option<bool>,

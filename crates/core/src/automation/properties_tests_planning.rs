@@ -69,6 +69,7 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
         ToolRegistry::built_in()
             .descriptors()
             .filter(|d| !is_native_curve_tool(&d.id)
+                && !is_scientific_plot_tool(&d.id)
                 && !matches!(
                     d.id.as_str(),
                     "data.import"

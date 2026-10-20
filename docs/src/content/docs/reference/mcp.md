@@ -40,6 +40,10 @@ they are an advanced diagnostic entry, not the saved client configuration.
 Discovery is private to the current user and local machine. Remote and cross-environment
 WSL access are outside this interface.
 
+After upgrading Plotium, restart its MCP connection in your AI client to load
+the updated tools. If connector installation fails, open
+**AI connections (MCP)** to read the error and press **Retry**.
+
 ## Permissions and supported operations
 
 Edits use Plotium's normal **Undo** and **Redo**. **Read only** prevents further
@@ -1728,3 +1732,48 @@ column diagnostics; provenance retains algorithm version, actual parameters and
 input fingerprint.
 
 Successful decay fits return a stable `plotium.analysis` resource in the task's `produced` list. Pass its ID directly to `plotium_analysis_results_inspect` to read that analysis.
+
+## Plot native scientific results
+
+Use `plotium_plan` and `plotium_execute` with either operation below. Both
+require `{source: ResourceRef, name: string}` in `parameters` and omit top-level
+`ids` and `targets`. Discover the complete source reference and schema first.
+
+| Operation | Source and native output |
+| --- | --- |
+| `plot.field.create` | One native field, including mono-exponential `nmr.dosy_map` or ILT `nmr.ilt_map`; creates a canvas pinned to that field and its native encoding. |
+| `analysis.diffusion.plot` | One diffusion-fit analysis with one response dataset; creates a frozen table and canvas with b–intensity scatter, stored fitted curve, residual panel, D standard error, R² and effective point count. |
+
+Preflight returns `preflight.scientific_plot.summary` with proposed `canvas`,
+`source`, `produced` and scientific `evidence`; execute returns the same summary
+in `value`. Plotting does not recompute scientific results. Stale or empty DOSY
+results and stale, unconverged or multiple-response fits must be corrected first.
+Missing D uncertainty is labelled unavailable. Field preparation permits at most
+4,000,000 elements and 200 series, including a default 128-row ILT of a
+20,480-point spectrum; fit plots permit 20,000 rows. Plot points,
+contour vertices and heatmap cells share the 2,000,000 pending-element budget
+with explicit curve rows. Contour plots count generated vertices toward this
+budget; heatmaps count cells.
+One Undo removes created resources; Redo restores the same identities and data.
+Changing the owner's display mode does not change a field plot's source.
+Frozen fit tables retain source-table lineage; the automation run retains the
+selected analysis, row selection, extraction evidence and diffusion input.
+
+Use `value.canvas` with `plotium_figure_diagnose` and `plotium_render_preview`,
+then inspect the returned PNG. An image alone does not validate the science:
+
+1. Start at the welcome page with `plotium_get_state`; import the acquisition,
+   inspect processing and wait for processing tasks to succeed.
+2. Inspect diffusion units, increment bindings, missing parameters and evidence.
+   Supply confirmed input only when supported by the experiment.
+3. State the region-selection rule, bounds, metric and overlap policy before
+   extraction. Wait for extraction, then fit the returned response ColumnId.
+4. Inspect the exact analysis: validity, D in `m²/s`, standard error, effective
+   points, R², residuals, rejected rows and provenance. Create its native plot.
+   Independently compute and inspect mono-exponential or ILT DOSY; check accepted
+   and rejected columns, algorithm settings, input fingerprint and numerical
+   agreement with the region fit. ILT supplies solver diagnostics instead of
+   mono-exponential confidence estimates.
+5. Plot the DOSY result field. Check resource identities and state, geometry
+   diagnostics and both PNGs for correct axes, curves, contours, residuals and
+   readable labels. Report scientific or visual failures explicitly.

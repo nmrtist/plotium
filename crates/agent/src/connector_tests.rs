@@ -5,6 +5,22 @@ use serde_json::json;
 use std::time::Duration;
 
 #[test]
+fn discovery_failures_explain_missing_permission_and_invalid_data_without_secrets() {
+    for (kind, expected) in [
+        (std::io::ErrorKind::NotFound, "enable MCP"),
+        (std::io::ErrorKind::PermissionDenied, "outside a sandbox"),
+        (std::io::ErrorKind::InvalidData, "republish discovery"),
+    ] {
+        let message = discovery_error(
+            std::path::Path::new("private/mcp"),
+            &std::io::Error::from(kind),
+        );
+        assert!(message.contains("service.json"), "{message}");
+        assert!(message.contains(expected), "{message}");
+    }
+}
+
+#[test]
 fn one_stdio_session_survives_offline_start_restart_and_revocation_without_replay() {
     let temp = tempfile::tempdir().unwrap();
     let directory = temp.path().join("mcp");
