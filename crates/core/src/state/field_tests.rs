@@ -169,6 +169,54 @@ fn cheap_representation_matches_the_materialized_payload() {
     );
     assert_representation_matches_payload(&pseudo, "nmr pseudo 2d");
 
+    // Populated maps used to make every capability lookup materialize a grid;
+    // an uncomputed stack cannot expose that regression.
+    let mut maps = pseudo.clone();
+    let Dataset::Nmr2D(nmr) = &mut maps else {
+        unreachable!()
+    };
+    nmr.dosy_map = Some(plotium_analysis::diffusion::DiffusionMap {
+        ppm: vec![3.0, 2.0, 1.0],
+        d: vec![1e-9, f64::NAN, 2e-9],
+        amp: vec![1.0, 0.0, 2.0],
+        diagnostics: Vec::new(),
+    });
+    nmr.ilt_map = Some(plotium_analysis::ilt::IltResult {
+        ppm: vec![3.0, 2.0, 1.0],
+        d_grid: vec![1e-10, 1e-9, 1e-8],
+        amp: vec![vec![1.0; 3]; 3],
+        diagnostics: Vec::new(),
+    });
+    assert_representation_matches_payload(&maps, "computed DOSY and ILT maps");
+    let Dataset::Nmr2D(nmr) = &mut maps else {
+        unreachable!()
+    };
+    let ilt = nmr.ilt_map.as_mut().unwrap();
+    ilt.ppm[1] += 0.2;
+    ilt.d_grid[1] *= 1.5;
+    // Payload padding/truncation also applies to incomplete amplitude columns.
+    ilt.amp[0].truncate(1);
+    ilt.amp.pop();
+    assert_representation_matches_payload(&maps, "irregular ILT axes and incomplete amplitudes");
+    crate::contour_probe::reset();
+    for field in maps.field_descriptors() {
+        std::hint::black_box(maps.field_representation(field.id));
+        std::hint::black_box(maps.supports_encoding(
+            field.id,
+            &plotium_figure::SeriesEncoding::Contour(default_contour_spec(
+                &field.capabilities,
+                crate::state::NO_PEAK,
+            )),
+        ));
+    }
+    assert_eq!(crate::contour_probe::pseudo_map_grids(), 0);
+    let field = maps.field_catalog().id_for_key("nmr.dosy_map").unwrap();
+    assert!(maps.field_payload(field).is_some());
+    assert!(
+        crate::contour_probe::pseudo_map_grids() > 0,
+        "positive control"
+    );
+
     let table = Dataset::Table(Box::new(
         crate::state::materialized_float_series_table(
             ("x".into(), "".into(), vec![Some(0.0), Some(1.0)]),

@@ -364,19 +364,47 @@ fn nmr_field_representation(
         {
             Some(FieldRepresentation::Curve1D)
         }
-        plotium_processing::Processed2D::Stack(_) => {
-            pseudo_map_grid(dataset, id).map(|grid| FieldRepresentation::ScalarGrid2D {
-                rows: grid.rows,
-                cols: grid.cols,
-                values: grid.values.len(),
-                x_linear: matches!(grid.x, AxisSampling::Linear { .. }),
-                y_linear: matches!(grid.y, AxisSampling::Linear { .. }),
-            })
-        }
+        plotium_processing::Processed2D::Stack(_) => pseudo_map_representation(dataset, id),
     }
 }
 
+fn pseudo_map_representation(
+    dataset: &super::Nmr2DDataset,
+    id: FieldId,
+) -> Option<FieldRepresentation> {
+    // Describe the buffer the adapter produces without depositing Gaussians or
+    // transposing ILT amplitudes. Descriptor discovery runs many times per frame.
+    if dataset.field_catalog.id_for_key("nmr.dosy_map") == Some(id) {
+        dataset.dosy_map.as_ref()?;
+        return Some(FieldRepresentation::ScalarGrid2D {
+            rows: super::DOSY_GRID_ROWS,
+            cols: super::DOSY_GRID_COLS,
+            values: super::DOSY_GRID_ROWS * super::DOSY_GRID_COLS,
+            x_linear: true,
+            y_linear: true,
+        });
+    }
+    if dataset.field_catalog.id_for_key("nmr.ilt_map") == Some(id) {
+        let map = dataset.ilt_map.as_ref()?;
+        let logd = map
+            .d_grid
+            .iter()
+            .map(|value| value.max(f64::MIN_POSITIVE).log10())
+            .collect::<Vec<_>>();
+        return Some(FieldRepresentation::ScalarGrid2D {
+            rows: map.d_grid.len(),
+            cols: map.ppm.len(),
+            values: map.d_grid.len() * map.ppm.len(),
+            x_linear: axis_is_linear(&map.ppm),
+            y_linear: axis_is_linear(&logd),
+        });
+    }
+    None
+}
+
 fn pseudo_map_grid(dataset: &super::Nmr2DDataset, id: FieldId) -> Option<ScalarGrid2D> {
+    #[cfg(test)]
+    crate::contour_probe::record_pseudo_map_grid();
     if dataset.field_catalog.id_for_key("nmr.ilt_map") == Some(id) {
         let map = dataset.ilt_map.as_ref()?;
         let rows = map.d_grid.len();

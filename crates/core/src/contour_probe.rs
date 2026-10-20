@@ -42,6 +42,7 @@ thread_local! {
     static QUEUED_CONTOUR_BUILDS: Cell<usize> = const { Cell::new(0) };
     static QUEUED_ESTIMATES: Cell<usize> = const { Cell::new(0) };
     static FIELD_PAYLOADS: Cell<usize> = const { Cell::new(0) };
+    static PSEUDO_MAP_GRIDS: Cell<usize> = const { Cell::new(0) };
 }
 
 pub(crate) fn reset() {
@@ -49,6 +50,7 @@ pub(crate) fn reset() {
     QUEUED_CONTOUR_BUILDS.with(|count| count.set(0));
     QUEUED_ESTIMATES.with(|count| count.set(0));
     FIELD_PAYLOADS.with(|count| count.set(0));
+    PSEUDO_MAP_GRIDS.with(|count| count.set(0));
 }
 
 /// Record one marching-squares invocation on the current thread.
@@ -86,4 +88,12 @@ pub(crate) fn record_field_payload() {
 
 pub(crate) fn field_payload_materializations() -> usize {
     FIELD_PAYLOADS.with(Cell::get)
+}
+
+pub(crate) fn record_pseudo_map_grid() {
+    PSEUDO_MAP_GRIDS.with(|count| count.set(count.get().saturating_add(1)));
+}
+
+pub(crate) fn pseudo_map_grids() -> usize {
+    PSEUDO_MAP_GRIDS.with(Cell::get)
 }
