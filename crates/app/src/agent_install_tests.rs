@@ -90,6 +90,52 @@ fn installing_and_updating_connector_preserves_unicode_paths_and_previous_copy_o
     assert!(install_copy(&temp.path().join("missing"), &target).is_err());
     assert_eq!(fs::read(&target).unwrap(), b"v2");
 }
+#[cfg(windows)]
+#[test]
+fn updating_a_running_connector_publishes_new_bytes_and_keeps_old_process_alive() {
+    use std::io::BufRead;
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source.exe");
+    let target = temp.path().join("bin/plotium-mcp.exe");
+    fs::copy(std::env::var_os("COMSPEC").unwrap(), &source).unwrap();
+    install_copy(&source, &target).unwrap();
+    let mut child = Command::new(&target)
+        .args(["/D", "/Q", "/C", "echo ready& set /p hold="])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut line = String::new();
+        let result = std::io::BufReader::new(stdout).read_line(&mut line);
+        tx.send(result.map(|_| line)).expect("waiting parent");
+    });
+    let ready = rx.recv_timeout(Duration::from_secs(5));
+    fs::write(&source, b"updated connector").unwrap();
+    let updated = install_copy(&source, &target);
+    let alive = child.try_wait().unwrap().is_none();
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert!(ready.unwrap().unwrap().contains("ready"));
+    updated.unwrap();
+    assert!(alive);
+    assert_eq!(fs::read(&target).unwrap(), b"updated connector");
+    install_copy(&source, &target).unwrap();
+    assert_eq!(fs::read_dir(target.parent().unwrap()).unwrap().count(), 1);
+}
+#[cfg(windows)]
+#[test]
+fn failed_connector_publication_restores_the_installed_copy() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("plotium-mcp.exe");
+    fs::write(&target, b"installed connector").unwrap();
+    assert!(replace_connector(&temp.path().join("missing"), &target).is_err());
+    assert_eq!(fs::read(&target).unwrap(), b"installed connector");
+    assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+}
 #[cfg(unix)]
 fn executable(path: &Path, script: &str) {
     use std::os::unix::fs::PermissionsExt;

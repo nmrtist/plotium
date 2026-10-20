@@ -36,10 +36,8 @@ impl Connector {
         })
     }
     async fn discover(&self) -> Result<Discovery, String> {
-        let entry = Discovery::read(&self.directory).map_err(|_| {
-            "Plotium MCP is unavailable. Open Plotium and enable MCP in AI connections (MCP)."
-                .to_owned()
-        })?;
+        let entry = Discovery::read(&self.directory)
+            .map_err(|error| discovery_error(&self.directory, &error))?;
         let status_url = format!("{}/status", entry.url.trim_end_matches("/mcp"));
         let response = self
             .client
@@ -102,6 +100,21 @@ impl Connector {
             eprintln!("{error}");
         }
     }
+}
+fn discovery_error(directory: &std::path::Path, error: &std::io::Error) -> String {
+    let remedy = match error.kind() {
+        std::io::ErrorKind::NotFound => "Open Plotium and enable MCP in AI connections (MCP).",
+        std::io::ErrorKind::PermissionDenied => {
+            "Run the MCP connector as the same Windows or OS user as Plotium, outside a sandbox that blocks its private configuration directory. Do not relax the directory permissions."
+        }
+        _ => {
+            "Check AI connections (MCP) in Plotium; disable and re-enable MCP to republish discovery."
+        }
+    };
+    format!(
+        "Cannot read Plotium MCP discovery at {}: {error}. {remedy}",
+        directory.join("service.json").display()
+    )
 }
 impl ServerHandler for Connector {
     fn get_info(&self) -> ServerConfig {

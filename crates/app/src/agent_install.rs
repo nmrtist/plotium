@@ -116,6 +116,12 @@ fn home() -> Option<PathBuf> {
     std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)
 }
 pub(crate) fn install_connector() -> Result<PathBuf, String> {
+    // Startup synchronization and client registration can request an update
+    // together; never interleave their publication or rollback steps.
+    static INSTALLATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _installation = INSTALLATION
+        .lock()
+        .map_err(|error| format!("Connector installation worker failed: {error}"))?;
     let target = plotium_agent::discovery::connector_path().map_err(|e| e.to_string())?;
     let source = std::env::current_exe()
         .map_err(|e| e.to_string())?
@@ -128,14 +134,19 @@ pub(crate) fn install_connector() -> Result<PathBuf, String> {
     Ok(target)
 }
 fn install_copy(source: &Path, target: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    cleanup_retired(target)?;
     let bytes = fs::read(source).map_err(|e| {
         format!(
             "Connector missing: {} ({e}). Reinstall the complete Plotium release package.",
             source.display()
         )
     })?;
-    if fs::read(target).ok().as_deref() == Some(bytes.as_slice()) {
-        return Ok(());
+    match fs::read(target) {
+        Ok(installed) if installed == bytes => return Ok(()),
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("Could not inspect installed connector: {error}")),
     }
     let parent = target.parent().ok_or("Invalid connector location")?;
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -151,7 +162,7 @@ fn install_copy(source: &Path, target: &Path) -> Result<(), String> {
         let mut file = options.open(&temporary)?;
         file.write_all(&bytes)?;
         file.sync_all()?;
-        fs::rename(&temporary, target)
+        replace_connector(&temporary, target)
     })();
     if let Err(error) = result {
         if let Err(cleanup) = fs::remove_file(&temporary)
@@ -162,6 +173,65 @@ fn install_copy(source: &Path, target: &Path) -> Result<(), String> {
         return Err(format!(
             "Could not update connector ({error}). Exit the AI clients using it and retry; the installed copy is retained."
         ));
+    }
+    Ok(())
+}
+#[cfg(windows)]
+fn cleanup_retired(target: &Path) -> Result<(), String> {
+    let parent = target.parent().ok_or("Invalid connector location")?;
+    let entries = match fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("Could not inspect connector directory: {error}")),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let name = entry.file_name();
+        let Some(id) = name
+            .to_str()
+            .and_then(|s| s.strip_prefix(".plotium-mcp-retired-"))
+            .and_then(|s| s.strip_suffix(".exe"))
+        else {
+            continue;
+        };
+        if uuid::Uuid::parse_str(id).is_ok()
+            && let Err(error) = fs::remove_file(entry.path())
+        {
+            log::info!("Retained MCP connector {}: {error}", entry.path().display());
+        }
+    }
+    Ok(())
+}
+#[cfg(not(windows))]
+fn replace_connector(temporary: &Path, target: &Path) -> std::io::Result<()> {
+    fs::rename(temporary, target)
+}
+#[cfg(windows)]
+fn replace_connector(temporary: &Path, target: &Path) -> std::io::Result<()> {
+    // Windows permits moving a running executable aside, but cannot replace
+    // its mapped image. Existing MCP sessions keep that image until restarted.
+    let retired =
+        target.with_file_name(format!(".plotium-mcp-retired-{}.exe", uuid::Uuid::new_v4()));
+    let moved = match fs::rename(target, &retired) {
+        Ok(()) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
+    if let Err(error) = fs::rename(temporary, target) {
+        if moved && let Err(restore) = fs::rename(&retired, target) {
+            return Err(std::io::Error::other(format!(
+                "{error}; restoring {} failed: {restore}",
+                retired.display()
+            )));
+        }
+        return Err(error);
+    }
+    if moved && let Err(error) = fs::remove_file(&retired) {
+        // A running image stays valid; remove it on a later application start.
+        log::info!(
+            "Retained running MCP connector {}: {error}",
+            retired.display()
+        );
     }
     Ok(())
 }
