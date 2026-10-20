@@ -168,6 +168,45 @@ impl PlotiumApp {
         self.plan_edit(property, targets, &EditOp::Set(value))
     }
 
+    /// Fold independent `(target, property, value)` writes into one
+    /// transaction and therefore one undo action.
+    ///
+    /// Writes apply in order to shared working copies, so two properties of
+    /// one series compose instead of the later snapshot replacing the earlier.
+    pub fn plan_property_writes(
+        &self,
+        writes: &[(TargetRef, PropertyId, PropertyValue)],
+    ) -> Result<PropertyCommit, PropertyError> {
+        let mut transaction = PropertyTransaction::default();
+        let mut skipped = Vec::new();
+        let mut applied = Vec::new();
+        for (target, property, value) in writes {
+            let definition = self.definition_for(*property)?;
+            if definition.access == PropertyAccess::ReadOnly {
+                return Err(PropertyError::ReadOnly(*property));
+            }
+            let provider = provider_for(*property)
+                .ok_or_else(|| PropertyError::UnknownProperty(property.as_str().to_owned()))?;
+            let address = PropertyAddress::new(target.clone(), *property);
+            transaction.begin_target();
+            match provider.edit(self, &mut transaction, &address, &EditOp::Set(value)) {
+                Ok(()) if transaction.target_changed() => applied.push(address),
+                Ok(()) => skipped.push(PropertySkip::new(
+                    target.clone(),
+                    SkipReason::AlreadyAtValue,
+                    format!("{} already has that value", definition.canonical_label),
+                )),
+                Err(error) if skipped_target(&error) => {
+                    transaction.rollback_target();
+                    skipped.push(PropertySkip::from_error(target.clone(), &error));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        transaction.ensure_single_storage()?;
+        Ok(transaction.into_commit(self, applied, skipped))
+    }
+
     /// Move a property along the scale its provider owns.
     pub fn plan_property_step(
         &self,

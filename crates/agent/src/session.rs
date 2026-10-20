@@ -6,6 +6,7 @@ pub(crate) use candidate::CandidateTicket;
 mod guides;
 #[cfg(test)]
 mod plan_budget_tests;
+mod property_batch;
 pub(crate) mod save;
 mod science;
 mod state;
@@ -431,6 +432,9 @@ impl Session {
             }
             if args.tool_id == "project.save" {
                 return self.plan_save(app, args);
+            }
+            if args.tool_id == TOOL_SET_MANY {
+                return self.plan_property_batch(app, args);
             }
             if !crate::capabilities::EDIT_OPERATIONS.contains(&args.tool_id.as_str()) {
                 return Err(Failure::new(

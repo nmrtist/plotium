@@ -4,7 +4,7 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 20] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 21] = [
     "analysis.dosy.build",
     "analysis.regions.extract",
     "analysis.diffusion.fit",
@@ -15,6 +15,7 @@ pub(crate) const EDIT_OPERATIONS: [&str; 20] = [
     "figure.export",
     "resource.rename",
     "properties.set",
+    "properties.set_many",
     "properties.reset",
     "data.import",
     "data.transform",

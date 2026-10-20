@@ -126,7 +126,7 @@ CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限
 十五个工具、输入 schema、结果约定、支持的操作、属性 ID、输出限制和当前执行权限。
 标准 MCP `tools/list` 也提供工具输入 schema。资源描述中的能力属于 **core** 的
 数据和渲染语义；资源列出某项能力，不代表此连接已开放该操作。
-这里可预检 `project.save`、`figure.export`、`resource.rename`、`properties.set`、`properties.reset`，以及下述受限的
+这里可预检 `project.save`、`figure.export`、`resource.rename`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
 `data.import`／`data.transform` 模式、`table.patch`、`table.refresh`、`figure.edit`、`plot.create` 及 `plot.series.append`／`plot.series.bind`／`plot.series.materialize_default`。
 只读权限允许表格查询及既有属性预检，但拒绝导入／绑定／创建／版式编辑／处理／补丁／刷新预检和所有可撤销修改执行；保存和导出使用下文各自独立的逐次桌面授权，只读也可请求。
 
@@ -1191,6 +1191,34 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 恢复确认或后台项目操作结束后重试；过期计划及 revision 冲突需重新读取和预检。
 AI connections (MCP) 设置页面显示最近操作和错误，后台反馈不会自行打开设置页面。
 
+
+## 一次计划设置多条曲线的样式
+
+`properties.set` 每次只写一个值。要给每条曲线分别设置颜色和图例标签，请改为预检
+`properties.set_many`：每一项写入指定一个明确目标、一个受支持的 key 和一个值。
+省略顶层 `ids` 和 `targets`；曲线属性使用查询得到的完整 Series 目标，坐标轴标题、
+图例等对象级属性使用图对象的资源目标，不带 component。
+
+```json
+{
+  "expected_project_context": "PROJECT_CONTEXT",
+  "expected_revision": 7,
+  "tool_id": "properties.set_many",
+  "parameters": {"writes": [
+    {"target": SERIES_0_TARGET, "key": "series.line.color", "value": "#0072B2"},
+    {"target": SERIES_0_TARGET, "key": "series.label", "value": "Sample 1"},
+    {"target": SERIES_1_TARGET, "key": "series.line.color", "value": "#D55E00"},
+    {"target": SERIES_1_TARGET, "key": "series.label", "value": "Sample 2"},
+    {"target": {"resource": PLOT_OBJECT_RESOURCE}, "key": "object.axes.x_label", "value": "Temperature (°C)"}
+  ]}
+}
+```
+
+一个批次包含 1–200 项写入，可使用上文列出的显示属性。`preflight.targets`
+按顺序为每项写入列出一行。只要有一项写入的目标不存在、属性不适用于该目标、值无效，
+或同一目标的同一 key 写了两次，预检就拒绝整个批次，不提交任何修改。目标已是该值的
+写入会报告为跳过，其余写入照常生效。`plotium_execute` 把全部写入作为一个**撤销**
+步骤提交；`value.writes` 报告每项写入的序号、key 和结果。
 
 ## 保存当前桌面项目
 
