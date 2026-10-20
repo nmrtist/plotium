@@ -1,6 +1,9 @@
 use super::*;
 use crate::fit_model::{ParameterDefinition, VariableDefinition};
 
+#[path = "convergence_tests.rs"]
+mod convergence_tests;
+
 fn line() -> FitModelDefinition {
     let mut model = FitModelDefinition::explicit(
         "12345678-1234-1234-1234-123456789abc",

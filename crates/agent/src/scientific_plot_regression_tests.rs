@@ -1,6 +1,49 @@
 //! Regressions from stage-three acceptance, using original synthetic data.
 use super::*;
 
+pub(super) fn check_unconverged_fit(
+    s: &mut Session,
+    a: &mut PlotiumApp,
+    table: Value,
+    column: Value,
+) {
+    let fitted = edit(
+        s,
+        a,
+        DIFFUSION_FIT,
+        json!({"response_column":column,"options":{
+            "solver":"bounded_trust_region","weights":{"type":"equal"},"robust_loss":{"type":"none"},
+            "non_finite":"reject","max_iterations":1,"tolerance":1e-8,"multi_start":1,
+            "ode_solver":"auto","relative_tolerance":1e-6,"absolute_tolerance":1e-9
+        }}),
+        Some(json!([table])),
+    );
+    let receipt = settle(s, a, &fitted);
+    assert_eq!(receipt["summary"]["converged"], false, "{receipt}");
+    let analysis = receipt["produced"][0].clone();
+    let report = call(
+        s,
+        a,
+        "plotium_analysis_results_inspect",
+        json!({"ids":[analysis["id"]]}),
+    );
+    let fit = &report["value"]["analyses"][0];
+    assert_eq!(fit["converged"], false, "{report}");
+    assert_eq!(fit["termination"][0]["converged"], false);
+    assert_eq!(fit["termination"][0]["reason"], "iteration limit reached");
+    assert!(
+        fit["notices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n.as_str().unwrap().contains("did not converge"))
+    );
+    let failure = s.call(a, "plotium_plan", json!({"tool_id":DIFFUSION_PLOT_CREATE,
+        "parameters":{"source":analysis,"name":"Unconverged fit must not plot"},
+        "expected_revision":a.doc.automation_revision,"expected_project_context":a.session.project_context})).unwrap_err();
+    assert!(failure.message.contains("did not converge"), "{failure:?}");
+}
+
 pub(super) fn reject_failed_selected_attempt(
     s: &mut Session,
     a: &mut PlotiumApp,

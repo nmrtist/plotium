@@ -4,6 +4,53 @@ use plotium_analysis::fit_model::{FitDataset, FitOptions};
 use std::collections::BTreeMap;
 
 #[test]
+fn unconverged_table_fit_retains_diagnostics_and_warns_the_user() {
+    use crate::state::{Dataset, PlotiumApp};
+    let table = materialized_float_series_table(
+        (
+            "x".into(),
+            "".into(),
+            (0..12).map(|i| Some(i as f64)).collect(),
+        ),
+        vec![FloatSeries {
+            name: "original".into(),
+            unit: String::new(),
+            values: (0..12).map(|i| Some(3. + 2. * i as f64)).collect(),
+            uncertainty: None,
+            fit: None,
+        }],
+        "plotium.test.unconverged-fit.v1",
+    )
+    .unwrap();
+    let column = table.series_bindings[0].value_column;
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(Dataset::Table(Box::new(table)));
+    app.fit_table_columns(
+        0,
+        plotium_analysis::models::LINEAR_ID,
+        false,
+        column,
+        false,
+        FitOptions {
+            max_iterations: 1,
+            ..FitOptions::default()
+        },
+    );
+    let table = app.doc.datasets[0].as_table().unwrap();
+    assert_eq!(table.curve_fit_analyses.len(), 1);
+    let result = &table.curve_fit_analyses[0].result;
+    assert!(!result.converged);
+    assert_eq!(result.attempts[0].reason, "iteration limit reached");
+    assert!(app.session.status.contains("did not converge"));
+    assert!(
+        result
+            .notices
+            .iter()
+            .any(|n| n.contains("did not converge"))
+    );
+}
+
+#[test]
 fn curve_fit_snapshot_redraws_without_model_library() {
     let x: Vec<f64> = (0..12).map(|value| value as f64).collect();
     let y: Vec<f64> = x.iter().map(|value| 2.0 + 0.5 * value).collect();

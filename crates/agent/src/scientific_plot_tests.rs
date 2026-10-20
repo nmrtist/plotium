@@ -8,6 +8,8 @@ use std::{
 };
 
 const D: f64 = 1.2e-9;
+#[path = "external_fit_acceptance_tests.rs"]
+mod external_acceptance;
 #[path = "scientific_plot_regression_tests.rs"]
 mod regressions;
 fn acquisition(dir: &std::path::Path) -> PathBuf {
@@ -44,8 +46,8 @@ fn acquisition(dir: &std::path::Path) -> PathBuf {
     for row in 0..14 {
         for col in 0..4 {
             let value = if col == 0 {
-                // Small deterministic acquisition noise gives a nonzero cost;
-                // exact zero-cost fits expose a separate fitter termination bug.
+                // Small deterministic acquisition noise exercises nonzero-cost
+                // fitting and finite uncertainty through the complete pipeline.
                 1000. * (-D * row as f64 * 1e8).exp() + (row % 5) as f64 * 0.002
             } else {
                 0.
@@ -158,6 +160,7 @@ fn welcome_to_native_decay_mono_exp_and_ilt_plots_checks_science_and_undo() {
         .unwrap();
     let column = table.series_bindings[0].value_column;
     assert!(table.meta.region_extraction.is_some());
+    regressions::check_unconverged_fit(&mut s, &mut a, table_id.clone(), json!(column));
     let fitted = edit(
         &mut s,
         &mut a,

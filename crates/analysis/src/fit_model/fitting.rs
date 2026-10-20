@@ -456,7 +456,7 @@ pub fn fit_model_cancellable(
         _ => None,
     };
     let mut attempts = Vec::new();
-    let mut best: Option<(Vec<f64>, f64, usize)> = None;
+    let mut best: Option<(Vec<f64>, f64, usize, bool)> = None;
     for start in 0..options.multi_start.max(1) {
         if cancelled() {
             return Err(FitError::Cancelled);
@@ -481,10 +481,10 @@ pub fn fit_model_cancellable(
             reason: outcome.4.clone(),
         });
         if outcome.1.is_finite() && best.as_ref().is_none_or(|best| outcome.1 < best.1) {
-            best = Some((outcome.0, outcome.1, outcome.2));
+            best = Some((outcome.0, outcome.1, outcome.2, outcome.3));
         }
     }
-    let Some((values, _, iterations)) = best else {
+    let Some((values, _, iterations, converged)) = best else {
         return Err(FitError::NoConvergedStart(attempts));
     };
     assemble_result(
@@ -497,6 +497,7 @@ pub fn fit_model_cancellable(
         values,
         attempts,
         iterations,
+        converged,
         excluded,
         notices,
         weight_expression.as_ref(),

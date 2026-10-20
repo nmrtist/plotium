@@ -60,6 +60,15 @@ standard errors and its R². Below them, per-fit diagnostics report χ² and
 reduced χ², degrees of freedom, AICc, BIC, and the iteration count. Any
 warnings the solver raised appear alongside them.
 
+The selected result is the attempt with the lowest finite weighted residual
+cost. Its convergence status follows that attempt; exhausting the iteration budget
+without meeting a convergence criterion or collapsing the trust region does not
+count as convergence. Unconverged estimates
+remain available for diagnostics with a warning. Inspect the termination reason
+before using their parameter values or standard errors; native diffusion-fit
+plots require a converged result. An exact zero-residual solution can converge
+without taking another step.
+
 ## Built-in models
 
 Plotium ships these models, grouped by kind:

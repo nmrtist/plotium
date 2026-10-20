@@ -608,6 +608,7 @@ impl PlotiumApp {
             }
         };
         let analysis_id = t.next_curve_fit_id();
+        let converged = result.converged;
         let instance_ids: Vec<String> = bindings
             .iter()
             .map(|binding| binding.dataset_id.clone())
@@ -641,7 +642,11 @@ impl PlotiumApp {
             (before_refs, before_analyses),
             (after_refs, after_analyses),
         ));
-        self.session.status = format!("Fitted {} curve(s) with {model_name}.", targets.len());
+        self.session.status = if converged {
+            format!("Fitted {} curve(s) with {model_name}.", targets.len())
+        } else {
+            "Curve fit did not converge. Inspect termination diagnostics before using its estimates or uncertainties.".into()
+        };
     }
 
     /// Validate and evaluate the initial curve without running optimisation.
