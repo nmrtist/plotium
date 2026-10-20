@@ -14,10 +14,14 @@ pub(super) fn assemble_result(
     values: Vec<f64>,
     attempts: Vec<FitAttempt>,
     iterations: usize,
+    converged: bool,
     excluded: usize,
     mut notices: Vec<String>,
     weight_expression: Option<&Expression>,
 ) -> Result<FitResult, FitError> {
+    if !converged {
+        notices.push("The selected fit attempt did not converge. Inspect its termination diagnostics before using its estimates or uncertainties.".into());
+    }
     let residuals = residual_vector(
         &compiled,
         &definition,
@@ -175,7 +179,7 @@ pub(super) fn assemble_result(
         statistics,
         attempts,
         iterations,
-        converged: true,
+        converged,
         excluded_rows: excluded,
         notices,
     })

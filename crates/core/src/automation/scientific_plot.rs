@@ -204,8 +204,8 @@ pub(super) fn prepare(
         if analysis.result.datasets.len() != 1 {
             return Err(err("Select a fit with exactly one response dataset."));
         }
-        // The shared fitter currently can mark its outer result converged even
-        // when the selected (lowest finite cost) attempt terminated in failure.
+        // Check the selected attempt as well as the stored outer status before
+        // presenting persisted numerical estimates as a successful fit.
         let selected_attempt = analysis
             .result
             .attempts

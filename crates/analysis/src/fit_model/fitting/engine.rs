@@ -44,9 +44,12 @@ pub(super) fn optimize(
     )?;
     let mut cost = residuals.iter().map(|value| value * value).sum::<f64>();
     let mut lambda = 1e-3;
-    for iteration in 0..options.max_iterations {
+    for iteration in 0..=options.max_iterations {
         if cancelled() {
             return Err(FitError::Cancelled);
+        }
+        if cost == 0.0 {
+            return Ok((parameters, cost, iteration, true, "zero residuals".into()));
         }
         let jacobian = numeric_jacobian(
             compiled,
@@ -60,6 +63,54 @@ pub(super) fn optimize(
             weight_expression,
         )?;
         let (mut jtj, mut jtr) = normal_equations(&jacobian, &residuals);
+        // Test stationarity before damping: arbitrarily large damping can make
+        // a step tiny even far from a solution. Column-normalized gradients
+        // also keep this test independent of parameter units (notably D).
+        let stationary = slots.iter().enumerate().all(|(i, slot)| {
+            let g = jtr[i];
+            if !g.is_finite() || !jtj[i][i].is_finite() {
+                return false;
+            }
+            let outward = (parameters[i] == slot.lower && g >= 0.)
+                || (parameters[i] == slot.upper && g <= 0.);
+            outward || g == 0. || g.abs() / jtj[i][i].sqrt() / cost.sqrt() <= options.tolerance
+        });
+        if stationary {
+            return Ok((
+                parameters,
+                cost,
+                iteration,
+                true,
+                "projected gradient tolerance reached".into(),
+            ));
+        }
+        let rhs: Vec<f64> = jtr.iter().map(|g| -g).collect();
+        let undamped = solve_linear(&jtj, &rhs);
+        // Near exact fits can have roundoff-sized residuals with a large
+        // relative gradient. Require the *undamped* correction to be at the
+        // representable parameter precision, never an absolute step floor.
+        if undamped.as_ref().is_some_and(|step| {
+            step.iter()
+                .zip(&parameters)
+                .all(|(s, p)| s.is_finite() && s.abs() <= 8. * f64::EPSILON * p.abs())
+        }) {
+            return Ok((
+                parameters,
+                cost,
+                iteration,
+                true,
+                "parameter precision reached".into(),
+            ));
+        }
+        // The last accepted step may itself reach an optimum. Check its
+        // parameters above before exhausting the budget, without taking an
+        // additional optimization step.
+        if iteration == options.max_iterations {
+            break;
+        }
+        let predicted_reduction = undamped
+            .as_ref()
+            .map(|step| step.iter().zip(&jtr).map(|(s, g)| -s * g).sum::<f64>());
         for index in 0..slots.len() {
             jtj[index][index] += lambda * jtj[index][index].max(1e-12);
             jtr[index] = -jtr[index];
@@ -117,7 +168,14 @@ pub(super) fn optimize(
             residuals = trial_residuals;
             cost = trial_cost;
             lambda = (lambda * 0.35).max(1e-12);
-            if relative < options.tolerance {
+            // A small accepted improvement caused by strong damping is not
+            // sufficient: the undamped local model must also predict little
+            // remaining improvement.
+            if relative < options.tolerance
+                && predicted_reduction.is_some_and(|r| {
+                    r >= 0. && r / cost.max(f64::MIN_POSITIVE) <= options.tolerance
+                })
+            {
                 return Ok((
                     parameters,
                     cost,

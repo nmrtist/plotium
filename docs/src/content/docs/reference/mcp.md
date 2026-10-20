@@ -1731,7 +1731,7 @@ result. Unavailable numbers are `null` with a reason. Result inspection pages
 column diagnostics; provenance retains algorithm version, actual parameters and
 input fingerprint.
 
-Successful decay fits return a stable `plotium.analysis` resource in the task's `produced` list. Pass its ID directly to `plotium_analysis_results_inspect` to read that analysis.
+Completed decay-fit tasks return a stable `plotium.analysis` resource in the task's `produced` list. Pass its ID directly to `plotium_analysis_results_inspect` to read that analysis. A task status of `succeeded` means the calculation and result commit completed; check `converged`, `termination` and `notices` separately for scientific convergence. The outer `converged` follows the attempt with the lowest finite cost. Attempts that exhaust the iteration budget without meeting a convergence criterion or terminate with trust-region collapse remain unconverged, and their estimates are retained with a warning for diagnosis.
 
 ## Plot native scientific results
 

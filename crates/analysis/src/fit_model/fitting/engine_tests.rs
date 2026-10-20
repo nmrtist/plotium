@@ -3,6 +3,42 @@ use crate::models::{DIFFUSION_B_ID, builtin_model};
 use std::collections::BTreeMap;
 
 #[test]
+fn noiseless_and_nearly_noiseless_diffusion_fits_converge_at_physical_scale() {
+    for noise in [0., 1e-11] {
+        let b: Vec<f64> = (0..14).map(|i| i as f64 * 1e8).collect();
+        let observed = b
+            .iter()
+            .enumerate()
+            .map(|(i, b)| 1000. * (-1.2e-9 * b).exp() + if i % 2 == 0 { noise } else { -noise })
+            .collect();
+        let data = FitDataset {
+            id: "original-decay".into(),
+            inputs: BTreeMap::from([("b".into(), b)]),
+            responses: BTreeMap::from([("y".into(), observed)]),
+            sigmas: BTreeMap::new(),
+            constants: BTreeMap::new(),
+        };
+        let result = fit_model(
+            builtin_model(DIFFUSION_B_ID).unwrap(),
+            vec![data],
+            &[],
+            FitOptions::default(),
+        )
+        .unwrap();
+        assert!(result.converged, "noise={noise}: {:?}", result.attempts);
+        assert!(result.attempts[0].converged);
+        let d = result
+            .parameters
+            .iter()
+            .find(|p| p.parameter == "D")
+            .unwrap();
+        assert!((d.value / 1.2e-9 - 1.).abs() < 1e-10);
+        assert!(result.statistics.chi_squared < 2e-20);
+        assert!(d.standard_error.is_finite() && d.standard_error < 1e-21);
+    }
+}
+
+#[test]
 fn small_diffusion_parameter_matches_independent_least_squares_and_uncertainty() {
     // Post-FFT observations from the original synthetic acquisition. Keeping
     // these rounded values reproduces the Linux/macOS trust-region collapse.

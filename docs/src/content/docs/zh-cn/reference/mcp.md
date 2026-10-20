@@ -1419,7 +1419,7 @@ ILT 返回 D 网格、λ、非负解、重建残差及求解终止信息，不�
 `empty` 表示没有可接受的科学结果；不可用数值为 `null`，附原因。
 结果检查分页返回逐列诊断，来源记录保留算法版本、实际参数及输入指纹。
 
-衰减拟合成功后，任务的 `produced` 列表包含稳定的 `plotium.analysis` 资源。将其 ID 传给 `plotium_analysis_results_inspect`，即可直接读取该项分析。
+衰减拟合任务完成后，任务的 `produced` 列表包含稳定的 `plotium.analysis` 资源。将其 ID 传给 `plotium_analysis_results_inspect`，即可直接读取该项分析。任务状态 `succeeded` 表示计算与结果提交完成；科学收敛情况须另查 `converged`、`termination` 和 `notices`。外层 `converged` 与最低有限代价的尝试一致。耗尽迭代预算且未满足收敛条件，或因信赖域坍缩终止的尝试，仍为未收敛，其估计会保留供诊断并附警告。
 
 ## 科学结果原生建图
 
