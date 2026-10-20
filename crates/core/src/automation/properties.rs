@@ -331,7 +331,7 @@ fn skipped_from_plan(plan: &ToolPlan) -> Vec<TargetResult> {
 /// Each skip carries a typed reason as well as its prose, so a caller can tell
 /// a same-value no-op from a target that refused the property without matching
 /// on wording.
-fn skipped_results(skipped: &[PropertySkip]) -> Vec<TargetResult> {
+pub(super) fn skipped_results(skipped: &[PropertySkip]) -> Vec<TargetResult> {
     skipped
         .iter()
         .map(|skip| TargetResult {
@@ -370,7 +370,7 @@ fn requested_definition(
 /// have to guess — and could never produce the `&'static str` an enumerated
 /// choice is, because a choice is one of the schema's own variants rather than
 /// arbitrary text.
-fn decode_value(
+pub(super) fn decode_value(
     tool_id: &str,
     definition: &'static PropertyDefinition,
     value: &serde_json::Value,
@@ -495,7 +495,7 @@ fn json_kind(value: &serde_json::Value) -> &'static str {
     }
 }
 
-fn property_error(tool_id: &str, error: PropertyError) -> AutomationError {
+pub(super) fn property_error(tool_id: &str, error: PropertyError) -> AutomationError {
     match error {
         PropertyError::InvalidValue { .. }
         | PropertyError::ReadOnly(_)

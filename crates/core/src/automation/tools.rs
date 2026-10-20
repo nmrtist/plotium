@@ -79,6 +79,8 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
         super::preview::freeze(app, &request)?
     } else if request.tool_id == DOCUMENT_INSPECT {
         super::document::freeze(app, &request)?
+    } else if request.tool_id == super::property_batch::TOOL_SET_MANY {
+        super::property_batch::freeze(&provider, &request)?
     } else {
         freeze_targets(&provider, &request.targets)?
     };
@@ -109,7 +111,11 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
     // definition rather than from the tool descriptor. Refining an already
     // gated list keeps that entirely additive: a tool with no refinement is
     // planned by the same code as before, byte for byte.
-    let targets = properties::refine_plan(app, &request, targets)?;
+    let targets = if request.tool_id == super::property_batch::TOOL_SET_MANY {
+        super::property_batch::refine_plan(app, &request)?
+    } else {
+        properties::refine_plan(app, &request, targets)?
+    };
     let compatible = targets
         .iter()
         .filter(|target| target.status == TargetCompatibility::Compatible)
@@ -498,6 +504,7 @@ pub(super) fn execute_planned_tool(
         "data.transform" => execute_transform(app, &plan)?,
         TABLE_PATCH | TABLE_REFRESH => super::table_update::execute(app, &plan)?,
         "figure.export" => execute_export(app, &plan)?,
+        super::property_batch::TOOL_SET_MANY => super::property_batch::execute(app, &plan)?,
         id if properties::is_property_tool(id) => {
             let targets = compatible_target_refs(&plan).cloned().collect();
             properties::execute(app, &plan, targets)?

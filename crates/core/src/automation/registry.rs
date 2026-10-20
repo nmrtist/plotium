@@ -88,6 +88,7 @@ pub(super) fn validate_parameters(
             parse::<super::properties::PropertyKeyParams>(tool, value).map(drop)
         }
         "properties.set" => parse::<super::properties::PropertyWriteParams>(tool, value).map(drop),
+        super::property_batch::TOOL_SET_MANY => super::property_batch::decode(&value).map(drop),
         _ => Err(AutomationError::UnknownTool(tool.to_owned())),
     }
 }
@@ -538,6 +539,16 @@ fn descriptors() -> Vec<ToolDescriptor> {
             EffectLevel::Reversible,
             true
         ),
+        Spec {
+            id: super::property_batch::TOOL_SET_MANY,
+            title: "Set several properties",
+            description: "Write exact (target, property, value) triples as one atomic commit and one undo step",
+            schema: super::property_batch::schema(),
+            kinds: &[KIND_APP, KIND_DOCUMENT, KIND_DATASET, KIND_CANVAS, KIND_CANVAS_OBJECT],
+            capabilities: &[CAP_PROPERTY_CATALOG],
+            effect: EffectLevel::Reversible,
+            deterministic: true,
+        },
         tool!(
             "properties.reset",
             "Reset a property",

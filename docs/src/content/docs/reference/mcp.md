@@ -150,7 +150,7 @@ property IDs, limits and current execution permission. Standard MCP `tools/list`
 also lists their input schemas. Resource descriptors describe **core** data and
 rendering capabilities; a capability listed on a resource
 does not make that operation callable through this connection. Only
-`project.save`, `figure.export`, `resource.rename`, `properties.set`, `properties.reset` and the restricted
+`project.save`, `figure.export`, `resource.rename`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
 `data.import` / `data.transform` modes, `table.patch`, `table.refresh`, `figure.edit`, `plot.create` and `plot.series.append` / `plot.series.bind` / `plot.series.materialize_default` below can be planned here. Read-only access allows table reads
 and existing property preflight, but refuses import/binding/creation/figure-edit/transform/patch/refresh preflight and all reversible edit execution. Saving and exporting use separate per-request desktop authorization, also in Read only mode.
 
@@ -1447,6 +1447,39 @@ A `busy` response is retryable after the active edit, recovery confirmation or b
 operation finishes. For stale or expired plans, read state and preflight again.
 The AI connections (MCP) settings page shows recent operations and errors without
 opening itself in response to background activity.
+
+## Style several curves in one plan
+
+`properties.set` writes one value. To give each curve its own colour and legend
+label, plan `properties.set_many` instead: each write names an exact target, one
+supported key and a value. Omit top-level `ids` and `targets`; series writes use
+the complete Series target from inspection, and object-level writes such as axis
+titles or legend settings use the plot object's resource target without a
+component.
+
+```json
+{
+  "expected_project_context": "PROJECT_CONTEXT",
+  "expected_revision": 7,
+  "tool_id": "properties.set_many",
+  "parameters": {"writes": [
+    {"target": SERIES_0_TARGET, "key": "series.line.color", "value": "#0072B2"},
+    {"target": SERIES_0_TARGET, "key": "series.label", "value": "Sample 1"},
+    {"target": SERIES_1_TARGET, "key": "series.line.color", "value": "#D55E00"},
+    {"target": SERIES_1_TARGET, "key": "series.label", "value": "Sample 2"},
+    {"target": {"resource": PLOT_OBJECT_RESOURCE}, "key": "object.axes.x_label", "value": "Temperature (°C)"}
+  ]}
+}
+```
+
+A batch holds 1–200 writes and accepts the display properties listed above.
+`preflight.targets` has one row per write, in order. Planning refuses the whole
+batch, and nothing is committed, when any write's target is missing, its
+property does not apply to that target, its value is invalid, or the same key is
+written twice to one target. A write whose target already holds the value is
+reported as skipped while the others apply. `plotium_execute` commits every
+write as one **Undo** step; `value.writes` reports each write's index, key and
+outcome.
 
 
 ## Save the current desktop project

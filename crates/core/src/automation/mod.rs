@@ -27,6 +27,7 @@ mod candidate_preview;
 mod preview;
 pub use candidate_preview::*;
 mod properties;
+mod property_batch;
 pub use preview::*;
 mod dosy;
 mod region_fit;
@@ -63,6 +64,7 @@ pub use document::{
     panel_resource,
 };
 pub use properties::{TOOL_INSPECT, TOOL_RESET, TOOL_SET, property_definition_description};
+pub use property_batch::{MAX_WRITES as PROPERTY_BATCH_MAX_WRITES, TOOL_SET_MANY};
 pub use registry::ToolRegistry;
 pub use resources::*;
 pub use tasks::*;

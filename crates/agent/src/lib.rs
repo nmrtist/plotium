@@ -344,6 +344,8 @@ mod session_tests;
 
 #[cfg(test)]
 mod component_tests;
+#[cfg(test)]
+mod property_batch_tests;
 
 #[cfg(test)]
 mod discovery_tests;

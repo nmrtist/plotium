@@ -84,6 +84,7 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
                         | DIFFUSION_FIT
                         | DOSY_BUILD
                         | ANALYSIS_RESULTS_INSPECT
+                        | TOOL_SET_MANY
                 ))
             .count()
             - 7,
