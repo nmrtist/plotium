@@ -7,6 +7,8 @@ use crate::state::{Dataset, PlotiumApp};
 use std::collections::BTreeMap;
 
 mod mass_spec;
+mod science;
+pub use science::diffusion_analysis_ref;
 mod targets;
 pub use targets::freeze_targets;
 mod selection;
@@ -23,6 +25,7 @@ pub const KIND_CANVAS: &str = "plotium.canvas";
 pub const KIND_TABLE_ROW: &str = "plotium.table.row";
 pub const KIND_TABLE_COLUMN: &str = "plotium.table.column";
 pub const KIND_FIELD: &str = "plotium.field";
+pub const KIND_ANALYSIS: &str = "plotium.analysis";
 pub const KIND_CANVAS_OBJECT: &str = "plotium.canvas.object";
 pub const KIND_EXTERNAL_INPUT: &str = "plotium.external_input";
 /// The one document root inside a `PlotiumApp` target space.
@@ -35,6 +38,9 @@ pub const CAP_THEME: &str = "figure.theme";
 pub const CAP_EXPORT: &str = "figure.export";
 pub const CAP_PREVIEW: &str = "data.preview";
 pub const CAP_TRANSFORM: &str = "data.transform";
+pub const CAP_DIFFUSION_FIT: &str = "analysis.diffusion.fit";
+pub const CAP_DIFFUSION_RESULT: &str = "analysis.diffusion.result";
+pub const CAP_DIFFUSION_INPUT: &str = "analysis.diffusion.input";
 pub const CAP_PROCESSING_SCHEME: &str = "processing.scheme";
 /// The resource holds components the property catalog can address. It is the
 /// admission gate for the `properties.*` tools, and it is a capability rather
@@ -118,6 +124,15 @@ impl<'a> ProjectResourceProvider<'a> {
         // components later gains the tools without a branch being added here.
         if crate::properties::has_addressable_components(dataset) {
             capabilities.push(cap(CAP_PROPERTY_CATALOG));
+        }
+        for capability in [CAP_DIFFUSION_INPUT, CAP_DIFFUSION_FIT, CAP_DIFFUSION_RESULT] {
+            if dataset
+                .field_descriptors()
+                .iter()
+                .any(|field| field.capabilities.contains(capability))
+            {
+                capabilities.push(cap(capability));
+            }
         }
         let mut metadata = BTreeMap::new();
         metadata.insert("domain".to_owned(), format!("{:?}", dataset.domain()));
@@ -223,6 +238,15 @@ impl<'a> ProjectResourceProvider<'a> {
                 .into_iter()
                 .map(|field| child_ref(id, &field.local_id, KIND_FIELD)),
         );
+        if let Some(table) = dataset.as_table() {
+            children.extend(
+                table
+                    .curve_fit_analyses
+                    .iter()
+                    .filter(|a| a.result.model.id == plotium_analysis::models::DIFFUSION_B_ID)
+                    .map(|a| diffusion_analysis_ref(table.resource_id, a.id)),
+            );
+        }
         ResourceDescriptor {
             resource: top_ref(id, KIND_DATASET),
             name: dataset.display_name(),
@@ -344,6 +368,7 @@ impl ResourceProvider for ProjectResourceProvider<'_> {
         for (index, dataset) in self.app.doc.datasets.iter().enumerate() {
             let parent = self.dataset_descriptor(index, dataset);
             if let Dataset::Table(table) = dataset {
+                descriptors.extend(science::analysis_descriptors(table, self.revision()));
                 let snapshot = &table.typed_state.envelope.revision.snapshot;
                 for column in &snapshot.schema.columns {
                     descriptors.push(ResourceDescriptor {

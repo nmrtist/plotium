@@ -121,6 +121,10 @@ impl PlotiumApp {
         loaded.session.external_saves = std::mem::take(&mut self.session.external_saves);
         self.session.external_exports.revoke();
         loaded.session.external_exports = std::mem::take(&mut self.session.external_exports);
+        self.session
+            .scientific_tasks
+            .invalidate_project(self.doc.automation_revision);
+        loaded.session.scientific_tasks = std::mem::take(&mut self.session.scientific_tasks);
         *self = loaded;
         // Project loading constructs a fresh app, but app preferences outlive
         // document swaps. In particular, a value whose disk flush failed must

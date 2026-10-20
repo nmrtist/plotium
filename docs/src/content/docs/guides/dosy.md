@@ -167,3 +167,21 @@ evidence, final b values, and data fingerprints. Input resolution prefers an
 explicit invocation input, then the selected result's recorded input, saved
 settings, and finally a verified acquisition suggestion. This preserves the
 input used for a result rather than silently substituting a later default.
+
+
+## Automation interface
+
+Desktop, CLI and MCP reuse native processing and scientific computation semantics.
+See [MCP scientific operations and tasks](/reference/mcp/#scientific-operations-and-tasks)
+for operations and parameter schemas, or use CLI
+[`tool run`](/reference/cli/#single-step-scientific-operations). Pipeline edits,
+schemes, region extraction, diffusion fitting and DOSY/ILT return process-owned
+task receipts; wait for termination before consuming results. Background commits
+form one Undo step and Redo reuses results. Document edits during computation make
+work stale. Diffusion inspection reports SI units and source evidence; result
+inspection provides paginated diagnostics. `empty` does not establish a scientific
+conclusion.
+
+In desktop region tools, select **Extract curves** to prepare the table. While the
+source computation runs, extraction is disabled. Once ready, select **View
+extracted curves** to open it; completion does not switch panels automatically.

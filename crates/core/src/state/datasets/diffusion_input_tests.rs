@@ -2,7 +2,7 @@ use super::pseudo_tests::{synthetic_dosy, wait_for_compute};
 use super::*;
 use crate::{DiffusionInput, DosyMethod};
 
-fn direct_input_stack() -> (Nmr2DDataset, DiffusionInput) {
+pub(super) fn direct_input_stack() -> (Nmr2DDataset, DiffusionInput) {
     let mut raw = synthetic_dosy(1.2e-9);
     let meta = raw.diffusion.take().unwrap();
     let values: Vec<_> = raw
@@ -151,6 +151,8 @@ fn saved_direct_input_and_result_roundtrip_without_gradient_metadata() {
     let (mut data, input) = direct_input_stack();
     data.diffusion_input = Some(input.clone());
     assert!(data.build_dosy_map());
+    let diagnostics = data.dosy_provenance.as_ref().unwrap().columns.clone();
+    assert!(!diagnostics.is_empty());
     let mut app = PlotiumApp::new_with_settings(crate::settings::Settings::default());
     app.doc.datasets.push(Dataset::Nmr2D(Box::new(data)));
     let path = std::env::temp_dir().join(format!(
@@ -169,6 +171,7 @@ fn saved_direct_input_and_result_roundtrip_without_gradient_metadata() {
     assert!(data.dosy_provenance_warning.is_none());
     assert!(data.dosy_map.is_some());
     assert_eq!(data.dosy_method, DosyMethod::MonoExp);
+    assert_eq!(data.dosy_provenance.as_ref().unwrap().columns, diagnostics);
 }
 
 fn app_with_direct_region() -> (PlotiumApp, DiffusionInput) {
@@ -230,6 +233,9 @@ fn clearing_only_ruler_invalidates_linked_values_and_fits_and_undo_refreshes() {
         app.session.status
     );
     assert!(table.series_bindings[0].fit.is_some());
+    let original_revision = table.typed_state.envelope.revision.id;
+    let original_fits = table.curve_fit_analyses.clone();
+    let original_bindings = table.series_bindings.clone();
     app.set_diffusion_input(0, None);
     let table = app.doc.datasets[1].as_table().unwrap();
     assert!(table.provenance.is_some());
@@ -246,6 +252,9 @@ fn clearing_only_ruler_invalidates_linked_values_and_fits_and_undo_refreshes() {
     let table = app.doc.datasets[1].as_table().unwrap();
     assert_eq!(table.meta.diffusion_input.as_ref(), Some(&input));
     assert_eq!(table.fit_analysis_view().unwrap().x.values.len(), 16);
+    assert_eq!(table.typed_state.envelope.revision.id, original_revision);
+    assert!(table.curve_fit_analyses == original_fits);
+    assert!(table.series_bindings == original_bindings);
     app.redo();
     assert_eq!(
         app.doc.datasets[1]

@@ -155,31 +155,16 @@ impl DiffusionInput {
     }
 
     pub fn b_values(&self, count: usize) -> Result<Vec<f64>, String> {
-        if !self.confirmed {
-            return Err("Confirm the sequence evidence and parameters or provide b values.".into());
+        let report = self.inspect(count);
+        if !report.executable {
+            return Err(report
+                .issues
+                .iter()
+                .map(|issue| issue.message.as_str())
+                .collect::<Vec<_>>()
+                .join(" "));
         }
-        if self.rule_version != 1 {
-            return Err("Confirm the diffusion encoding rule version.".into());
-        }
-        let mut entries = self.increments.clone();
-        entries.sort_by_key(|entry| entry.id);
-        if entries
-            .iter()
-            .enumerate()
-            .any(|(i, entry)| entry.id != IncrementId(i as u64))
-        {
-            return Err("Bind each b value to exactly one acquired increment.".into());
-        }
-        let values: Vec<_> = entries.iter().map(|entry| entry.b).collect();
-        validate_b_values(&values, count)?;
-        if self
-            .gradients
-            .as_ref()
-            .is_some_and(|g| g.len() != count || g.iter().any(|v| !v.is_finite()))
-        {
-            return Err("Provide finite gradient values for every increment.".into());
-        }
-        Ok(values)
+        Ok(report.b_values.into_iter().map(|entry| entry.b).collect())
     }
 }
 

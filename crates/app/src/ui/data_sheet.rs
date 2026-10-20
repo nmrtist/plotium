@@ -145,7 +145,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         app.session.status = error;
     }
     if let Some(source) = freeze_source {
-        app.freeze_region_table(source);
+        app.request_region_table_operation(source, false);
     }
     if !open {
         app.session.ui.sheet_open = None;

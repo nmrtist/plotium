@@ -113,6 +113,7 @@ mod pseudo_map_field;
 mod reference_pick;
 mod region;
 mod reports;
+mod scientific_compute;
 mod scientific_summary;
 mod selection;
 mod series_binding;
@@ -315,3 +316,6 @@ mod external_export;
 pub use external_export::{ExportFileReceipt, ExportReceipt, ExportStatus, ExternalExports};
 mod external_save;
 pub use external_save::{ExternalSaveStatus, ExternalSaves, SaveReceipt};
+
+mod scientific_actions;
+mod scientific_desktop;

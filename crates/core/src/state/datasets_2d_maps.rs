@@ -40,6 +40,8 @@ pub(crate) fn mono_exp_provenance(
     encoding: &crate::DiffusionInput,
 ) -> DosyResultProvenance {
     DosyResultProvenance {
+        source_fields: Vec::new(),
+        columns: Vec::new(),
         algorithm: "diffusion_map".into(),
         version: DIFFUSION_MAP_ALGORITHM_VERSION,
         input: DosyInvocation::MonoExp {
@@ -56,6 +58,8 @@ pub(crate) fn ilt_provenance(
     params: IltParams,
 ) -> DosyResultProvenance {
     DosyResultProvenance {
+        source_fields: Vec::new(),
+        columns: Vec::new(),
         algorithm: "ilt_map".into(),
         version: ILT_MAP_ALGORITHM_VERSION,
         input: DosyInvocation::Ilt { params },
@@ -73,16 +77,7 @@ impl Nmr2DDataset {
         &self,
         explicit: Option<&crate::DiffusionInput>,
     ) -> Result<crate::DiffusionInput, String> {
-        let provenance = match self.dosy_method {
-            DosyMethod::MonoExp => self.dosy_provenance.as_ref(),
-            DosyMethod::Ilt(_) => self.ilt_provenance.as_ref(),
-        };
-        let mut input = explicit
-            .cloned()
-            .or_else(|| provenance.and_then(|p| p.encoding.clone()))
-            .or_else(|| self.diffusion_input.clone())
-            .map(Ok)
-            .unwrap_or_else(|| self.suggested_diffusion_input())?;
+        let mut input = self.diffusion_input_candidate(explicit).0?;
         let count = match &self.processed {
             Processed2D::Stack(stack) => stack.traces.len(),
             _ => self.data.rows,
@@ -90,6 +85,27 @@ impl Nmr2DDataset {
         input.b_values(count)?;
         input.increments.sort_by_key(|entry| entry.id);
         Ok(input)
+    }
+
+    /// Resolve the lifecycle copy once; inspection and execution share this
+    /// priority even when the selected input is invalid or needs confirmation.
+    pub(crate) fn diffusion_input_candidate(
+        &self,
+        explicit: Option<&crate::DiffusionInput>,
+    ) -> (Result<crate::DiffusionInput, String>, &'static str) {
+        let provenance = match self.dosy_method {
+            DosyMethod::MonoExp => self.dosy_provenance.as_ref(),
+            DosyMethod::Ilt(_) => self.ilt_provenance.as_ref(),
+        };
+        if let Some(input) = explicit {
+            (Ok(input.clone()), "explicit_input")
+        } else if let Some(input) = provenance.and_then(|p| p.encoding.as_ref()) {
+            (Ok(input.clone()), "result_provenance")
+        } else if let Some(input) = &self.diffusion_input {
+            (Ok(input.clone()), "stored_default")
+        } else {
+            (self.suggested_diffusion_input(), "acquisition")
+        }
     }
 
     pub(crate) fn invalidate_dosy_results(&mut self, reason: &str) {
@@ -153,8 +169,10 @@ impl Nmr2DDataset {
             &self.data.direct.nucleus,
             &stack.source,
         )));
+        let mut provenance = mono_exp_provenance(stack, &input);
+        provenance.columns = map.diagnostics.clone();
         self.dosy_map = Some(map);
-        self.dosy_provenance = Some(mono_exp_provenance(stack, &input));
+        self.dosy_provenance = Some(provenance);
         self.dosy_provenance_warning = None;
         if any {
             self.dosy_method = DosyMethod::MonoExp;
@@ -187,8 +205,10 @@ impl Nmr2DDataset {
             &stack.source,
         )));
         self.dosy_method = DosyMethod::Ilt(params);
+        let mut provenance = ilt_provenance(stack, &input, params);
+        provenance.columns = result.diagnostics.clone();
         self.ilt_map = Some(result);
-        self.ilt_provenance = Some(ilt_provenance(stack, &input, params));
+        self.ilt_provenance = Some(provenance);
         self.dosy_provenance_warning = None;
         if any {
             self.display = PseudoDisplay::DosyMap;
@@ -199,38 +219,12 @@ impl Nmr2DDataset {
 
 impl PlotiumApp {
     pub fn set_diffusion_input(&mut self, dataset: usize, input: Option<crate::DiffusionInput>) {
-        let Some(data) = self.doc.datasets.get(dataset).and_then(Dataset::as_nmr2d) else {
-            return;
-        };
-        self.execute_action(Action::SetDiffusionInput {
-            dataset: data.resource_id,
-            before: data.diffusion_input.clone(),
-            after: input,
-        });
-    }
-
-    pub(crate) fn apply_diffusion_input(
-        &mut self,
-        dataset: usize,
-        input: Option<crate::DiffusionInput>,
-    ) {
         let Some(id) = self.doc.datasets.get(dataset).map(Dataset::resource_id) else {
             return;
         };
-        self.session.compute.cancel(id, super::ComputeKind::Dosy);
-        self.session.compute.cancel(id, super::ComputeKind::Ilt);
-        if let Some(data) = self
-            .doc
-            .datasets
-            .get_mut(dataset)
-            .and_then(Dataset::as_nmr2d_mut)
-        {
-            data.diffusion_input = input;
-            data.invalidate_dosy_results(
-                "Diffusion analysis input changed and invalidated the selected DOSY map",
-            );
+        match self.diffusion_input_action(id, input) {
+            Ok(action) => self.execute_action(action),
+            Err(error) => self.session.status = error,
         }
-        self.sync_region_table(dataset);
-        self.rebuild_canvases_for(dataset);
     }
 }

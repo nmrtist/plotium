@@ -4446,6 +4446,7 @@ dependencies = [
  "plotium-core",
  "plotium-io",
  "plotium-processing",
+ "serde",
  "serde_json",
  "tempfile",
 ]

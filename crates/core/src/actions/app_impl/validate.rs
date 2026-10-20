@@ -103,16 +103,20 @@ pub(super) fn validate_action(
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
             }
         }
-        Action::SetDiffusionInput { dataset, after, .. } => {
-            let data = app
-                .doc
-                .dataset_index(*dataset)
-                .and_then(|i| app.doc.datasets[i].as_nmr2d())
-                .ok_or_else(|| ActionApplyError::StaleTarget(format!("NMR dataset {dataset}")))?;
-            if let Some(input) = after {
-                input
-                    .b_values(data.data.rows)
-                    .map_err(ActionApplyError::InvalidValue)?;
+        Action::InstallScientificState { before, after } => {
+            if before.is_empty() || before.len() != after.len() {
+                return Err(ActionApplyError::InvalidValue(
+                    "Processing snapshots do not match".into(),
+                ));
+            }
+            let mut ids = std::collections::BTreeSet::new();
+            for (before, after) in before.iter().zip(after) {
+                let id = before.resource_id();
+                if !ids.insert(id) || id != after.resource_id() || !shape.has_dataset(app, id) {
+                    return Err(ActionApplyError::StaleTarget(format!(
+                        "processing dataset {id}"
+                    )));
+                }
             }
         }
         Action::UpdateDatasetProcessing {

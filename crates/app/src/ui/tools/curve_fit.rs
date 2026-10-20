@@ -743,7 +743,11 @@ pub(super) fn run_curve_fit(app: &mut PlotiumApp, di: usize) {
     };
     let global = app.session.ui.fit_global_parameters;
     let options = app.session.ui.fit_options.clone();
-    app.fit_table_columns(di, &model, all, column, global, options);
+    if model == plotium_analysis::models::DIFFUSION_B_ID && !all && !global {
+        app.request_diffusion_curve_fit(di, column, options);
+    } else {
+        app.fit_table_columns(di, &model, all, column, global, options);
+    }
 }
 
 /// Captured b encoding takes priority over acquisition gradient constants;

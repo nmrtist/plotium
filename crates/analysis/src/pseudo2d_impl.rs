@@ -372,6 +372,7 @@ pub fn fit_relaxation(series: &DecaySeries, model: RelaxModel) -> Option<RelaxFi
 /// noise (`d`/`amp` are `NaN`/`0` there).
 #[derive(Debug, Clone)]
 pub struct DiffusionMap {
+    pub diagnostics: Vec<crate::column_diagnostics::ColumnDiagnostic>,
     pub ppm: Vec<f64>,
     pub d: Vec<f64>,
     pub amp: Vec<f64>,
@@ -404,36 +405,76 @@ pub fn diffusion_map_b_cancellable(
     snr_frac: f64,
     cancelled: &impl Fn() -> bool,
 ) -> Option<DiffusionMap> {
+    diffusion_map_b_progress(stack, b_values, snr_frac, cancelled, &|_, _| {})
+}
+/// Reports completed spectral columns without changing numerical decisions.
+pub fn diffusion_map_b_progress(
+    stack: &impl SpectrumStack,
+    b_values: &[f64],
+    snr_frac: f64,
+    cancelled: &impl Fn() -> bool,
+    progress: &impl Fn(usize, usize),
+) -> Option<DiffusionMap> {
     let coordinates = stack.coordinates();
     let traces = stack.traces();
     let cols = coordinates.len();
     let n = stack.increments();
     let mut d = vec![f64::NAN; cols];
     let mut amp = vec![0.0; cols];
+    let mut diagnostics =
+        vec![crate::column_diagnostics::ColumnDiagnostic::rejected("invalid_input", n); cols];
     if crate::diffusion_encoding::validate_b_values(b_values, n).is_err() || cols == 0 {
         return Some(DiffusionMap {
             ppm: coordinates.to_vec(),
             d,
             amp,
+            diagnostics,
         });
     }
     let global_peak = stack.max_magnitude().max(f64::MIN_POSITIVE);
     let threshold = global_peak * snr_frac.clamp(0.0, 1.0);
 
     for c in 0..cols {
+        progress(c, cols);
         if cancelled() {
             return None;
         }
         let y: Vec<f64> = (0..n).map(|i| traces[i][c].norm()).collect();
         let peak = y.iter().cloned().fold(0.0, f64::max);
         if peak < threshold {
+            diagnostics[c] = crate::column_diagnostics::ColumnDiagnostic::rejected("low_signal", n);
             continue;
         }
+        diagnostics[c] =
+            crate::column_diagnostics::ColumnDiagnostic::rejected("degenerate_or_nonpositive_d", n);
         let series = DecaySeries {
             x: b_values[..n].to_vec(),
             y,
         };
         if let Some(fit) = fit_diffusion_b_cancellable(&series, cancelled) {
+            let sse = series
+                .x
+                .iter()
+                .zip(&series.y)
+                .map(|(b, y)| (y - fit.i0 * (-fit.d * b).exp()).powi(2))
+                .sum::<f64>();
+            let accepted = fit.r2 > 0.8 && fit.d.is_finite() && fit.d > 0.;
+            diagnostics[c] = crate::column_diagnostics::ColumnDiagnostic {
+                accepted,
+                reason: (!accepted).then(|| "low_r_squared".into()),
+                effective_points: n,
+                d: Some(fit.d),
+                i0: Some(fit.i0),
+                sigma_d: fit.sigma_d.is_finite().then_some(fit.sigma_d),
+                r_squared: fit.r2.is_finite().then_some(fit.r2),
+                residual_sse: sse.is_finite().then_some(sse),
+                residual_rmse: sse.is_finite().then_some((sse / n as f64).sqrt()),
+                unavailable_reason: (!fit.sigma_d.is_finite()
+                    || !fit.r2.is_finite()
+                    || !sse.is_finite())
+                .then(|| "The estimate is undefined for this numerical fit.".into()),
+                ..Default::default()
+            };
             // Require a sane fit to keep noise from smearing the map.
             if fit.r2 > 0.8 && fit.d.is_finite() && fit.d > 0.0 {
                 d[c] = fit.d;
@@ -441,10 +482,12 @@ pub fn diffusion_map_b_cancellable(
             }
         }
     }
+    progress(cols, cols);
     Some(DiffusionMap {
         ppm: coordinates.to_vec(),
         d,
         amp,
+        diagnostics,
     })
 }
 

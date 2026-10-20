@@ -249,6 +249,12 @@ fn validate_node_parameters(
             )));
         }
     }
+    if descriptor.task_kind == "background" && descriptor.id != "processing.apply_scheme" {
+        return Err(AutomationError::InvalidWorkflow(format!(
+            "node {} uses a background scientific operation; asynchronous DAG scheduling is not supported",
+            node.id
+        )));
+    }
     let bound = node
         .bindings
         .iter()
@@ -344,7 +350,8 @@ pub fn execute_workflow(
         // so a per-node manifest here would record the same work twice.
         let outcome = plan_tool(app, request).and_then(|plan| {
             let frozen = plan.frozen_targets.clone();
-            super::tools::execute_planned_tool(app, plan, authority).map(|result| (frozen, result))
+            super::workflow_processing::execute_node(app, plan, authority, cancellation)
+                .map(|result| (frozen, result))
         });
         match outcome {
             Ok((frozen_targets, result)) => {
@@ -414,6 +421,7 @@ pub fn execute_workflow(
             message: format!("Completed {}", node.id),
         });
     }
+    cancelled |= cancellation.is_cancelled();
     collapse_workflow_actions(app, undo_start);
     let end_revision = DocumentRevision(app.doc.automation_revision);
     let verification = vec![VerificationRecord {

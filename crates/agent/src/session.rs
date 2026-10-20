@@ -7,6 +7,7 @@ mod guides;
 #[cfg(test)]
 mod plan_budget_tests;
 pub(crate) mod save;
+mod science;
 mod state;
 mod table;
 mod transform;
@@ -51,17 +52,19 @@ pub const PROPERTIES: &[PropertyId] = &[
 pub struct Failure {
     pub code: &'static str,
     pub message: String,
+    pub details: Option<Value>,
 }
 impl Failure {
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,
+            details: None,
             message: message.into(),
         }
     }
     pub fn value(&self) -> Value {
         json!({"error": {"code": self.code, "message": self.message,
-            "retryable": self.code == "busy"}})
+            "retryable": self.code == "busy", "details":self.details}})
     }
 }
 impl From<AutomationError> for Failure {
@@ -71,6 +74,11 @@ impl From<AutomationError> for Failure {
 }
 impl From<&AutomationError> for Failure {
     fn from(error: &AutomationError) -> Self {
+        if let AutomationError::DiffusionInput { report } = error {
+            let mut failure = Self::new("invalid_diffusion_input", error.to_string());
+            failure.details = Some(json!({"diffusion_input":report}));
+            return failure;
+        }
         let code = match error {
             AutomationError::StaleRevision { .. } | AutomationError::StaleTableRevision { .. } => {
                 "stale_revision"
@@ -101,6 +109,7 @@ impl From<&AutomationError> for Failure {
 pub struct Session {
     pub allow_modify: bool,
     permission_epoch: u64,
+    scientific_permission: TaskCancellation,
     pub(crate) diagnostic: Option<crate::diagnostics::RetainedScan>,
     context: Option<plotium_core::state::ProjectContextId>,
     plans: HashMap<String, ToolPlan>,
@@ -223,6 +232,12 @@ impl Session {
         blocked: bool,
     ) -> Result<Value, Failure> {
         let changed = self.synchronize_context(app);
+        if matches!(
+            name,
+            "plotium_tasks_get" | "plotium_tasks_list" | "plotium_tasks_cancel"
+        ) {
+            return self.scientific_tasks(app, name, arguments);
+        }
         if name == "plotium_export_status" {
             return self.export_status(app, arguments);
         }
@@ -244,6 +259,29 @@ impl Session {
         };
         if name == "plotium_execute" {
             let args: Execute = decode(arguments)?;
+            if let Some(receipt) = app.session.scientific_tasks.for_plan(&args.plan_id) {
+                return Ok(json!(ToolResult {
+                    tool_id: receipt.operation.clone(),
+                    before_revision: receipt.start_revision,
+                    after_revision: receipt.end_revision.unwrap_or(receipt.start_revision),
+                    targets: vec![],
+                    produced: receipt.produced.clone(),
+                    modified: receipt.modified.clone(),
+                    diagnostics: vec![],
+                    verification: vec![],
+                    value: json!({"task":receipt}),
+                }));
+            }
+            if app
+                .session
+                .scientific_tasks
+                .plan_was_consumed(&args.plan_id)
+            {
+                return Err(Failure::new(
+                    "task_not_found",
+                    "The consumed plan's receipt was evicted. Do not automatically resubmit or recompute.",
+                ));
+            }
             if let Some((context, _)) = args.plan_id.split_once(':')
                 && context != app.session.project_context.to_string()
             {
@@ -256,12 +294,13 @@ impl Session {
                 return self.execute_save(app, &args.plan_id, plan, blocked);
             }
             // Consume even on authorization, busy or revision failure.
-            let plan = self.plans.remove(&args.plan_id).ok_or_else(|| {
+            let mut plan = self.plans.remove(&args.plan_id).ok_or_else(|| {
                 Failure::new(
                     "expired_plan",
                     "Plan expired or was already submitted; preflight again",
                 )
             })?;
+            plan.submitted_plan_id = Some(args.plan_id.clone());
             let prepared = self.imports.remove(&args.plan_id);
             let transform = self.transforms.remove(&args.plan_id);
             if prepared.as_ref().is_some_and(PreparedDataImport::is_native) {
@@ -280,13 +319,20 @@ impl Session {
             } else {
                 ExecutionAuthority::Read
             };
-            return Ok(json!(if let Some(prepared) = transform {
+            let scientific_id = plan.task_id.clone();
+            let result = if let Some(prepared) = transform {
                 execute_prepared_table_operation(app, plan, prepared, authority)?
             } else if let Some(prepared) = prepared {
                 execute_prepared_data_import(app, plan, prepared, authority)?
             } else {
                 execute_tool(app, plan, authority)?
-            }));
+            };
+            if let Some(id) = scientific_id {
+                app.session
+                    .scientific_tasks
+                    .bind_permission(&id, self.scientific_permission.clone());
+            }
+            return Ok(json!(result));
         }
         if name == "plotium_get_state" {
             let _: Empty = decode(arguments)?;
@@ -359,8 +405,27 @@ impl Session {
                 }
             }
         }
+        if matches!(
+            name,
+            "plotium_diffusion_inspect"
+                | "plotium_processing_inspect"
+                | "plotium_analysis_results_inspect"
+        ) {
+            return self.scientific_read(app, name, arguments);
+        }
         if name == "plotium_plan" {
             let args: Plan = decode(arguments)?;
+            if matches!(
+                args.tool_id.as_str(),
+                PROCESSING_EDIT
+                    | DIFFUSION_SET_INPUT
+                    | DOSY_BUILD
+                    | REGIONS_EXTRACT
+                    | DIFFUSION_FIT
+                    | "processing.apply_scheme"
+            ) {
+                return self.scientific_plan(app, args);
+            }
             if args.tool_id == "figure.export" {
                 return self.plan_export(app, args);
             }

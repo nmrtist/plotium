@@ -660,6 +660,7 @@ mod tests {
     fn ilt_figure_runs_marching_squares_on_the_calling_thread() {
         crate::contour_probe::reset();
         let result = IltResult {
+            diagnostics: Vec::new(),
             ppm: vec![0.0, 1.0, 2.0, 3.0],
             d_grid: vec![1.0e-10, 2.0e-10, 4.0e-10, 8.0e-10],
             amp: vec![vec![0.0, 0.5, 1.0, 0.5]; 4],

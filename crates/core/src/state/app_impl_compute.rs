@@ -19,6 +19,9 @@ fn enqueue_error_status(error: EnqueueError) -> String {
         EnqueueError::Busy(ComputeKind::Craft) => {
             "A CRAFT analysis is already running for this dataset.".into()
         }
+        EnqueueError::Busy(ComputeKind::Scientific) => {
+            "A scientific analysis is already running for this dataset.".into()
+        }
         EnqueueError::InvalidDiffusionInput => {
             "Confirm model parameters or provide one valid b value per increment.".into()
         }
@@ -56,39 +59,21 @@ impl PlotiumApp {
     /// Async twin of `build_dosy_map_for`: same validation, but hand the heavy
     /// per-column diffusion fit to the compute worker instead of blocking the UI.
     pub fn request_dosy_map(&mut self, dataset: usize) {
-        let Some(d2) = self.doc.datasets.get(dataset).and_then(Dataset::as_nmr2d) else {
-            self.session.status = "DOSY maps need a diffusion dataset.".into();
+        let Some(id) = self.doc.datasets.get(dataset).map(Dataset::resource_id) else {
             return;
         };
-        if let Some(error) = d2.dosy_input_error() {
-            self.session.status = error.into();
-            return;
-        }
-        let input = match d2.resolve_diffusion_input(None) {
-            Ok(input) => input,
-            Err(error) => {
-                self.session.status = error;
-                return;
-            }
-        };
-        let Processed2D::Stack(stack) = &d2.processed else {
-            return;
-        };
-        let nucleus = d2.data.direct.nucleus.clone();
-        let source = stack.source.clone();
-        let stack = stack.clone();
-        let dataset_id = d2.resource_id;
-        let outcome = self.session.compute.enqueue_dosy(
-            dataset_id,
-            self.session.dataset_epoch,
-            stack,
-            input,
-            nucleus,
-            source,
-        );
-        self.session.status = match outcome {
-            Ok(()) => "Computing DOSY map…".into(),
-            Err(error) => enqueue_error_status(error),
+        self.session.status = match self.start_dosy_task(
+            id,
+            crate::automation::TaskId(uuid::Uuid::new_v4().to_string()),
+            None,
+            None,
+            None,
+        ) {
+            Ok(receipt) if receipt.status == crate::automation::TaskStatus::Failed => receipt
+                .message
+                .unwrap_or_else(|| "Background computation is unavailable.".into()),
+            Ok(_) => "Computing DOSY map…".into(),
+            Err(error) => error,
         };
     }
 
@@ -100,47 +85,21 @@ impl PlotiumApp {
 
     pub fn request_ilt_map_with_params(&mut self, dataset: usize, explicit: Option<IltParams>) {
         let params = self.resolve_ilt_params_for(dataset, explicit);
-        if let Err(message) = crate::state::validate_ilt_params(params) {
-            self.session.status = message;
-            return;
-        }
-        let Some(d2) = self.doc.datasets.get(dataset).and_then(Dataset::as_nmr2d) else {
-            self.session.status = "ILT DOSY maps need a diffusion dataset.".into();
+        let Some(id) = self.doc.datasets.get(dataset).map(Dataset::resource_id) else {
             return;
         };
-        if let Some(error) = d2.dosy_input_error() {
-            self.session.status = error.into();
-            return;
-        }
-        let input = match d2.resolve_diffusion_input(None) {
-            Ok(input) => input,
-            Err(error) => {
-                self.session.status = error;
-                return;
-            }
-        };
-        let Processed2D::Stack(stack) = &d2.processed else {
-            return;
-        };
-        let d_grid = log_grid(params.d_min, params.d_max, params.n_grid);
-        let nucleus = d2.data.direct.nucleus.clone();
-        let source = stack.source.clone();
-        let stack = stack.clone();
-        let dataset_id = d2.resource_id;
-        let outcome = self.session.compute.enqueue_ilt(
-            dataset_id,
-            self.session.dataset_epoch,
-            stack,
-            d_grid,
-            params.lambda,
-            params,
-            input,
-            nucleus,
-            source,
-        );
-        self.session.status = match outcome {
-            Ok(()) => "Computing ILT DOSY map…".into(),
-            Err(error) => enqueue_error_status(error),
+        self.session.status = match self.start_dosy_task(
+            id,
+            crate::automation::TaskId(uuid::Uuid::new_v4().to_string()),
+            None,
+            Some(params),
+            None,
+        ) {
+            Ok(receipt) if receipt.status == crate::automation::TaskStatus::Failed => receipt
+                .message
+                .unwrap_or_else(|| "Background computation is unavailable.".into()),
+            Ok(_) => "Computing ILT DOSY map…".into(),
+            Err(error) => error,
         };
     }
 
@@ -156,6 +115,7 @@ impl PlotiumApp {
             ComputeKind::Dosy => "DOSY computation cancelled.",
             ComputeKind::Processing2D => "2D processing cancelled.",
             ComputeKind::Craft => "CRAFT analysis cancelled.",
+            ComputeKind::Scientific => "Scientific analysis cancelled.",
         }
         .into();
         if kind == ComputeKind::Craft {
@@ -350,7 +310,13 @@ impl PlotiumApp {
     pub fn poll_compute(&mut self) -> bool {
         self.finish_phase_previews();
         for done in self.session.compute.try_drain() {
+            if self.finish_scientific_compute(&done) {
+                continue;
+            }
             match done {
+                Done::AnalysisProgress { .. }
+                | Done::AnalysisStarted { .. }
+                | Done::Scientific { .. } => {}
                 Done::Ilt {
                     generation,
                     dataset,

@@ -679,3 +679,7 @@ mod pseudo_tests;
 #[cfg(test)]
 #[path = "datasets/diffusion_input_tests.rs"]
 mod diffusion_input_tests;
+
+#[cfg(test)]
+#[path = "datasets/scientific_api_tests.rs"]
+mod scientific_api_tests;

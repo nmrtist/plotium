@@ -30,6 +30,11 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
         "name": "Projected",
         "memory_limit_bytes": 16 * 1024 * 1024,
     });
+    let scheme_path = std::env::temp_dir().join(format!(
+        "plotium-planning-{}.plotiumproc",
+        uuid::Uuid::new_v4()
+    ));
+    crate::project::save_scheme(&scheme_path, &app.doc.datasets[0]).unwrap();
     let cases: &[(&str, serde_json::Value, &str)] = &[
         ("project.get_blueprint", serde_json::json!({}), &canvas),
         (
@@ -49,7 +54,7 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
         ),
         (
             "processing.apply_scheme",
-            serde_json::json!({"path": "scheme.plotiumproc"}),
+            serde_json::json!({"path": scheme_path}),
             &dataset,
         ),
         ("data.transform", transform, &dataset),
@@ -66,7 +71,19 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
             .filter(|d| !is_native_curve_tool(&d.id)
                 && !matches!(
                     d.id.as_str(),
-                    "data.import" | FIGURE_EDIT | TABLE_PATCH | TABLE_REFRESH | FIGURE_DIAGNOSE
+                    "data.import"
+                        | FIGURE_EDIT
+                        | TABLE_PATCH
+                        | TABLE_REFRESH
+                        | FIGURE_DIAGNOSE
+                        | DIFFUSION_INSPECT
+                        | DIFFUSION_SET_INPUT
+                        | PROCESSING_INSPECT
+                        | PROCESSING_EDIT
+                        | REGIONS_EXTRACT
+                        | DIFFUSION_FIT
+                        | DOSY_BUILD
+                        | ANALYSIS_RESULTS_INSPECT
                 ))
             .count()
             - 7,
@@ -101,4 +118,5 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
             plan.targets[0].reason
         );
     }
+    std::fs::remove_file(scheme_path).unwrap();
 }

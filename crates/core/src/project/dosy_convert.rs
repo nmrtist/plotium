@@ -143,7 +143,12 @@ pub(super) fn decode_dosy<R: Read>(
             let ppm = reader.read_f64s(shape.len, "DOSY ppm")?;
             let d = reader.read_f64s(shape.len, "DOSY diffusion")?;
             let amp = reader.read_f64s(shape.len, "DOSY amplitude")?;
-            Some(DiffusionMap { ppm, d, amp })
+            Some(DiffusionMap {
+                ppm,
+                d,
+                amp,
+                diagnostics: Vec::new(),
+            })
         }
         None => None,
     };
@@ -163,7 +168,12 @@ pub(super) fn decode_dosy<R: Read>(
                     reader.read_f64s(shape.d_grid_len, &format!("ILT amplitude row {row}"))?;
                 amp.push(values);
             }
-            Some(IltResult { ppm, d_grid, amp })
+            Some(IltResult {
+                ppm,
+                d_grid,
+                amp,
+                diagnostics: Vec::new(),
+            })
         }
         None => None,
     };

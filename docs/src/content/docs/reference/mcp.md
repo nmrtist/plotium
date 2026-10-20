@@ -87,8 +87,7 @@ canvases and canvas objects, and these display properties only:
 | `series.contour.count` | Object + Series | 1–256 |
 | `document.figure.typography.tick_pt / document.figure.typography.label_pt` | document | 1–72 pt |
 
-Processing parameters, preferences, new format parsers, scientific processing, DOSY computation, scientific-result plotting, full task management and built-in chat
-are outside this interface.
+Scientific processing and task interfaces are described below. Preferences, new format parsers, automatic scientific-result plotting and built-in chat are outside this interface.
 
 ## Import native data from the welcome page
 
@@ -140,7 +139,7 @@ Native import allows 16 inputs per batch, one preflight in flight and four retai
 prepared imports, shared with table import. Conservative native frozen-payload
 reservations total at most 512 MiB across retained plans and the active preflight;
 oversized batches fail with `import_budget_exceeded`. Preflight responses are
-limited to 256 KiB. Scientific processing and DOSY execution are not exposed.
+limited to 256 KiB. Scientific processing and DOSY use the separate shared scientific operations.
 CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and limits.
 
 ## Discover structure without relying on names
@@ -1430,7 +1429,7 @@ does not apply is skipped. Inspection returns values, defaults, bounds and
 applicability. To inspect just one curve, use `targets` in the inspection request.
 To reset it, plan `properties.reset` with `{"key":"series.line.stroke_width"}`
 and the same target. Component addressing supports only the listed display
-properties; processing parameters are unavailable. `resource.rename` requires
+properties; processing parameters use the separate `processing.edit` operation. `resource.rename` requires
 `ids`.
 
 Tool responses include structured content and its JSON text representation.
@@ -1623,3 +1622,76 @@ desktop process, not application exit. After response loss query the original
 `export_id`; do not resubmit the export. After restart or `unknown_export`,
 inspect the exact output files first. Reopen the editable project, fetch fresh
 state and targets, then make a new plan only for a newly intended operation.
+
+
+## Scientific operations and tasks
+
+`plotium_processing_inspect`, `plotium_diffusion_inspect` and
+`plotium_analysis_results_inspect` are read-only queries with explicit `ids`,
+`expected_project_context` and `expected_revision`. Result inspection accepts
+`offset` and `limit` (1–100); use smaller pages for large ILT grids. Discovery's
+`scientific_operations` comes from the core descriptors, including parameter
+schemas, capabilities, permissions and execution modes.
+
+Scientific edits use `plotium_plan` / `plotium_execute`:
+
+| Operation | Parameters and target |
+| --- | --- |
+| `processing.edit` | One dataset; `edits` uses `replace`, `enable`, `add`, `remove` or `move`; existing steps use stable StepIds |
+| `processing.apply_scheme` | `path`, optional `compatible_only`; preflight freezes scheme bytes, fingerprint and compatible target configurations |
+| `diffusion.set_input` | One dataset; complete `input`; invalid input errors include a structured validation report |
+| `analysis.regions.extract` | One region-series field; `regions` references RegionIds or explicit bounds and metrics; optional explicit `input` |
+| `analysis.diffusion.fit` | One native table; stable `response_column` ColumnId, optional native `options`; the x column must use `s/m²` |
+| `analysis.dosy.build` | One diffusion source field; `method` is `mono_exp` or `ilt`; optional `input` and ILT `params` |
+
+An explicit region is
+`{"source":"explicit","bounds":[0.8,1.2],"metric":"Height","name":"Signal"}`;
+reference an existing region with `{"source":"existing","id":0}`. Other metrics
+are `Area`, `Mean`, `Max` and `Min`. Extraction creates an independent native table
+with source evidence, region-to-column correspondence and diffusion increment
+bindings. It does not create a plot.
+
+Except for input updates, these edits return `ToolResult.value.task`. Preflight
+allocates `task_id`; `queued` means registered. Query with
+`plotium_tasks_get({task_id})` or `plotium_tasks_list({offset,limit})`; cancel with
+`plotium_tasks_cancel({task_id})` (modify permission required). States are
+`queued / running / committing / succeeded / failed / cancelled / stale`.
+Receipts include the original plan_id, source project, start/end revisions,
+source field versions, phase, completed columns, failure code, resource references
+and terminal summary. Unknown work totals are `null`. Receipt queries remain
+available while busy and after a project switch.
+
+Receipts belong to the application process. Disconnecting does not cancel
+submitted work; reconnect in the same process to query it. All active tasks and
+the most recent 128 terminal receipts are retained; process restart is outside
+this retention contract. `task_not_found` means unknown or evicted and must never
+trigger automatic recomputation. Repeating a consumed scientific plan returns
+its retained receipt. Cancellation is idempotent, prevents writes before commit,
+and returns the existing state after termination.
+
+Frozen inputs run in the existing ComputeService. Before one atomic undoable
+commit, the main thread checks project, document revision, field versions,
+generation, cancellation and caller permission. Any document edit during
+computation makes the task stale. Undo restores configuration, results and linked
+tables; Redo reuses computed results. Background completion does not open or close
+panels. Synchronous workflows retain `processing.apply_scheme` and wait for
+its commit before dependent nodes run; other background scientific operations
+require single-step calls and terminal receipts.
+
+Diffusion inspection distinguishes executable input, missing parameters, evidence
+requiring confirmation and invalid input. Issues carry codes, parameter paths,
+expected units, actual values, evidence and remedies. b values bind IncrementIds
+and use `s/m²`; D uses `m²/s`. Original units and conversion evidence remain
+available. Resolution uses explicit input, target result provenance, then stored
+default/acquisition information. JEOL validation retains full program identity,
+gradient shape, timing and vendor coefficient checks.
+
+Mono-exponential diagnostics include D, I₀, D standard error, effective points,
+R², residuals and rejection reasons. ILT returns its D grid, λ, nonnegative
+solution, reconstruction residuals and solver termination rather than
+mono-exponential confidence estimates. `empty` means no accepted scientific
+result. Unavailable numbers are `null` with a reason. Result inspection pages
+column diagnostics; provenance retains algorithm version, actual parameters and
+input fingerprint.
+
+Successful decay fits return a stable `plotium.analysis` resource in the task's `produced` list. Pass its ID directly to `plotium_analysis_results_inspect` to read that analysis.

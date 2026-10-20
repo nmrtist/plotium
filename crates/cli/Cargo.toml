@@ -21,6 +21,7 @@ nmr.workspace = true
 plotium-core.workspace = true
 plotium-io.workspace = true
 plotium-processing.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

@@ -621,6 +621,7 @@ pub struct Session {
     /// empty untitled project.
     pub project_present: bool,
     pub project_context: super::ProjectContextId,
+    pub scientific_tasks: crate::automation::ScientificTasks,
     pub external_saves: super::ExternalSaves,
     pub external_exports: super::ExternalExports,
     pub active_canvas: Option<usize>,

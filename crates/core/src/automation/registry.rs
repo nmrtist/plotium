@@ -48,6 +48,14 @@ pub(super) fn validate_parameters(
     value: serde_json::Value,
 ) -> Result<(), AutomationError> {
     match tool {
+        REGIONS_EXTRACT => parse::<RegionExtractParams>(tool, value).map(drop),
+        DIFFUSION_FIT => parse::<DiffusionFitParams>(tool, value).map(drop),
+        DOSY_BUILD => parse::<DosyBuildParams>(tool, value).map(drop),
+        ANALYSIS_RESULTS_INSPECT => parse::<AnalysisResultsParams>(tool, value).map(drop),
+        DIFFUSION_INSPECT => parse::<DiffusionInspectParams>(tool, value).map(drop),
+        DIFFUSION_SET_INPUT => parse::<DiffusionSetInputParams>(tool, value).map(drop),
+        PROCESSING_EDIT => parse::<ProcessingEditParams>(tool, value).map(drop),
+        PROCESSING_INSPECT => parse::<EmptyParams>(tool, value).map(drop),
         "project.get_blueprint" | "resources.inspect" | "render.preview" => {
             parse::<EmptyParams>(tool, value).map(drop)
         }
@@ -549,6 +557,10 @@ fn descriptors() -> Vec<ToolDescriptor> {
     ]
     .into_iter()
     .map(make_descriptor)
+    .chain(super::science::descriptors())
+    .chain(super::dosy::descriptors())
+    .chain(super::region_fit::descriptors())
+    .chain(std::iter::once(super::processing_edit::descriptor()))
     .collect()
 }
 
@@ -559,7 +571,11 @@ fn make_descriptor(spec: Spec) -> ToolDescriptor {
         title: spec.title.to_owned(),
         description: spec.description.to_owned(),
         parameter_schema: spec.schema,
-        result_schema: serde_json::json!({"type":"object","additionalProperties":false}),
+        result_schema: if spec.id == "processing.apply_scheme" {
+            super::scientific_schema::task_result()
+        } else {
+            serde_json::json!({"type":"object","additionalProperties":false})
+        },
         target_kinds: spec
             .kinds
             .iter()
@@ -575,7 +591,9 @@ fn make_descriptor(spec: Spec) -> ToolDescriptor {
         effect: spec.effect,
         undoable: spec.effect == EffectLevel::Reversible,
         deterministic: spec.deterministic,
-        task_kind: if spec.effect == EffectLevel::ReadOnly {
+        task_kind: if spec.id == "processing.apply_scheme" {
+            "background"
+        } else if spec.effect == EffectLevel::ReadOnly {
             "synchronous"
         } else {
             "snapshot_then_commit"

@@ -669,56 +669,17 @@ pub(crate) fn commit_scheme_application(
     plan: &SchemeApplicationPlan,
     prepared: PreparedSchemeApplication,
 ) {
-    let PreparedSchemeApplication {
-        action,
-        applied_targets,
-        skipped_targets,
-    } = prepared;
-    app.execute_action(action);
-    let operation_id = app.session.begin_operation();
-    let summary = format!(
-        "Applied processing scheme to {} dataset(s); skipped {}.",
-        applied_targets.len(),
-        skipped_targets.len()
-    );
-    let mut report = if skipped_targets.is_empty() {
-        OperationReport::success(
-            operation_id,
-            OperationKind::ProcessingSchemeLoadAndApply,
-            summary,
-            (),
-        )
-    } else {
-        OperationReport::warning(
-            operation_id,
-            OperationKind::ProcessingSchemeLoadAndApply,
-            summary,
-            (),
-        )
-    };
-    for target in plan.targets() {
-        let (severity, code, message) = match &target.result {
-            SchemeTargetResult::Compatible { .. } => (
-                Severity::Info,
-                DiagnosticCode::ProcessingSchemeApplySucceeded,
-                "Processing scheme applied to selected dataset.",
-            ),
-            SchemeTargetResult::Incompatible { .. } => (
-                Severity::Warning,
-                DiagnosticCode::ProcessingSchemeApplyFailed,
-                "Incompatible selected dataset was skipped.",
-            ),
-        };
-        let mut diagnostic = Diagnostic::new(severity, code, message)
-            .with_source("app.processing_scheme")
-            .with_context("path", path.display().to_string())
-            .with_context("dataset_index", target.dataset.to_string());
-        if let Some(reason) = target.result.incompatibility_reason() {
-            diagnostic = diagnostic.with_context("reason", reason);
-        }
-        report = report.with_diagnostic(diagnostic);
-    }
-    app.session.record_operation(report);
+    let ids = plan
+        .targets()
+        .iter()
+        .filter_map(|target| {
+            app.doc
+                .datasets
+                .get(target.dataset)
+                .map(|d| d.resource_id())
+        })
+        .collect::<Vec<_>>();
+    app.request_processing_scheme(path, &ids, !prepared.skipped_targets.is_empty());
 }
 
 pub(crate) fn save_processing_scheme(app: &mut PlotiumApp, di: usize) {

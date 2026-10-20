@@ -1,3 +1,4 @@
+use super::FrozenProcessingScheme;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -342,6 +343,23 @@ pub struct PlannedTarget {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolPlan {
+    /// Native desktop delivery is never accepted from serialized callers.
+    #[serde(skip)]
+    pub(crate) desktop_region: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<super::TaskId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub submitted_plan_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scientific_input: Option<crate::DiffusionInput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scientific_ilt_params: Option<crate::IltParams>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub processing_edit: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scientific_preparation: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frozen_scheme: Option<FrozenProcessingScheme>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub figure_plan: Option<crate::state::FigureEditPlan>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -511,6 +529,10 @@ pub struct NodeRunRecord {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AutomationError {
+    #[error("diffusion input is not executable; inspect the structured report")]
+    DiffusionInput {
+        report: Box<crate::DiffusionInputReport>,
+    },
     #[error("unknown tool '{0}'")]
     UnknownTool(String),
     #[error("unsupported tool version {version} for {tool_id}")]

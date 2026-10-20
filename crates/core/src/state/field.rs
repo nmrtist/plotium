@@ -188,6 +188,7 @@ impl super::Dataset {
                                     CAP_FIELD_TRACE_COLLECTION,
                                     CAP_FIELD_NMR_STACK,
                                     CAP_FIELD_REGION_SERIES,
+                                    crate::automation::CAP_DIFFUSION_INPUT,
                                 ],
                             ),
                             vec![stack.increments(), stack.ppm.len()],
@@ -206,7 +207,14 @@ impl super::Dataset {
                         id,
                         "nmr.dosy_map",
                         "DOSY map",
-                        capabilities(id, &[CAP_FIELD_BOUNDED, CAP_FIELD_SCALAR_GRID_2D_REGULAR]),
+                        capabilities(
+                            id,
+                            &[
+                                CAP_FIELD_BOUNDED,
+                                CAP_FIELD_SCALAR_GRID_2D_REGULAR,
+                                crate::automation::CAP_DIFFUSION_RESULT,
+                            ],
+                        ),
                         dimensions,
                         vec![
                             "log10(m2/s)".to_owned(),
@@ -224,7 +232,14 @@ impl super::Dataset {
                         id,
                         "nmr.ilt_map",
                         "ILT map",
-                        capabilities(id, &[CAP_FIELD_BOUNDED, CAP_FIELD_SCALAR_GRID_2D_REGULAR]),
+                        capabilities(
+                            id,
+                            &[
+                                CAP_FIELD_BOUNDED,
+                                CAP_FIELD_SCALAR_GRID_2D_REGULAR,
+                                crate::automation::CAP_DIFFUSION_RESULT,
+                            ],
+                        ),
                         dimensions,
                         vec![
                             "log10(m2/s)".to_owned(),
@@ -250,7 +265,20 @@ impl super::Dataset {
                             id,
                             "table.default_series",
                             "Default series",
-                            capabilities(id, &[CAP_FIELD_TABLE]),
+                            capabilities(
+                                id,
+                                if table.curve_fit_analyses.iter().any(|a| {
+                                    a.result.model.id == plotium_analysis::models::DIFFUSION_B_ID
+                                }) {
+                                    &[
+                                        CAP_FIELD_TABLE,
+                                        crate::automation::CAP_DIFFUSION_FIT,
+                                        crate::automation::CAP_DIFFUSION_RESULT,
+                                    ]
+                                } else {
+                                    &[CAP_FIELD_TABLE, crate::automation::CAP_DIFFUSION_FIT]
+                                },
+                            ),
                             vec![row_count],
                             Vec::new(),
                             "line",

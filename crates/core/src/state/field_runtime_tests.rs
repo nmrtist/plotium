@@ -134,7 +134,10 @@ fn settle_estimates(service: &mut ComputeService) {
                 crate::state::Done::EstimateFieldFailed { message, .. } => {
                     panic!("estimate unexpectedly failed: {message}");
                 }
-                crate::state::Done::BuildContour { .. }
+                crate::state::Done::AnalysisProgress { .. }
+                | crate::state::Done::Scientific { .. }
+                | crate::state::Done::AnalysisStarted { .. }
+                | crate::state::Done::BuildContour { .. }
                 | crate::state::Done::BuildContourFailed { .. }
                 | crate::state::Done::Ilt { .. }
                 | crate::state::Done::Dosy { .. }

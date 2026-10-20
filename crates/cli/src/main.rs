@@ -11,6 +11,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 mod craft;
+mod tool;
 
 const HELP: &str = r#"plotium-cli - headless Plotium workflows
 
@@ -18,6 +19,9 @@ USAGE:
   plotium-cli inspect <input> [--json] [--sampling-declaration <file.json>]
   plotium-cli craft <input> --output <result.json> [--region <start:end>]... [--expected-ratio <value>]...
   plotium-cli process <input> --scheme <file> --output <path> [--format svg|pdf|png|tiff|jpeg] [--sampling-declaration <file.json>]
+  plotium-cli tool list
+  plotium-cli tool describe <tool_id>
+  plotium-cli tool run <input> --request <operation.json> [--output <project.plotium>]
   plotium-cli batch --workflow <workflow.json> --manifest <manifest.json>
 
 COMMANDS:
@@ -25,6 +29,7 @@ COMMANDS:
   craft     Analyze one FID or every immediate child acquisition in a directory.
   process   Load one dataset, apply one .plotiumproc scheme, create a default
             canvas, and export it. If --format is omitted, infer it from output.
+  tool      Discover or run one shared semantic operation and return JSON.
   batch     Execute a tool-based v1 DAG and atomically write its run manifest.
 
 OUTPUT:
@@ -60,6 +65,7 @@ enum Status {
 
 #[derive(Clone, Debug, PartialEq)]
 enum Command {
+    Tool(tool::ToolCommand),
     Inspect {
         input: PathBuf,
         json: bool,
@@ -209,6 +215,7 @@ where
         Some("craft") => parse_craft(args),
         Some("process") => parse_process(args),
         Some("batch") => parse_batch(args),
+        Some("tool") => tool::parse(args),
         Some(value) => Err(ParseError::new(format!("unknown command: {value}"))),
         None => Err(ParseError::new("command is not valid Unicode")),
     }
@@ -428,6 +435,7 @@ fn main() -> std::process::ExitCode {
 
 fn run(command: Command) -> Status {
     match command {
+        Command::Tool(command) => tool::run(command),
         Command::Inspect {
             input,
             json,
@@ -587,7 +595,8 @@ fn fail_automation(error: AutomationError) -> Status {
     eprintln!("plotium-cli: {error}");
     match error {
         AutomationError::Io { .. } => Status::Input,
-        AutomationError::InvalidWorkflow(_)
+        AutomationError::DiffusionInput { .. }
+        | AutomationError::InvalidWorkflow(_)
         | AutomationError::UnknownTool(_)
         | AutomationError::ToolVersion { .. }
         | AutomationError::InvalidParameters { .. }

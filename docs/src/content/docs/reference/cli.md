@@ -182,8 +182,8 @@ plain and editable. A minimal import → process → export workflow:
     {
       "id": "process",
       "tool_id": "processing.apply_scheme",
-      "parameters": { "path": "routine.plotiumproc", "compatible_only": true },
-      "targets": { "kind": "node_output", "node": "import", "port": "resources" },
+      "parameters": {"path": "routine.plotiumproc", "compatible_only": true},
+      "targets": {"kind": "node_output", "node": "import", "port": "resources"},
       "dependencies": ["import"]
     },
     {
@@ -204,3 +204,36 @@ a query, the files declared under `inputs`, or the outputs of an earlier node.
 A `data.transform` node reshapes a data table with the same operations as the
 sheet's column and **Combine** menus; set `plan` to the transform to apply,
 `name` to the output table's name, and target the tables to transform.
+
+
+## Single-step scientific operations
+
+```sh
+plotium-cli tool list
+plotium-cli tool describe analysis.dosy.build
+plotium-cli tool run data.jdf --request operation.json --output result.plotium
+```
+
+Example `operation.json`:
+
+```json
+{"tool_id":"analysis.dosy.build","field_key":"nmr.stack","parameters":{"method":"mono_exp"}}
+```
+
+The source must expose the required field capability. Native-input `field_key`
+resolves only while loading; project inputs require explicit stable `targets`.
+Dataset operations may omit the target for a single native input. `tool run`
+uses shared preflight, computation and commit, waits for a terminal receipt,
+writes JSON to stdout and progress to stderr. Failed terminal states return a
+nonzero exit code. Optional `--output` saves the native project. `process` also
+uses the shared scheme service before exporting its default plot.
+
+Supported operations include `processing.inspect`, `processing.edit`,
+`processing.apply_scheme`, `diffusion.inspect`, `diffusion.set_input`,
+`analysis.regions.extract`, `analysis.diffusion.fit`, `analysis.dosy.build` and
+`analysis.results.inspect`. Use `tool describe` for parameter and result schemas.
+Region extraction creates a native table only. Synchronous DAGs retain
+`processing.apply_scheme` and wait for its atomic commit before dependent nodes
+run. Other background scientific operations require separate single-step calls
+and a terminal receipt.
+Asynchronous DAG scheduling is not yet available.
