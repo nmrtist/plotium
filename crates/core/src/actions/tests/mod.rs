@@ -19,6 +19,7 @@ mod scheme_apply;
 mod stable_identity;
 mod stack;
 mod symmetry;
+mod themes;
 mod tiling;
 mod xrd;
 use num_complex::Complex64;

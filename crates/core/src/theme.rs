@@ -1,11 +1,12 @@
 //! Document-level style themes: a named bundle of background, text colour, base
-//! font size and a trace palette, applied to a canvas in one undoable step.
+//! font size, axis furniture and a trace palette, applied to a canvas in one
+//! undoable step.
 
 use crate::actions::Action;
 use crate::state::{
     ObjectId, ObjectStyle, PlotiumApp, ShapeKind, ShapeObject, StyleLibrary, TextBox,
 };
-use plotium_figure::{Color, FigureTypography};
+use plotium_figure::{Color, FigureTypography, TickDirection};
 
 /// A named bundle of document-level style defaults. `trace_palette[0]` is the
 /// primary trace colour; further entries colour overlaid series in order.
@@ -16,15 +17,23 @@ pub struct Theme {
     pub background: Color,
     pub text_color: Color,
     pub base_font_pt: f32,
-    /// Axis-furniture text sizes for every plot in the document.
+    /// Axis-furniture text sizes and strokes for every plot in the document.
     pub figure_typography: FigureTypography,
     pub trace_palette: Vec<Color>,
+    /// Width of every line series; none keeps each series' own width.
+    pub line_width_pt: Option<f32>,
+    /// Marker diameter for every curve that draws markers; none keeps each
+    /// series' own size.
+    pub marker_size_pt: Option<f32>,
+    /// Remove marker outlines so markers are solid in their fill colour.
+    pub clear_marker_edges: bool,
 }
 
 impl Theme {
     pub fn all() -> Vec<Theme> {
         vec![
             Self::publication(),
+            Self::nature(),
             Self::presentation_dark(),
             Self::vibrant(),
         ]
@@ -89,6 +98,49 @@ impl Theme {
                 Color::rgb(0x42, 0x94, 0x9e),
                 Color::rgb(0x4d, 0x4d, 0x4d),
             ],
+            line_width_pt: None,
+            marker_size_pt: None,
+            clear_marker_edges: false,
+        }
+    }
+
+    /// Nature Portfolio final-artwork guidelines: 7 pt text (inside
+    /// the 5–7 pt range and at the export precheck's 7 pt floor), thin 0.6 pt
+    /// axes with outward 3 pt ticks, 0.75 pt line series, 3 pt markers without
+    /// an outline, and the colour-blind-safe Okabe–Ito palette.
+    fn nature() -> Theme {
+        let black = Color::rgb(0, 0, 0);
+        Theme {
+            id: "nature",
+            name: "Nature",
+            background: Color::rgb(255, 255, 255),
+            text_color: black,
+            base_font_pt: 7.0,
+            figure_typography: FigureTypography {
+                tick_pt: 7.0,
+                label_pt: 7.0,
+                title_pt: 7.0,
+                legend_pt: 7.0,
+                legend_color: black,
+                axis_line_pt: 0.6,
+                tick_length_pt: 3.0,
+                tick_direction: TickDirection::Out,
+            },
+            // Okabe–Ito, yellow last because it has the weakest contrast on
+            // white.
+            trace_palette: vec![
+                black,
+                Color::rgb(0x00, 0x72, 0xb2),
+                Color::rgb(0xd5, 0x5e, 0x00),
+                Color::rgb(0x00, 0x9e, 0x73),
+                Color::rgb(0xe6, 0x9f, 0x00),
+                Color::rgb(0x56, 0xb4, 0xe9),
+                Color::rgb(0xcc, 0x79, 0xa7),
+                Color::rgb(0xf0, 0xe4, 0x42),
+            ],
+            line_width_pt: Some(0.75),
+            marker_size_pt: Some(3.0),
+            clear_marker_edges: true,
         }
     }
 
@@ -117,6 +169,9 @@ impl Theme {
                 Color::rgb(0xff, 0x6b, 0x9d),
                 Color::rgb(0xff, 0xd1, 0x66),
             ],
+            line_width_pt: None,
+            marker_size_pt: None,
+            clear_marker_edges: false,
         }
     }
 
@@ -142,6 +197,9 @@ impl Theme {
                 Color::rgb(0x7b, 0x2f, 0xf2),
                 Color::rgb(0x00, 0xb8, 0x74),
             ],
+            line_width_pt: None,
+            marker_size_pt: None,
+            clear_marker_edges: false,
         }
     }
 }
@@ -195,6 +253,25 @@ impl PlotiumApp {
                 match encoding {
                     plotium_figure::SeriesEncoding::Line(line) => {
                         line.color = plotium_figure::ColorSource::Explicit(theme.trace_color(i));
+                        // Sizing a curve without markers would only surprise
+                        // the user when they later turn markers on.
+                        if line.appearance.marker(line.kind) != plotium_figure::Marker::None
+                            && let Some(size) = theme
+                                .marker_size_pt
+                                .and_then(plotium_figure::PositiveFiniteF32::new)
+                        {
+                            line.appearance.marker_size = Some(size);
+                        }
+                        if theme.clear_marker_edges {
+                            line.appearance.marker_edge_width = None;
+                        }
+                        if line.kind == plotium_figure::SeriesKind::Line
+                            && let Some(width) = theme
+                                .line_width_pt
+                                .and_then(plotium_figure::PositiveFiniteF32::new)
+                        {
+                            line.width = width;
+                        }
                     }
                     plotium_figure::SeriesEncoding::Contour(contour) => {
                         contour.style.positive_color =
