@@ -11,6 +11,13 @@ pub const MIDDLE_TO_BASELINE: f32 = 0.35;
 /// Distance from a line's top down to its baseline, in ems.
 pub const TOP_TO_BASELINE: f32 = 0.75;
 
+/// SVG font stack. Nature-portfolio journals ask for Arial or Helvetica; a
+/// bare `sans-serif` lets vector editors substitute their own default.
+pub const SVG_FONT_FAMILY: &str = "Arial, Helvetica, sans-serif";
+/// egui family the app registers with Arial (or Helvetica) first, so figure
+/// text on the canvas matches the exported typeface.
+pub const FIGURE_FONT_FAMILY: &str = "plotium-figure";
+
 /// Script size relative to the surrounding text.
 pub const SCRIPT_SCALE: f32 = 0.7;
 /// Baseline offsets in ems of the surrounding text.
@@ -228,6 +235,7 @@ pub(crate) fn galley(
     font: egui::FontId,
     color: egui::Color32,
 ) -> std::sync::Arc<egui::Galley> {
+    let font = figure_font(painter, font);
     if !has_scripts(text) {
         return painter.layout_no_wrap(text.to_owned(), font, color);
     }
@@ -245,6 +253,21 @@ pub(crate) fn galley(
         job.append(&run.text, 0.0, format);
     }
     painter.layout_job(job)
+}
+
+/// Swap the default proportional family for the figure family when the host
+/// registered one; headless and test contexts keep the egui default.
+#[cfg(feature = "screen")]
+fn figure_font(painter: &egui::Painter, font: egui::FontId) -> egui::FontId {
+    if font.family != egui::FontFamily::Proportional {
+        return font;
+    }
+    let family = egui::FontFamily::Name(FIGURE_FONT_FAMILY.into());
+    if painter.fonts(|fonts| fonts.definitions().families.contains_key(&family)) {
+        egui::FontId::new(font.size, family)
+    } else {
+        font
+    }
 }
 
 /// Like `Painter::text`, with super- and subscripts.

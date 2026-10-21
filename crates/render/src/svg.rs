@@ -23,7 +23,8 @@ pub fn export(fig: &Figure) -> String {
     let mut s = String::new();
     let _ = write!(
         s,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="sans-serif">"#
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{font_family}">"#,
+        font_family = crate::rich_text::SVG_FONT_FAMILY,
     );
     write_figure(&mut s, fig, outer, "plot", None);
     let _ = write!(s, "</svg>");

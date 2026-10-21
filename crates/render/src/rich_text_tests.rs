@@ -55,3 +55,44 @@ fn script_characters_count_at_their_reduced_width() {
     assert_eq!(width_in_chars("sample_1"), 8.0);
     assert!((width_in_chars("cm^{-2}") - (2.0 + 2.0 * SCRIPT_SCALE)).abs() < 1e-6);
 }
+
+#[test]
+fn svg_root_names_the_figure_typeface() {
+    let fig = plotium_figure::Figure::new(
+        "",
+        plotium_figure::Axis::new("x", 0.0, 1.0),
+        plotium_figure::Axis::new("y", 0.0, 1.0),
+    );
+    let svg = crate::svg::export(&fig);
+    assert!(svg.contains(&format!(r#"font-family="{SVG_FONT_FAMILY}""#)));
+}
+
+#[cfg(feature = "screen")]
+#[test]
+fn figure_font_uses_the_registered_family_for_proportional_text() {
+    let figure = egui::FontFamily::Name(FIGURE_FONT_FAMILY.into());
+    let fonts_for = |register: bool| {
+        let ctx = egui::Context::default();
+        if register {
+            let mut defs = egui::FontDefinitions::default();
+            let stack = defs.families[&egui::FontFamily::Proportional].clone();
+            defs.families.insert(figure.clone(), stack);
+            ctx.set_fonts(defs);
+        }
+        let mut seen = Vec::new();
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let painter = ui.painter();
+            seen.push(figure_font(painter, egui::FontId::proportional(7.0)).family);
+            seen.push(figure_font(painter, egui::FontId::monospace(7.0)).family);
+        });
+        seen
+    };
+    assert_eq!(
+        fonts_for(true),
+        [figure.clone(), egui::FontFamily::Monospace]
+    );
+    assert_eq!(
+        fonts_for(false),
+        [egui::FontFamily::Proportional, egui::FontFamily::Monospace]
+    );
+}

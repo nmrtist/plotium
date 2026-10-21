@@ -51,11 +51,12 @@ fn export_document_with_page(
     let mut s = String::new();
     let _ = write!(
         s,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{physical_width}pt" height="{physical_height}pt" viewBox="{x} {y} {vw} {vh}" font-family="sans-serif">"#,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{physical_width}pt" height="{physical_height}pt" viewBox="{x} {y} {vw} {vh}" font-family="{font_family}">"#,
         x = page.left,
         y = page.top,
         vw = page.width,
         vh = page.height,
+        font_family = crate::rich_text::SVG_FONT_FAMILY,
     );
     if include_page_background {
         let _ = write!(

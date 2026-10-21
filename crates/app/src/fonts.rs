@@ -9,6 +9,7 @@ const SYSTEM_UI_REGULAR_KEY: &str = "plotium-system-ui-regular";
 const SYSTEM_UI_SEMIBOLD_KEY: &str = "plotium-system-ui-semibold";
 const SYSTEM_CJK_REGULAR_KEY: &str = "plotium-system-cjk-regular";
 const SYSTEM_CJK_SEMIBOLD_KEY: &str = "plotium-system-cjk-semibold";
+const FIGURE_KEY: &str = "plotium-figure-regular";
 
 #[derive(Clone)]
 struct LoadedFont {
@@ -22,6 +23,8 @@ struct PlatformFonts {
     system_ui_semibold: Option<LoadedFont>,
     system_cjk_regular: Option<LoadedFont>,
     system_cjk_semibold: Option<LoadedFont>,
+    /// Arial or Helvetica, so figures on the canvas match their exports.
+    figure: Option<LoadedFont>,
 }
 
 pub(crate) fn definitions() -> FontDefinitions {
@@ -43,11 +46,36 @@ fn build_definitions(platform: PlatformFonts) -> FontDefinitions {
     if let Some(font) = platform.system_ui_semibold.clone() {
         insert_font(&mut fonts, SYSTEM_UI_SEMIBOLD_KEY, font);
     }
+    if let Some(font) = platform.figure.clone() {
+        insert_font(&mut fonts, FIGURE_KEY, font);
+    }
 
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
     prioritize_proportional(&mut fonts, &platform);
     build_emphasized_family(&mut fonts, &platform);
+    build_figure_family(&mut fonts, &platform);
     fonts
+}
+
+/// Figure text uses the export typeface first and the UI stack for glyphs it
+/// lacks, such as CJK.
+fn build_figure_family(fonts: &mut FontDefinitions, platform: &PlatformFonts) {
+    let mut family = Vec::new();
+    if platform.figure.is_some() {
+        family.push(FIGURE_KEY.to_owned());
+    }
+    family.extend(
+        fonts
+            .families
+            .get(&FontFamily::Proportional)
+            .expect("egui default fonts include a proportional family")
+            .iter()
+            .cloned(),
+    );
+    fonts.families.insert(
+        FontFamily::Name(plotium_render::rich_text::FIGURE_FONT_FAMILY.into()),
+        family,
+    );
 }
 
 fn insert_font(fonts: &mut FontDefinitions, key: &str, font: LoadedFont) {
@@ -133,6 +161,16 @@ fn load_platform_fonts() -> PlatformFonts {
             "the system CJK semibold font",
             &cjk_families,
             Weight::SEMIBOLD,
+        ),
+        figure: load(
+            &db,
+            "Arial or Helvetica for figure text",
+            &[
+                Family::Name("Arial"),
+                Family::Name("Helvetica"),
+                Family::Name("Liberation Sans"),
+            ],
+            Weight::NORMAL,
         ),
     }
 }
@@ -220,6 +258,7 @@ mod tests {
             system_ui_semibold: Some(fake_font(2)),
             system_cjk_regular: Some(fake_font(3)),
             system_cjk_semibold: Some(fake_font(4)),
+            figure: Some(fake_font(5)),
         });
 
         assert_eq!(
@@ -235,6 +274,11 @@ mod tests {
         assert_eq!(fonts.font_data[SYSTEM_UI_SEMIBOLD_KEY].index, 2);
         assert_eq!(fonts.font_data[SYSTEM_CJK_REGULAR_KEY].index, 3);
         assert_eq!(fonts.font_data[SYSTEM_CJK_SEMIBOLD_KEY].index, 4);
+        let figure = FontFamily::Name(plotium_render::rich_text::FIGURE_FONT_FAMILY.into());
+        assert_eq!(
+            &fonts.families[&figure][..2],
+            [FIGURE_KEY, SYSTEM_UI_REGULAR_KEY]
+        );
     }
 
     #[test]
@@ -244,6 +288,7 @@ mod tests {
             system_ui_semibold: None,
             system_cjk_regular: None,
             system_cjk_semibold: None,
+            figure: None,
         });
         let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
         assert_eq!(fonts.families[&emphasized][0], SYSTEM_UI_REGULAR_KEY);
@@ -273,6 +318,7 @@ mod tests {
             system_ui_semibold: None,
             system_cjk_regular: Some(fake_font(3)),
             system_cjk_semibold: None,
+            figure: None,
         });
         let proportional = &fonts.families[&FontFamily::Proportional];
         let phosphor = proportional
