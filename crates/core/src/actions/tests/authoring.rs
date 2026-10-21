@@ -155,6 +155,7 @@ fn set_figure_typography_restamps_plots_and_is_undoable() {
         axis_line_pt: 0.5,
         tick_length_pt: 2.0,
         tick_direction: plotium_figure::TickDirection::In,
+        minor_ticks: 1,
     };
 
     app.execute_action(Action::set_figure_typography(before, after));

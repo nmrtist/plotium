@@ -6,8 +6,8 @@ use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OUTER_PAD, OverlayAlign,
     OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head,
     axis_layout, color_scale_rect, error_bar_segments, heatmap_cells, integral, legend_entries,
-    legend_entry_origin, legend_layout, legend_rect, polygon_outline, projection_points,
-    range_label_layout, renders_legend,
+    legend_entry_origin, legend_layout, legend_rect, minor_tick_values, polygon_outline,
+    projection_points, range_label_layout, renders_legend,
 };
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure, SeriesKind};
 use std::collections::HashMap;
@@ -346,6 +346,17 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect) {
         AxisFrame::Hidden => {}
     }
 
+    let minor = ty.minor_tick_reach();
+    for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
+        let (px, _) = proj.project([xt, fig.y.min]);
+        let end = (px, plot.bottom() + minor);
+        dc.line((px, plot.bottom()), end, Color::AXIS, ty.axis_line_pt);
+    }
+    for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
+        let (_, py) = proj.project([fig.x.min, yt]);
+        let start = (y_axis_x - minor, py);
+        dc.line(start, (y_axis_x, py), Color::AXIS, ty.axis_line_pt);
+    }
     for (&xt, label) in x_ticks.values.iter().zip(&x_ticks.labels) {
         let (px, _) = proj.project([xt, fig.y.min]);
         dc.line(

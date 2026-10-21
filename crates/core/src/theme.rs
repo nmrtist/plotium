@@ -125,6 +125,7 @@ impl Theme {
                 axis_line_pt: 0.6,
                 tick_length_pt: 3.0,
                 tick_direction: TickDirection::Out,
+                minor_ticks: 0,
             },
             // Okabe–Ito, yellow last because it has the weakest contrast on
             // white.

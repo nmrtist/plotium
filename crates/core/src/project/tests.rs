@@ -286,6 +286,7 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
         axis_line_pt: 0.6,
         tick_length_pt: 2.25,
         tick_direction: plotium_figure::TickDirection::In,
+        minor_ticks: 4,
     };
     app.set_figure_typography_value(custom_typography);
     let path = temp_project("roundtrip");

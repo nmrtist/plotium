@@ -374,6 +374,29 @@ pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
     }
 }
 
+/// Minor tick positions: `count` evenly spaced values in every major interval,
+/// including the partial intervals before the first and after the last major
+/// tick. Categorical axes and axes with fewer than two major ticks have none.
+pub fn minor_tick_values(axis: &Axis, ticks: &AxisTicks, count: u8) -> Vec<f64> {
+    let (Some(&first), Some(&second)) = (ticks.values.first(), ticks.values.get(1)) else {
+        return Vec::new();
+    };
+    let step = second - first;
+    if count == 0 || axis.categories.is_some() || !step.is_finite() || step == 0.0 {
+        return Vec::new();
+    }
+    let (lo, hi) = (axis.min.min(axis.max), axis.min.max(axis.max));
+    let eps = step.abs() * 1e-9;
+    let sub = step / (f64::from(count) + 1.0);
+    (-1..ticks.values.len() as i64)
+        .flat_map(|interval| {
+            let start = first + interval as f64 * step;
+            (1..=count).map(move |k| start + f64::from(k) * sub)
+        })
+        .filter(|value| *value >= lo - eps && *value <= hi + eps)
+        .collect()
+}
+
 fn visible_categories(axis: &Axis) -> impl Iterator<Item = (f64, &str)> {
     let (lo, hi) = (axis.min.min(axis.max), axis.min.max(axis.max));
     axis.categories

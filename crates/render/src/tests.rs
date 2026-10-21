@@ -598,3 +598,56 @@ fn truncated_range_labels_never_leave_broken_script_markup() {
     assert!(label.text.ends_with('…'));
     assert!(!label.text.contains('^') && !label.text.contains('{'));
 }
+
+#[test]
+fn minor_ticks_split_every_major_interval_and_stay_inside_the_axis() {
+    let axis = Axis::new("x", -0.3, 2.1);
+    let majors = axis_ticks(axis.min, axis.max, 3);
+    assert_eq!(majors.values, vec![0.0, 1.0, 2.0]);
+    let minors = minor_tick_values(&axis, &majors, 1);
+    assert_eq!(minors.len(), 2, "only the in-range half steps: {minors:?}");
+    assert!((minors[0] - 0.5).abs() < 1e-9 && (minors[1] - 1.5).abs() < 1e-9);
+    assert_eq!(minor_tick_values(&axis, &majors, 4).len(), 9);
+    assert!(minor_tick_values(&axis, &majors, 0).is_empty());
+
+    // A negative display scale lists majors in descending coordinate order.
+    let mut shown = Axis::new("x", 0.0, 2.0).reversed(true);
+    shown.display = Some(plotium_figure::AxisDisplay {
+        scale: -1.0,
+        offset: 0.0,
+        unit: String::new(),
+    });
+    let majors = axis_ticks_for(&shown, 3);
+    let mut minors = minor_tick_values(&shown, &majors, 1);
+    minors.sort_by(f64::total_cmp);
+    let expected = [0.25, 0.75, 1.25, 1.75];
+    assert_eq!(minors.len(), expected.len(), "{minors:?}");
+    assert!(
+        minors
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| (a - b).abs() < 1e-9)
+    );
+
+    let categories = Axis::categorical("c", vec!["a".into(), "b".into(), "c".into()]);
+    let ticks = axis_ticks_for(&categories, 3);
+    assert!(minor_tick_values(&categories, &ticks, 1).is_empty());
+}
+
+#[test]
+fn minor_ticks_are_half_length_and_follow_the_tick_direction() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
+    let plain = svg::export(&fig);
+    let plain_margins = Margins::for_figure(&fig);
+    fig.typography.minor_ticks = 1;
+    let out = svg::export(&fig);
+    assert!(!plain.contains("v1.5") && out.contains("v1.5"));
+    let x_minors = minor_tick_values(&fig.x, &axis_layout(&fig, fig.width, fig.height).x_ticks, 1);
+    assert_eq!(out.matches("v1.5").count(), x_minors.len());
+    assert!(out.contains("h1.5"));
+    assert_eq!(Margins::for_figure(&fig), plain_margins);
+
+    fig.typography.tick_direction = TickDirection::In;
+    let inward = svg::export(&fig);
+    assert!(inward.contains("v-1.5"));
+}

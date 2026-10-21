@@ -3,7 +3,7 @@ use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, DocumentViewport, OUTER_PAD,
     OverlayAlign, OverlayKind, OverlayShape, OverlayShapeKind, OverlayText, Projector, Rect,
     TICK_LABEL_PAD, arrow_head, axis_layout, error_bar_segments, heatmap_cells, integral,
-    polygon_outline, projection_points,
+    minor_tick_values, polygon_outline, projection_points,
     screen_contours::paint_contours,
     screen_lod::{line_columns, screen_line_points},
 };
@@ -162,6 +162,19 @@ fn paint_with_detail_and_stats_impl(
         AxisFrame::Hidden => {}
     }
 
+    let minor = ty.minor_tick_reach() * scale;
+    for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
+        let (px, _) = proj.project([xt, fig.y.min]);
+        let ends = [to_pos(px, plot.bottom()), to_pos(px, plot.bottom() + minor)];
+        painter.line_segment(ends, axis_stroke);
+    }
+    for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
+        let (_, py) = proj.project([fig.x.min, yt]);
+        painter.line_segment(
+            [to_pos(y_axis_x - minor, py), to_pos(y_axis_x, py)],
+            axis_stroke,
+        );
+    }
     for (&xt, label) in x_ticks.values.iter().zip(&x_ticks.labels) {
         let (px, _) = proj.project([xt, fig.y.min]);
         painter.line_segment(
