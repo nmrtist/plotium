@@ -562,19 +562,8 @@ fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect) {
     let Some(box_geometry) = legend_rect(fig, plot, 1.0) else {
         return;
     };
-    let (bx, by, box_w, box_h) = (
-        box_geometry.left,
-        box_geometry.top,
-        box_geometry.width,
-        box_geometry.height,
-    );
-    let box_fill = blend(Color::rgb(255, 255, 255), 0.85, fig.background);
-    dc.round_rect(
-        Rect::new(bx, by, box_w, box_h),
-        3.0,
-        Some(box_fill),
-        Some((Color::AXIS, 0.75)),
-    );
+    // Legends draw neither a frame nor a backing.
+    let (bx, by) = (box_geometry.left, box_geometry.top);
     if !fig.guide_title.trim().is_empty() {
         dc.text(
             &fig.guide_title,

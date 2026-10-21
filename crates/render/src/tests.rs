@@ -544,3 +544,19 @@ fn heatmap_cells_project_every_finite_cell() {
     assert_eq!(cells.len(), 3, "NaN cell must be skipped");
     assert!(cells.iter().all(|(r, _)| r.width > 0.0 && r.height > 0.0));
 }
+
+#[test]
+fn legends_draw_no_frame_or_backing() {
+    let mut figure = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0))
+        .with_series(Series::line("A", vec![[0.0, 0.0], [1.0, 1.0]]))
+        .with_series(Series::line("B", vec![[0.0, 1.0], [1.0, 0.0]]));
+    let with_legend = svg::export(&figure);
+    assert!(with_legend.contains(">A</text>"));
+    figure.guide_visibility = plotium_figure::GuideVisibility::Hide;
+    let without_legend = svg::export(&figure);
+    assert_eq!(
+        with_legend.matches("<rect").count(),
+        without_legend.matches("<rect").count(),
+        "the legend adds entries only, never a box"
+    );
+}

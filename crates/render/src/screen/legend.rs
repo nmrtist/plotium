@@ -3,8 +3,8 @@ use crate::{
     LegendMark, Rect, legend_entries, legend_entry_origin, legend_layout, legend_rect,
     renders_legend,
 };
-use egui::{Align2, Color32, FontId, Pos2, Stroke, StrokeKind, Vec2};
-use plotium_figure::{Color, Figure};
+use egui::{Align2, FontId, Pos2, Stroke, Vec2};
+use plotium_figure::Figure;
 
 pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f32) {
     let entries = legend_entries(fig);
@@ -17,18 +17,8 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
     let Some(box_geometry) = legend_rect(fig, plot, scale) else {
         return;
     };
+    // Legends draw neither a frame nor a backing.
     let (bx, by) = (box_geometry.left, box_geometry.top);
-    let box_rect = egui::Rect::from_min_size(
-        Pos2::new(bx, by),
-        Vec2::new(box_geometry.width, box_geometry.height),
-    );
-    painter.rect_filled(box_rect, 3.0 * scale, Color32::from_white_alpha(217));
-    painter.rect_stroke(
-        box_rect,
-        3.0 * scale,
-        Stroke::new(0.75 * scale, col(Color::AXIS)),
-        StrokeKind::Inside,
-    );
     let font_id = FontId::proportional(font);
     if !fig.guide_title.trim().is_empty() {
         painter.text(
