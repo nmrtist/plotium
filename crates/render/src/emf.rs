@@ -603,8 +603,7 @@ fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect) {
                     (lx + sw * 0.5, ly),
                     appearance.marker(*kind),
                     appearance.marker_radius(*width),
-                    *color,
-                    *width,
+                    &crate::curve_style::MarkerPaint::new(*appearance, *color, *width),
                 );
             }
             LegendMark::Line => dc.line((lx, ly), (lx + sw, ly), *color, 2.0),

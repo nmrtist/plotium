@@ -28,8 +28,8 @@ pub use types::*;
 use plotium_core::properties::definition;
 use plotium_core::properties::{
     PropertyId, Tier, apodization, app_preferences, axis, baseline, bin, canvas, contour,
-    export_dpi, group_delay, guide, heatmap, ilt, line, normalize, object, phase, reference,
-    smooth, step_enabled, typography, zero_fill,
+    export_dpi, group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase,
+    reference, smooth, step_enabled, typography, zero_fill,
 };
 #[cfg(test)]
 use plotium_core::state::SettingsCategory;
@@ -37,29 +37,20 @@ use plotium_core::state::WorkflowTab;
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(guide::POSITION, "Origin", GUIDE_HOME),
+    object_entry(line_display::COLOR, "Color", LINE_HOME),
+    object_entry(line_display::LABEL, "Legend label", LINE_HOME),
+    object_entry(line_display::STYLE, "Line style", LINE_HOME),
+    object_entry(line_display::MARKER, "Marker", LINE_HOME),
+    object_entry(line_display::MARKER_SIZE, "Marker diameter", LINE_HOME),
+    object_entry(line_display::MARKER_FILL, "Marker fill", LINE_HOME),
     object_entry(
-        plotium_core::properties::line_display::COLOR,
-        "Color",
+        line_display::MARKER_EDGE_COLOR,
+        "Marker edge color",
         LINE_HOME,
     ),
     object_entry(
-        plotium_core::properties::line_display::LABEL,
-        "Legend label",
-        LINE_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::line_display::STYLE,
-        "Line style",
-        LINE_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::line_display::MARKER,
-        "Marker",
-        LINE_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::line_display::MARKER_SIZE,
-        "Marker diameter",
+        line_display::MARKER_EDGE_WIDTH,
+        "Marker edge width",
         LINE_HOME,
     ),
     object_entry(

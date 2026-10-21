@@ -62,8 +62,8 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
                     (lx + sw * 0.5, ly),
                     marker,
                     appearance.marker_radius(*width) * scale,
-                    *color,
-                    *width * scale,
+                    &crate::curve_style::MarkerPaint::new(*appearance, *color, *width)
+                        .scaled(scale),
                 );
             }
 

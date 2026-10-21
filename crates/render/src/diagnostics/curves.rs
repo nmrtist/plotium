@@ -64,7 +64,12 @@ pub fn scan_curve(
             } else if marker == Marker::Plus {
                 radius.max(series.width * 0.5)
             } else {
+                // A closed marker's outline is centred on its boundary.
                 radius
+                    + series
+                        .appearance
+                        .marker_edge(series.color)
+                        .map_or(0., |(_, width)| width * 0.5)
             };
             let bounds = Rect::new(b.0 - envelope, b.1 - envelope, 2. * envelope, 2. * envelope);
             let visible = clip.is_some_and(|r| marker_hits(marker, b, radius, series.width, r));

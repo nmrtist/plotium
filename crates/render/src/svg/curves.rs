@@ -1,6 +1,6 @@
 use super::*;
-use crate::curve_style::{dash_pattern, marker_polygon, marker_segments};
-use plotium_figure::{Color, LineStyle, Marker, Series, SeriesKind};
+use crate::curve_style::{MarkerPaint, dash_pattern, marker_polygon, marker_segments};
+use plotium_figure::{LineStyle, Marker, Series, SeriesKind};
 
 pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
     if series.points.is_empty() {
@@ -16,15 +16,10 @@ pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
     }
     let marker = series.appearance.marker(series.kind);
     if marker != Marker::None {
+        let paint = MarkerPaint::new(series.appearance, series.color, series.width);
+        let r = series.appearance.marker_radius(series.width);
         for p in points {
-            marker_at(
-                s,
-                p,
-                marker,
-                series.appearance.marker_radius(series.width),
-                series.color,
-                series.width,
-            );
+            marker_at(s, p, marker, r, &paint);
         }
     }
 }
@@ -58,14 +53,17 @@ pub(super) fn marker_at(
     p: (f32, f32),
     marker: Marker,
     r: f32,
-    color: Color,
-    width: f32,
+    paint: &MarkerPaint,
 ) {
-    let col = color.to_hex();
+    let (col, width) = (paint.color.to_hex(), paint.width);
+    let fill = paint.fill.to_hex();
+    let edge = paint.edge.map_or(String::new(), |(color, width)| {
+        format!(r#" stroke="{}" stroke-width="{width}""#, color.to_hex())
+    });
     if marker == Marker::Circle {
         let _ = write!(
             s,
-            r#"<circle cx="{x:.2}" cy="{y:.2}" r="{r:.2}" fill="{col}"/>"#,
+            r#"<circle cx="{x:.2}" cy="{y:.2}" r="{r:.2}" fill="{fill}"{edge}/>"#,
             x = p.0,
             y = p.1
         );
@@ -77,7 +75,7 @@ pub(super) fn marker_at(
             .map(|(x, y)| format!("{x},{y}"))
             .collect::<Vec<_>>()
             .join(" ");
-        let _ = write!(s, r#"<polygon points="{pts}" fill="{col}"/>"#);
+        let _ = write!(s, r#"<polygon points="{pts}" fill="{fill}"{edge}/>"#);
     }
     for [a, b] in marker_segments(marker, p, r) {
         let _ = write!(

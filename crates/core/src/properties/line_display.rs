@@ -10,6 +10,10 @@ pub const LABEL: PropertyId = PropertyId("series.label");
 pub const STYLE: PropertyId = PropertyId("series.line.style");
 pub const MARKER: PropertyId = PropertyId("series.line.marker");
 pub const MARKER_SIZE: PropertyId = PropertyId("series.line.marker_size");
+pub const MARKER_FILL: PropertyId = PropertyId("series.line.marker_fill");
+pub const MARKER_EDGE_COLOR: PropertyId = PropertyId("series.line.marker_edge_color");
+pub const MARKER_EDGE_WIDTH: PropertyId = PropertyId("series.line.marker_edge_width");
+const MARKER_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
 const STYLES: &[EnumVariant] = &[
     EnumVariant::new("solid", "Solid"),
     EnumVariant::new("dashed", "Dashed"),
@@ -40,6 +44,11 @@ const fn def(id: PropertyId, schema: ValueSchema, label: &'static str) -> Proper
         canonical_aliases: &[],
     }
 }
+const fn advanced(id: PropertyId, schema: ValueSchema, label: &'static str) -> PropertyDefinition {
+    let mut definition = def(id, schema, label);
+    definition.tier = Tier::Advanced;
+    definition
+}
 const DEFINITIONS: &[PropertyDefinition] = &[
     def(COLOR, ValueSchema::Color, "Curve color"),
     def(LABEL, ValueSchema::Text, "Legend label"),
@@ -53,6 +62,17 @@ const DEFINITIONS: &[PropertyDefinition] = &[
             drag_step: Some(0.1),
         },
         "Marker diameter",
+    ),
+    advanced(MARKER_FILL, ValueSchema::Color, "Marker fill"),
+    advanced(MARKER_EDGE_COLOR, ValueSchema::Color, "Marker edge color"),
+    advanced(
+        MARKER_EDGE_WIDTH,
+        ValueSchema::Float {
+            bounds: MARKER_EDGE_BOUNDS,
+            display: FloatDisplay::Linear("pt"),
+            drag_step: Some(0.05),
+        },
+        "Marker edge width",
     ),
 ];
 pub(crate) struct DisplayProvider;
@@ -130,20 +150,47 @@ impl PropertyProvider for DisplayProvider {
                 PropertyValue::Float(f64::from(line.width.get() * 2.)),
                 Some(line.appearance.marker_size.is_some()),
             ),
+            MARKER_FILL => (
+                PropertyValue::Color(line.appearance.marker_fill(line.color.resolve())),
+                PropertyValue::Color(line.color.resolve()),
+                Some(line.appearance.marker_fill.is_some()),
+            ),
+            MARKER_EDGE_COLOR => (
+                PropertyValue::Color(
+                    line.appearance
+                        .marker_edge_color
+                        .unwrap_or(line.color.resolve()),
+                ),
+                PropertyValue::Color(line.color.resolve()),
+                Some(line.appearance.marker_edge_color.is_some()),
+            ),
+            MARKER_EDGE_WIDTH => (
+                PropertyValue::Float(
+                    line.appearance
+                        .marker_edge_width
+                        .map_or(0., |w| f64::from(w.get())),
+                ),
+                PropertyValue::Float(0.),
+                Some(line.appearance.marker_edge_width.is_some()),
+            ),
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
+        let marker_property = matches!(
+            d.id,
+            MARKER | MARKER_SIZE | MARKER_FILL | MARKER_EDGE_COLOR | MARKER_EDGE_WIDTH
+        );
         Ok(ResolvedProperty {
             address: address.clone(),
             value: AggregateValue::Uniform(value),
             default_value: Some(default_value),
             modified,
-            availability: if d.id == COLOR && plot.figure().series_colors_are_semantic {
+            availability: if matches!(d.id, COLOR | MARKER_FILL | MARKER_EDGE_COLOR)
+                && plot.figure().series_colors_are_semantic
+            {
                 Availability::Disabled(
                     "Choose a curve without semantic colors to set a single series color.",
                 )
-            } else if matches!(d.id, MARKER | MARKER_SIZE)
-                && kind == plotium_figure::SeriesKind::Stick
-            {
+            } else if marker_property && kind == plotium_figure::SeriesKind::Stick {
                 Availability::Disabled("Choose a line or scatter curve to edit markers.")
             } else if d.id == STYLE && kind != plotium_figure::SeriesKind::Line {
                 Availability::Disabled("Choose a line curve to edit its stroke style.")
@@ -231,6 +278,17 @@ impl PropertyProvider for DisplayProvider {
                 } else {
                     Some(PositiveFiniteF32::new(v as f32).ok_or_else(invalid)?)
                 };
+            }
+            (MARKER_FILL, PropertyValue::Color(color)) => {
+                line.appearance.marker_fill = (!matches!(op, EditOp::Reset)).then_some(color);
+            }
+            (MARKER_EDGE_COLOR, PropertyValue::Color(color)) => {
+                line.appearance.marker_edge_color = (!matches!(op, EditOp::Reset)).then_some(color);
+            }
+            (MARKER_EDGE_WIDTH, PropertyValue::Float(v)) => {
+                MARKER_EDGE_BOUNDS.check(d.id, "marker edge width", v)?;
+                // Zero is the "no outline" value, stored as no override.
+                line.appearance.marker_edge_width = PositiveFiniteF32::new(v as f32);
             }
             _ => return Err(invalid()),
         }

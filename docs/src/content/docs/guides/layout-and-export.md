@@ -302,6 +302,13 @@ What you control directly:
   Operation history, and the rest still take the value. A width that differs from the
   one Plotium would choose for this data is marked with a dot, and the reset
   button beside it re-derives that default.
+- **Advanced** under **Line** holds each curve's marker colours, apart from its
+  line colour. **Marker fill** sets the inside of closed markers (circle, square, diamond,
+  triangles) and **Marker edge color** their outline; both follow the curve
+  colour until set. **Marker edge width** draws that outline, from 0 (no
+  outline, the default) to 5 pt. Plus and cross markers stay in the curve
+  colour. The legend swatch shows the same marker. Charts whose colours carry
+  meaning keep their marker colours.
 - **Canvas themes** carry matching sizes — the Presentation Dark theme, for
   example, enlarges the axis text for slides.
 

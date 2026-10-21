@@ -51,6 +51,7 @@ fn r6_native_svg_styles_and_legend_use_the_same_appearance() {
         line_style: LineStyle::DashDot,
         marker: Some(Marker::Diamond),
         marker_size: Some(PositiveFiniteF32::new(6.).unwrap()),
+        ..CurveAppearance::default()
     };
     series.width = 1.5;
     figure.series.push(series);
@@ -82,4 +83,42 @@ fn r6_native_svg_styles_and_legend_use_the_same_appearance() {
     for marker in [Marker::Plus, Marker::Cross] {
         assert_eq!(curve_style::marker_segments(marker, (0., 0.), 3.).len(), 2);
     }
+}
+#[test]
+fn closed_markers_take_their_own_fill_and_edge_in_plot_and_legend() {
+    let mut figure = Figure::new("", Axis::new("x", 0., 3.), Axis::new("y", 0., 3.));
+    let mut series = Series::points("A", vec![[0.5, 1.], [1.5, 2.]]);
+    series.color = plotium_figure::Color::rgb(0xe6, 0xaf, 0x2d);
+    figure.series.push(series);
+    figure.guide_visibility = plotium_figure::GuideVisibility::Show;
+    let plain = svg::export(&figure);
+    assert_eq!(plain.matches(r##"fill="#e6af2d"/>"##).count(), 3);
+
+    let appearance = &mut figure.series[0].appearance;
+    appearance.marker_fill = Some(plotium_figure::Color::rgb(0xf2, 0xd7, 0x97));
+    appearance.marker_edge_width = PositiveFiniteF32::new(0.5);
+    let edged = svg::export(&figure);
+    // Two data points plus the legend swatch; the outline defaults to the curve colour.
+    assert_eq!(
+        edged
+            .matches(r##"fill="#f2d797" stroke="#e6af2d" stroke-width="0.5"/>"##)
+            .count(),
+        3,
+        "{edged}"
+    );
+
+    figure.series[0].appearance.marker_edge_color = Some(plotium_figure::Color::rgb(64, 64, 64));
+    figure.series[0].appearance.marker = Some(Marker::Square);
+    let square = svg::export(&figure);
+    assert_eq!(
+        square
+            .matches(r##"fill="#f2d797" stroke="#404040" stroke-width="0.5"/>"##)
+            .count(),
+        3
+    );
+
+    // Open marks have no fill or outline and keep stroking in the curve colour.
+    figure.series[0].appearance.marker = Some(Marker::Plus);
+    let open = svg::export(&figure);
+    assert!(!open.contains("#f2d797") && !open.contains("#404040"));
 }
