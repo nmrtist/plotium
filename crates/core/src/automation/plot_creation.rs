@@ -1,6 +1,10 @@
 //! MCP/core adapter for the shared native curve planner and commit service.
 use super::*;
-use crate::state::{CurveEditPlan, PlotCreateParams, PlotiumApp};
+use crate::state::{
+    CreatedCurveDefaults, CurveCoordinates, CurveEditPlan, PlotCreateParams, PlotCreationSummary,
+    PlotiumApp,
+};
+use serde::Serialize;
 use serde_json::{Value, json};
 
 pub const PLOT_CREATE: &str = "plot.create";
@@ -75,8 +79,8 @@ pub(super) fn execute(
         .creation
         .as_ref()
         .ok_or_else(|| invalid("Plan is not a native creation."))?;
-    let value =
-        serde_json::to_value(&prepared).map_err(|e| AutomationError::Execution(e.to_string()))?;
+    let value = serde_json::to_value(CreatedPlot::new(&prepared, summary))
+        .map_err(|e| AutomationError::Execution(e.to_string()))?;
     let produced = summary
         .created
         .iter()
@@ -110,4 +114,73 @@ pub(super) fn execute(
         verification: vec![],
         value,
     })
+}
+
+/// The committed view of a creation plan. Preflight already returned the
+/// parent, the source mappings and sample affected rows; repeating them here
+/// only grows every creation response.
+#[derive(Serialize)]
+struct CreatedPlot<'a> {
+    creation: CreatedLayout<'a>,
+    bindings: Vec<CreatedBinding<'a>>,
+}
+#[derive(Serialize)]
+struct CreatedLayout<'a> {
+    canvas: &'a TargetRef,
+    panel: &'a TargetRef,
+    plot: &'a TargetRef,
+    size_mm: [f32; 2],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size_preset: Option<&'a str>,
+    frame_pt: [f32; 4],
+    panel_frame_pt: [f32; 4],
+    coordinate_units: &'a CurveCoordinates,
+    series_defaults: &'a [CreatedCurveDefaults],
+}
+#[derive(Serialize)]
+struct CreatedBinding<'a> {
+    target: &'a TargetRef,
+    diagnostics: RowCounts,
+}
+#[derive(Serialize)]
+struct RowCounts {
+    total_rows: usize,
+    plotted_rows: usize,
+    missing_xy: usize,
+    non_finite_xy: usize,
+    missing_error: usize,
+}
+impl<'a> CreatedPlot<'a> {
+    fn new(plan: &'a CurveEditPlan, summary: &'a PlotCreationSummary) -> Self {
+        Self {
+            creation: CreatedLayout {
+                canvas: &summary.canvas,
+                panel: &summary.panel,
+                plot: &summary.plot,
+                size_mm: summary.size_mm,
+                size_preset: summary.size_preset.as_deref(),
+                frame_pt: summary.frame_pt,
+                panel_frame_pt: summary.panel_frame_pt,
+                coordinate_units: &summary.coordinate_units,
+                series_defaults: &summary.series_defaults,
+            },
+            bindings: plan
+                .bindings
+                .iter()
+                .map(|binding| {
+                    let d = &binding.diagnostics;
+                    CreatedBinding {
+                        target: &binding.target,
+                        diagnostics: RowCounts {
+                            total_rows: d.total_rows,
+                            plotted_rows: d.plotted_rows,
+                            missing_xy: d.missing_xy,
+                            non_finite_xy: d.non_finite_xy,
+                            missing_error: d.missing_error,
+                        },
+                    }
+                })
+                .collect(),
+        }
+    }
 }

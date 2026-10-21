@@ -832,8 +832,14 @@ retiled or rebuilt into a replacement plot.
 `coordinate_units` and `series_defaults` (kind and line width in pt).
 `binding_plan.bindings` returns each exact owner+SeriesId target, actual source
 mapping/revision and full-row diagnostics. Preflight creates nothing. Execute
-the one-use plan; `ToolResult.value` returns the same identities and native
-binding summary, with committed `after_revision` on the result.
+the one-use plan; `ToolResult.value.creation` returns the same `canvas`,
+`panel`, `plot`, `size_mm`, any applied `size_preset`, `frame_pt`,
+`panel_frame_pt`, `coordinate_units` and `series_defaults`, and
+`value.bindings` returns each series `target` with its row counts
+(`total_rows`, `plotted_rows`, `missing_xy`, `non_finite_xy`, `missing_error`).
+The parent, source mappings and sample affected row IDs stay in the preflight;
+`ToolResult.targets` lists every created target, and the result's
+`after_revision` is the committed revision.
 
 The creation is atomic: a bad source, incompatible units, invalid error or
 changed parent/revision leaves no new canvas, panel or partial plot. Read-only
