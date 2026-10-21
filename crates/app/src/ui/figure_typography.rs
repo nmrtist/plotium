@@ -1,5 +1,5 @@
 //! Document-level Figure Typography window: the tick / axis-title / figure-title
-//! point sizes stamped onto every plot. Edits apply live (each rebuild restamps
+//! point sizes and the axis strokes stamped onto every plot. Edits apply live (each rebuild restamps
 //! the document value) and one slider gesture coalesces into one undo step, the
 //! same contract as the canvas-size fields.
 
@@ -18,8 +18,9 @@ pub(super) fn figure_typography_window(app: &mut PlotiumApp, ctx: &egui::Context
         .show(ctx, |ui| {
             ui.label(
                 egui::RichText::new(
-                    "Point sizes of every plot's axis text in this document. Sizes are \
-                     absolute (journal convention): resizing a panel never changes them.",
+                    "Point sizes of every plot's axis text, axis lines and ticks in this \
+                     document. Sizes are absolute (journal convention): resizing a panel \
+                     never changes them.",
                 )
                 .small()
                 .color(ui.visuals().weak_text_color()),

@@ -83,6 +83,9 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.contour.line_width` | 图对象＋Series | 0.05–10 pt |
 | `series.contour.count` | 图对象＋Series | 1–256 |
 | `document.figure.typography.tick_pt / document.figure.typography.label_pt` | document | 1–72 pt |
+| `document.figure.typography.axis_line_pt` | document | 0.05–10 pt；坐标轴线与刻度线 |
+| `document.figure.typography.tick_length_pt` | document | 0–20 pt |
+| `document.figure.typography.tick_direction` | document | `out`、`in` |
 
 科学处理与任务接口见下文。应用偏好、新格式解析、科学结果自动建图及内置聊天暂不在此接口范围内。
 

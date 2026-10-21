@@ -1,4 +1,4 @@
-use crate::{AXIS_LABEL_GAP, Margins, OUTER_PAD, Projector, Rect, TICK_LABEL_PAD, TICK_LENGTH};
+use crate::{AXIS_LABEL_GAP, Margins, OUTER_PAD, Projector, Rect, TICK_LABEL_PAD};
 use plotium_figure::{Axis, AxisFrame, Figure};
 use unicode_width::UnicodeWidthChar;
 
@@ -185,16 +185,16 @@ fn margins_for_ticks_with_widths(
     let y_tick_clearance = if y_ticks.values.is_empty() {
         0.0
     } else if fig.y.show_tick_labels {
-        widths.y + TICK_LENGTH + TICK_LABEL_PAD
+        widths.y + ty.tick_outset() + TICK_LABEL_PAD
     } else {
-        TICK_LENGTH
+        ty.tick_outset()
     };
     let x_tick_clearance = if x_ticks.values.is_empty() {
         0.0
     } else if fig.x.show_tick_labels {
-        ty.tick_pt + TICK_LABEL_PAD + TICK_LENGTH
+        ty.tick_pt + TICK_LABEL_PAD + ty.tick_outset()
     } else {
-        TICK_LENGTH
+        ty.tick_outset()
     };
 
     // Keep a left-end x label out of the rotated y-title lane even when the

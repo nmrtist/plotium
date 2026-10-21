@@ -76,6 +76,32 @@ fn typography_edit_undo_redo_and_same_value_skip() {
     assert_eq!(app.doc.style_library.figure_typography.tick_pt, 15.0);
 }
 #[test]
+fn axis_strokes_and_tick_direction_are_settable() {
+    let mut app = app();
+    let mut session = Session::default();
+    session.allow_modify = true;
+    for (key, value) in [
+        ("document.figure.typography.axis_line_pt", json!(0.6)),
+        ("document.figure.typography.tick_length_pt", json!(2.5)),
+        ("document.figure.typography.tick_direction", json!("in")),
+    ] {
+        let p = plan(
+            &mut session,
+            &mut app,
+            "properties.set",
+            json!({"key": key, "value": value}),
+            json!(["document"]),
+        )
+        .unwrap();
+        execute(&mut session, &mut app, &p).unwrap();
+    }
+    let typography = app.doc.style_library.figure_typography;
+    assert_eq!(typography.axis_line_pt, 0.6);
+    assert_eq!(typography.tick_length_pt, 2.5);
+    assert_eq!(typography.tick_outset(), 0.0);
+    assert_eq!(typography.tick_reach(), -2.5);
+}
+#[test]
 fn manual_edit_undo_delete_and_permission_revocation_block_old_plans() {
     let mut app = app();
     let mut session = Session::default();

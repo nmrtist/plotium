@@ -36,8 +36,6 @@ use std::sync::Arc;
 /// A fraction (not an absolute size) so bands scale with zoom like the margins.
 pub const PROJECTION_BAND_FRAC: f32 = 0.15;
 
-pub const AXIS_LINE_WIDTH: f32 = 1.0;
-pub const TICK_LENGTH: f32 = 3.0;
 pub const TICK_LABEL_PAD: f32 = 2.5;
 pub const AXIS_LABEL_GAP: f32 = 5.0;
 pub const OUTER_PAD: f32 = 4.0;

@@ -3,11 +3,11 @@
 //! traversal one function per function.
 
 use crate::{
-    AXIS_LINE_WIDTH, Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark,
-    OUTER_PAD, OverlayAlign, OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD,
-    TICK_LENGTH, TextAnchor, arrow_head, axis_layout, color_scale_rect, error_bar_segments,
-    heatmap_cells, integral, legend_entries, legend_entry_origin, legend_layout, legend_rect,
-    polygon_outline, projection_points, range_label_layout, renders_legend,
+    Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OUTER_PAD, OverlayAlign,
+    OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head,
+    axis_layout, color_scale_rect, error_bar_segments, heatmap_cells, integral, legend_entries,
+    legend_entry_origin, legend_layout, legend_rect, polygon_outline, projection_points,
+    range_label_layout, renders_legend,
 };
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure, SeriesKind};
 use std::collections::HashMap;
@@ -323,23 +323,23 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect) {
                 (plot.left, plot.bottom()),
                 (plot.right(), plot.bottom()),
                 Color::AXIS,
-                AXIS_LINE_WIDTH,
+                ty.axis_line_pt,
             );
             dc.line(
                 (y_axis_x, plot.top),
                 (y_axis_x, plot.bottom()),
                 Color::AXIS,
-                AXIS_LINE_WIDTH,
+                ty.axis_line_pt,
             );
         }
         AxisFrame::Box => {
-            dc.rect(plot, None, Some((Color::AXIS, AXIS_LINE_WIDTH)));
+            dc.rect(plot, None, Some((Color::AXIS, ty.axis_line_pt)));
             if (y_axis_x - plot.left).abs() > f32::EPSILON {
                 dc.line(
                     (y_axis_x, plot.top),
                     (y_axis_x, plot.bottom()),
                     Color::AXIS,
-                    AXIS_LINE_WIDTH,
+                    ty.axis_line_pt,
                 );
             }
         }
@@ -350,29 +350,29 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect) {
         let (px, _) = proj.project([xt, fig.y.min]);
         dc.line(
             (px, plot.bottom()),
-            (px, plot.bottom() + TICK_LENGTH),
+            (px, plot.bottom() + ty.tick_reach()),
             Color::AXIS,
-            AXIS_LINE_WIDTH,
+            ty.axis_line_pt,
         );
         if fig.x.show_tick_labels {
             dc.text(
                 label,
                 (
                     px,
-                    plot.bottom() + TICK_LENGTH + TICK_LABEL_PAD + ty.tick_pt,
+                    plot.bottom() + ty.tick_outset() + TICK_LABEL_PAD + ty.tick_pt,
                 ),
                 TextStyle::new(ty.tick_pt, Color::AXIS, TA_CENTER),
             );
         }
     }
-    let y_tick_x = y_axis_x - TICK_LENGTH - TICK_LABEL_PAD;
+    let y_tick_x = y_axis_x - ty.tick_outset() - TICK_LABEL_PAD;
     for (&yt, label) in y_ticks.values.iter().zip(&y_ticks.labels) {
         let (_, py) = proj.project([fig.x.min, yt]);
         dc.line(
-            (y_axis_x - TICK_LENGTH, py),
+            (y_axis_x - ty.tick_reach(), py),
             (y_axis_x, py),
             Color::AXIS,
-            AXIS_LINE_WIDTH,
+            ty.axis_line_pt,
         );
         if fig.y.show_tick_labels {
             dc.text(

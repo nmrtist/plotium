@@ -36,7 +36,7 @@ impl Color {
     }
 }
 
-/// Point sizes of a figure's axis furniture text. Absolute typographic points
+/// Point sizes of a figure's axis furniture text and strokes. Absolute typographic points
 /// (1/72"), independent of the plot's frame size — the journal convention — so
 /// resizing a panel never changes its type size. Defaults sit mid-band for
 /// journal figures (most ask for 5–7 pt minimum at final size) and pass the
@@ -53,6 +53,51 @@ pub struct FigureTypography {
     pub legend_pt: f32,
     /// Legend-label text color.
     pub legend_color: Color,
+    /// Stroke width of the axis frame and tick marks.
+    #[serde(default = "default_axis_line_pt")]
+    pub axis_line_pt: f32,
+    /// Length of the tick marks.
+    #[serde(default = "default_tick_length_pt")]
+    pub tick_length_pt: f32,
+    /// Whether tick marks point away from or into the plot area.
+    #[serde(default)]
+    pub tick_direction: TickDirection,
+}
+
+/// Which side of the axis line the tick marks point to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TickDirection {
+    #[default]
+    Out,
+    In,
+}
+
+impl FigureTypography {
+    /// Room the ticks take outside the plot area, before tick labels start.
+    pub fn tick_outset(&self) -> f32 {
+        match self.tick_direction {
+            TickDirection::Out => self.tick_length_pt,
+            TickDirection::In => 0.0,
+        }
+    }
+
+    /// Signed tick extent measured away from the plot area: negative ticks
+    /// point into the data.
+    pub fn tick_reach(&self) -> f32 {
+        match self.tick_direction {
+            TickDirection::Out => self.tick_length_pt,
+            TickDirection::In => -self.tick_length_pt,
+        }
+    }
+}
+
+fn default_axis_line_pt() -> f32 {
+    1.0
+}
+
+fn default_tick_length_pt() -> f32 {
+    3.0
 }
 
 /// Whether explanatory guides follow the chart's semantic defaults or an
@@ -97,6 +142,9 @@ impl Default for FigureTypography {
             title_pt: 8.0,
             legend_pt: 7.0,
             legend_color: Color::AXIS,
+            axis_line_pt: default_axis_line_pt(),
+            tick_length_pt: default_tick_length_pt(),
+            tick_direction: TickDirection::Out,
         }
     }
 }
@@ -594,7 +642,7 @@ impl Figure {
 
 #[cfg(test)]
 mod tests {
-    use super::Axis;
+    use super::{Axis, FigureTypography, TickDirection};
 
     #[test]
     fn axis_text_visibility_defaults_to_visible() {
@@ -609,5 +657,17 @@ mod tests {
             serde_json::from_str(r#"{"label":"x","min":0.0,"max":1.0,"reversed":false}"#).unwrap();
         assert!(axis.show_tick_labels);
         assert!(axis.show_label);
+    }
+
+    #[test]
+    fn typography_saved_before_axis_strokes_keeps_the_previous_look() {
+        let typography: FigureTypography = serde_json::from_str(
+            r#"{"tick_pt":7.0,"label_pt":8.0,"title_pt":8.0,"legend_pt":7.0,
+                "legend_color":{"r":26,"g":26,"b":26}}"#,
+        )
+        .unwrap();
+        assert_eq!(typography.axis_line_pt, 1.0);
+        assert_eq!(typography.tick_length_pt, 3.0);
+        assert_eq!(typography.tick_direction, TickDirection::Out);
     }
 }

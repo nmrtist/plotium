@@ -1,9 +1,9 @@
 pub use crate::screen_stats::RenderStats;
 use crate::{
-    AXIS_LINE_WIDTH, Document, DocumentItem, DocumentObject, DocumentOverlay, DocumentViewport,
-    OUTER_PAD, OverlayAlign, OverlayKind, OverlayShape, OverlayShapeKind, OverlayText, Projector,
-    Rect, TICK_LABEL_PAD, TICK_LENGTH, arrow_head, axis_layout, error_bar_segments, heatmap_cells,
-    integral, polygon_outline, projection_points,
+    Document, DocumentItem, DocumentObject, DocumentOverlay, DocumentViewport, OUTER_PAD,
+    OverlayAlign, OverlayKind, OverlayShape, OverlayShapeKind, OverlayText, Projector, Rect,
+    TICK_LABEL_PAD, arrow_head, axis_layout, error_bar_segments, heatmap_cells, integral,
+    polygon_outline, projection_points,
     screen_contours::paint_contours,
     screen_lod::{line_columns, screen_line_points},
 };
@@ -125,7 +125,7 @@ fn paint_with_detail_and_stats_impl(
         }
     }
 
-    let axis_stroke = Stroke::new(AXIS_LINE_WIDTH * scale, col(Color::AXIS));
+    let axis_stroke = Stroke::new(ty.axis_line_pt * scale, col(Color::AXIS));
     let y_axis_x = proj.left_band.map(|band| band.left).unwrap_or(plot.left);
     match fig.axis_frame {
         AxisFrame::Open => {
@@ -166,7 +166,7 @@ fn paint_with_detail_and_stats_impl(
         painter.line_segment(
             [
                 to_pos(px, plot.bottom()),
-                to_pos(px, plot.bottom() + TICK_LENGTH * scale),
+                to_pos(px, plot.bottom() + ty.tick_reach() * scale),
             ],
             axis_stroke,
         );
@@ -174,7 +174,7 @@ fn paint_with_detail_and_stats_impl(
             painter.text(
                 Pos2::new(
                     px,
-                    plot.bottom() + (TICK_LENGTH + TICK_LABEL_PAD + ty.tick_pt * 0.5) * scale,
+                    plot.bottom() + (ty.tick_outset() + TICK_LABEL_PAD + ty.tick_pt * 0.5) * scale,
                 ),
                 Align2::CENTER_CENTER,
                 label,
@@ -184,12 +184,12 @@ fn paint_with_detail_and_stats_impl(
         }
     }
     // Keep F1 tick numbers outside a left projection band.
-    let y_tick_x = y_axis_x - (TICK_LENGTH + TICK_LABEL_PAD) * scale;
+    let y_tick_x = y_axis_x - (ty.tick_outset() + TICK_LABEL_PAD) * scale;
     for (&yt, label) in y_ticks.values.iter().zip(&y_ticks.labels) {
         let (_, py) = proj.project([fig.x.min, yt]);
         painter.line_segment(
             [
-                to_pos(y_axis_x - TICK_LENGTH * scale, py),
+                to_pos(y_axis_x - ty.tick_reach() * scale, py),
                 to_pos(y_axis_x, py),
             ],
             axis_stroke,
