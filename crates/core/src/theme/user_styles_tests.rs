@@ -110,7 +110,8 @@ fn files_that_cannot_be_managed_by_name_are_not_listed() {
     let dir = temp_styles_dir("unlisted");
     let theme = Theme::by_id("nature").unwrap();
     let saved = save_user_style(&dir, "Kept", &theme).unwrap();
-    for name in ["nature", " padded ", "a?b"] {
+    // Only names every file system accepts: built-in ids load as built-ins.
+    for name in ["nature", "vibrant"] {
         std::fs::copy(&saved, dir.join(format!("{name}.{STYLE_EXTENSION}"))).unwrap();
     }
     let names: Vec<_> = list_user_styles(&dir).into_iter().map(|s| s.name).collect();
