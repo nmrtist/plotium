@@ -218,6 +218,11 @@ impl PlotiumApp {
                     c.panel_label_style = *before;
                 }
             }
+            Action::SetPanelLabelsVisible { canvas, before, .. } => {
+                if let Some(c) = self.doc.canvases.get_mut(*canvas) {
+                    c.panel_labels_visible = *before;
+                }
+            }
             Action::RenameDataset {
                 dataset, before, ..
             } => {

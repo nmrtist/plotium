@@ -251,6 +251,7 @@ pub fn canvas_to_view(
         caption: canvas.caption.clone(),
         caption_visible: canvas.caption_visible,
         panel_label_style: canvas.panel_label_style.as_key().to_owned(),
+        panel_labels_visible: canvas.panel_labels_visible,
         panels: canvas.panels.iter().map(panel_to_dto).collect(),
         loose_item_order: canvas
             .objects
@@ -308,6 +309,7 @@ pub fn view_to_canvas(
         .unwrap_or_else(|| crate::state::default_board_layout(index));
     canvas.caption = view.caption.clone();
     canvas.caption_visible = view.caption_visible;
+    canvas.panel_labels_visible = view.panel_labels_visible;
     canvas.panel_label_style = crate::state::PanelLabelStyle::try_from_key(&view.panel_label_style)
         .ok_or_else(|| {
             ProjectError::Invalid(format!(

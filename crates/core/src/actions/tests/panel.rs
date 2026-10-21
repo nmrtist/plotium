@@ -440,3 +440,49 @@ fn y_titles_clear_only_letters_that_sit_over_their_column() {
     page.panel_mut(first).unwrap().label.visible = false;
     assert_eq!(clearances(&app)[0], 0.0);
 }
+
+#[test]
+fn hidden_canvas_letters_draw_nothing_and_reserve_no_title_space() {
+    let mut app = crate::actions::tests::sample_app();
+    let mut second = app.doc.canvases[0].objects[0].clone();
+    second.id = app.doc.canvases[0].allocate_object_id();
+    app.doc.canvases[0].objects.push(second);
+    let ids: Vec<_> = app.doc.canvases[0].objects.iter().map(|o| o.id).collect();
+    for (index, id) in ids.iter().enumerate() {
+        let object = app.doc.canvases[0].object_mut(*id).unwrap();
+        object.frame = ObjectFrame::new(index as f32 * 170.0, 0.0, 170.0, 120.0);
+        let (_, action) = app
+            .compose_panel_action(0, format!("p{index}"), &[*id], 0.0)
+            .unwrap();
+        app.execute_action(action);
+    }
+    let shown = |app: &PlotiumApp| -> Vec<(bool, f32)> {
+        let items = crate::state::document_items(&app.doc.canvases[0]);
+        let labels = items.iter().filter_map(|item| match item {
+            plotium_render::DocumentItem::PanelLabel { visible, .. } => Some(*visible),
+            _ => None,
+        });
+        let clearances = items.iter().filter_map(|item| match item {
+            plotium_render::DocumentItem::Plot(plot) => Some(plot.y_title_clearance),
+            _ => None,
+        });
+        labels.zip(clearances).collect()
+    };
+    assert!(
+        shown(&app)
+            .iter()
+            .all(|(visible, gap)| *visible && *gap > 0.0)
+    );
+
+    app.doc.canvases[0].panel_labels_visible = false;
+    let hidden = shown(&app);
+    assert_eq!(hidden.len(), 2);
+    assert!(hidden.iter().all(|(visible, gap)| !*visible && *gap == 0.0));
+    let page = &app.doc.canvases[0];
+    let letters: Vec<_> = page
+        .panel_reading_order()
+        .into_iter()
+        .map(|id| page.panel_label_text(page.panel(id).unwrap()))
+        .collect();
+    assert_eq!(letters, ["a", "b"], "the reading-order sequence is kept");
+}

@@ -261,7 +261,7 @@ impl CanvasDocument {
         let Some(panel) = self.panel(panel) else {
             return false;
         };
-        if !panel.visible || !panel.label.visible {
+        if !self.panel_labels_visible || !panel.visible || !panel.label.visible {
             return false;
         }
         if !matches!(panel.label.mode, PanelLabelMode::Auto { .. }) {

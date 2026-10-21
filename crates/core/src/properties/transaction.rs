@@ -84,6 +84,7 @@ pub(crate) struct CanvasPropertyState {
     pub(crate) auto_height: bool,
     pub(crate) caption: (String, bool),
     pub(crate) panel_label_style: PanelLabelStyle,
+    pub(crate) panel_labels_visible: bool,
 }
 
 impl CanvasPropertyState {
@@ -94,6 +95,7 @@ impl CanvasPropertyState {
             auto_height: canvas.auto_height,
             caption: (canvas.caption.clone(), canvas.caption_visible),
             panel_label_style: canvas.panel_label_style,
+            panel_labels_visible: canvas.panel_labels_visible,
         }
     }
 }
@@ -540,6 +542,13 @@ impl PropertyTransaction {
                     canvas,
                     before: plan.before.panel_label_style,
                     after: plan.after.panel_label_style,
+                });
+            }
+            if plan.before.panel_labels_visible != plan.after.panel_labels_visible {
+                actions.push(Action::SetPanelLabelsVisible {
+                    canvas,
+                    before: plan.before.panel_labels_visible,
+                    after: plan.after.panel_labels_visible,
                 });
             }
             if plan.before.layout.show_grid != plan.after.layout.show_grid {

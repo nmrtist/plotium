@@ -394,6 +394,12 @@ pub enum Action {
         before: PanelLabelStyle,
         after: PanelLabelStyle,
     },
+    /// Show or hide every panel letter on a page at once.
+    SetPanelLabelsVisible {
+        canvas: usize,
+        before: bool,
+        after: bool,
+    },
     RenameDataset {
         dataset: DatasetId,
         before: Option<String>,
@@ -691,6 +697,7 @@ impl Action {
             Self::RenameObject { before, after, .. } => before == after,
             Self::SetCanvasCaption { before, after, .. } => before == after,
             Self::SetPanelLabelStyle { before, after, .. } => before == after,
+            Self::SetPanelLabelsVisible { before, after, .. } => before == after,
             Self::RenameDataset { before, after, .. } => before == after,
             Self::SetCurveFitAnalyses { before, after, .. } => before == after,
             Self::EditTable { delta, .. } => delta.is_empty(),
