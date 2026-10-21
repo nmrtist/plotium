@@ -321,6 +321,10 @@ What you control directly:
   colour. The legend swatch shows the same marker. Charts whose colours carry
   meaning keep their marker colours.
 - **Canvas themes** carry matching sizes — the Presentation Dark theme, for
-  example, enlarges the axis text for slides.
+  example, enlarges the axis text for slides. The **Nature** theme follows the
+  Nature Portfolio final-artwork guidelines: 7 pt text, 0.6 pt axes with
+  outward 3 pt ticks, 0.75 pt line series, 3 pt markers without an outline and
+  the colour-blind-safe Okabe–Ito palette. The line widths and marker sizes stay
+  when you switch to a theme that does not set them.
 
 When the figure is ready, see [Exporting](/guides/exporting/).
