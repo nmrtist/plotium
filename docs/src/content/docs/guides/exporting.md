@@ -16,7 +16,9 @@ pages, or a page range.
 
 Presets cover common journal figure sizes — for example
 *Single column · 89 mm · 600 dpi · TIFF* — and an export precheck flags
-font-size and line-width violations against the chosen preset. For pages with
+font-size and line-width violations against the chosen preset. Text must be at
+least 7 pt at the exported size; a page that still uses a journal size preset
+follows that publisher's stated minimum instead (5 pt for Nature). For pages with
 images, it also reports the lowest effective PPI at the exported size, missing
 or damaged resources, and sources with ICC profiles or samples above 8 bits.
 Image resolution passes at 300 PPI, warns from 150 to 299 PPI, and fails below
