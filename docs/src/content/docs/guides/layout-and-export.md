@@ -282,6 +282,11 @@ What you control directly:
   figure title, and legends) for every plot at once, in absolute points — a
   document-level style, so resizing a panel never changes its type size.
   These sizes accept 1 to 72 pt. Legends default to 7 pt.
+- The same section's advanced controls set every plot's axis strokes:
+  **Axis line width** (axis lines and tick marks, 0.05 to 10 pt, default
+  1 pt), **Tick length** (0 to 20 pt, default 3 pt) and **Tick direction**
+  (*Outward*, the default, or *Inward*). Inward ticks point into the plot, so
+  the tick labels move up to the axis line.
 - **Figure typography** in the Object inspector holds the same tick-label size
   as **Tick-label size**, plus **Legend size** and **Legend text color**.
   Changing a value in either surface changes the one document-wide value.

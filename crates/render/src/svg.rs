@@ -1,8 +1,8 @@
 use crate::{
-    AXIS_LINE_WIDTH, Document, DocumentItem, DocumentObject, DocumentOverlay, OUTER_PAD,
-    OverlayAlign, OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TICK_LENGTH,
-    TextAnchor, arrow_head, axis_layout, error_bar_segments, heatmap_cells, integral,
-    polygon_outline, projection_points, range_label_layout,
+    Document, DocumentItem, DocumentObject, DocumentOverlay, OUTER_PAD, OverlayAlign, OverlayKind,
+    OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head, axis_layout,
+    error_bar_segments, heatmap_cells, integral, polygon_outline, projection_points,
+    range_label_layout,
 };
 use plotium_figure::{AxisFrame, AxisTrace, Figure};
 use std::fmt::Write as _;
@@ -222,7 +222,7 @@ fn write_figure(
                 yl = y_axis_x,
                 t = plot.top,
                 b = plot.bottom(),
-                width = AXIS_LINE_WIDTH,
+                width = ty.axis_line_pt,
             );
         }
         AxisFrame::Box => {
@@ -233,7 +233,7 @@ fn write_figure(
                 t = plot.top,
                 w = plot.width,
                 h = plot.height,
-                width = AXIS_LINE_WIDTH,
+                width = ty.axis_line_pt,
             );
             if (y_axis_x - plot.left).abs() > f32::EPSILON {
                 let _ = write!(
@@ -242,7 +242,7 @@ fn write_figure(
                     yl = y_axis_x,
                     t = plot.top,
                     b = plot.bottom(),
-                    width = AXIS_LINE_WIDTH,
+                    width = ty.axis_line_pt,
                 );
             }
         }
@@ -255,28 +255,28 @@ fn write_figure(
             s,
             r#"<path d="M{px:.2} {b:.2}v{tick}" stroke="{axis}" stroke-width="{width}"/>"#,
             b = plot.bottom(),
-            tick = TICK_LENGTH,
-            width = AXIS_LINE_WIDTH,
+            tick = ty.tick_reach(),
+            width = ty.axis_line_pt,
         );
         if fig.x.show_tick_labels {
             let _ = write!(
                 s,
                 r#"<text x="{px:.2}" y="{y:.2}" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
-                y = plot.bottom() + TICK_LENGTH + TICK_LABEL_PAD + ty.tick_pt,
+                y = plot.bottom() + ty.tick_outset() + TICK_LABEL_PAD + ty.tick_pt,
                 font = ty.tick_pt,
                 lab = escape(label)
             );
         }
     }
-    let y_tick_x = y_axis_x - TICK_LENGTH - TICK_LABEL_PAD;
+    let y_tick_x = y_axis_x - ty.tick_outset() - TICK_LABEL_PAD;
     for (&yt, label) in y_ticks.values.iter().zip(&y_ticks.labels) {
         let (_, py) = proj.project([fig.x.min, yt]);
         let _ = write!(
             s,
             r#"<path d="M{yl:.2} {py:.2}h{tick}" stroke="{axis}" stroke-width="{width}"/>"#,
-            yl = y_axis_x - TICK_LENGTH,
-            tick = TICK_LENGTH,
-            width = AXIS_LINE_WIDTH,
+            yl = y_axis_x - ty.tick_reach(),
+            tick = ty.tick_reach(),
+            width = ty.axis_line_pt,
         );
         if fig.y.show_tick_labels {
             let _ = write!(

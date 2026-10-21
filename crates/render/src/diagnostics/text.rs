@@ -75,7 +75,7 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
                 &format!("axis.x.tick:{v}"),
                 label,
                 x,
-                plot.bottom() + TICK_LENGTH + TICK_LABEL_PAD,
+                plot.bottom() + ty.tick_outset() + TICK_LABEL_PAD,
                 ty.tick_pt,
                 0.5,
                 false,
@@ -101,7 +101,7 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
             add(
                 &format!("axis.y.tick:{v}"),
                 label,
-                y_axis_x - TICK_LENGTH - TICK_LABEL_PAD,
+                y_axis_x - ty.tick_outset() - TICK_LABEL_PAD,
                 y - ty.tick_pt * 0.5,
                 ty.tick_pt,
                 1.,

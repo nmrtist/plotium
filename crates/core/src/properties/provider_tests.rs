@@ -50,6 +50,8 @@ fn every_document_typography_property_resets_to_its_declared_default() {
         (typography::LABEL_PT, 13.0),
         (typography::TITLE_PT, 14.0),
         (typography::LEGEND_PT, 6.0),
+        (typography::AXIS_LINE_PT, 0.6),
+        (typography::TICK_LENGTH_PT, 2.0),
     ] {
         let commit = app
             .plan_property_write(
@@ -69,6 +71,60 @@ fn every_document_typography_property_resets_to_its_declared_default() {
             .expect("typography resolves after reset");
         assert_eq!(resolved.value.uniform(), resolved.default_value.as_ref());
     }
+}
+
+#[test]
+fn tick_direction_and_axis_strokes_are_document_properties() {
+    let mut app = PlotiumApp::new();
+    let target = app.document_target();
+    let targets = std::slice::from_ref(&target);
+    let commit = app
+        .plan_property_write(
+            typography::TICK_DIRECTION,
+            targets,
+            &PropertyValue::Enum(typography::IN),
+        )
+        .expect("tick direction plans");
+    app.commit_property(commit);
+    let typography = app.doc.style_library.figure_typography;
+    assert_eq!(typography.tick_direction, plotium_figure::TickDirection::In);
+    let resolved = app
+        .resolve_property(&PropertyAddress::new(
+            target.clone(),
+            typography::TICK_DIRECTION,
+        ))
+        .expect("tick direction resolves");
+    assert_eq!(
+        resolved.value.uniform(),
+        Some(&PropertyValue::Enum(typography::IN))
+    );
+    let reset = app
+        .plan_property_reset(typography::TICK_DIRECTION, targets)
+        .expect("tick direction reset plans");
+    app.commit_property(reset);
+    assert_eq!(
+        app.doc.style_library.figure_typography.tick_direction,
+        plotium_figure::TickDirection::Out
+    );
+
+    assert!(
+        app.plan_property_write(
+            typography::AXIS_LINE_PT,
+            targets,
+            &PropertyValue::Float(0.0)
+        )
+        .is_err(),
+        "an invisible axis line is rejected"
+    );
+    let commit = app
+        .plan_property_write(
+            typography::TICK_LENGTH_PT,
+            targets,
+            &PropertyValue::Float(0.0),
+        )
+        .expect("zero-length ticks are allowed");
+    app.commit_property(commit);
+    assert_eq!(app.doc.style_library.figure_typography.tick_length_pt, 0.0);
 }
 
 #[test]

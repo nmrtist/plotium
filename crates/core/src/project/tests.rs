@@ -283,6 +283,9 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
         title_pt: 11.0,
         legend_pt: 6.25,
         legend_color: plotium_figure::Color::rgb(12, 34, 56),
+        axis_line_pt: 0.6,
+        tick_length_pt: 2.25,
+        tick_direction: plotium_figure::TickDirection::In,
     };
     app.set_figure_typography_value(custom_typography);
     let path = temp_project("roundtrip");

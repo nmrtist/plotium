@@ -142,3 +142,11 @@ pub(super) const fn object_entry(
         uses_canvas_length_unit: false,
     }
 }
+
+pub(super) const fn typography_entry(
+    id: PropertyId,
+    label: &'static str,
+    aliases: &'static [LocalizedText],
+) -> PropertyPresentation {
+    preference_entry(id, label, aliases, TYPOGRAPHY_HOME)
+}

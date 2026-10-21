@@ -1,6 +1,6 @@
 use super::*;
 use crate::ticks::estimated_text_width;
-use plotium_figure::{Axis, Figure, Series};
+use plotium_figure::{Axis, Figure, Series, TickDirection};
 
 #[test]
 fn ticks_are_nice_and_bounded() {
@@ -63,7 +63,8 @@ fn margins_follow_tick_width_and_keep_a_compact_label_gap() {
         .iter()
         .map(|label| estimated_text_width(label, wide_ticks.typography.tick_pt))
         .fold(0.0, f32::max);
-    let tick_text_left = wide_margins.left - TICK_LENGTH - TICK_LABEL_PAD - widest;
+    let tick_text_left =
+        wide_margins.left - wide_ticks.typography.tick_outset() - TICK_LABEL_PAD - widest;
     let y_title_right = OUTER_PAD + wide_ticks.typography.label_pt;
     assert!((tick_text_left - y_title_right - AXIS_LABEL_GAP).abs() < 1e-3);
 }
@@ -95,11 +96,12 @@ fn hidden_axis_text_reduces_margins_but_keeps_tick_space() {
     hidden.x.show_label = false;
     hidden.y.show_tick_labels = false;
     hidden.y.show_label = false;
+    let tick_outset = visible.typography.tick_outset();
     let visible = Margins::for_figure(&visible);
     let hidden = Margins::for_figure(&hidden);
     assert!(hidden.left < visible.left && hidden.bottom < visible.bottom);
-    assert!(hidden.left >= OUTER_PAD + TICK_LENGTH);
-    assert!(hidden.bottom >= OUTER_PAD + TICK_LENGTH);
+    assert!(hidden.left >= OUTER_PAD + tick_outset);
+    assert!(hidden.bottom >= OUTER_PAD + tick_outset);
 }
 
 #[test]
@@ -559,4 +561,32 @@ fn legends_draw_no_frame_or_backing() {
         without_legend.matches("<rect").count(),
         "the legend adds entries only, never a box"
     );
+}
+
+#[test]
+fn inward_ticks_point_into_the_plot_and_free_their_margin() {
+    let outward = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
+    let mut inward = outward.clone();
+    inward.typography.tick_direction = TickDirection::In;
+
+    let out_margins = Margins::for_figure(&outward);
+    let in_margins = Margins::for_figure(&inward);
+    let length = outward.typography.tick_length_pt;
+    assert!((out_margins.left - in_margins.left - length).abs() < 1e-3);
+    assert!((out_margins.bottom - in_margins.bottom - length).abs() < 1e-3);
+
+    let svg = svg::export(&inward);
+    assert!(svg.contains(&format!("v{}\"", -length)));
+    assert!(!svg.contains(&format!("v{length}\"")));
+}
+
+#[test]
+fn axis_strokes_and_tick_length_follow_the_figure_typography() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
+    fig.typography.axis_line_pt = 0.6;
+    fig.typography.tick_length_pt = 2.5;
+    let svg = svg::export(&fig);
+    assert!(svg.contains(r#"stroke-width="0.6""#));
+    assert!(!svg.contains(r#"stroke-width="1""#));
+    assert!(svg.contains("v2.5\""));
 }

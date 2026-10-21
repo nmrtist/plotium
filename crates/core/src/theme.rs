@@ -108,6 +108,7 @@ impl Theme {
                 legend_pt: 9.0,
                 // All renderers put legends on a translucent white backing.
                 legend_color: Color::AXIS,
+                ..FigureTypography::default()
             },
             trace_palette: vec![
                 Color::rgb(0x4d, 0xa6, 0xff),
@@ -132,6 +133,7 @@ impl Theme {
                 title_pt: 9.0,
                 legend_pt: 7.0,
                 legend_color: Color::rgb(0x1a, 0x1a, 0x1a),
+                ..FigureTypography::default()
             },
             trace_palette: vec![
                 Color::rgb(0xe6, 0x00, 0x49),
