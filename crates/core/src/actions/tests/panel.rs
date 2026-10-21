@@ -102,8 +102,6 @@ fn move_split_merge_and_duplicate_round_trip() {
     cycle(&mut app, action);
     let (_, action) = app.duplicate_panel_action(0, a, [5.0, 5.0]).unwrap();
     cycle(&mut app, action);
-    let action = app.reorder_panel_labels_action(0).unwrap();
-    cycle(&mut app, action);
 }
 
 #[test]
@@ -142,7 +140,7 @@ fn label_edit_round_trips_without_plot_owned_state() {
 }
 
 #[test]
-fn renumber_reserves_positions_for_locked_and_manual_labels() {
+fn automatic_letters_reserve_positions_for_locked_and_manual_labels() {
     let (mut app, _) = app();
     let mut panel_ids = Vec::new();
     for x in [0.0, 20.0, 40.0] {
@@ -166,12 +164,11 @@ fn renumber_reserves_positions_for_locked_and_manual_labels() {
         .mode = PanelLabelMode::Manual {
         value: "custom".to_owned(),
     };
-    let action = app.reorder_panel_labels_action(0).unwrap();
-    app.try_execute_action(action).unwrap();
-    assert!(matches!(
-        app.doc.canvases[0].panel(panel_ids[2]).unwrap().label.mode,
-        PanelLabelMode::Auto { slot: 2 }
-    ));
+    let page = &app.doc.canvases[0];
+    assert_eq!(
+        page.panel_label_text(page.panel(panel_ids[2]).unwrap()),
+        "c"
+    );
 }
 
 #[test]

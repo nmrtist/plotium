@@ -1,9 +1,7 @@
 use egui::Ui;
 use egui_phosphor::regular as icon;
 use plotium_core::actions::{Action, PanelState, ZOrder};
-use plotium_core::state::{
-    ContentId, ObjectId, Panel, PanelId, PanelLabelMode, PlotiumApp, SelectionPath,
-};
+use plotium_core::state::{ContentId, ObjectId, Panel, PanelId, PlotiumApp, SelectionPath};
 
 use super::layer_controls::{
     kind_glyph, kind_label, lock_button, row as layer_row, truncated_selectable, visibility_button,
@@ -170,12 +168,7 @@ fn render_panel(app: &mut PlotiumApp, ci: usize, panel_id: PanelId, ui: &mut Ui)
 }
 
 pub(super) fn panel_tree_name(app: &PlotiumApp, ci: usize, panel: &Panel) -> String {
-    let label = match &panel.label.mode {
-        PanelLabelMode::Auto { slot } => app.doc.canvases[ci]
-            .panel_label_style
-            .format(*slot as usize),
-        PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => value.clone(),
-    };
+    let label = app.doc.canvases[ci].panel_label_text(panel);
     if panel.label.visible && !label.is_empty() {
         format!("{label}  {}", panel.name)
     } else {

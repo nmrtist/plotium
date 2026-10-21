@@ -116,8 +116,6 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
                         Command(CommandId::SetPanelLayout(
                             plotium_core::state::PanelLayout::Grid { rows: 2, cols: 2 },
                         )),
-                        Separator,
-                        Command(CommandId::ReorderPanelLabels),
                     ],
                 ),
                 Command(CommandId::ReplaceImage),

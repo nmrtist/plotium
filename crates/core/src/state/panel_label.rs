@@ -107,6 +107,13 @@ impl CanvasDocument {
     /// (bucketed so a near-aligned row reads left-to-right), then by left edge,
     /// with the object id as a stable final tie-break. Drives panel lettering.
     pub fn panel_reading_order(&self) -> Vec<PanelId> {
+        self.panels_in_reading_order()
+            .into_iter()
+            .map(|panel| panel.id)
+            .collect()
+    }
+
+    fn panels_in_reading_order(&self) -> Vec<&Panel> {
         const ROW_BUCKET_PT: f32 = 8.0;
         let mut panels: Vec<&Panel> = self.panels.iter().collect();
         panels.sort_by(|a, b| {
@@ -121,7 +128,26 @@ impl CanvasDocument {
                 )
                 .then(a.id.cmp(&b.id))
         });
-        panels.iter().map(|panel| panel.id).collect()
+        panels
+    }
+
+    /// The text a panel's label shows. Automatic letters are numbered live in
+    /// reading order among the panels that take part in the sequence;
+    /// locked and manual labels keep their position in that sequence. An
+    /// automatic label outside the sequence shows nothing.
+    pub fn panel_label_text(&self, panel: &Panel) -> String {
+        match &panel.label.mode {
+            PanelLabelMode::Auto { .. } => self
+                .panels_in_reading_order()
+                .into_iter()
+                .filter(|candidate| candidate.label.participates_in_sequence)
+                .position(|candidate| candidate.id == panel.id)
+                .map(|index| self.panel_label_style.format(index))
+                .unwrap_or_default(),
+            PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => {
+                value.clone()
+            }
+        }
     }
 
     pub fn plot_reading_order(&self) -> Vec<ObjectId> {
@@ -139,12 +165,7 @@ impl CanvasDocument {
         if !panel.label.visible {
             return None;
         }
-        match &panel.label.mode {
-            PanelLabelMode::Auto { slot } => Some(self.panel_label_style.format(*slot as usize)),
-            PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => {
-                Some(value.clone())
-            }
-        }
+        Some(self.panel_label_text(panel)).filter(|text| !text.is_empty())
     }
 
     /// User-authored notes only. Skips empty notes and returns an empty label
@@ -156,14 +177,7 @@ impl CanvasDocument {
                 let id = *panel.item_order.first()?;
                 let note = panel.note.trim();
                 let letter = if self.panel_label_is_displayed(panel.id) {
-                    match &panel.label.mode {
-                        PanelLabelMode::Auto { slot } => {
-                            self.panel_label_style.format(*slot as usize)
-                        }
-                        PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => {
-                            value.clone()
-                        }
-                    }
+                    self.panel_label_text(panel)
                 } else {
                     String::new()
                 };

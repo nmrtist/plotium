@@ -279,12 +279,7 @@ impl FigureDiagnosticScan {
                 if !c.panel_label_is_displayed(panel.id) {
                     continue;
                 }
-                let label = match &panel.label.mode {
-                    PanelLabelMode::Auto { slot } => c.panel_label_style.format(*slot as usize),
-                    PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => {
-                        value.clone()
-                    }
-                };
+                let label = c.panel_label_text(panel);
                 if label.is_empty() {
                     continue;
                 }

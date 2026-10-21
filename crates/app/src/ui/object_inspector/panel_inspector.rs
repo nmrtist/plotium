@@ -206,8 +206,5 @@ fn panel_label(
     page: &plotium_core::state::CanvasDocument,
     panel: &plotium_core::state::Panel,
 ) -> String {
-    match &panel.label.mode {
-        PanelLabelMode::Auto { slot } => page.panel_label_style.format(*slot as usize),
-        PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => value.clone(),
-    }
+    page.panel_label_text(panel)
 }

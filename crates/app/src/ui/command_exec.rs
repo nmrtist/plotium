@@ -124,7 +124,6 @@ fn execute_inner(
         | CommandId::DuplicatePanel
         | CommandId::MergePanels
         | CommandId::SplitPanel
-        | CommandId::ReorderPanelLabels
         | CommandId::SetPanelLayout(_)
         | CommandId::MoveContentToPanel(_) => execute_panel_command(id, app),
         CommandId::TogglePrimarySidebar => {
@@ -357,10 +356,6 @@ fn execute_panel_command(id: CommandId, app: &mut PlotiumApp) {
                     .map(|(new_panel, action)| (Some(new_panel), action))
                     .map_err(|error| error.to_string())
             }),
-        CommandId::ReorderPanelLabels => app
-            .reorder_panel_labels_action(ci)
-            .map(|action| (None, action))
-            .map_err(|error| error.to_string()),
         CommandId::SetPanelLayout(layout) => selected_panel
             .ok_or_else(|| "Select a panel before changing its layout.".to_owned())
             .and_then(|panel| {

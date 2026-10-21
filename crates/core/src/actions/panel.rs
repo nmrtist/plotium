@@ -492,30 +492,6 @@ impl PlotiumApp {
         ))
     }
 
-    pub fn reorder_panel_labels_action(&self, canvas: usize) -> Result<Action, PanelActionError> {
-        let before = self.panel_state(canvas)?;
-        let mut page = self.doc.canvases[canvas].clone();
-        let order = page.panel_reading_order();
-        let mut slot = 0_u64;
-        for id in order {
-            let panel = page
-                .panel_mut(id)
-                .ok_or(PanelActionError::MissingPanel(id))?;
-            if panel.label.participates_in_sequence {
-                if matches!(panel.label.mode, PanelLabelMode::Auto { .. }) {
-                    panel.label.mode = PanelLabelMode::Auto { slot };
-                }
-                slot = slot.saturating_add(1);
-            }
-        }
-        page.next_panel_label_slot = page.next_panel_label_slot.max(slot);
-        Ok(Action::ReplacePanelState {
-            canvas,
-            before,
-            after: PanelState::of(&page),
-        })
-    }
-
     pub fn set_panel_layout_action(
         &self,
         canvas: usize,
