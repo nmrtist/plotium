@@ -298,6 +298,7 @@ fn render_stats(
             geometry_generation: Some(geometry_generation),
             visible: true,
             title: None,
+            y_title_clearance: 0.0,
         })],
     };
     let mut stats = super::RenderStats::default();

@@ -651,3 +651,29 @@ fn minor_ticks_are_half_length_and_follow_the_tick_direction() {
     let inward = svg::export(&fig);
     assert!(inward.contains("v-1.5"));
 }
+
+#[test]
+fn y_title_moves_down_only_as_far_as_the_corner_letter_needs() {
+    let mut fig = Figure::new(
+        "",
+        Axis::new("x", 0.0, 1.0),
+        Axis::new("Voltage (V)", 0.0, 1.0),
+    );
+    let outer = Rect::new(0.0, 0.0, 150.0, 160.0);
+    let plot = Rect::new(30.0, 6.0, 110.0, 130.0);
+    let centre = plot.top + plot.height * 0.5;
+    assert_eq!(y_title_center(&fig, plot, outer, 0.0, 1.0), centre);
+    // A short title already clears the corner.
+    assert_eq!(y_title_center(&fig, plot, outer, 30.0, 1.0), centre);
+
+    fig.y.label = "Specific capacity (mAh g)".to_owned();
+    let half = estimated_text_width(&fig.y.label, fig.typography.label_pt) * 0.5;
+    let moved = y_title_center(&fig, plot, outer, 30.0, 1.0);
+    assert!(
+        (moved - half - 30.0).abs() < 1e-3,
+        "top end sits just under the letter"
+    );
+    // Never pushed into the x-axis title row.
+    let squeezed = y_title_center(&fig, plot, outer, 80.0, 1.0);
+    assert!(squeezed + half <= outer.bottom() - OUTER_PAD - fig.typography.label_pt + 1e-3);
+}

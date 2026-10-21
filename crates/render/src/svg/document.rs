@@ -304,6 +304,7 @@ mod tests {
                 geometry_generation: None,
                 visible: true,
                 title: None,
+                y_title_clearance: 0.0,
             })],
         };
         assert!(!export_document_for_bounds(&matching_doc).contains("fill=\"#ffffff\""));
@@ -319,6 +320,7 @@ mod tests {
                 geometry_generation: None,
                 visible: true,
                 title: None,
+                y_title_clearance: 0.0,
             })],
             ..matching_doc
         };

@@ -15,6 +15,7 @@ fn demo_document(fig: &Figure) -> Document<'_> {
             geometry_generation: None,
             visible: true,
             title: None,
+            y_title_clearance: 0.0,
         })],
     }
 }

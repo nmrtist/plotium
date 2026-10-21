@@ -176,6 +176,7 @@ pub fn document_item(
                 geometry_generation: Some(plot.figure_geometry_generation()),
                 visible,
                 title: None,
+                y_title_clearance: 0.0,
             })
         }
         ContentKind::Text(text) => {
@@ -218,6 +219,39 @@ pub fn document_item(
     }
 }
 
+/// How far below its frame top a plot's y-axis title must start to clear the
+/// letter of its panel, when the letter sits over the upper half of the
+/// title's column. Moving the title down cannot clear a lower letter.
+fn panel_letter_clearance(
+    canvas: &CanvasDocument,
+    content: ContentId,
+    frame: ObjectFrame,
+    figure: &plotium_figure::Figure,
+) -> f32 {
+    let Some(panel) = canvas.parent_panel(content).and_then(|id| canvas.panel(id)) else {
+        return 0.0;
+    };
+    if !canvas.panel_label_is_displayed(panel.id) {
+        return 0.0;
+    }
+    let letters = canvas.panel_label_text(panel).chars().count() as f32;
+    let font = panel.label.font_size;
+    let left = panel.frame.x + panel.label.position[0];
+    let right = left + letters * font * 0.75;
+    let top = panel.frame.y + panel.label.position[1];
+    let bottom = top + font;
+    let title_column_right = frame.x + plotium_render::OUTER_PAD + figure.typography.label_pt * 1.2;
+    let overlaps = left < title_column_right
+        && right > frame.x
+        && bottom > frame.y
+        && top < frame.y + frame.height * 0.5;
+    if overlaps {
+        bottom - frame.y + font * 0.25
+    } else {
+        0.0
+    }
+}
+
 pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentItem<'_>> {
     let mut items: Vec<_> = canvas
         .objects
@@ -227,11 +261,13 @@ pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentIt
                 .parent_panel(object.id)
                 .and_then(|id| canvas.panel(id))
                 .is_none_or(|panel| panel.visible);
-            document_item(
-                object,
-                canvas.content_page_frame(object.id).unwrap_or(object.frame),
-                panel_visible && object.visible,
-            )
+            let frame = canvas.content_page_frame(object.id).unwrap_or(object.frame);
+            let mut item = document_item(object, frame, panel_visible && object.visible);
+            if let plotium_render::DocumentItem::Plot(plot) = &mut item {
+                plot.y_title_clearance =
+                    panel_letter_clearance(canvas, object.id, frame, plot.figure);
+            }
+            item
         })
         .collect();
     items.extend(canvas.panels.iter().filter_map(|panel| {

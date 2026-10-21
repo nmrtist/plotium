@@ -223,7 +223,7 @@ fn write_document_object(dc: &mut Dc, object: &DocumentObject<'_>) {
     if !object.visible {
         return;
     }
-    write_figure(dc, object.figure, object.frame);
+    write_figure(dc, object.figure, object.frame, object.y_title_clearance);
     if let Some(title) = &object.title {
         write_panel_letter(
             dc,
@@ -282,7 +282,7 @@ fn write_overlay(dc: &mut Dc, overlay: &DocumentOverlay<'_>) {
     }
 }
 
-fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect) {
+fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) {
     let ty = fig.typography;
     let layout = axis_layout(fig, outer.width, outer.height);
     let margins = layout.margins;
@@ -432,7 +432,7 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect) {
             &fig.y.label,
             (
                 outer.left + OUTER_PAD + ty.label_pt * 0.5,
-                (plot.top + plot.bottom()) / 2.0,
+                crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0),
             ),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER).rotated(),
         );

@@ -26,7 +26,7 @@ pub fn export(fig: &Figure) -> String {
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{font_family}">"#,
         font_family = crate::rich_text::SVG_FONT_FAMILY,
     );
-    write_figure(&mut s, fig, outer, "plot", None);
+    write_figure(&mut s, fig, outer, "plot", None, 0.0);
     let _ = write!(s, "</svg>");
     s
 }
@@ -52,6 +52,7 @@ fn write_document_object(
         Rect::new(0.0, 0.0, object.frame.width, object.frame.height),
         &format!("{id}_clip"),
         omit_figure_background_matching,
+        object.y_title_clearance,
     );
     if let Some(title) = &object.title {
         write_panel_letter(s, &title.text, title.position, title.font_size);
@@ -156,6 +157,7 @@ fn write_figure(
     outer: Rect,
     clip_id: &str,
     omit_background_matching: Option<plotium_figure::Color>,
+    y_title_clearance: f32,
 ) {
     let ty = fig.typography;
     let w = outer.width;
@@ -357,7 +359,7 @@ fn write_figure(
             s,
             r#"<text transform="translate({x:.2},{cy:.2}) rotate(-90)" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
             x = outer.left + OUTER_PAD + ty.label_pt * 0.5,
-            cy = (plot.top + plot.bottom()) / 2.0,
+            cy = crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0),
             font = ty.label_pt,
             lab = svg_content(&fig.y.label, ty.label_pt),
         );
