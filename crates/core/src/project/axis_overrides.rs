@@ -1,6 +1,6 @@
 use super::dto::RangeDto;
 use crate::state::AxisOverrides;
-use plotium_figure::{GuideLayout, GuidePlacement, GuideVisibility};
+use plotium_figure::{AxisFrame, GuideLayout, GuidePlacement, GuideVisibility};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -21,6 +21,8 @@ pub struct AxisOverridesDto {
     y_range: Option<RangeDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     lock_aspect: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    axis_frame: Option<AxisFrame>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     x_show_tick_labels: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -52,6 +54,7 @@ impl AxisOverridesDto {
             x_range: overrides.x_range.map(RangeDto::from_range),
             y_range: overrides.y_range.map(RangeDto::from_range),
             lock_aspect: overrides.lock_aspect,
+            axis_frame: overrides.axis_frame,
             x_show_tick_labels: overrides.x_show_tick_labels,
             x_show_label: overrides.x_show_label,
             y_show_tick_labels: overrides.y_show_tick_labels,
@@ -74,6 +77,7 @@ impl AxisOverridesDto {
             x_range: self.x_range.map(RangeDto::into_range),
             y_range: self.y_range.map(RangeDto::into_range),
             lock_aspect: self.lock_aspect,
+            axis_frame: self.axis_frame,
             x_show_tick_labels: self.x_show_tick_labels,
             x_show_label: self.x_show_label,
             y_show_tick_labels: self.y_show_tick_labels,
@@ -103,5 +107,17 @@ mod tests {
         let dto = AxisOverridesDto::from_overrides(&overrides)
             .expect("an explicit label makes the override structure non-default");
         assert_eq!(dto.x_label.as_deref(), Some(derived_label));
+    }
+
+    #[test]
+    fn frame_override_round_trips_through_the_project_format() {
+        let overrides = AxisOverrides {
+            axis_frame: Some(AxisFrame::Box),
+            ..AxisOverrides::default()
+        };
+        let dto = AxisOverridesDto::from_overrides(&overrides).expect("frame override is stored");
+        let json = serde_json::to_string(&dto).expect("serializes");
+        let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
+        assert_eq!(restored.to_overrides(), overrides);
     }
 }

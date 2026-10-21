@@ -3,7 +3,7 @@
 use super::provider::PropertyProvider;
 use super::target::{require_plot_object_target, resolved_schema};
 use super::{
-    AggregateValue, Applicability, Availability, ComponentKind, DefaultPolicy, EditOp,
+    AggregateValue, Applicability, Availability, ComponentKind, DefaultPolicy, EditOp, EnumVariant,
     PropertyAccess, PropertyAddress, PropertyDefinition, PropertyError, PropertyId,
     PropertyTransaction, PropertyValue, ResolvedProperty, ScopeKind, Tier, ValueCopies,
     ValueSchema,
@@ -18,6 +18,15 @@ pub const X_SHOW_TICK_LABELS: PropertyId = PropertyId("object.axes.x_show_tick_l
 pub const X_SHOW_LABEL: PropertyId = PropertyId("object.axes.x_show_label");
 pub const Y_SHOW_TICK_LABELS: PropertyId = PropertyId("object.axes.y_show_tick_labels");
 pub const Y_SHOW_LABEL: PropertyId = PropertyId("object.axes.y_show_label");
+pub const FRAME: PropertyId = PropertyId("object.axes.frame");
+
+pub const OPEN: &str = "open";
+pub const BOX: &str = "box";
+const FRAMES: &[EnumVariant] = &[
+    EnumVariant::new(OPEN, "Left and bottom"),
+    EnumVariant::new(BOX, "All four sides"),
+];
+const NO_AXES: &str = "Choose a chart with visible axes to edit axis settings.";
 
 const OBJECT: Applicability = Applicability::component(ComponentKind::None);
 
@@ -97,6 +106,18 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         &["y title visibility"],
         Tier::Advanced,
     ),
+    axis_definition(
+        FRAME,
+        ValueSchema::Enum { variants: FRAMES },
+        "Axis frame",
+        &[
+            "box frame",
+            "top and right axes",
+            "four-sided frame",
+            "spines",
+        ],
+        Tier::Essential,
+    ),
 ];
 
 pub(crate) struct AxisProvider;
@@ -122,10 +143,10 @@ impl PropertyProvider for AxisProvider {
         if definition.id == EQUAL_F1_F2_SCALE {
             require_2d_nmr_plot(app, plot, definition)?;
         }
-        let availability = if matches!(definition.id, X_LABEL | Y_LABEL)
+        let availability = if matches!(definition.id, X_LABEL | Y_LABEL | FRAME)
             && plot.figure().axis_frame == AxisFrame::Hidden
         {
-            Availability::Disabled("Choose a chart with visible axes to edit axis settings.")
+            Availability::Disabled(NO_AXES)
         } else {
             Availability::Editable
         };
@@ -163,15 +184,13 @@ impl PropertyProvider for AxisProvider {
                 .ok_or_else(|| PropertyError::UnknownTarget(address.target.describe()))?;
             require_2d_nmr_plot(app, plot, definition)?;
         }
-        if matches!(definition.id, X_LABEL | Y_LABEL)
+        if matches!(definition.id, X_LABEL | Y_LABEL | FRAME)
             && app.doc.canvases[canvas]
                 .object(object)
                 .and_then(|object| object.plot())
                 .is_some_and(|plot| plot.figure().axis_frame == AxisFrame::Hidden)
         {
-            return Err(PropertyError::NotApplicable(
-                "Choose a chart with visible axes to edit axis settings.".to_owned(),
-            ));
+            return Err(PropertyError::NotApplicable(NO_AXES.to_owned()));
         }
         let overrides = transaction.axis_overrides(app, canvas, object)?;
         match (definition.id, operation) {
@@ -196,6 +215,12 @@ impl PropertyProvider for AxisProvider {
             (Y_SHOW_LABEL, EditOp::Set(PropertyValue::Bool(value))) => {
                 overrides.y_show_label = Some(*value)
             }
+            (FRAME, EditOp::Set(PropertyValue::Enum(OPEN))) => {
+                overrides.axis_frame = Some(AxisFrame::Open)
+            }
+            (FRAME, EditOp::Set(PropertyValue::Enum(BOX))) => {
+                overrides.axis_frame = Some(AxisFrame::Box)
+            }
             (EQUAL_F1_F2_SCALE, EditOp::Reset) => overrides.lock_aspect = None,
             (X_LABEL, EditOp::Reset) => overrides.x_label = None,
             (Y_LABEL, EditOp::Reset) => overrides.y_label = None,
@@ -203,6 +228,7 @@ impl PropertyProvider for AxisProvider {
             (X_SHOW_LABEL, EditOp::Reset) => overrides.x_show_label = None,
             (Y_SHOW_TICK_LABELS, EditOp::Reset) => overrides.y_show_tick_labels = None,
             (Y_SHOW_LABEL, EditOp::Reset) => overrides.y_show_label = None,
+            (FRAME, EditOp::Reset) => overrides.axis_frame = None,
             (_, EditOp::Step(_)) => {
                 return Err(PropertyError::InvalidValue {
                     property: definition.id,
@@ -242,6 +268,7 @@ fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Property
         X_SHOW_LABEL => Ok(PropertyValue::Bool(plot.figure().x.show_label)),
         Y_SHOW_TICK_LABELS => Ok(PropertyValue::Bool(plot.figure().y.show_tick_labels)),
         Y_SHOW_LABEL => Ok(PropertyValue::Bool(plot.figure().y.show_label)),
+        FRAME => Ok(frame_value(plot.figure().axis_frame)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -275,6 +302,7 @@ fn default_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Pro
         X_SHOW_LABEL => Ok(PropertyValue::Bool(plot.derived_axes().x_show_label)),
         Y_SHOW_TICK_LABELS => Ok(PropertyValue::Bool(plot.derived_axes().y_show_tick_labels)),
         Y_SHOW_LABEL => Ok(PropertyValue::Bool(plot.derived_axes().y_show_label)),
+        FRAME => Ok(frame_value(plot.derived_axes().frame)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -287,6 +315,16 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
         X_SHOW_LABEL => Ok(plot.axis_overrides.x_show_label.is_some()),
         Y_SHOW_TICK_LABELS => Ok(plot.axis_overrides.y_show_tick_labels.is_some()),
         Y_SHOW_LABEL => Ok(plot.axis_overrides.y_show_label.is_some()),
+        FRAME => Ok(plot.axis_overrides.axis_frame.is_some()),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
+}
+
+/// A hidden frame only occurs on axis-less charts, where the property is
+/// disabled; it reads as the open frame those charts would otherwise use.
+fn frame_value(frame: AxisFrame) -> PropertyValue {
+    PropertyValue::Enum(match frame {
+        AxisFrame::Box => BOX,
+        AxisFrame::Open | AxisFrame::Hidden => OPEN,
+    })
 }

@@ -1,6 +1,6 @@
 //! Axis presentation captured before author overrides are applied.
 
-use plotium_figure::Figure;
+use plotium_figure::{AxisFrame, Figure};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DerivedAxes {
@@ -10,6 +10,7 @@ pub struct DerivedAxes {
     pub x_show_label: bool,
     pub y_show_tick_labels: bool,
     pub y_show_label: bool,
+    pub frame: AxisFrame,
 }
 
 impl DerivedAxes {
@@ -21,6 +22,7 @@ impl DerivedAxes {
             x_show_label: figure.x.show_label,
             y_show_tick_labels: figure.y.show_tick_labels,
             y_show_label: figure.y.show_label,
+            frame: figure.axis_frame,
         }
     }
 }

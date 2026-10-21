@@ -39,6 +39,7 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
             x_show_label: Some(false),
             y_show_tick_labels: Some(false),
             y_show_label: Some(false),
+            axis_frame: Some(plotium_figure::AxisFrame::Open),
             guide_visibility: Some(plotium_figure::GuideVisibility::Hide),
             guide_placement: Some(plotium_figure::GuidePlacement::OutsideRight),
             guide_layout: Some(plotium_figure::GuideLayout::Horizontal),
@@ -68,6 +69,9 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
         }),
         (axis::Y_SHOW_LABEL, |value: &AxisOverrides| {
             value.y_show_label.is_none()
+        }),
+        (axis::FRAME, |value: &AxisOverrides| {
+            value.axis_frame.is_none()
         }),
         (guide::VISIBILITY, |value: &AxisOverrides| {
             value.guide_visibility.is_none()
@@ -350,4 +354,79 @@ fn grouped_visibility_reset_clears_four_overrides_in_one_undo_step() {
 
     app.undo();
     assert_eq!(overrides(&app, object), &explicit);
+}
+
+#[test]
+fn axis_frame_switches_between_open_and_box_with_undo_and_reset() {
+    let (mut app, target, object) = axis_app();
+    let frame = |app: &PlotiumApp| {
+        app.doc.canvases[0]
+            .object(object)
+            .and_then(|object| object.plot())
+            .expect("plot")
+            .figure()
+            .axis_frame
+    };
+    let read = |app: &PlotiumApp| {
+        app.resolve_property(&PropertyAddress::new(target.clone(), axis::FRAME))
+            .expect("frame resolves")
+    };
+    // Contour plots derive a boxed frame.
+    assert_eq!(frame(&app), plotium_figure::AxisFrame::Box);
+    let resolved = read(&app);
+    assert_eq!(resolved.default_value, Some(PropertyValue::Enum(axis::BOX)));
+    assert_eq!(resolved.modified, Some(false));
+
+    let commit = app
+        .plan_property_write(
+            axis::FRAME,
+            std::slice::from_ref(&target),
+            &PropertyValue::Enum(axis::OPEN),
+        )
+        .expect("frame write plans");
+    app.commit_property(commit);
+    assert_eq!(frame(&app), plotium_figure::AxisFrame::Open);
+    let resolved = read(&app);
+    assert_eq!(
+        resolved.value,
+        AggregateValue::Uniform(PropertyValue::Enum(axis::OPEN))
+    );
+    assert_eq!(resolved.modified, Some(true));
+
+    app.undo();
+    assert_eq!(frame(&app), plotium_figure::AxisFrame::Box);
+    app.redo();
+    assert_eq!(frame(&app), plotium_figure::AxisFrame::Open);
+
+    let commit = app
+        .plan_property_reset(axis::FRAME, std::slice::from_ref(&target))
+        .expect("frame reset plans");
+    app.commit_property(commit);
+    assert_eq!(frame(&app), plotium_figure::AxisFrame::Box);
+    assert_eq!(overrides(&app, object).axis_frame, None);
+}
+
+#[test]
+fn axis_frame_is_disabled_on_charts_without_axes() {
+    let (mut app, target, object) = axis_app();
+    app.doc.canvases[0]
+        .object_mut(object)
+        .and_then(|object| object.plot_mut())
+        .expect("plot")
+        .set_axis_frame(plotium_figure::AxisFrame::Hidden);
+    assert!(matches!(
+        app.resolve_property(&PropertyAddress::new(target.clone(), axis::FRAME))
+            .expect("frame resolves")
+            .availability,
+        Availability::Disabled(_)
+    ));
+    let commit = app
+        .plan_property_write(
+            axis::FRAME,
+            std::slice::from_ref(&target),
+            &PropertyValue::Enum(axis::BOX),
+        )
+        .expect("write plans with a skip");
+    assert!(commit.applied.is_empty());
+    assert_eq!(commit.skipped.len(), 1);
 }

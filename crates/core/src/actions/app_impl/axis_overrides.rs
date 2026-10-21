@@ -172,6 +172,7 @@ impl PlotiumApp {
             || cleared(&before.x_range, &after.x_range)
             || cleared(&before.y_range, &after.y_range)
             || cleared(&before.lock_aspect, &after.lock_aspect)
+            || cleared(&before.axis_frame, &after.axis_frame)
             || cleared(&before.x_show_tick_labels, &after.x_show_tick_labels)
             || cleared(&before.x_show_label, &after.x_show_label)
             || cleared(&before.y_show_tick_labels, &after.y_show_tick_labels)
