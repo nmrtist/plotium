@@ -100,6 +100,7 @@ canvases and canvas objects, and these display properties only:
 | `document.figure.typography.axis_line_pt` | document | 0.05–10 pt; axis lines and tick marks |
 | `document.figure.typography.tick_length_pt` | document | 0–20 pt |
 | `document.figure.typography.tick_direction` | document | `out`, `in` |
+| `document.figure.typography.minor_ticks` | document | 0–9 minor ticks per major interval; 0 hides them |
 
 Scientific processing and task interfaces are described below. Preferences, new format parsers, automatic scientific-result plotting and built-in chat are outside this interface.
 

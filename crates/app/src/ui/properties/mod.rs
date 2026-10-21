@@ -351,6 +351,11 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         "Tick direction",
         &[LocalizedText("inward ticks")],
     ),
+    typography_entry(
+        typography::MINOR_TICKS,
+        "Minor ticks",
+        &[LocalizedText("minor tick count")],
+    ),
     PropertyPresentation {
         id: canvas::MARGIN_TOP_MM,
         localized_label: LocalizedText("Top margin"),

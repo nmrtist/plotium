@@ -293,6 +293,11 @@ What you control directly:
   1 pt), **Tick length** (0 to 20 pt, default 3 pt) and **Tick direction**
   (*Outward*, the default, or *Inward*). Inward ticks point into the plot, so
   the tick labels move up to the axis line.
+- **Minor ticks** in the same advanced controls draws that many unlabelled
+  ticks between neighbouring major ticks on both axes (0 to 9, default 0,
+  which hides them). Minor ticks are half the tick length and use the same
+  width and direction. Categorical axes, and axes showing fewer than two
+  major ticks, have no minor ticks.
 - **Figure typography** in the Object inspector holds the same tick-label size
   as **Tick-label size**, plus **Legend size** and **Legend text color**.
   Changing a value in either surface changes the one document-wide value.

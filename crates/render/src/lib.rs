@@ -17,7 +17,9 @@ mod screen_stats;
 pub mod svg;
 mod ticks;
 
-pub use ticks::{AxisLayout, AxisTicks, axis_layout, axis_ticks, axis_ticks_for, ticks};
+pub use ticks::{
+    AxisLayout, AxisTicks, axis_layout, axis_ticks, axis_ticks_for, minor_tick_values, ticks,
+};
 
 #[cfg(feature = "screen")]
 pub mod screen;

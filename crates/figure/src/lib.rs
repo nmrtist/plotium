@@ -62,6 +62,9 @@ pub struct FigureTypography {
     /// Whether tick marks point away from or into the plot area.
     #[serde(default)]
     pub tick_direction: TickDirection,
+    /// Unlabelled minor ticks between neighbouring major ticks; zero hides them.
+    #[serde(default)]
+    pub minor_ticks: u8,
 }
 
 /// Which side of the axis line the tick marks point to.
@@ -89,6 +92,11 @@ impl FigureTypography {
             TickDirection::Out => self.tick_length_pt,
             TickDirection::In => -self.tick_length_pt,
         }
+    }
+
+    /// Minor ticks are half as long as major ticks and point the same way.
+    pub fn minor_tick_reach(&self) -> f32 {
+        self.tick_reach() * 0.5
     }
 }
 
@@ -145,6 +153,7 @@ impl Default for FigureTypography {
             axis_line_pt: default_axis_line_pt(),
             tick_length_pt: default_tick_length_pt(),
             tick_direction: TickDirection::Out,
+            minor_ticks: 0,
         }
     }
 }
@@ -669,5 +678,6 @@ mod tests {
         assert_eq!(typography.axis_line_pt, 1.0);
         assert_eq!(typography.tick_length_pt, 3.0);
         assert_eq!(typography.tick_direction, TickDirection::Out);
+        assert_eq!(typography.minor_ticks, 0);
     }
 }

@@ -1,8 +1,8 @@
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, OUTER_PAD, OverlayAlign, OverlayKind,
     OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head, axis_layout,
-    error_bar_segments, heatmap_cells, integral, polygon_outline, projection_points,
-    range_label_layout,
+    error_bar_segments, heatmap_cells, integral, minor_tick_values, polygon_outline,
+    projection_points, range_label_layout,
 };
 use plotium_figure::{AxisFrame, AxisTrace, Figure};
 use std::fmt::Write as _;
@@ -249,6 +249,27 @@ fn write_figure(
         AxisFrame::Hidden => {}
     }
 
+    let minor = ty.minor_tick_reach();
+    let mut minor_path = String::new();
+    for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
+        let (px, _) = proj.project([xt, fig.y.min]);
+        let _ = write!(minor_path, "M{px:.2} {b:.2}v{minor}", b = plot.bottom());
+    }
+    for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
+        let (_, py) = proj.project([fig.x.min, yt]);
+        let _ = write!(
+            minor_path,
+            "M{yl:.2} {py:.2}h{minor}",
+            yl = y_axis_x - minor
+        );
+    }
+    if !minor_path.is_empty() {
+        let _ = write!(
+            s,
+            r#"<path d="{minor_path}" stroke="{axis}" stroke-width="{width}"/>"#,
+            width = ty.axis_line_pt,
+        );
+    }
     for (&xt, label) in x_ticks.values.iter().zip(&x_ticks.labels) {
         let (px, _) = proj.project([xt, fig.y.min]);
         let _ = write!(

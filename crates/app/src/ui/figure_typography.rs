@@ -1,7 +1,7 @@
 //! Document-level Figure Typography window: the tick / axis-title / figure-title
-//! point sizes and the axis strokes stamped onto every plot. Edits apply live (each rebuild restamps
-//! the document value) and one slider gesture coalesces into one undo step, the
-//! same contract as the canvas-size fields.
+//! point sizes, axis strokes and minor ticks stamped onto every plot. Edits
+//! apply live (each rebuild restamps the document value) and one slider gesture
+//! coalesces into one undo step, the same contract as the canvas-size fields.
 
 use super::*;
 use plotium_figure::FigureTypography;

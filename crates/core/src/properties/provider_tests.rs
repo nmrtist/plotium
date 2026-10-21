@@ -128,6 +128,37 @@ fn tick_direction_and_axis_strokes_are_document_properties() {
 }
 
 #[test]
+fn minor_tick_count_is_a_bounded_document_property() {
+    let mut app = PlotiumApp::new();
+    let target = app.document_target();
+    let targets = std::slice::from_ref(&target);
+    let commit = app
+        .plan_property_write(typography::MINOR_TICKS, targets, &PropertyValue::Int(4))
+        .expect("minor ticks plan");
+    app.commit_property(commit);
+    assert_eq!(app.doc.style_library.figure_typography.minor_ticks, 4);
+    let resolved = app
+        .resolve_property(&PropertyAddress::new(
+            target.clone(),
+            typography::MINOR_TICKS,
+        ))
+        .expect("minor ticks resolve");
+    assert_eq!(resolved.value.uniform(), Some(&PropertyValue::Int(4)));
+
+    for rejected in [PropertyValue::Int(10), PropertyValue::Int(-1)] {
+        assert!(
+            app.plan_property_write(typography::MINOR_TICKS, targets, &rejected)
+                .is_err()
+        );
+    }
+    let reset = app
+        .plan_property_reset(typography::MINOR_TICKS, targets)
+        .expect("minor ticks reset plans");
+    app.commit_property(reset);
+    assert_eq!(app.doc.style_library.figure_typography.minor_ticks, 0);
+}
+
+#[test]
 fn all_typography_sizes_share_the_declared_point_schema() {
     for property in [
         typography::TICK_PT,

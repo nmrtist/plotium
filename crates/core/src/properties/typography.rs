@@ -19,6 +19,7 @@ pub const LEGEND_COLOR: PropertyId = PropertyId("document.figure.typography.lege
 pub const AXIS_LINE_PT: PropertyId = PropertyId("document.figure.typography.axis_line_pt");
 pub const TICK_LENGTH_PT: PropertyId = PropertyId("document.figure.typography.tick_length_pt");
 pub const TICK_DIRECTION: PropertyId = PropertyId("document.figure.typography.tick_direction");
+pub const MINOR_TICKS: PropertyId = PropertyId("document.figure.typography.minor_ticks");
 
 pub const OUT: &str = "out";
 pub const IN: &str = "in";
@@ -37,6 +38,8 @@ const STROKE_BOUNDS: FloatBounds = FloatBounds::inclusive(0.05, 10.0);
 const STROKE_STEP: f64 = 0.05;
 /// Zero-length ticks are allowed: they hide the marks but keep their labels.
 const TICK_LENGTH_BOUNDS: FloatBounds = FloatBounds::inclusive(0.0, 20.0);
+/// Nine minor ticks split a major interval into tenths, the finest useful ruling.
+const MAX_MINOR_TICKS: i64 = 9;
 
 const fn typography_definition(
     id: PropertyId,
@@ -158,6 +161,21 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         canonical_label: "Figure tick direction",
         canonical_aliases: &["inward ticks", "outward ticks", "tick orientation"],
     },
+    PropertyDefinition {
+        id: MINOR_TICKS,
+        scope_kind: ScopeKind::Document,
+        value_schema: ValueSchema::Int {
+            min: 0,
+            max: MAX_MINOR_TICKS,
+        },
+        access: PropertyAccess::ReadWrite,
+        applicability: Applicability::component(ComponentKind::None),
+        default_policy: DefaultPolicy::Fixed(PropertyValue::Int(0)),
+        tier: Tier::Advanced,
+        copies: ValueCopies::PerTarget,
+        canonical_label: "Figure minor ticks",
+        canonical_aliases: &["minor tick count", "subticks", "minor tick marks"],
+    },
 ];
 
 pub(crate) struct TypographyProvider;
@@ -191,6 +209,7 @@ impl PropertyProvider for TypographyProvider {
                 TickDirection::Out => OUT,
                 TickDirection::In => IN,
             }),
+            MINOR_TICKS => PropertyValue::Int(i64::from(typography.minor_ticks)),
             _ => return Err(PropertyError::UnknownProperty(definition.id.to_string())),
         };
         Ok(ResolvedProperty {
@@ -258,6 +277,37 @@ impl PropertyProvider for TypographyProvider {
                 }
             };
             transaction.figure_typography(app).tick_direction = value;
+            return Ok(());
+        }
+        if definition.id == MINOR_TICKS {
+            let count = match operation {
+                EditOp::Set(PropertyValue::Int(count)) if (0..=MAX_MINOR_TICKS).contains(count) => {
+                    *count as u8
+                }
+                EditOp::Reset => 0,
+                EditOp::Set(PropertyValue::Int(count)) => {
+                    return Err(PropertyError::InvalidValue {
+                        property: definition.id,
+                        message: format!(
+                            "minor tick count {count} is out of range: it must be between 0 and \
+                             {MAX_MINOR_TICKS}"
+                        ),
+                    });
+                }
+                EditOp::Set(value) => {
+                    return Err(PropertyError::InvalidValue {
+                        property: definition.id,
+                        message: format!("expected a whole number, got {}", value.kind()),
+                    });
+                }
+                EditOp::Step(_) => {
+                    return Err(PropertyError::InvalidValue {
+                        property: definition.id,
+                        message: "this setting has no step gesture".to_owned(),
+                    });
+                }
+            };
+            transaction.figure_typography(app).minor_ticks = count;
             return Ok(());
         }
         let value = match operation {
