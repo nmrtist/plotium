@@ -16,7 +16,9 @@ fn figure_edit_permissions_discovery_single_use_revision_context_and_busy_are_en
         "permission_denied"
     );
     s.allow_modify = true;
-    let state = s.call(&mut a, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut a, "plotium_capabilities_get", json!({}))
+        .unwrap();
     assert_eq!(
         state["connection_capabilities"]["operation_constraints"][FIGURE_EDIT]["schema"],
         figure_edit_schema()

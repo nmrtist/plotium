@@ -120,7 +120,7 @@ impl ServerHandler for Connector {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("Plotium", env!("CARGO_PKG_VERSION")))
-            .with_instructions("Open Plotium and enable MCP. Read plotium_get_state before project tools. Supply project_context as expected_project_context. After project_changed, reread state and replan without reusing targets. Never replay calls after a disconnection.")
+            .with_instructions("Open Plotium and enable MCP. Discover static contracts with plotium_capabilities_get as needed. Read plotium_get_state before project tools. Supply project_context as expected_project_context. After project_changed, reread state and replan without reusing targets. Never replay calls after a disconnection.")
     }
     async fn list_tools(
         &self,

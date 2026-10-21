@@ -13,6 +13,7 @@ impl ToolEffect {
     fn for_tool(name: &str) -> Self {
         match name {
             "plotium_get_state"
+            | "plotium_capabilities_get"
             | "plotium_resources_search"
             | "plotium_resources_inspect"
             | "plotium_properties_list"

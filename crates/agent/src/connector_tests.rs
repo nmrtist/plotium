@@ -70,9 +70,25 @@ fn one_stdio_session_survives_offline_start_restart_and_revocation_without_repla
                 .unwrap()
         });
         pump(&mut connection, &mut app, &call).await;
+        let state = call.await.unwrap().structured_content.unwrap();
+        assert_eq!(state["project_context"], json!(context));
+        assert!(state.get("connection_capabilities").is_none());
+        let handle = client.peer().clone();
+        let call = tokio::spawn(async move {
+            handle
+                .call_tool(CallToolRequestParams::new("plotium_capabilities_get"))
+                .await
+                .unwrap()
+        });
+        pump(&mut connection, &mut app, &call).await;
+        let discovery = call.await.unwrap().structured_content.unwrap();
         assert_eq!(
-            call.await.unwrap().structured_content.unwrap()["project_context"],
-            json!(context)
+            discovery["capability_fingerprint"],
+            state["capability_fingerprint"]
+        );
+        assert_eq!(
+            discovery["connection_capabilities"],
+            *crate::capabilities::manifest()
         );
         let handle = client.peer().clone();
         let call = tokio::spawn(async move {
