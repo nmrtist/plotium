@@ -43,13 +43,13 @@ pub(super) fn marker_at(dc: &mut Dc, p: (f32, f32), marker: Marker, r: f32, pain
     if marker == Marker::Circle {
         dc.ellipse(
             Rect::new(p.0 - r, p.1 - r, r * 2., r * 2.),
-            Some(paint.fill),
+            paint.fill,
             paint.edge,
         );
     }
     let polygon = marker_polygon(marker, p, r);
     if !polygon.is_empty() {
-        dc.polygon(&polygon, Some(paint.fill), paint.edge);
+        dc.polygon(&polygon, paint.fill, paint.edge);
     }
     dc.segments(&marker_segments(marker, p, r), paint.color, paint.width);
 }

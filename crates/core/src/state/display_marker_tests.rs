@@ -128,6 +128,7 @@ fn semantic_colours_disable_marker_colour_overrides_but_not_edge_width() {
     };
     line.appearance.marker_fill = Some(Color::BLACK);
     line.appearance.marker_edge_color = Some(Color::BLACK);
+    line.appearance.marker_hollow = true;
     let mut semantic = plot(&app, 0).figure().clone();
     semantic.series_colors_are_semantic = true;
     app.apply_series_binding_style(&mut semantic, &binding);
@@ -135,5 +136,69 @@ fn semantic_colours_disable_marker_colour_overrides_but_not_edge_width() {
         assert_eq!(series.appearance.marker_fill, None);
         assert_eq!(series.appearance.marker_edge_color, None);
         assert!(series.appearance.marker_edge_width.is_some());
+        assert!(series.appearance.marker_hollow);
     }
+}
+
+#[test]
+fn hollow_markers_keep_an_outline_and_their_fill_setting() {
+    let mut app = fixture();
+    let a = target(&app, 0, 0);
+    write(
+        &mut app,
+        line_display::MARKER_FILL,
+        PropertyValue::Color(Color::rgb(0xf2, 0xd7, 0x97)),
+        std::slice::from_ref(&a),
+    );
+    let p = plan_tool(
+        &app,
+        request(
+            &app,
+            "series.line.marker_hollow",
+            json!(true),
+            vec![a.clone()],
+        ),
+    )
+    .unwrap();
+    execute_tool(&mut app, p, ExecutionAuthority::ReversibleModify).unwrap();
+    let hollow = appearance(&app, 0);
+    assert!(hollow.marker_hollow);
+    assert_eq!(hollow.marker_fill(Color::BLACK), None);
+    assert_eq!(
+        value(&app, &a, line_display::MARKER_EDGE_WIDTH),
+        PropertyValue::Float(f64::from(plotium_figure::DEFAULT_DATA_LINE_WIDTH_PT))
+    );
+    assert_eq!(plot(&app, 0).figure().series[0].appearance, hollow);
+
+    let path =
+        std::env::temp_dir().join(format!("plotium-hollow-{}.plotium", uuid::Uuid::new_v4()));
+    crate::project::save_project(&app, &path, false).unwrap();
+    let loaded = crate::project::load_project(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(appearance(&loaded, 0), hollow);
+
+    // Resetting the edge width removes the override instead of storing the hollow default.
+    write(
+        &mut app,
+        line_display::MARKER_EDGE_WIDTH,
+        PropertyValue::Float(0.8),
+        std::slice::from_ref(&a),
+    );
+    let reset = app
+        .plan_property_reset(line_display::MARKER_EDGE_WIDTH, std::slice::from_ref(&a))
+        .unwrap();
+    app.commit_property(reset);
+    assert_eq!(appearance(&app, 0).marker_edge_width, None);
+
+    let reset = app
+        .plan_property_reset(line_display::MARKER_HOLLOW, std::slice::from_ref(&a))
+        .unwrap();
+    app.commit_property(reset);
+    let filled = appearance(&app, 0);
+    assert!(!filled.marker_hollow);
+    assert_eq!(
+        filled.marker_fill(Color::BLACK),
+        Some(Color::rgb(0xf2, 0xd7, 0x97))
+    );
+    assert_eq!(filled.marker_edge(Color::BLACK), None);
 }

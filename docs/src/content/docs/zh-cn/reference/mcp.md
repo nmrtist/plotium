@@ -70,7 +70,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.line.marker` | 图对象＋Series | `none`, `circle`, `square`, `diamond`, `triangle_up`, `triangle_down`, `plus`, `cross` |
 | `series.line.marker_size` | 图对象＋Series | 0.1–20 pt，直径 |
 | `series.line.marker_fill / series.line.marker_edge_color` | 图对象＋Series | `#RRGGBB` |
-| `series.line.marker_edge_width` | 图对象＋Series | 0–5 pt；0 表示无边框 |
+| `series.line.marker_edge_width` | 图对象＋Series | 0–5 pt；0 表示无边框（空心时为 0.5 pt） |
+| `series.line.marker_hollow` | 图对象＋Series | 布尔值 |
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
@@ -1142,7 +1143,7 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `connect
 现有基于 width 的半径，原线宽接口含义不变；reset 恢复原生符号/大小。
 显式空图例文字使该图例项不显示。线型仅适用于折线，散点目标会按规则跳过。
 符号适用于折线和散点，不适用于 stick。符号填充色和边框色作用于闭合符号，未设置时跟随
-曲线颜色，reset 恢复跟随。颜色由图型语义决定时，单曲线改色、改符号填充色或边框色按不适用跳过。
+曲线颜色，reset 恢复跟随。空心符号不填充并保留边框，未设置边框宽度时为 0.5 pt。颜色由图型语义决定时，单曲线改色、改符号填充色或边框色按不适用跳过。
 
 单图刻度、轴标题和图例字号在未覆盖时继承文档设置，reset 只移除相应覆盖；
 改单图字体不影响其他图。字体/标题测量沿用原生渲染，不重排页面，不改变面板及

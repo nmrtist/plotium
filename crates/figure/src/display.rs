@@ -37,8 +37,10 @@ pub struct CurveAppearance {
     pub marker_fill: Option<crate::Color>,
     /// Outline of closed markers. No override outlines in the series colour.
     pub marker_edge_color: Option<crate::Color>,
-    /// Outline width in points. No override draws no outline.
+    /// Outline width in points. No override draws no outline unless hollow.
     pub marker_edge_width: Option<PositiveFiniteF32>,
+    /// Closed markers draw only their outline.
+    pub marker_hollow: bool,
 }
 impl CurveAppearance {
     pub fn marker(self, kind: SeriesKind) -> Marker {
@@ -51,13 +53,20 @@ impl CurveAppearance {
     pub fn marker_radius(self, width: f32) -> f32 {
         self.marker_size.map_or(width, |size| size.get() * 0.5)
     }
-    pub fn marker_fill(self, color: crate::Color) -> crate::Color {
-        self.marker_fill.unwrap_or(color)
+    /// The closed-marker fill, or none for a hollow marker.
+    pub fn marker_fill(self, color: crate::Color) -> Option<crate::Color> {
+        (!self.marker_hollow).then(|| self.marker_fill.unwrap_or(color))
     }
-    /// The closed-marker outline as (colour, width), when one is drawn.
+    /// The closed-marker outline as (colour, width), when one is drawn. A
+    /// hollow marker always keeps one so it cannot vanish.
     pub fn marker_edge(self, color: crate::Color) -> Option<(crate::Color, f32)> {
-        self.marker_edge_width
-            .map(|width| (self.marker_edge_color.unwrap_or(color), width.get()))
+        self.marker_edge_width()
+            .map(|width| (self.marker_edge_color.unwrap_or(color), width))
+    }
+    pub fn marker_edge_width(self) -> Option<f32> {
+        self.marker_edge_width.map(PositiveFiniteF32::get).or(self
+            .marker_hollow
+            .then_some(crate::DEFAULT_DATA_LINE_WIDTH_PT))
     }
 }
 

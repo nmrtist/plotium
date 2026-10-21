@@ -56,7 +56,7 @@ pub(super) fn marker_at(
     paint: &MarkerPaint,
 ) {
     let (col, width) = (paint.color.to_hex(), paint.width);
-    let fill = paint.fill.to_hex();
+    let fill = paint.fill.map_or("none".into(), |fill| fill.to_hex());
     let edge = paint.edge.map_or(String::new(), |(color, width)| {
         format!(r#" stroke="{}" stroke-width="{width}""#, color.to_hex())
     });

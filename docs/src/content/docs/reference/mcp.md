@@ -82,7 +82,8 @@ canvases and canvas objects, and these display properties only:
 | `series.line.marker` | Object + Series | `none`, `circle`, `square`, `diamond`, `triangle_up`, `triangle_down`, `plus`, `cross` |
 | `series.line.marker_size` | Object + Series | 0.1–20 pt diameter |
 | `series.line.marker_fill / series.line.marker_edge_color` | Object + Series | `#RRGGBB` |
-| `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline |
+| `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline (0.5 pt while hollow) |
+| `series.line.marker_hollow` | Object + Series | boolean |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -1394,8 +1395,9 @@ marker/size, and an explicit empty legend label omits that legend entry. Stroke
 style applies to line curves; scatter curves are skipped for that property.
 Markers apply to line/scatter curves, not sticks. Marker fill and edge color
 apply to closed markers and follow the curve color until set; reset returns
-them to it. A chart that owns semantic colors rejects a single series color,
-marker fill or marker edge color override as inapplicable.
+them to it. A hollow marker draws no fill and keeps an outline, 0.5 pt when
+no edge width is set. A chart that owns semantic colors rejects a single series
+color, marker fill or marker edge color override as inapplicable.
 
 Plot-local tick, axis-title and legend sizes inherit document typography until
 set. Reset removes only that override; changing one plot's font does not style

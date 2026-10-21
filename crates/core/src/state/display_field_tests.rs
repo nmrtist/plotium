@@ -110,6 +110,7 @@ fn r6_default_mass_spectrum_rejects_markers_and_style_but_keeps_stroke_edits() {
             PropertyValue::Color(Color::BLACK),
         ),
         (line_display::MARKER_EDGE_WIDTH, PropertyValue::Float(0.5)),
+        (line_display::MARKER_HOLLOW, PropertyValue::Bool(true)),
     ] {
         assert!(matches!(
             resolved(&app, &t, key).availability,

@@ -317,7 +317,9 @@ What you control directly:
   line colour. **Marker fill** sets the inside of closed markers (circle, square, diamond,
   triangles) and **Marker edge color** their outline; both follow the curve
   colour until set. **Marker edge width** draws that outline, from 0 (no
-  outline, the default) to 5 pt. Plus and cross markers stay in the curve
+  outline, the default) to 5 pt. **Hollow marker** leaves closed markers
+  unfilled and keeps their outline, 0.5 pt when the edge width is 0; the
+  fill colour returns when it is turned off. Plus and cross markers stay in the curve
   colour. The legend swatch shows the same marker. Charts whose colours carry
   meaning keep their marker colours.
 - **Canvas themes** carry matching sizes — the Presentation Dark theme, for

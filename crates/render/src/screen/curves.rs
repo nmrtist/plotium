@@ -79,14 +79,15 @@ pub(super) fn marker_at(
     let edge = paint.edge.map_or(Stroke::NONE, |(color, width)| {
         Stroke::new(width, col(color))
     });
+    let fill = paint.fill.map_or(Color32::TRANSPARENT, col);
     if marker == Marker::Circle {
-        painter.circle(Pos2::new(p.0, p.1), r, col(paint.fill), edge);
+        painter.circle(Pos2::new(p.0, p.1), r, fill, edge);
     }
     let polygon = marker_polygon(marker, p, r);
     if !polygon.is_empty() {
         painter.add(Shape::convex_polygon(
             polygon.into_iter().map(|(x, y)| Pos2::new(x, y)).collect(),
-            col(paint.fill),
+            fill,
             edge,
         ));
     }
