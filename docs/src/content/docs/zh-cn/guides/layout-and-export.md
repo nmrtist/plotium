@@ -230,6 +230,9 @@ NMR 核素质量数。新数据集默认使用 89 × 60 mm 单栏画布：单个
   所有导出格式。双击图例或色标可恢复自动位置。
 - 轴标题、图例和文字支持真正的上下标：输入 `cm^{-2}` 或 `H_{2}O`。
   `⁻²`、`₂` 这类字符也按同样方式绘制。EMF 导出仍使用这些 Unicode 字符。
+- 图中文字在画布和所有导出格式中都使用 Arial。没有 Arial 时改用 Helvetica
+  或 Liberation Sans 等字宽相同的无衬线字体。SVG 文件写明 Arial，用矢量软件
+  打开也保持 Nature 系列期刊要求的字体。
 - Figure Ribbon 选项卡 **Style** 分组中的 **Figure typography** 会打开文档级
   排版分区；命令面板中的 **Figure Typography…** 以独立窗口显示同一分区，并
   多出 **Reset to defaults** 按钮。两者都一次设定文档内所有图的文字尺寸

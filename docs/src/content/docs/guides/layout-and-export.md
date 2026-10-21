@@ -287,6 +287,10 @@ What you control directly:
 - Axis titles, legend entries and text use true superscripts and subscripts:
   type `cm^{-2}` or `H_{2}O`. Characters such as `⁻²` and `₂` are drawn the
   same way. EMF output falls back to those Unicode characters.
+- Figure text is set in Arial on the canvas and in every export format.
+  Without Arial, Plotium uses Helvetica or a metric-compatible sans such as
+  Liberation Sans. SVG files name Arial, so a vector editor keeps the typeface
+  Nature-portfolio journals ask for.
 - **Figure typography** in the Figure Ribbon tab's **Style** group opens the
   document-wide typography section; **Figure Typography…** in the command
   palette shows the same section in its own window with a **Reset to
