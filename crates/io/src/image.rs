@@ -610,6 +610,18 @@ mod tests {
     }
 
     #[test]
+    fn proxy_decode_keeps_images_that_already_fit() {
+        let source = image::RgbaImage::from_pixel(3, 2, image::Rgba([1, 2, 3, 4]));
+        let mut encoded = Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(source)
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .unwrap();
+        let proxy = decode_proxy_rgba8(encoded.get_ref(), 2048).unwrap();
+        assert_eq!(proxy.pixel_size, [3, 2]);
+        assert_eq!(proxy.rgba8.len(), 24);
+    }
+
+    #[test]
     fn file_backed_proxy_handles_every_supported_format() {
         for format in [
             image::ImageFormat::Png,
