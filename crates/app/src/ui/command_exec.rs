@@ -262,6 +262,8 @@ fn execute_inner(
         CommandId::Align(mode) => app.align_selected(mode),
         CommandId::Distribute(mode) => app.distribute_selected(mode),
         CommandId::ZOrder(mode) => app.z_order_selected(mode),
+        CommandId::SaveCanvasStyle => super::canvas_styles::open_save_dialog(app),
+        CommandId::ManageCanvasStyles => super::canvas_styles::open_browser(app),
         CommandId::ApplyTheme(id) => {
             if let Some(theme) = plotium_core::theme::Theme::by_id(id) {
                 app.apply_theme(&theme);

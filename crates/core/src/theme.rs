@@ -1,19 +1,32 @@
 //! Document-level style themes: a named bundle of background, text colour, base
 //! font size, axis furniture and a trace palette, applied to a canvas in one
-//! undoable step.
+//! undoable step. Built-in themes ship with Plotium; user styles are the same
+//! bundle captured from a canvas and saved to the configuration directory.
 
 use crate::actions::Action;
 use crate::state::{
     ObjectId, ObjectStyle, PlotiumApp, ShapeKind, ShapeObject, StyleLibrary, TextBox,
 };
-use plotium_figure::{Color, FigureTypography, TickDirection};
+use plotium_figure::{Color, FigureTypography, PositiveFiniteF32, TickDirection};
+use serde::{Deserialize, Serialize};
+
+mod user_styles;
+pub use user_styles::{
+    STYLE_EXTENSION, StyleError, UserStyleInfo, delete_user_style, list_user_styles,
+    load_user_style, save_user_style, styles_dir, user_style_exists, validate_style_name,
+};
 
 /// A named bundle of document-level style defaults. `trace_palette[0]` is the
 /// primary trace colour; further entries colour overlaid series in order.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Theme {
-    pub id: &'static str,
-    pub name: &'static str,
+    /// Built-in themes use a fixed lowercase id; a user style is identified by
+    /// its file name, so neither is stored in the style file.
+    #[serde(skip)]
+    pub id: String,
+    #[serde(skip)]
+    pub name: String,
     pub background: Color,
     pub text_color: Color,
     pub base_font_pt: f32,
@@ -26,21 +39,69 @@ pub struct Theme {
     /// series' own size.
     pub marker_size_pt: Option<f32>,
     /// Remove marker outlines so markers are solid in their fill colour.
+    #[serde(default)]
     pub clear_marker_edges: bool,
+    /// Marker fill and outline paired index-for-index with `trace_palette`.
+    /// Empty, or no paint at a position, keeps each curve's own marker paint.
+    #[serde(default)]
+    pub marker_palette: Vec<Option<MarkerPaint>>,
+}
+
+/// The closed-marker paint of one curve, as captured from a canvas.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MarkerPaint {
+    /// No fill fills with the curve colour.
+    pub fill: Option<Color>,
+    /// No edge colour outlines in the curve colour.
+    pub edge_color: Option<Color>,
+    /// No edge width draws no outline unless the marker is hollow.
+    pub edge_width_pt: Option<PositiveFiniteF32>,
+    /// Closed markers draw only their outline.
+    pub hollow: bool,
+}
+
+impl MarkerPaint {
+    fn of(appearance: &plotium_figure::CurveAppearance) -> Self {
+        Self {
+            fill: appearance.marker_fill,
+            edge_color: appearance.marker_edge_color,
+            edge_width_pt: appearance.marker_edge_width,
+            hollow: appearance.marker_hollow,
+        }
+    }
+
+    fn paint(self, appearance: &mut plotium_figure::CurveAppearance) {
+        appearance.marker_fill = self.fill;
+        appearance.marker_edge_color = self.edge_color;
+        appearance.marker_edge_width = self.edge_width_pt;
+        appearance.marker_hollow = self.hollow;
+    }
 }
 
 impl Theme {
+    /// Built-in theme ids in menu order. A user style may not take one of
+    /// these names, so a theme id stays unambiguous.
+    pub const BUILTIN_IDS: [&'static str; 4] =
+        ["publication", "nature", "presentation_dark", "vibrant"];
+
+    /// The built-in themes in menu order.
     pub fn all() -> Vec<Theme> {
-        vec![
-            Self::publication(),
-            Self::nature(),
-            Self::presentation_dark(),
-            Self::vibrant(),
-        ]
+        Self::BUILTIN_IDS
+            .iter()
+            .filter_map(|id| Self::by_id(id))
+            .collect()
     }
 
+    /// Resolve a built-in theme id.
     pub fn by_id(id: &str) -> Option<Theme> {
-        Self::all().into_iter().find(|theme| theme.id == id)
+        match id {
+            "publication" => Some(Self::publication()),
+            "nature" => Some(Self::nature()),
+            "presentation_dark" => Some(Self::presentation_dark()),
+            "vibrant" => Some(Self::vibrant()),
+            _ => None,
+        }
     }
 
     fn trace_color(&self, i: usize) -> Color {
@@ -48,6 +109,14 @@ impl Theme {
             Color::TRACE
         } else {
             self.trace_palette[i % self.trace_palette.len()]
+        }
+    }
+
+    fn marker_paint(&self, i: usize) -> Option<MarkerPaint> {
+        if self.marker_palette.is_empty() {
+            None
+        } else {
+            self.marker_palette[i % self.marker_palette.len()]
         }
     }
 
@@ -85,8 +154,8 @@ impl Theme {
 
     fn publication() -> Theme {
         Theme {
-            id: "publication",
-            name: "Publication",
+            id: "publication".to_owned(),
+            name: "Publication".to_owned(),
             background: Color::rgb(255, 255, 255),
             text_color: Color::rgb(0, 0, 0),
             base_font_pt: 12.0,
@@ -101,6 +170,7 @@ impl Theme {
             line_width_pt: None,
             marker_size_pt: None,
             clear_marker_edges: false,
+            marker_palette: Vec::new(),
         }
     }
 
@@ -111,8 +181,8 @@ impl Theme {
     fn nature() -> Theme {
         let black = Color::rgb(0, 0, 0);
         Theme {
-            id: "nature",
-            name: "Nature",
+            id: "nature".to_owned(),
+            name: "Nature".to_owned(),
             background: Color::rgb(255, 255, 255),
             text_color: black,
             base_font_pt: 7.0,
@@ -142,13 +212,14 @@ impl Theme {
             line_width_pt: Some(0.75),
             marker_size_pt: Some(3.0),
             clear_marker_edges: true,
+            marker_palette: Vec::new(),
         }
     }
 
     fn presentation_dark() -> Theme {
         Theme {
-            id: "presentation_dark",
-            name: "Presentation Dark",
+            id: "presentation_dark".to_owned(),
+            name: "Presentation Dark".to_owned(),
             background: Color::rgb(0x14, 0x18, 0x20),
             text_color: Color::rgb(0xf0, 0xf2, 0xf5),
             base_font_pt: 16.0,
@@ -173,13 +244,14 @@ impl Theme {
             line_width_pt: None,
             marker_size_pt: None,
             clear_marker_edges: false,
+            marker_palette: Vec::new(),
         }
     }
 
     fn vibrant() -> Theme {
         Theme {
-            id: "vibrant",
-            name: "Vibrant",
+            id: "vibrant".to_owned(),
+            name: "Vibrant".to_owned(),
             background: Color::rgb(255, 255, 255),
             text_color: Color::rgb(0x1a, 0x1a, 0x1a),
             base_font_pt: 13.0,
@@ -201,6 +273,7 @@ impl Theme {
             line_width_pt: None,
             marker_size_pt: None,
             clear_marker_edges: false,
+            marker_palette: Vec::new(),
         }
     }
 }
@@ -265,6 +338,9 @@ impl PlotiumApp {
                         }
                         if theme.clear_marker_edges {
                             line.appearance.marker_edge_width = None;
+                        }
+                        if let Some(paint) = theme.marker_paint(i) {
+                            paint.paint(&mut line.appearance);
                         }
                         if line.kind == plotium_figure::SeriesKind::Line
                             && let Some(width) = theme
@@ -331,6 +407,74 @@ impl PlotiumApp {
         let after = self.themed_snapshot(ci, theme);
         self.execute_action(Action::apply_theme(ci, before, after));
         self.session.status = format!("Applied the {} theme.", theme.name);
+    }
+
+    /// Capture a canvas's current look as a theme named `name`: its page
+    /// background, the document text style and figure typography, and for each
+    /// series position the curve colour and marker paint of the first plot
+    /// with a curve there, matching how a theme colours series by position.
+    /// Line width and marker size come from the first curve that draws a line
+    /// or markers. A canvas without curves keeps the Publication palette.
+    pub fn theme_from_canvas(&self, canvas: usize, name: &str) -> Option<Theme> {
+        use plotium_figure::{Marker, SeriesEncoding, SeriesKind};
+        let canvas = self.doc.canvases.get(canvas)?;
+        let library = &self.doc.style_library;
+        let mut slots: Vec<Option<(Color, Option<MarkerPaint>)>> = Vec::new();
+        let mut line_width = None;
+        let mut marker_size = None;
+        for plot in canvas.objects.iter().filter_map(|object| object.plot()) {
+            for (i, series) in plot.binding.series.iter().enumerate() {
+                let slot = match &series.encoding {
+                    SeriesEncoding::Line(line) => {
+                        if line.kind == SeriesKind::Line {
+                            line_width.get_or_insert(line.width.get());
+                        }
+                        if line.appearance.marker(line.kind) != Marker::None
+                            && let Some(size) = line.appearance.marker_size
+                        {
+                            marker_size.get_or_insert(size.get());
+                        }
+                        (
+                            line.color.resolve(),
+                            Some(MarkerPaint::of(&line.appearance)),
+                        )
+                    }
+                    SeriesEncoding::Contour(contour) => {
+                        (contour.style.positive_color.resolve(), None)
+                    }
+                    SeriesEncoding::Heatmap(_) | SeriesEncoding::Image(_) => continue,
+                };
+                if slots.len() <= i {
+                    slots.resize(i + 1, None);
+                }
+                slots[i].get_or_insert(slot);
+            }
+        }
+        let fallback = Theme::publication();
+        let (trace_palette, marker_palette) = if slots.is_empty() {
+            (fallback.trace_palette.clone(), Vec::new())
+        } else {
+            // A position only images or heatmaps occupy has no curve colour;
+            // it keeps the Publication colour so later positions stay aligned.
+            slots
+                .iter()
+                .enumerate()
+                .map(|(i, slot)| slot.unwrap_or((fallback.trace_color(i), None)))
+                .unzip()
+        };
+        Some(Theme {
+            id: name.to_owned(),
+            name: name.to_owned(),
+            background: canvas.background,
+            text_color: library.text.color,
+            base_font_pt: library.text.font_size,
+            figure_typography: library.figure_typography,
+            trace_palette,
+            line_width_pt: line_width,
+            marker_size_pt: marker_size,
+            clear_marker_edges: false,
+            marker_palette,
+        })
     }
 
     /// Prepare the semantic theme edit without committing it. Automation uses

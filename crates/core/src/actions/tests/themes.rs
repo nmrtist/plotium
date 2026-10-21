@@ -65,3 +65,47 @@ fn nature_theme_sizes_markers_but_not_point_widths() {
     assert_eq!(line.appearance.marker_size.map(|s| s.get()), Some(3.0));
     assert_eq!(line.width, before_width);
 }
+
+#[test]
+fn canvas_style_capture_restores_the_canvas_look() {
+    let mut app = sample_app();
+    {
+        let line = first_line_mut(&mut app);
+        line.kind = SeriesKind::Points;
+        line.color = ColorSource::Explicit(Color::rgb(0xe6, 0xaf, 0x2d));
+        line.appearance.marker_size = PositiveFiniteF32::new(3.4);
+        line.appearance.marker_fill = Some(Color::rgb(0xf2, 0xd7, 0x97));
+        line.appearance.marker_edge_color = Some(Color::rgb(0x40, 0x40, 0x40));
+        line.appearance.marker_edge_width = PositiveFiniteF32::new(0.5);
+        line.appearance.marker_hollow = true;
+    }
+    app.doc.style_library.figure_typography.tick_pt = 5.0;
+    app.doc.style_library.figure_typography.tick_direction = TickDirection::In;
+    let styled = first_line(&app).clone();
+
+    let captured = app.theme_from_canvas(0, "Lab").unwrap();
+    assert_eq!(captured.name, "Lab");
+    assert_eq!(captured.trace_palette, vec![Color::rgb(0xe6, 0xaf, 0x2d)]);
+    assert_eq!(captured.marker_size_pt, Some(3.4));
+
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    assert_ne!(first_line(&app), &styled);
+    app.apply_theme(&captured);
+    assert_eq!(first_line(&app), &styled);
+    let typography = app.doc.style_library.figure_typography;
+    assert_eq!(typography.tick_pt, 5.0);
+    assert_eq!(typography.tick_direction, TickDirection::In);
+}
+
+#[test]
+fn canvas_without_plots_captures_the_publication_palette() {
+    let mut app = sample_app();
+    app.doc.canvases[0].objects.clear();
+    let captured = app.theme_from_canvas(0, "Empty").unwrap();
+    assert_eq!(
+        captured.trace_palette,
+        Theme::by_id("publication").unwrap().trace_palette
+    );
+    assert!(captured.marker_palette.is_empty());
+    assert!(app.theme_from_canvas(5, "Missing").is_none());
+}

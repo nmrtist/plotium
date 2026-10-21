@@ -45,6 +45,8 @@ pub(super) fn short_label(command: &CommandDescriptor) -> String {
         CommandId::PasteTable => "Paste Table".to_owned(),
         CommandId::NewTable => "New Table".to_owned(),
         CommandId::StackData => "Stack Data".to_owned(),
+        CommandId::SaveCanvasStyle => "Save Style".to_owned(),
+        CommandId::ManageCanvasStyles => "Styles".to_owned(),
         CommandId::SaveProcessingTemplate => "Save Template".to_owned(),
         CommandId::ApplyProcessingTemplate => "Apply Template".to_owned(),
         CommandId::SpectrumArithmetic => "Arithmetic".to_owned(),

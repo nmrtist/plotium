@@ -87,3 +87,23 @@ pub enum ProcessingTemplateDialogState {
         confirm_delete: Option<usize>,
     },
 }
+
+/// One row of the user-style browser: a saved style, or why its file could
+/// not be read.
+pub struct CanvasStyleEntry {
+    pub name: String,
+    pub theme: Result<crate::theme::Theme, String>,
+}
+
+/// Save or manage user styles. The target canvas is resolved from the active
+/// canvas when the user acts, so no canvas index is held across frames.
+pub enum CanvasStyleDialogState {
+    SaveAs {
+        name: String,
+    },
+    Browse {
+        entries: Vec<CanvasStyleEntry>,
+        /// The style awaiting a second Delete click, by name.
+        confirm_delete: Option<String>,
+    },
+}

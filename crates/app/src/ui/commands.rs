@@ -131,6 +131,8 @@ pub enum CommandId {
     Distribute(Distribute),
     ZOrder(ZOrder),
     ApplyTheme(&'static str),
+    SaveCanvasStyle,
+    ManageCanvasStyles,
     /// Reveal a whole group of catalog properties at its canonical home (§8.5
     /// channel 2). Registered per declared group, so a group gains a Ribbon
     /// button, a menu entry and a palette hit by being declared once. It
@@ -608,6 +610,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             requires(has_canvas, "Open a canvas before arranging its plots.")
         }
         CommandId::ApplyTheme(_) => requires(has_canvas, "Open a canvas before applying a theme."),
+        CommandId::SaveCanvasStyle => {
+            requires(has_canvas, "Open a canvas before saving its style.")
+        }
         CommandId::FigureTypography => requires(
             has_canvas,
             "Open a canvas before adjusting figure typography.",
@@ -683,6 +688,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let palette_available = id != CommandId::CommandPalette
         || (app.session.ui.processing_scheme_dialog.is_none()
             && app.session.ui.processing_template_dialog.is_none()
+            && app.session.ui.canvas_style_dialog.is_none()
             && app.session.ui.spectrum_arithmetic_dialog.is_none()
             && app.session.ui.align_spectra_dialog.is_none()
             && app.session.ui.trace_alignment_dialog.is_none()

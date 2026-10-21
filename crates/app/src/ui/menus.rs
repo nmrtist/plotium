@@ -40,10 +40,15 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
         .enumerate()
         .map(|(index, _)| Command(CommandId::NewCanvas(index)))
         .collect();
-    let themes = plotium_core::theme::Theme::all()
+    let mut themes: Vec<_> = plotium_core::theme::Theme::BUILTIN_IDS
         .into_iter()
-        .map(|theme| Command(CommandId::ApplyTheme(theme.id)))
+        .map(|id| Command(CommandId::ApplyTheme(id)))
         .collect();
+    themes.extend([
+        Separator,
+        Command(CommandId::SaveCanvasStyle),
+        Command(CommandId::ManageCanvasStyles),
+    ]);
     vec![
         (
             "File",

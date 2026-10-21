@@ -294,6 +294,8 @@ pub(super) fn command_identity(
                 .unwrap_or_else(|| "Apply Theme".into());
             (label, Some(icon::PALETTE), None)
         }
+        CommandId::SaveCanvasStyle => plain("Save Canvas Style…", Some(icon::BOOKMARK_SIMPLE)),
+        CommandId::ManageCanvasStyles => plain("Canvas Styles…", Some(icon::SWATCHES)),
         // Derived from the property catalog: the group supplies its own name
         // and icon, so declaring a group is all a new one needs.
         CommandId::PropertyGroup(section) => {
@@ -473,6 +475,8 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::About => "help.about",
         CommandId::ClearRecentFiles => "file.clear_recent",
         CommandId::HelpManual => "help.manual",
+        CommandId::SaveCanvasStyle => "view.style.save",
+        CommandId::ManageCanvasStyles => "view.style.manage",
         CommandId::SaveProcessingTemplate => "process.save_template",
         CommandId::ApplyProcessingTemplate => "process.apply_template",
         CommandId::Craft => "process.craft",
