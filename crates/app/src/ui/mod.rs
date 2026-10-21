@@ -6,6 +6,7 @@ pub(crate) mod arithmetic;
 pub(crate) mod batch_workflow;
 pub(crate) mod canvas;
 pub(crate) mod canvas_size;
+pub(crate) mod canvas_styles;
 mod clipboard_figure;
 #[cfg(windows)]
 pub(crate) mod clipboard_native;
@@ -122,6 +123,7 @@ pub fn render(
         || input_blocked
         || app.session.ui.processing_scheme_dialog.is_some()
         || app.session.ui.processing_template_dialog.is_some()
+        || app.session.ui.canvas_style_dialog.is_some()
         || app.session.ui.spectrum_arithmetic_dialog.is_some()
         || app.session.ui.align_spectra_dialog.is_some()
         || app.session.ui.trace_alignment_dialog.is_some()
@@ -222,6 +224,7 @@ pub fn render(
     file_dialogs::processing_scheme_window(app, &ctx);
     file_dialogs::nmr_sampling::window(app, &ctx);
     processing_templates::processing_template_window(app, &ctx);
+    canvas_styles::canvas_style_window(app, &ctx);
     arithmetic::spectrum_arithmetic_window(app, &ctx);
     align::align_spectra_window(app, &ctx);
     trace_alignment::trace_alignment_window(app, &ctx);

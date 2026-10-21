@@ -709,7 +709,7 @@ fn figure_tab_groups_chart_creation_styling_and_output() {
     for (id, group) in [
         (CommandId::NewCanvas(0), "Create"),
         (
-            CommandId::ApplyTheme(plotium_core::theme::Theme::all()[0].id),
+            CommandId::ApplyTheme(plotium_core::theme::Theme::BUILTIN_IDS[0]),
             "Style",
         ),
         (CommandId::CopyFigure, "Output"),

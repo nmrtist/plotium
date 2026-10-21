@@ -339,5 +339,14 @@ What you control directly:
   outward 3 pt ticks, 0.75 pt line series, 3 pt markers without an outline and
   the colour-blind-safe Okabe–Ito palette. The line widths and marker sizes stay
   when you switch to a theme that does not set them.
+- **Save Canvas Style…** (View ▸ Canvas Theme, or **Save Style** in the
+  Figure Ribbon tab's Style group) saves the active canvas's look as a named
+  style: background, text colour and size, figure typography, axis and tick
+  strokes, curve colours with their marker fills, outlines and hollow setting,
+  line width and marker size. **Canvas Styles…** lists saved styles to apply to the active canvas or
+  delete. Applying a style is one undoable step. To change a style, apply it,
+  adjust the canvas and save it again under the same name. Styles are stored
+  as `.plotiumstyle` files in the `styles` folder of Plotium's configuration
+  directory, so they can be copied to another computer.
 
 When the figure is ready, see [Exporting](/guides/exporting/).

@@ -152,10 +152,11 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::ZOrder(ZOrder::Back),
     ]);
     ids.extend(
-        plotium_core::theme::Theme::all()
+        plotium_core::theme::Theme::BUILTIN_IDS
             .into_iter()
-            .map(|theme| CommandId::ApplyTheme(theme.id)),
+            .map(CommandId::ApplyTheme),
     );
+    ids.extend([CommandId::SaveCanvasStyle, CommandId::ManageCanvasStyles]);
     // Every declared property group, and the step gesture. Both are derived
     // from the property catalog: a group declared once appears here, and a
     // property that declares itself steppable is driven by the existing

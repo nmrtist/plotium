@@ -28,9 +28,9 @@ pub use trace_alignment::TraceAlignmentDialogState;
 #[path = "ui_state_dialogs.rs"]
 mod dialogs;
 pub use dialogs::{
-    AlignSpectraDialogState, CommandPaletteState, ProcessingSchemeDialogState,
-    ProcessingTemplateDialogState, SpectrumArithmeticDialogState, SpectrumArithmeticOp,
-    TemplateBrowserEntry,
+    AlignSpectraDialogState, CanvasStyleDialogState, CanvasStyleEntry, CommandPaletteState,
+    ProcessingSchemeDialogState, ProcessingTemplateDialogState, SpectrumArithmeticDialogState,
+    SpectrumArithmeticOp, TemplateBrowserEntry,
 };
 #[path = "ui_state_rename.rs"]
 mod rename;
@@ -226,6 +226,7 @@ pub struct UiState {
     pub dismissed_feedback_order: Option<u64>,
     pub processing_scheme_dialog: Option<ProcessingSchemeDialogState>,
     pub processing_template_dialog: Option<ProcessingTemplateDialogState>,
+    pub canvas_style_dialog: Option<CanvasStyleDialogState>,
     pub spectrum_arithmetic_dialog: Option<SpectrumArithmeticDialogState>,
     pub align_spectra_dialog: Option<AlignSpectraDialogState>,
     pub trace_alignment_dialog: Option<TraceAlignmentDialogState>,
@@ -464,6 +465,7 @@ impl Default for UiState {
             dismissed_feedback_order: None,
             processing_scheme_dialog: None,
             processing_template_dialog: None,
+            canvas_style_dialog: None,
             spectrum_arithmetic_dialog: None,
             align_spectra_dialog: None,
             trace_alignment_dialog: None,
