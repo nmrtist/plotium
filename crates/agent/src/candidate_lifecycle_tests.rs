@@ -248,7 +248,7 @@ fn candidate_discovery_advertises_full_schema_and_distinct_permission() {
     for allow in [false, true] {
         s.set_allow_modify(allow);
         let state = s
-            .call(&mut a, "plotium_get_state", serde_json::json!({}))
+            .call(&mut a, "plotium_capabilities_get", serde_json::json!({}))
             .unwrap();
         let tools = state["connection_capabilities"]["tools"]
             .as_array()
@@ -257,13 +257,13 @@ fn candidate_discovery_advertises_full_schema_and_distinct_permission() {
             .iter()
             .find(|t| t["name"] == "plotium_preview_plan")
             .unwrap();
-        assert_eq!(candidate["currently_permitted"], allow);
+        assert!(candidate.get("currently_permitted").is_none());
         assert_eq!(candidate["required_permission"], "reversible_modify");
         let preview = tools
             .iter()
             .find(|t| t["name"] == "plotium_render_preview")
             .unwrap();
-        assert_eq!(preview["currently_permitted"], true);
+        assert!(preview.get("currently_permitted").is_none());
     }
     let tool = crate::protocol::definitions()
         .into_iter()

@@ -5,6 +5,7 @@ use serde_json::json;
 fn every_advertised_tool_has_explicit_conservative_annotations() {
     let reads = [
         "plotium_get_state",
+        "plotium_capabilities_get",
         "plotium_resources_search",
         "plotium_resources_inspect",
         "plotium_properties_list",
@@ -46,7 +47,13 @@ fn every_advertised_tool_has_explicit_conservative_annotations() {
 #[test]
 fn discovery_preserves_annotations_independently_of_current_permission() {
     for allow_modify in [false, true] {
-        let manifest = capabilities::manifest(allow_modify);
+        let mut app = plotium_core::state::PlotiumApp::new_with_settings(Default::default());
+        let mut session = crate::Session::default();
+        session.set_allow_modify(allow_modify);
+        let discovery = session
+            .call(&mut app, "plotium_capabilities_get", json!({}))
+            .unwrap();
+        let manifest = &discovery["connection_capabilities"];
         for tool in protocol::definitions() {
             let advertised = manifest["tools"]
                 .as_array()

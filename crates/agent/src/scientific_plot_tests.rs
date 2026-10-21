@@ -502,7 +502,7 @@ fn real_http_mcp_processing_fit_and_both_dosy_native_pngs() {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
         let task = tokio::spawn(async move {
             let client=().serve(StreamableHttpClientTransport::with_client(reqwest::Client::builder().no_proxy().build().unwrap(),config)).await.unwrap();
-            let state = http_call(&client,"plotium_get_state",json!({})).await;
+            let state = http_call(&client,"plotium_capabilities_get",json!({})).await;
             assert!(state["connection_capabilities"]["operation_constraints"][FIELD_PLOT_CREATE]["schema"].is_object());
             let imported = http_edit(&client,"data.import",json!({"paths":[path]}),None).await;
             assert_eq!(imported["value"]["status"],"succeeded");

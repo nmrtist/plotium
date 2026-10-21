@@ -238,7 +238,9 @@ fn real_http_preview_returns_native_mcp_image_and_metadata_not_json_image_text()
 fn tool_result_budget_and_discovery_are_explicit() {
     let mut app = fixture();
     let mut s = crate::Session::default();
-    let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut app, "plotium_capabilities_get", json!({}))
+        .unwrap();
     let tools = state["connection_capabilities"]["tools"]
         .as_array()
         .unwrap();

@@ -235,7 +235,7 @@ fn exact_values_and_freshness_are_readable_after_patch_refresh_and_undo() {
         app.doc.table_freshness(id).status,
         TableFreshnessState::Current
     );
-    let caps = crate::capabilities::manifest(true);
+    let caps = crate::capabilities::manifest();
     assert_eq!(
         caps["operation_constraints"][TABLE_PATCH]["schema"]["properties"]["edits"]["maxItems"],
         1000

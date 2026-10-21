@@ -187,6 +187,16 @@ Connect an AI client to ask questions about your open project, inspect a figure,
 or make supported edits in Plotium. MCP is the connection that lets the client
 use Plotium's tools; you continue chatting in Codex, Claude Code or Claude Desktop.
 
+### Discover capabilities when needed
+
+Ask the agent to read `plotium_get_state` for current permissions and project
+context, and call `plotium_capabilities_get` only when it needs the full static
+contract or sees a different capability fingerprint. State includes project counts,
+a bounded selection page and retained save receipt IDs; detailed targets and
+receipts have their own queries. Cached capabilities do not authorize edits or
+retry, and each save/export still requires desktop confirmation.
+See [state and discovery](/reference/mcp/#read-state-and-discover-capabilities-on-demand).
+
 ### Connect your AI client
 
 Keep the complete Plotium release folder, including `plotium-mcp`

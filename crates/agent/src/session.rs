@@ -350,9 +350,15 @@ impl Session {
             }
             return Ok(json!(result));
         }
-        if name == "plotium_get_state" {
+        if name == "plotium_capabilities_get" {
             let _: Empty = decode(arguments)?;
-            return self.get_state(app, blocked);
+            return Ok(
+                json!({"capability_fingerprint":crate::capabilities::fingerprint(),
+                "connection_capabilities":crate::capabilities::manifest()}),
+            );
+        }
+        if name == "plotium_get_state" {
+            return self.get_state(app, arguments, blocked);
         }
         let native_import = name == "plotium_plan"
             && arguments.get("tool_id").and_then(Value::as_str) == Some("data.import")

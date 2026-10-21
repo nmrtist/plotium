@@ -159,7 +159,9 @@ fn creation_discovery_schema_and_pending_curve_budget_are_shared_with_bindings()
     let mut app = fixture();
     let mut s = crate::Session::default();
     s.allow_modify = true;
-    let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut app, "plotium_capabilities_get", json!({}))
+        .unwrap();
     let cap = &state["connection_capabilities"];
     assert!(
         cap["editable_operations"]
