@@ -382,10 +382,22 @@ async fn http_call(client: &Client, name: &str, args: Value) -> Value {
     result.structured_content.unwrap()
 }
 async fn http_read(client: &Client, name: &str, mut args: Value) -> Value {
-    let state = http_call(client, "plotium_get_state", json!({})).await;
+    let state = http_ready_state(client).await;
     args["expected_revision"] = state["revision"].clone();
     args["expected_project_context"] = state["project_context"].clone();
     http_call(client, name, args).await
+}
+async fn http_ready_state(client: &Client) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let state = http_call(client, "plotium_get_state", json!({})).await;
+        if state["availability"]["project_read"]["available"] == true {
+            return state;
+        }
+        // Import and scientific results can schedule further display computation.
+        assert!(Instant::now() < deadline, "Project stayed busy: {state}");
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
 }
 async fn http_edit(client: &Client, tool: &str, parameters: Value, ids: Option<Value>) -> Value {
     let mut args = json!({"tool_id":tool,"parameters":parameters});
@@ -466,7 +478,7 @@ async fn http_preview(client: &Client, canvas: &Value, size_mm: Value) {
         )
         .await;
     }
-    let state = http_call(client, "plotium_get_state", json!({})).await;
+    let state = http_ready_state(client).await;
     let preview = client.call_tool(rmcp::model::CallToolRequestParams::new("plotium_render_preview").with_arguments(json!({"expected_project_context":state["project_context"],"expected_revision":state["revision"],"target":canvas,"max_edge":640}).as_object().unwrap().clone())).await.unwrap();
     assert_eq!(preview.is_error, Some(false), "{preview:?}");
     assert_eq!(
