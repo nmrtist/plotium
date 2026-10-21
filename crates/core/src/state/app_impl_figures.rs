@@ -391,6 +391,11 @@ impl PlotiumApp {
             }
             series.width = line.width.get();
             series.appearance = line.appearance;
+            if semantic_colors {
+                // A single marker colour would hide the colours that carry meaning.
+                series.appearance.marker_fill = None;
+                series.appearance.marker_edge_color = None;
+            }
             for point in &mut series.points {
                 point[0] += x_shift;
                 point[1] *= line.scale;

@@ -61,8 +61,7 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
                     (lx + sw * 0.5, ly),
                     appearance.marker(*kind),
                     appearance.marker_radius(*width),
-                    *color,
-                    *width,
+                    &crate::curve_style::MarkerPaint::new(*appearance, *color, *width),
                 );
             }
 

@@ -101,6 +101,15 @@ fn r6_default_mass_spectrum_rejects_markers_and_style_but_keeps_stroke_edits() {
         (line_display::MARKER, PropertyValue::Enum("square")),
         (line_display::MARKER_SIZE, PropertyValue::Float(4.)),
         (line_display::STYLE, PropertyValue::Enum("dashed")),
+        (
+            line_display::MARKER_FILL,
+            PropertyValue::Color(Color::BLACK),
+        ),
+        (
+            line_display::MARKER_EDGE_COLOR,
+            PropertyValue::Color(Color::BLACK),
+        ),
+        (line_display::MARKER_EDGE_WIDTH, PropertyValue::Float(0.5)),
     ] {
         assert!(matches!(
             resolved(&app, &t, key).availability,

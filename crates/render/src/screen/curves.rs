@@ -1,5 +1,5 @@
 use super::*;
-use crate::curve_style::{dashed_segments, marker_polygon, marker_segments};
+use crate::curve_style::{MarkerPaint, dashed_segments, marker_polygon, marker_segments};
 use plotium_figure::{LineStyle, Marker, Series, SeriesKind};
 
 pub(super) fn paint(
@@ -39,15 +39,9 @@ pub(super) fn paint(
     let marker = series.appearance.marker(series.kind);
     if marker != Marker::None {
         let r = series.appearance.marker_radius(series.width) * scale;
+        let paint = MarkerPaint::new(series.appearance, series.color, series.width).scaled(scale);
         for p in &series.points {
-            marker_at(
-                painter,
-                proj.project(*p),
-                marker,
-                r,
-                series.color,
-                series.width * scale,
-            );
+            marker_at(painter, proj.project(*p), marker, r, &paint);
         }
     }
 }
@@ -80,24 +74,26 @@ pub(super) fn marker_at(
     p: (f32, f32),
     marker: Marker,
     r: f32,
-    color: Color,
-    width: f32,
+    paint: &MarkerPaint,
 ) {
+    let edge = paint.edge.map_or(Stroke::NONE, |(color, width)| {
+        Stroke::new(width, col(color))
+    });
     if marker == Marker::Circle {
-        painter.circle_filled(Pos2::new(p.0, p.1), r, col(color));
+        painter.circle(Pos2::new(p.0, p.1), r, col(paint.fill), edge);
     }
     let polygon = marker_polygon(marker, p, r);
     if !polygon.is_empty() {
         painter.add(Shape::convex_polygon(
             polygon.into_iter().map(|(x, y)| Pos2::new(x, y)).collect(),
-            col(color),
-            Stroke::NONE,
+            col(paint.fill),
+            edge,
         ));
     }
     for [a, b] in marker_segments(marker, p, r) {
         painter.line_segment(
             [Pos2::new(a.0, a.1), Pos2::new(b.0, b.1)],
-            Stroke::new(width, col(color)),
+            Stroke::new(paint.width, col(paint.color)),
         );
     }
 }

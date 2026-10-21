@@ -33,6 +33,12 @@ pub struct CurveAppearance {
     pub marker: Option<Marker>,
     /// Diameter in points. No override retains the native point radius (width).
     pub marker_size: Option<PositiveFiniteF32>,
+    /// Fill of closed markers. No override fills with the series colour.
+    pub marker_fill: Option<crate::Color>,
+    /// Outline of closed markers. No override outlines in the series colour.
+    pub marker_edge_color: Option<crate::Color>,
+    /// Outline width in points. No override draws no outline.
+    pub marker_edge_width: Option<PositiveFiniteF32>,
 }
 impl CurveAppearance {
     pub fn marker(self, kind: SeriesKind) -> Marker {
@@ -44,6 +50,14 @@ impl CurveAppearance {
     }
     pub fn marker_radius(self, width: f32) -> f32 {
         self.marker_size.map_or(width, |size| size.get() * 0.5)
+    }
+    pub fn marker_fill(self, color: crate::Color) -> crate::Color {
+        self.marker_fill.unwrap_or(color)
+    }
+    /// The closed-marker outline as (colour, width), when one is drawn.
+    pub fn marker_edge(self, color: crate::Color) -> Option<(crate::Color, f32)> {
+        self.marker_edge_width
+            .map(|width| (self.marker_edge_color.unwrap_or(color), width.get()))
     }
 }
 

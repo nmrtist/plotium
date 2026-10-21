@@ -1,6 +1,37 @@
 //! Output-space curve primitives shared by screen and vector backends.
 use crate::Rect;
-use plotium_figure::{CurveAppearance, LineStyle, Marker, Series, SeriesKind};
+use plotium_figure::{Color, CurveAppearance, LineStyle, Marker, Series, SeriesKind};
+
+/// How one marker is painted: open marks (plus, cross) stroke in the series
+/// colour; closed marks take the appearance's fill and outline.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MarkerPaint {
+    pub color: Color,
+    pub width: f32,
+    pub fill: Color,
+    pub edge: Option<(Color, f32)>,
+}
+
+impl MarkerPaint {
+    pub(crate) fn new(appearance: CurveAppearance, color: Color, width: f32) -> Self {
+        Self {
+            color,
+            width,
+            fill: appearance.marker_fill(color),
+            edge: appearance.marker_edge(color),
+        }
+    }
+
+    /// Scale the output-space widths for a zoomed screen render.
+    #[cfg(feature = "screen")]
+    pub(crate) fn scaled(self, scale: f32) -> Self {
+        Self {
+            width: self.width * scale,
+            edge: self.edge.map(|(color, width)| (color, width * scale)),
+            ..self
+        }
+    }
+}
 
 pub(crate) fn dash_pattern(style: LineStyle, width: f32) -> Vec<f32> {
     let w = width.max(0.5);

@@ -1,5 +1,5 @@
 use super::*;
-use crate::curve_style::{dashed_segments, marker_polygon, marker_segments};
+use crate::curve_style::{MarkerPaint, dashed_segments, marker_polygon, marker_segments};
 use plotium_figure::{LineStyle, Marker, Series};
 pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     if series.points.is_empty() {
@@ -21,15 +21,10 @@ pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     }
     let marker = series.appearance.marker(series.kind);
     if marker != Marker::None {
+        let paint = MarkerPaint::new(series.appearance, series.color, series.width);
+        let r = series.appearance.marker_radius(series.width);
         for p in points {
-            marker_at(
-                dc,
-                p,
-                marker,
-                series.appearance.marker_radius(series.width),
-                series.color,
-                series.width,
-            );
+            marker_at(dc, p, marker, r, &paint);
         }
     }
 }
@@ -44,24 +39,17 @@ pub(super) fn stroke(dc: &mut Dc, points: &[(f32, f32)], series: &Series, clip: 
         );
     }
 }
-pub(super) fn marker_at(
-    dc: &mut Dc,
-    p: (f32, f32),
-    marker: Marker,
-    r: f32,
-    color: Color,
-    width: f32,
-) {
+pub(super) fn marker_at(dc: &mut Dc, p: (f32, f32), marker: Marker, r: f32, paint: &MarkerPaint) {
     if marker == Marker::Circle {
         dc.ellipse(
             Rect::new(p.0 - r, p.1 - r, r * 2., r * 2.),
-            Some(color),
-            None,
+            Some(paint.fill),
+            paint.edge,
         );
     }
     let polygon = marker_polygon(marker, p, r);
     if !polygon.is_empty() {
-        dc.polygon(&polygon, Some(color), None);
+        dc.polygon(&polygon, Some(paint.fill), paint.edge);
     }
-    dc.segments(&marker_segments(marker, p, r), color, width);
+    dc.segments(&marker_segments(marker, p, r), paint.color, paint.width);
 }
