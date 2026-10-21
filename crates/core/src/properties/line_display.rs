@@ -13,6 +13,7 @@ pub const MARKER_SIZE: PropertyId = PropertyId("series.line.marker_size");
 pub const MARKER_FILL: PropertyId = PropertyId("series.line.marker_fill");
 pub const MARKER_EDGE_COLOR: PropertyId = PropertyId("series.line.marker_edge_color");
 pub const MARKER_EDGE_WIDTH: PropertyId = PropertyId("series.line.marker_edge_width");
+pub const MARKER_HOLLOW: PropertyId = PropertyId("series.line.marker_hollow");
 const MARKER_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
 const STYLES: &[EnumVariant] = &[
     EnumVariant::new("solid", "Solid"),
@@ -74,6 +75,7 @@ const DEFINITIONS: &[PropertyDefinition] = &[
         },
         "Marker edge width",
     ),
+    advanced(MARKER_HOLLOW, ValueSchema::Bool, "Hollow marker"),
 ];
 pub(crate) struct DisplayProvider;
 pub(crate) static PROVIDER: DisplayProvider = DisplayProvider;
@@ -151,7 +153,7 @@ impl PropertyProvider for DisplayProvider {
                 Some(line.appearance.marker_size.is_some()),
             ),
             MARKER_FILL => (
-                PropertyValue::Color(line.appearance.marker_fill(line.color.resolve())),
+                PropertyValue::Color(line.appearance.marker_fill.unwrap_or(line.color.resolve())),
                 PropertyValue::Color(line.color.resolve()),
                 Some(line.appearance.marker_fill.is_some()),
             ),
@@ -165,19 +167,32 @@ impl PropertyProvider for DisplayProvider {
                 Some(line.appearance.marker_edge_color.is_some()),
             ),
             MARKER_EDGE_WIDTH => (
+                PropertyValue::Float(line.appearance.marker_edge_width().map_or(0., f64::from)),
                 PropertyValue::Float(
-                    line.appearance
-                        .marker_edge_width
-                        .map_or(0., |w| f64::from(w.get())),
+                    plotium_figure::CurveAppearance {
+                        marker_edge_width: None,
+                        ..line.appearance
+                    }
+                    .marker_edge_width()
+                    .map_or(0., f64::from),
                 ),
-                PropertyValue::Float(0.),
                 Some(line.appearance.marker_edge_width.is_some()),
+            ),
+            MARKER_HOLLOW => (
+                PropertyValue::Bool(line.appearance.marker_hollow),
+                PropertyValue::Bool(false),
+                None,
             ),
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
         let marker_property = matches!(
             d.id,
-            MARKER | MARKER_SIZE | MARKER_FILL | MARKER_EDGE_COLOR | MARKER_EDGE_WIDTH
+            MARKER
+                | MARKER_SIZE
+                | MARKER_FILL
+                | MARKER_EDGE_COLOR
+                | MARKER_EDGE_WIDTH
+                | MARKER_HOLLOW
         );
         Ok(ResolvedProperty {
             address: address.clone(),
@@ -288,8 +303,13 @@ impl PropertyProvider for DisplayProvider {
             (MARKER_EDGE_WIDTH, PropertyValue::Float(v)) => {
                 MARKER_EDGE_BOUNDS.check(d.id, "marker edge width", v)?;
                 // Zero is the "no outline" value, stored as no override.
-                line.appearance.marker_edge_width = PositiveFiniteF32::new(v as f32);
+                line.appearance.marker_edge_width = if matches!(op, EditOp::Reset) {
+                    None
+                } else {
+                    PositiveFiniteF32::new(v as f32)
+                };
             }
+            (MARKER_HOLLOW, PropertyValue::Bool(hollow)) => line.appearance.marker_hollow = hollow,
             _ => return Err(invalid()),
         }
         Ok(())

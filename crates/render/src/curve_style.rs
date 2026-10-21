@@ -8,7 +8,7 @@ use plotium_figure::{Color, CurveAppearance, LineStyle, Marker, Series, SeriesKi
 pub(crate) struct MarkerPaint {
     pub color: Color,
     pub width: f32,
-    pub fill: Color,
+    pub fill: Option<Color>,
     pub edge: Option<(Color, f32)>,
 }
 

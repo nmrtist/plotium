@@ -39,6 +39,7 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::line_display::MARKER_FILL,
     properties::line_display::MARKER_EDGE_COLOR,
     properties::line_display::MARKER_EDGE_WIDTH,
+    properties::line_display::MARKER_HOLLOW,
     properties::object::SERIES_VISIBLE,
     properties::axis::X_LABEL,
     properties::axis::Y_LABEL,

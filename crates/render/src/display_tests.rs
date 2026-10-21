@@ -122,3 +122,47 @@ fn closed_markers_take_their_own_fill_and_edge_in_plot_and_legend() {
     let open = svg::export(&figure);
     assert!(!open.contains("#f2d797") && !open.contains("#404040"));
 }
+#[test]
+fn hollow_markers_draw_only_their_outline_in_plot_and_legend() {
+    let mut figure = Figure::new("", Axis::new("x", 0., 3.), Axis::new("y", 0., 3.));
+    let mut series = Series::points("A", vec![[0.5, 1.], [1.5, 2.]]);
+    series.color = plotium_figure::Color::rgb(0xe6, 0xaf, 0x2d);
+    series.appearance.marker_fill = Some(plotium_figure::Color::rgb(0xf2, 0xd7, 0x97));
+    series.appearance.marker_hollow = true;
+    figure.series.push(series);
+    figure.guide_visibility = plotium_figure::GuideVisibility::Show;
+    for marker in [Marker::Circle, Marker::Square, Marker::TriangleUp] {
+        figure.series[0].appearance.marker = Some(marker);
+        let svg = svg::export(&figure);
+        // Without an edge width the outline takes the curve colour at the data line width.
+        assert_eq!(
+            svg.matches(r##"fill="none" stroke="#e6af2d" stroke-width="0.5"/>"##)
+                .count(),
+            3,
+            "{svg}"
+        );
+        assert!(!svg.contains("#f2d797"));
+    }
+    let appearance = &mut figure.series[0].appearance;
+    appearance.marker_edge_color = Some(plotium_figure::Color::rgb(64, 64, 64));
+    appearance.marker_edge_width = PositiveFiniteF32::new(0.8);
+    let svg = svg::export(&figure);
+    assert_eq!(
+        svg.matches(r##"fill="none" stroke="#404040" stroke-width="0.8"/>"##)
+            .count(),
+        3
+    );
+    // Screen and EMF paint from the same MarkerPaint as SVG.
+    let paint = curve_style::MarkerPaint::new(
+        CurveAppearance {
+            marker_hollow: true,
+            ..CurveAppearance::default()
+        },
+        plotium_figure::Color::BLACK,
+        1.,
+    );
+    assert_eq!(paint.fill, None);
+    assert_eq!(paint.edge, Some((plotium_figure::Color::BLACK, 0.5)));
+    figure.series[0].appearance.marker_hollow = false;
+    assert!(svg::export(&figure).contains(r##"fill="#f2d797" stroke="#404040""##));
+}
