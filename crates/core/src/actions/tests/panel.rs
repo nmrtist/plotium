@@ -392,3 +392,51 @@ fn panel_z_order_moves_its_content_block_and_round_trips() {
                 .unwrap()
     );
 }
+
+#[test]
+fn y_titles_clear_only_letters_that_sit_over_their_column() {
+    fn clearances(app: &PlotiumApp) -> Vec<f32> {
+        crate::state::document_items(&app.doc.canvases[0])
+            .iter()
+            .filter_map(|item| match item {
+                plotium_render::DocumentItem::Plot(plot) => Some(plot.y_title_clearance),
+                _ => None,
+            })
+            .collect()
+    }
+
+    let mut app = crate::actions::tests::sample_app();
+    let template = app.doc.canvases[0].objects[0].clone();
+    let mut second = template.clone();
+    second.id = app.doc.canvases[0].allocate_object_id();
+    app.doc.canvases[0].objects.push(second);
+    let ids: Vec<_> = app.doc.canvases[0].objects.iter().map(|o| o.id).collect();
+    for (index, id) in ids.iter().enumerate() {
+        let object = app.doc.canvases[0].object_mut(*id).unwrap();
+        object.frame = ObjectFrame::new(index as f32 * 170.0, 0.0, 170.0, 120.0);
+    }
+    // A lone plot shows no automatic letter, so its title stays centred.
+    let (_, action) = app
+        .compose_panel_action(0, "a".to_owned(), &ids[..1], 0.0)
+        .unwrap();
+    app.execute_action(action);
+    assert_eq!(clearances(&app)[0], 0.0);
+
+    let (_, action) = app
+        .compose_panel_action(0, "b".to_owned(), &ids[1..], 0.0)
+        .unwrap();
+    app.execute_action(action);
+    assert!(clearances(&app).iter().all(|clearance| *clearance > 0.0));
+
+    let page = &mut app.doc.canvases[0];
+    let second = page.parent_panel(ids[1]).unwrap();
+    let panel = page.panel_mut(second).unwrap();
+    panel.label.position[1] = panel.frame.height - panel.label.font_size;
+    let moved = clearances(&app);
+    assert!(moved[0] > 0.0 && moved[1] == 0.0, "{moved:?}");
+
+    let page = &mut app.doc.canvases[0];
+    let first = page.parent_panel(ids[0]).unwrap();
+    page.panel_mut(first).unwrap().label.visible = false;
+    assert_eq!(clearances(&app)[0], 0.0);
+}

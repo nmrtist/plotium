@@ -43,6 +43,28 @@ pub const TICK_LABEL_PAD: f32 = 2.5;
 pub const AXIS_LABEL_GAP: f32 = 5.0;
 pub const OUTER_PAD: f32 = 4.0;
 
+/// Vertical centre of the rotated y-axis title: the middle of the plot, moved
+/// down just far enough that its top end clears `clearance` below the frame
+/// top. The title may run into the free bottom-left corner but stops above
+/// the x-axis title row.
+pub(crate) fn y_title_center(
+    fig: &Figure,
+    plot: Rect,
+    outer: Rect,
+    clearance: f32,
+    scale: f32,
+) -> f32 {
+    let centre = (plot.top + plot.bottom()) * 0.5;
+    if clearance <= 0.0 {
+        return centre;
+    }
+    let ty = fig.typography;
+    let half = ticks::estimated_text_width(&fig.y.label, ty.label_pt) * 0.5 * scale;
+    let clear = outer.top + clearance + half;
+    let lowest = outer.bottom() - (OUTER_PAD + ty.label_pt * 1.2) * scale - half;
+    centre.max(clear.min(lowest))
+}
+
 /// A rectangle in output space (pixels or points), y-axis pointing down.
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
@@ -113,6 +135,10 @@ pub struct DocumentObject<'a> {
     pub geometry_generation: Option<u64>,
     pub visible: bool,
     pub title: Option<DocumentText>,
+    /// Distance below the frame top that the rotated y-axis title must stay
+    /// under, so a panel letter in the corner never sits on it. Zero when
+    /// nothing occupies the corner.
+    pub y_title_clearance: f32,
 }
 
 /// A plot's in-frame panel letter (a/b/c…), drawn bold at the top-left corner.

@@ -106,7 +106,8 @@ rows from top to bottom, left to right within a row. They update as soon as you
 move or add a Panel. Choose **Locked auto** to keep a Panel's current
 letter, or clear **Participates in sequence** to leave it unlettered. A letter
 placed over an image automatically switches between black and white for
-contrast. Manual and locked labels remain
+contrast, and a plot's y-axis title moves down when needed so the letter never
+sits on it. Manual and locked labels remain
 visible on a page with one Panel.
 
 Drag a single Panel completely clear of every canvas and keep it outside for
