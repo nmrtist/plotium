@@ -334,6 +334,16 @@ The mixed planning/execution tools use conservative hints. Keep client approval
 scoped to the intended tools and follow the
 [annotation and authorization guidance](/reference/mcp/#tool-annotations-and-client-approval).
 
+For different colours or labels across curves, ask for one atomic
+`properties.set_many` plan with 1–200 exact target/property/value writes and one
+Undo step. Reuse the complete targets returned by `plot.create`; see
+[batch styling](/reference/mcp/#style-several-curves-in-one-plan).
+Follow [recovery actions](/reference/mcp/#recovery-actions-and-uncertain-outcomes)
+after errors. A queued task or save is still pending; inspect receipts before
+claiming completion. Refusal, cancellation or disconnection never authorizes
+automatic recomputation, file writes or replay of a consumed plan. Every new
+file request still needs desktop approval for its exact paths and overwrite scope.
+
 ### Understand the robot icon
 
 Hover over the robot for the project, permission and last activity. Click it to

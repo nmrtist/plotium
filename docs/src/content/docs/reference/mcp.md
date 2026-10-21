@@ -1483,12 +1483,67 @@ desktop execution are skipped without changing the project. Cancellation cannot
 roll back an edit that has already started its atomic commit; use **Undo**.
 
 Errors include stable codes: `permission_denied`, `expired_plan`,
-`stale_revision`, `busy`, `invalid_parameters`, `unsupported_operation`,
+`stale_revision`, `busy`, `invalid_parameters`, `unsupported_operation`, `unsupported_property`,
 `project_changed`, `unavailable`, `connection_lost`, `plan_limit`, `request_cancelled`, `connection_stopped`, `response_too_large` and `execution_failed`.
-A `busy` response is retryable after the active edit, recovery confirmation or background project
-operation finishes. For stale or expired plans, read state and preflight again.
+Errors carry `error.recovery`; asynchronous save, export and task receipts carry
+`recovery`. `retryable: false` means do not repeat the failed call: follow the
+reported next action. A `busy` execute can already have consumed its plan.
+For stale revisions, read state and review a fresh plan. An expired plan may
+already have run; inspect its outcome before deciding on a new operation.
 The AI connections (MCP) settings page shows recent operations and errors without
 opening itself in response to background activity.
+
+## Recovery actions and uncertain outcomes
+
+`recovery` describes this request, not permission to execute another one:
+
+| Field | Meaning |
+| --- | --- |
+| `plan_consumed` | `true` / `false` when observed; `null` when unknown. A consumed plan cannot be reused. |
+| `submission` | `submitted`, `not_submitted` or `unknown`; accepted background work is not completed work. |
+| `committed` | `true` / `false` when known; `null` when effects or durable completion are uncertain. |
+| `completion` | `pending`, `succeeded`, `failed`, `partial` or `unknown`. |
+| `receipt` | Status tool and exact ID in `arguments`; `retained` is `true` when found, `false` when missing, or `null` when unknown. A null `receipt` means no known receipt query. |
+| `next_action` | One next step: `call_tool` with exact arguments, `desktop_file_confirmation`, `check_desktop_connection`, `inspect_outcome`, or `none`. |
+| `replay_allowed` | Always `false`; recovery never authorizes replay or automatic resubmission. |
+
+For `call_tool`, make only the named read. For desktop confirmation, review the
+pending request's exact paths and overwrite scope in Plotium, then query its
+receipt. For `check_desktop_connection`, check AI connections (MCP) and access
+mode in the desktop, then read state. For `inspect_outcome`, compare the retained
+receipt, saved preflight targets/paths and current state; missing evidence needs
+human review before any new scientific computation or file request.
+
+- **Busy:** planning fails before submission. Execution may consume the plan
+  before the busy check; finish the desktop operation, read state and review a
+  fresh plan. Never resubmit the consumed ID.
+- **Stale revision / project switch / revoked permission:** refresh state and
+  access in the desktop. After a switch, rediscover targets in the new context.
+  Existing plan IDs and file permissions do not transfer to the new project.
+- **Save refused or cancelled before installation:** the consumed plan's receipt is terminal with
+  `phase: not_installed`, `committed: false` and `completion: failed`. Closing the
+  confirmation is refusal. Inspect state and ask whether saving is still wanted;
+  a newly intended save requires a fresh plan and desktop confirmation.
+  Cancellation after a worker starts must be resolved from its final phase;
+  it does not undo installed output.
+- **Pending save/task:** accepted, queued, running or saving is `pending`, not
+  success. Use the receipt query; do not submit a replacement task or save.
+  `installed_unconfirmed` stays unknown even after a save worker terminates.
+- **Export:** the batch succeeds only when completed and every file succeeded.
+  Mixed terminal results are `partial`; inspect each exact output path and error.
+  A failed file can have been installed before a durability error, so failure
+  alone does not prove that its path is unchanged. Never retry the entire batch
+  automatically, including its successful files.
+- **Disconnect / expired plan / unknown or evicted receipt:** preserve unknown
+  consumption, submission and commit state. Reconnect and query a known receipt
+  ID in the same desktop process. If it is absent, inspect saved targets/paths;
+  absence does not prove non-execution and does not authorize recomputation or
+  overwrite. Receipts are not persisted across desktop restarts.
+
+These actions retain server permissions, revision/context checks, one-use plans
+and fresh per-request desktop file consent. Tool annotations are neither
+authorization nor a reason to retry. Reconnect clients and refresh their tool
+catalog after updating the desktop and connector together.
 
 ## Style several curves in one plan
 
@@ -1513,6 +1568,35 @@ component.
   ]}
 }
 ```
+
+After `plot.create` executes, use its full stable targets directly. For example,
+with the decoded creation `ToolResult` in `created` and the original state in
+`state`, prepare this `plotium_plan` argument object:
+
+```js
+const request = {
+  expected_project_context: state.project_context,
+  expected_revision: created.after_revision,
+  tool_id: "properties.set_many",
+  parameters: { writes: [
+    ...created.value.bindings.map((binding, index) => ({
+      target: binding.target,
+      key: "series.label",
+      value: `Sample ${index + 1}`
+    })),
+    { target: created.value.creation.plot,
+      key: "object.axes.x_label", value: "Temperature (°C)" }
+  ] }
+};
+```
+
+Copy each whole `target`, including owner resource `kind`, `id`, `parent_id`,
+`local_id` and component identity when present. A bare SeriesId, name or array
+index is not a selector. Keep the total within 200 writes. Preflight this object,
+review it and execute its new `plan_id` once. `unsupported_operation` means the
+operation is unavailable; `unsupported_property` identifies an unsupported key
+in `error.details.write_index` (zero based) and `key`. Query
+`plotium_properties_list` and correct the whole batch before planning again.
 
 A batch holds 1–200 writes and accepts the display properties listed above.
 `preflight.targets` has one row per write, in order. Planning refuses the whole

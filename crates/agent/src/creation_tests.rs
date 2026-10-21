@@ -310,3 +310,52 @@ fn line_width_changes_preserve_native_sources_and_automatic_axis_ranges() {
     assert_eq!(after.binding.coordinates, binding.coordinates);
     assert_eq!(after.figure().series[0].width, 1.5);
 }
+
+#[test]
+fn returned_creation_targets_can_be_styled_together_with_one_undo() {
+    let mut app = fixture();
+    let mut session = crate::Session::default();
+    session.set_allow_modify(true);
+    let arguments = args(&app);
+    let plan = session.call(&mut app, "plotium_plan", arguments).unwrap();
+    let created = session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    let series = &created["value"]["bindings"][0]["target"];
+    let plot = &created["value"]["creation"]["plot"];
+    let before =
+        serde_json::to_value(app.doc.canvases[0].objects[0].plot().unwrap().figure()).unwrap();
+    let undo = app.session.undo_stack.len();
+    let arguments = json!({"expected_project_context":app.session.project_context,
+    "expected_revision":created["after_revision"],"tool_id":"properties.set_many",
+    "parameters":{"writes":[
+        {"target":series,"key":"series.label","value":"Sample 1"},
+        {"target":series,"key":"series.line.color","value":"#0072B2"},
+        {"target":plot,"key":"object.axes.x_label","value":"Temperature"}
+    ]}});
+    let plan = session.call(&mut app, "plotium_plan", arguments).unwrap();
+    let result = session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    assert!(
+        result["value"]["writes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|w| w["outcome"] == "succeeded")
+    );
+    assert_eq!(app.session.undo_stack.len(), undo + 1);
+    app.undo();
+    assert_eq!(
+        serde_json::to_value(app.doc.canvases[0].objects[0].plot().unwrap().figure()).unwrap(),
+        before
+    );
+}

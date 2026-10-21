@@ -130,7 +130,7 @@ fn closed_capability_boundary_and_parameter_validation() {
             )
             .unwrap_err()
             .code,
-            "unsupported_operation"
+            "unsupported_property"
         );
         assert_eq!(
             session
@@ -141,7 +141,7 @@ fn closed_capability_boundary_and_parameter_validation() {
                 )
                 .unwrap_err()
                 .code,
-            "unsupported_operation"
+            "unsupported_property"
         );
     }
     assert_eq!(

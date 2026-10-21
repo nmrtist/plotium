@@ -52,6 +52,8 @@ impl ServerHandler for Handler {
             "plotium_render_preview" | "plotium_preview_plan"
         );
         let diagnostic_request = request.name == "plotium_figure_diagnose";
+        let request_name = request.name.to_string();
+        let request_arguments = arguments.clone();
         let pending = PendingRequest {
             name: request.name.into_owned(),
             arguments,
@@ -61,7 +63,10 @@ impl ServerHandler for Handler {
         };
         if self.send.try_send(pending).is_err() {
             return Ok(CallToolResult::structured_error(
-                Failure::new("busy", "Desktop queue is full or stopped; retry").value(),
+                Failure::new("busy", "Desktop queue is full or stopped")
+                    .for_request(&request_name, &request_arguments)
+                    .not_submitted()
+                    .value(),
             )
             .into());
         }
@@ -79,7 +84,11 @@ impl ServerHandler for Handler {
             Ok(value) if image_request => image_result(value, &context.id),
             Ok(value) if diagnostic_request => diagnostic_result(value, &context.id),
             Ok(value) => CallToolResult::structured(value),
-            Err(error) => CallToolResult::structured_error(error.value()),
+            Err(error) => CallToolResult::structured_error(
+                error
+                    .for_request_if_missing(&request_name, &request_arguments)
+                    .value(),
+            ),
         }
         .into())
     }
@@ -117,7 +126,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         ("plotium_get_state", "Read application availability, revision, selection, capabilities and permissions, including on the welcome page or while busy. Queries do not append project run records or change dirty state, edit generation or revision.", json!({}), json!([])),
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
-        ("plotium_properties_list", "List supported display property definitions: schema, units, scope and static applicability. Does not create a run record.", json!({}), json!([])),
+        ("plotium_properties_list", "List supported display property definitions: schema, units, scope and static applicability. For 1-200 exact target/key/value writes use properties.set_many through plotium_plan, atomically with one Undo. Reuse full targets returned by plot.create. Does not create a run record.", json!({}), json!([])),
         ("plotium_properties_inspect", "Read property values, defaults, bounds and applicability.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "key": key}), json!(["expected_revision", "key"])),
         ("plotium_plan", "Preflight a supported edit on resource IDs or exact series targets. Returns a one-use opaque plan_id; at most 32 pending plans.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "tool_id": {"enum": crate::capabilities::EDIT_OPERATIONS}, "parameters": {"type": "object", "description": "Core arguments: rename {name}; properties.set {key,value}; properties.set_many {writes:[{target,key,value}]} (1..=200 exact targets, one atomic Undo step, omit top-level ids/targets); properties.reset {key}; data.import {paths,sampling_declaration?} for native datasets/default canvases, or {mode:table_data_only,paths,header?,format?,schema?,schema_path?}; plot.series.bind {edits:[{target,source:{dataset_id,field_id,table_id,table_revision,x_column_id,y_column_id,y_error_column_id}}]}; plot.series.materialize_default {edits:[{target,retain_y_column_id,table_revision}]}. plot.series.append {plot:TargetRef,series:[{kind,source:TableCurveSource}]} appends to an existing explicit-coordinate plot. plot.create {parent:TargetRef,name,canvas?:{name,size_mm},panel_name?,series:[{kind:line|scatter,source:TableCurveSource}]}. data.transform {mode:table_data_only,name,plan:RelPlanV1,memory_limit_bytes?} requires one DatasetId in ids. figure.edit {canvas:TargetRef,edits:[{op:page|panel_frame|panel_label|align|distribute|grid|text_create|text_set|image_create|content_frame|image_replace|content_delete|panel_delete|series_delete,...}]} uses exact targets inside edits; discover complete schema in operation_constraints. Import, figure, creation and binding edits omit top-level ids/targets. table.patch {table_revision,edits:[{row_id,column_id,value:{kind,value?}}]} and table.refresh {table_revision,memory_limit_bytes?} each require exactly one DatasetId in ids. Full schemas are in get_state.connection_capabilities.operation_constraints."}}), json!(["expected_revision", "tool_id", "parameters"])),
         ("plotium_execute", "Submit a saved plan once. Edits require reversible-modify permission. project.save queues separate per-request desktop file authorization; poll plotium_save_status for completion. figure.export requests separate desktop authorization; poll plotium_export_status for per-file completion. External writes are not undoable.", json!({"plan_id": {"type": "string"}}), json!(["plan_id"])),

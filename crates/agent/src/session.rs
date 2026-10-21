@@ -7,6 +7,7 @@ mod guides;
 #[cfg(test)]
 mod plan_budget_tests;
 mod property_batch;
+mod recovery;
 pub(crate) mod save;
 mod science;
 mod state;
@@ -49,62 +50,7 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::guide::POSITION,
 ];
 
-#[derive(Clone, Debug)]
-pub struct Failure {
-    pub code: &'static str,
-    pub message: String,
-    pub details: Option<Value>,
-}
-impl Failure {
-    pub fn new(code: &'static str, message: impl Into<String>) -> Self {
-        Self {
-            code,
-            details: None,
-            message: message.into(),
-        }
-    }
-    pub fn value(&self) -> Value {
-        json!({"error": {"code": self.code, "message": self.message,
-            "retryable": self.code == "busy", "details":self.details}})
-    }
-}
-impl From<AutomationError> for Failure {
-    fn from(error: AutomationError) -> Self {
-        Self::from(&error)
-    }
-}
-impl From<&AutomationError> for Failure {
-    fn from(error: &AutomationError) -> Self {
-        if let AutomationError::DiffusionInput { report } = error {
-            let mut failure = Self::new("invalid_diffusion_input", error.to_string());
-            failure.details = Some(json!({"diffusion_input":report}));
-            return failure;
-        }
-        let code = match error {
-            AutomationError::StaleRevision { .. } | AutomationError::StaleTableRevision { .. } => {
-                "stale_revision"
-            }
-            AutomationError::TableTransformCancelled => "request_cancelled",
-            AutomationError::NativeImportBudget(_) => "import_budget_exceeded",
-            AutomationError::TableTransformBudget(_) => "transform_budget_exceeded",
-            AutomationError::DiagnosticCancelled => "request_cancelled",
-            AutomationError::DiagnosticBudget(_) => "diagnostic_budget_exceeded",
-            AutomationError::PreviewCancelled => "request_cancelled",
-            AutomationError::PreviewBudget(_) => "preview_budget_exceeded",
-            AutomationError::PreviewAsset(_) => "preview_asset_unavailable",
-            AutomationError::ResponseTooLarge => "response_too_large",
-            AutomationError::InsufficientAuthority { .. } => "permission_denied",
-            AutomationError::UnknownTool(_) | AutomationError::ToolVersion { .. } => {
-                "unsupported_operation"
-            }
-            AutomationError::InvalidParameters { .. } | AutomationError::InvalidSelector(_) => {
-                "invalid_parameters"
-            }
-            _ => "execution_failed",
-        };
-        Self::new(code, error.to_string())
-    }
-}
+pub use recovery::Failure;
 
 #[derive(Default)]
 pub struct Session {
@@ -186,7 +132,7 @@ fn check_property(parameters: &Value) -> Result<(), Failure> {
         Ok(())
     } else {
         Err(Failure::new(
-            "unsupported_operation",
+            "unsupported_property",
             "Property is outside the connection's supported display properties",
         ))
     }
@@ -226,6 +172,79 @@ impl Session {
 
     /// The shell supplies recovery/save barriers that live outside core state.
     pub fn call_when_available(
+        &mut self,
+        app: &mut PlotiumApp,
+        name: &str,
+        arguments: Value,
+        blocked: bool,
+    ) -> Result<Value, Failure> {
+        let id = arguments.get("plan_id").and_then(Value::as_str);
+        let pending = id.is_some_and(|id| {
+            self.plans.contains_key(id)
+                || self.saves.contains_key(id)
+                || self.exports.contains_key(id)
+        });
+        let result = self.call_inner(app, name, arguments.clone(), blocked);
+        match result {
+            Ok(mut value) => {
+                recovery::annotate(&mut value);
+                Ok(value)
+            }
+            Err(mut error) => {
+                error = error.for_request(name, &arguments);
+                if name == "plotium_execute"
+                    && pending
+                    && error.code != "project_changed"
+                    && id.is_some_and(|id| {
+                        !self.plans.contains_key(id)
+                            && !self.saves.contains_key(id)
+                            && !self.exports.contains_key(id)
+                    })
+                {
+                    let mut recovery = recovery::for_error(error.code);
+                    recovery["plan_consumed"] = json!(true);
+                    // These gates reject before the executor can commit or submit work.
+                    if matches!(
+                        error.code,
+                        "busy" | "stale_revision" | "permission_denied" | "save_target_changed"
+                    ) {
+                        recovery["submission"] = json!("not_submitted");
+                        recovery["committed"] = json!(false);
+                        recovery["completion"] = json!("failed");
+                    }
+                    recovery["plan_id"] = json!(id);
+                    error.recovery = Some(recovery);
+                }
+                if name == "plotium_execute"
+                    && let Some(id) = id
+                {
+                    let mut receipt = if let Some(save) = app.session.external_saves.receipt(id) {
+                        json!({"save":save})
+                    } else if let Some(export) = app.session.external_exports.receipt(id) {
+                        json!({"export":export})
+                    } else if let Some(task) = app.session.scientific_tasks.for_plan(id) {
+                        json!({"task":task})
+                    } else {
+                        Value::Null
+                    };
+                    if let Some(object) = receipt.as_object_mut() {
+                        let kind = object.keys().next().expect("one receipt").clone();
+                        recovery::annotate(&mut receipt);
+                        let mut recovery = receipt[&kind]["recovery"].clone();
+                        recovery["plan_id"] = json!(id);
+                        error.recovery = Some(recovery);
+                    } else if app.session.scientific_tasks.plan_was_consumed(id) {
+                        let recovery = error.recovery.as_mut().expect("request recovery");
+                        recovery["plan_consumed"] = json!(true);
+                        recovery["submission"] = json!("submitted");
+                    }
+                }
+                Err(error)
+            }
+        }
+    }
+
+    fn call_inner(
         &mut self,
         app: &mut PlotiumApp,
         name: &str,
@@ -298,7 +317,7 @@ impl Session {
             let mut plan = self.plans.remove(&args.plan_id).ok_or_else(|| {
                 Failure::new(
                     "expired_plan",
-                    "Plan expired or was already submitted; preflight again",
+                    "Plan unavailable or already submitted; inspect state and retained receipts before considering a new operation",
                 )
             })?;
             plan.submitted_plan_id = Some(args.plan_id.clone());

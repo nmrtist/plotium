@@ -196,6 +196,7 @@ fn respond(
     request: PendingRequest,
     result: Result<serde_json::Value, Failure>,
 ) -> Result<(), Failure> {
+    let result = request.prepare_response(result);
     let status = result.as_ref().map(|_| ()).map_err(Clone::clone);
     if request.response.send(result).is_err() {
         // Disconnection is normal; no live document mutation is waiting to commit.

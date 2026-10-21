@@ -206,7 +206,9 @@ fn background_permissions_revisions_cancel_disconnect_and_barriers_discard_candi
         assert_eq!(error, expected);
         assert_eq!(app.doc.datasets.len(), 1);
         if scenario != "disconnect" {
-            assert_eq!(rx.try_recv().unwrap().unwrap_err().code, expected);
+            let error = rx.try_recv().unwrap().unwrap_err();
+            assert_eq!(error.code, expected);
+            assert_rejected_preflight(&error);
         }
     }
 }
@@ -337,10 +339,9 @@ fn project_switch_rejects_transform_inputs_plans_and_background_completion() {
     c.poll_transform(&mut app, false).unwrap();
     assert!(c.transform.is_none());
     assert!(!cancellation.is_cancelled());
-    assert_eq!(
-        response.try_recv().unwrap().unwrap_err().code,
-        "project_changed"
-    );
+    let error = response.try_recv().unwrap().unwrap_err();
+    assert_eq!(error.code, "project_changed");
+    assert_rejected_preflight(&error);
     assert_eq!(
         c.session
             .call(&mut app, "plotium_plan", arguments)
@@ -364,4 +365,43 @@ fn project_switch_rejects_transform_inputs_plans_and_background_completion() {
         "project_changed"
     );
     assert!(app.doc.datasets.is_empty());
+}
+
+fn assert_rejected_preflight(error: &Failure) {
+    let value = error.value();
+    let recovery = &value["error"]["recovery"];
+    assert_eq!(recovery["plan_consumed"], false);
+    assert_eq!(recovery["submission"], "not_submitted");
+    assert_eq!(recovery["committed"], false);
+    assert_eq!(recovery["completion"], "failed");
+    assert_eq!(recovery["replay_allowed"], false);
+    assert_eq!(value["error"]["retryable"], false);
+}
+
+#[test]
+fn desktop_table_preflight_rejection_reports_known_non_submission() {
+    for operation in ["data.transform", "table.patch", "table.refresh"] {
+        for mode in ["busy", "permission_denied"] {
+            let mut app = fixture();
+            let mut arguments = args(&app);
+            arguments["tool_id"] = json!(operation);
+            let mut connection = Connection::start(|| {}).unwrap();
+            if mode == "permission_denied" {
+                connection.session.set_allow_modify(false);
+            }
+            let (request, response) = pending(arguments);
+            let error = connection
+                .dispatch_request(&mut app, request, mode == "busy")
+                .unwrap_err();
+            assert_eq!(error.code, mode);
+            assert_rejected_preflight(&error);
+            assert_eq!(
+                response.blocking_recv().unwrap().unwrap_err().value(),
+                error.value()
+            );
+            assert!(connection.transform.is_none());
+            assert_eq!(app.doc.datasets.len(), 1);
+            assert!(!app.doc.dirty);
+        }
+    }
 }

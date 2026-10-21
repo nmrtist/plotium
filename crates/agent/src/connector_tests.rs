@@ -74,6 +74,41 @@ fn one_stdio_session_survives_offline_start_restart_and_revocation_without_repla
             call.await.unwrap().structured_content.unwrap()["project_context"],
             json!(context)
         );
+        let handle = client.peer().clone();
+        let call = tokio::spawn(async move {
+            handle
+                .call_tool(
+                    CallToolRequestParams::new("plotium_save_status")
+                        .with_arguments(json!({"save_id":"missing"}).as_object().unwrap().clone()),
+                )
+                .await
+                .unwrap()
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(request) = connection.next_request() {
+                    assert_eq!(
+                        connection
+                            .dispatch_request(&mut app, request, false)
+                            .unwrap_err()
+                            .code,
+                        "unknown_save"
+                    );
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let error = call.await.unwrap().structured_content.unwrap();
+        assert_eq!(error["error"]["code"], "unknown_save");
+        assert_eq!(
+            error["error"]["recovery"]["receipt"]["arguments"]["save_id"],
+            "missing"
+        );
+        assert_eq!(error["error"]["recovery"]["receipt"]["retained"], false);
+        assert!(error["error"]["recovery"]["committed"].is_null());
         connection.stop();
         assert!(Discovery::read(&directory).is_err());
         let result = client
@@ -129,6 +164,11 @@ fn one_stdio_session_survives_offline_start_restart_and_revocation_without_repla
             .unwrap()
             .unwrap();
         assert_eq!(result.is_error, Some(true));
+        let error = result.structured_content.unwrap();
+        assert!(error["error"]["recovery"]["committed"].is_null());
+        assert!(error["error"]["recovery"]["plan_consumed"].is_null());
+        assert_eq!(error["error"]["recovery"]["submission"], "unknown");
+        assert_eq!(error["error"]["recovery"]["replay_allowed"], false);
         let mut connection = crate::Connection::start_in(directory.clone(), || {}).unwrap();
         connector.heartbeat().await;
         assert!(connection.next_request().is_none());

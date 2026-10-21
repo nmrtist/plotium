@@ -23,12 +23,14 @@ impl Session {
             .enumerate()
         {
             if check_property(write).is_err() {
-                return Err(Failure::new(
-                    "unsupported_operation",
+                let mut failure = Failure::new(
+                    "unsupported_property",
                     format!(
                         "writes[{index}]: property is outside the connection's supported display properties"
                     ),
-                ));
+                );
+                failure.details = Some(json!({"write_index":index,"key":write.get("key")}));
+                return Err(failure);
             }
             // The single-key guide request enforces the same bound.
             if write.get("key").and_then(Value::as_str) == Some(guide::TITLE.as_str())

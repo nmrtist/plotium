@@ -97,6 +97,16 @@ fn batches_stay_inside_the_connection_boundary() {
         ]}}),
     )
     .unwrap_err();
-    assert_eq!(outside.code, "unsupported_operation");
+    assert_eq!(outside.code, "unsupported_property");
+    assert_eq!(outside.details.as_ref().unwrap()["write_index"], 1);
+    assert_eq!(
+        outside.details.as_ref().unwrap()["key"],
+        "series.contour.ratio"
+    );
+    assert_eq!(
+        outside.value()["error"]["recovery"]["next_action"]["tool"],
+        "plotium_properties_list"
+    );
+    assert_eq!(outside.value()["error"]["recovery"]["committed"], false);
     assert!(outside.message.contains("writes[1]"), "{}", outside.message);
 }
