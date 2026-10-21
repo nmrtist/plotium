@@ -60,7 +60,9 @@ fn session_discovery_walks_to_exact_series_and_preserves_original_tools() {
     assert_eq!(property["value"]["readings"][0]["target"], t);
     assert_eq!(app.doc.automation_revision, before);
     assert_eq!(app.doc.automation_runs.len(), runs);
-    let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut app, "plotium_capabilities_get", json!({}))
+        .unwrap();
     assert_eq!(
         state["connection_capabilities"]["tools"]
             .as_array()
@@ -74,17 +76,14 @@ fn session_discovery_walks_to_exact_series_and_preserves_original_tools() {
         .iter()
         .find(|t| t["name"] == "plotium_execute")
         .unwrap();
-    assert_eq!(execute["currently_permitted"], true);
+    assert!(execute.get("currently_permitted").is_none());
     assert_eq!(
         execute["required_permission"],
         "operation_specific: reversible_modify or per_request_desktop_save/export_authorization"
     );
     s.allow_modify = true;
     let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
-    assert_eq!(
-        state["connection_capabilities"]["tools"][6]["currently_permitted"],
-        true
-    );
+    assert_eq!(state["permissions"]["allow_reversible_modify"], true);
 }
 #[test]
 fn new_queries_reject_forgery_stale_selection_and_invalid_shape() {
@@ -183,7 +182,7 @@ fn static_definitions_and_connection_gate_are_the_same_supported_subset() {
     assert_eq!(catalog["properties"][0]["schema"]["min"], 0.05);
     assert_eq!(catalog["properties"][2]["schema"]["type"], "int");
     assert_eq!(catalog["properties"][2]["schema"]["max"], 256);
-    let manifest = capabilities::manifest(false);
+    let manifest = capabilities::manifest();
     let plan = manifest["tools"]
         .as_array()
         .unwrap()
@@ -194,7 +193,7 @@ fn static_definitions_and_connection_gate_are_the_same_supported_subset() {
         plan["input_schema"]["properties"]["tool_id"]["enum"],
         json!(capabilities::EDIT_OPERATIONS)
     );
-    assert_eq!(plan["currently_permitted"], true);
+    assert!(plan.get("currently_permitted").is_none());
     let mut app = fixture();
     let context = app.session.project_context;
     let mut s = Session::default();

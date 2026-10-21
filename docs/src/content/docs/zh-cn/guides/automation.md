@@ -169,6 +169,14 @@ Diagnostic History** 中，附带每个文件的路径、大小和 SHA-256 校�
 编辑操作。MCP 让客户端能够调用 Plotium 的工具；你仍在 Codex、Claude Code 或
 Claude Desktop 中与 AI 对话。
 
+### 按需发现能力
+
+让 Agent 用 `plotium_get_state` 读取当前权限和项目上下文，仅在需要完整静态契约
+或能力指纹变化时调用 `plotium_capabilities_get`。状态包含项目数量摘要、有上限的选择分页
+和保留的保存回执 ID；完整目标及回执通过各自查询读取。缓存能力不授予修改或重试权限，
+每次保存／导出仍须桌面确认。
+详见[状态与能力发现](/zh-cn/reference/mcp/#读取状态与按需发现能力)。
+
 ### 连接 AI 客户端
 
 请保留完整的 Plotium 发行目录，包括 `plotium-mcp`（Windows 下为

@@ -78,12 +78,13 @@ fn write_overlay(s: &mut String, overlay: &DocumentOverlay<'_>) {
                 sz = t.font_size,
                 col = t.color.to_hex(),
             );
+            // Absolute line baselines, because a line may end in a script.
             for (i, line) in t.text.lines().enumerate() {
-                let dy = if i == 0 { 0.0 } else { t.font_size * 1.25 };
+                let line_y = f.top + t.font_size * (1.0 + 1.25 * i as f32);
                 let _ = write!(
                     s,
-                    r#"<tspan x="{x:.2}" dy="{dy:.2}">{}</tspan>"#,
-                    escape(line)
+                    r#"<tspan x="{x:.2}" y="{line_y:.2}">{}</tspan>"#,
+                    svg_content(line, t.font_size)
                 );
             }
             let _ = write!(s, "</text>");
@@ -181,7 +182,7 @@ fn write_figure(
             y = outer.top + OUTER_PAD + ty.title_pt,
             font = ty.title_pt,
             col = plotium_figure::Color::BLACK.to_hex(),
-            title = escape(&fig.title),
+            title = svg_content(&fig.title, ty.title_pt),
         );
     }
 
@@ -285,7 +286,7 @@ fn write_figure(
                 r#"<text x="{px:.2}" y="{y:.2}" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
                 y = plot.bottom() + ty.tick_outset() + TICK_LABEL_PAD + ty.tick_pt,
                 font = ty.tick_pt,
-                lab = escape(label)
+                lab = svg_content(label, ty.tick_pt)
             );
         }
     }
@@ -302,10 +303,11 @@ fn write_figure(
         if fig.y.show_tick_labels {
             let _ = write!(
                 s,
-                r#"<text x="{x:.2}" y="{py:.2}" text-anchor="end" font-size="{font}" fill="{axis}" dominant-baseline="middle">{lab}</text>"#,
+                r#"<text x="{x:.2}" y="{y:.2}" text-anchor="end" font-size="{font}" fill="{axis}">{lab}</text>"#,
                 x = y_tick_x,
+                y = py + ty.tick_pt * crate::rich_text::MIDDLE_TO_BASELINE,
                 font = ty.tick_pt,
-                lab = escape(label)
+                lab = svg_content(label, ty.tick_pt)
             );
         }
     }
@@ -318,7 +320,7 @@ fn write_figure(
             x = y_axis_x,
             y = plot.top - TICK_LABEL_PAD,
             font = ty.tick_pt,
-            label = escape(&multiplier),
+            label = svg_content(&multiplier, ty.tick_pt),
         );
     }
     if fig.x.show_tick_labels
@@ -330,7 +332,7 @@ fn write_figure(
             x = plot.right(),
             y = outer.top + h - OUTER_PAD,
             font = ty.tick_pt,
-            label = escape(&multiplier),
+            label = svg_content(&multiplier, ty.tick_pt),
         );
     }
 
@@ -346,7 +348,7 @@ fn write_figure(
             cx = (plot.left + plot.right()) / 2.0,
             y = outer.top + h - OUTER_PAD - multiplier_clearance,
             font = ty.label_pt,
-            lab = escape(&fig.x.label),
+            lab = svg_content(&fig.x.label, ty.label_pt),
         );
     }
     if !hidden_frame && fig.y.show_label {
@@ -356,7 +358,7 @@ fn write_figure(
             x = outer.left + OUTER_PAD + ty.label_pt * 0.5,
             cy = (plot.top + plot.bottom()) / 2.0,
             font = ty.label_pt,
-            lab = escape(&fig.y.label),
+            lab = svg_content(&fig.y.label, ty.label_pt),
         );
     }
 
@@ -444,7 +446,7 @@ fn write_figure(
             },
             font = fig.typography.tick_pt,
             color = annotation.color.to_hex(),
-            label = escape(&label.text),
+            label = svg_content(&label.text, fig.typography.tick_pt),
         );
     }
     for contour in &fig.contours {
@@ -484,7 +486,7 @@ fn write_figure(
             y = curve.label.position.1,
             font = curve.label.font_size,
             color = curve.label.color.to_hex(),
-            text = escape(&curve.label.text),
+            text = svg_content(&curve.label.text, curve.label.font_size),
         );
     }
     for a in &fig.annotations {
@@ -494,7 +496,7 @@ fn write_figure(
             r#"<text x="{px:.2}" y="{py:.2}" text-anchor="middle" font-size="{sz}" fill="{col}">{txt}</text>"#,
             sz = a.size,
             col = a.color.to_hex(),
-            txt = escape(&a.text),
+            txt = svg_content(&a.text, a.size),
         );
     }
     let _ = write!(s, r#"</g>"#);
@@ -589,15 +591,11 @@ pub(crate) fn write_panel_letter(s: &mut String, text: &str, position: [f32; 2],
         r#"<text x="{x:.2}" y="{y:.2}" text-anchor="start" font-size="{font_size:.2}" font-weight="bold" fill="{col}">{txt}</text>"#,
         x = position[0],
         y = position[1] + font_size,
-        txt = escape(text),
+        txt = svg_content(text, font_size),
     );
 }
 
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
+use crate::rich_text::svg_content;
 
 fn escape_id(s: &str) -> String {
     s.chars()
@@ -663,7 +661,7 @@ mod tests {
         );
         let out = export(&fig);
         assert!(out.contains(">77.8</text>"));
-        assert!(out.contains("×10⁴"));
+        assert!(out.contains(r#"×10<tspan dy="-2.31" font-size="4.90">4</tspan>"#));
         assert!(!out.contains("e3</text>"));
         assert!(!out.contains("e4</text>"));
     }

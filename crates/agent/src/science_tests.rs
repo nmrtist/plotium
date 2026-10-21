@@ -145,7 +145,7 @@ fn scientific_cancellation_and_permission_revocation_prevent_commit() {
 }
 #[test]
 fn scientific_discovery_is_core_derived_and_cancel_requires_modify() {
-    let manifest = crate::capabilities::manifest(false);
+    let manifest = crate::capabilities::manifest();
     let operations = manifest["scientific_operations"].as_array().unwrap();
     for id in [PROCESSING_EDIT, REGIONS_EXTRACT, DIFFUSION_FIT, DOSY_BUILD] {
         let descriptor = ToolRegistry::built_in().get(id).cloned().unwrap();
@@ -154,7 +154,8 @@ fn scientific_discovery_is_core_derived_and_cancel_requires_modify() {
             .find(|o| o["descriptor"]["id"] == id)
             .unwrap();
         assert_eq!(operation["descriptor"], json!(descriptor));
-        assert_eq!(operation["currently_permitted"], false);
+        assert!(operation.get("currently_permitted").is_none());
+        assert_eq!(operation["required_permission"], "reversible_modify");
     }
     let mut app = PlotiumApp::new_with_settings(Default::default());
     let mut session = Session::default();

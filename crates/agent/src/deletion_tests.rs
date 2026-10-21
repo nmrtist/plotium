@@ -72,7 +72,9 @@ fn deletion_discovery_and_actual_series_transaction_are_precise() {
     let mut app = fixture();
     let mut s = Session::default();
     s.allow_modify = true;
-    let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut app, "plotium_capabilities_get", json!({}))
+        .unwrap();
     let variants = &state["connection_capabilities"]["operation_constraints"][FIGURE_EDIT]["schema"]
         ["properties"]["edits"]["items"]["oneOf"];
     for op in ["content_delete", "panel_delete", "series_delete"] {

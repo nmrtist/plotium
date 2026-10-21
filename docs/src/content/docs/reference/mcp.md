@@ -136,6 +136,47 @@ Never replay a call after disconnection or an unknown outcome, even when marked
 idempotent; inspect state or retained receipts instead. After upgrading Plotium
 and its connector, reconnect the client to refresh the tool catalog.
 
+## Read state and discover capabilities on demand
+
+`plotium_get_state {}` reads the latest dynamic state. It returns
+`project_context`, `revision`, `availability`, `permissions`, `save_state`,
+`capability_fingerprint`, project counts and a bounded selection page. It does not
+include the full capability catalog or project blueprint. Discover exact targets
+with the revision-bound `plotium_document_inspect` pages or
+`plotium_resources_search`, then inspect explicit IDs with
+`plotium_resources_inspect`. Copy complete returned targets rather than names or
+collection positions.
+
+When idle, `selection` is `{items,total,next_offset}`. The default page contains
+at most 16 stable resource references. Pass `selection_offset` (default 0) and
+`selection_limit` (1–50) to read further pages, for example:
+
+```json
+{"selection_offset":16,"selection_limit":50}
+```
+
+Every call reads the current selection; pages are not a frozen snapshot. GUI
+selection can change without changing the document revision. Do not combine pages
+as an atomic selection or use selection as execution authority. While busy,
+`project` and `selection` are `null`; availability, permissions, the capability
+fingerprint and save receipt IDs remain readable.
+
+Call `plotium_capabilities_get {}` to obtain
+`{capability_fingerprint,connection_capabilities}`. The fingerprint is SHA-256 of
+the complete static discovery contract with canonical JSON object ordering. Cache
+that contract under its returned fingerprint; fetch it again when the state
+fingerprint differs. If state changes before discovery completes, use the
+fingerprint returned with the discovered contract. Project edits, project changes,
+selection changes and permission changes do not change static capabilities.
+
+Static discovery includes required permissions, not `currently_permitted` flags.
+Always read current `permissions` and `availability` from state; execution still
+checks server permissions, context, revision and single-use plans. Fingerprints,
+cached schemas and annotations grant no permissions and never authorize retry.
+Save and export still require fresh desktop confirmation for each exact request.
+Update the desktop and connector together and reconnect clients to refresh the
+tool catalog after upgrading.
+
 ## Import native data from the welcome page
 
 `plotium_get_state {}` works immediately after opening Plotium, including while
@@ -143,10 +184,10 @@ background work, recovery or saving blocks project access. It adds
 `availability` entries for `project_read`, `project_modify`
 and `native_import`; each has `available` and a nullable `{code,message}` reason.
 You can import native data or tables directly from the welcome page. When idle,
-`project` contains the project blueprint, even before importing data. While busy,
+`project` contains dataset and canvas counts, even before importing data. While busy,
 `project` and `selection` are both `null`. Check `availability` before planning
 an operation. Queries add no project audit entry or unsaved changes.
-Connection capabilities remain discoverable in every state.
+Connection capabilities remain discoverable through `plotium_capabilities_get {}` in every state.
 
 Enable **Read and modify**, copy `project_context` and `revision` from state,
 then call `plotium_plan`:
@@ -192,10 +233,11 @@ CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and li
 
 ## Discover structure without relying on names
 
-Start with `plotium_get_state {}`. Its `connection_capabilities` describes this
-connection's fifteen tools, input schemas, result contracts, supported operations,
-property IDs, limits and current execution permission. Standard MCP `tools/list`
-also lists their input schemas. Resource descriptors describe **core** data and
+Start with `plotium_get_state {}` for current context, revision and permissions.
+Call `plotium_capabilities_get {}` when you need static contracts. Its
+`connection_capabilities` describes this connection's tools, input schemas, result
+contracts, supported operations, property definitions and limits. Standard MCP
+`tools/list` also lists tool input schemas. Resource descriptors describe **core** data and
 rendering capabilities; a capability listed on a resource
 does not make that operation callable through this connection. Only
 `project.save`, `figure.export`, `resource.rename`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
@@ -720,7 +762,7 @@ Ask the agent: “Import this CSV, use time in s and current/error in mA, and cr
 one editable line plot with symmetric Y error bars. Preview it, then change only
 that curve's line width to 1.5 pt and preview again.” Supply an absolute input path
 and explicit units. The agent can discover the complete import and creation
-schemas through `plotium_get_state` and the `plotium_plan` tool schema.
+schemas through `plotium_capabilities_get` and the `plotium_plan` tool schema.
 
 After data-only import, read the actual DatasetId, FieldId, TableId, table revision
 and ColumnIds from import results / table metadata. Plan `plot.create` without
@@ -1621,7 +1663,9 @@ outcome.
 Saving uses the same native snapshot, background worker, backups and completion
 path as **Save project**. It saves the current desktop state, not a separate CLI
 project. First read `plotium_get_state`; `save_state` reports the current path,
-persisted archive revision, dirty flag, edit generation and recent save receipts.
+persisted archive revision, dirty flag, edit generation and up to 16 retained
+`receipt_ids`. Query each ID with `plotium_save_status` for the complete receipt
+and recovery action. An ID alone does not indicate submission success or completion.
 
 Plan a first save or Save As with no `ids` or `targets`:
 

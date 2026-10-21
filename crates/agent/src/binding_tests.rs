@@ -138,10 +138,10 @@ fn binding_schema_uses_exact_embedded_targets_without_changing_old_selectors() {
         .unwrap();
     let schema = serde_json::to_value(&plan.input_schema).unwrap();
     assert_eq!(schema["oneOf"].as_array().unwrap().len(), 13);
-    let constraints = crate::capabilities::manifest(false);
+    let constraints = crate::capabilities::manifest();
     assert_eq!(
-        constraints["operation_constraints"][CURVE_BIND]["currently_permitted"],
-        false
+        constraints["operation_constraints"][CURVE_BIND]["preflight_permission"],
+        "reversible_modify"
     );
 }
 #[test]

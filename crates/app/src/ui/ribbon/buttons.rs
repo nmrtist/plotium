@@ -26,6 +26,7 @@ pub(super) fn short_label(command: &CommandDescriptor) -> String {
         CommandId::ChartType => "Chart".to_owned(),
         CommandId::ApplyTheme(id) => match id {
             "publication" => "Paper",
+            "nature" => "Nature",
             "presentation_dark" => "Dark",
             "vibrant" => "Vibrant",
             _ => "Theme",
@@ -426,6 +427,7 @@ mod tests {
             (CommandId::NewCanvas(3), "Poster"),
             (CommandId::ChartType, "Chart"),
             (CommandId::ApplyTheme("publication"), "Paper"),
+            (CommandId::ApplyTheme("nature"), "Nature"),
             (CommandId::ApplyTheme("presentation_dark"), "Dark"),
             (CommandId::ApplyTheme("vibrant"), "Vibrant"),
             (CommandId::CopyFigure, "Copy"),

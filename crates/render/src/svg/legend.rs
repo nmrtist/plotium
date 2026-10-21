@@ -1,4 +1,3 @@
-use super::escape;
 use crate::{
     LegendMark, Rect, legend_entries, legend_entry_origin, legend_layout, legend_rect,
     renders_legend,
@@ -22,11 +21,11 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
     if !fig.guide_title.trim().is_empty() {
         let _ = write!(
             s,
-            r#"<text x="{x:.2}" y="{y:.2}" font-size="{font}" font-weight="bold" fill="{axis}" dominant-baseline="hanging">{title}</text>"#,
+            r#"<text x="{x:.2}" y="{y:.2}" font-size="{font}" font-weight="bold" fill="{axis}">{title}</text>"#,
             x = bx + layout.padding,
-            y = by + layout.padding,
+            y = by + layout.padding + font * crate::rich_text::TOP_TO_BASELINE,
             axis = fig.typography.legend_color.to_hex(),
-            title = escape(&fig.guide_title),
+            title = crate::rich_text::svg_content(&fig.guide_title, font),
         );
     }
     for (i, (name, color, mark)) in entries.iter().enumerate() {
@@ -101,10 +100,11 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
         }
         let _ = write!(
             s,
-            r#"<text x="{tx:.2}" y="{ly:.2}" font-size="{font}" fill="{axis}" dominant-baseline="middle">{txt}</text>"#,
+            r#"<text x="{tx:.2}" y="{y:.2}" font-size="{font}" fill="{axis}">{txt}</text>"#,
             tx = lx + sw + 5.0,
+            y = ly + font * crate::rich_text::MIDDLE_TO_BASELINE,
             axis = fig.typography.legend_color.to_hex(),
-            txt = escape(name),
+            txt = crate::rich_text::svg_content(name, font),
         );
     }
 }

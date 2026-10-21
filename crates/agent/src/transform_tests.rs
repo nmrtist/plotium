@@ -234,7 +234,7 @@ fn bounded_pending_plans_budget_error_and_transport_schema_are_discoverable() {
             .code,
         "plan_limit"
     );
-    let caps = crate::capabilities::manifest(true);
+    let caps = crate::capabilities::manifest();
     let schema = &caps["operation_constraints"]["data.transform"]["schema"];
     assert_eq!(
         schema["properties"]["plan"]["properties"]["version"]["const"],
@@ -287,9 +287,10 @@ fn real_http_transform_creates_a_native_plot_and_returns_its_preview() {
             let rows=client.call_tool(call("plotium_table_read_rows",json!({"expected_project_context":context,"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(rows.is_error,Some(false));let v=rows.structured_content.unwrap();assert_eq!(v["value"]["rows"][2]["values"][2]["value"],8.);assert_eq!(v["value"]["rows"][2]["sources"][0]["input_position"],2);
             let metadata=client.call_tool(call("plotium_table_columns",json!({"expected_project_context":context,"dataset_id":out["dataset_id"],"table_revision":out["table_revision"],"expected_revision":r["after_revision"],"include_provenance":true}))).await.unwrap();assert_eq!(metadata.is_error,Some(false));let metadata=metadata.structured_content.unwrap();let m=&metadata["value"];
             let state=client.call_tool(call("plotium_get_state",json!({}))).await.unwrap().structured_content.unwrap();
-            let constraints=&state["connection_capabilities"]["operation_constraints"];
+            let discovery=client.call_tool(call("plotium_capabilities_get",json!({}))).await.unwrap().structured_content.unwrap();
+            let constraints=&discovery["connection_capabilities"]["operation_constraints"];
             assert!(constraints["data.transform"]["schema"].is_object());assert!(constraints["plot.create"]["schema"].is_object());
-            let create=client.call_tool(call("plotium_plan",json!({"expected_project_context":context,"expected_revision":state["revision"],"tool_id":"plot.create","parameters":{"parent":state["connection_capabilities"]["document_root"],"name":"Processed native plot","series":[{"kind":"line","source":{"dataset_id":m["dataset_id"],"field_id":m["fields"][0]["field_id"],"table_id":m["table_id"],"table_revision":m["table_revision"],"x_column_id":m["columns"][0]["column_id"],"y_column_id":m["columns"][2]["column_id"],"y_error_column_id":null}}]}}))).await.unwrap();assert_eq!(create.is_error,Some(false));let create=create.structured_content.unwrap();
+            let create=client.call_tool(call("plotium_plan",json!({"expected_project_context":context,"expected_revision":state["revision"],"tool_id":"plot.create","parameters":{"parent":discovery["connection_capabilities"]["document_root"],"name":"Processed native plot","series":[{"kind":"line","source":{"dataset_id":m["dataset_id"],"field_id":m["fields"][0]["field_id"],"table_id":m["table_id"],"table_revision":m["table_revision"],"x_column_id":m["columns"][0]["column_id"],"y_column_id":m["columns"][2]["column_id"],"y_error_column_id":null}}]}}))).await.unwrap();assert_eq!(create.is_error,Some(false));let create=create.structured_content.unwrap();
             let created=client.call_tool(call("plotium_execute",json!({"plan_id":create["plan_id"]}))).await.unwrap();assert_eq!(created.is_error,Some(false));let created=created.structured_content.unwrap();
             let canvas=created["value"]["creation"]["canvas"].clone();let target=created["value"]["bindings"][0]["target"].clone();
             let detail=client.call_tool(call("plotium_document_inspect",json!({"expected_project_context":context,"expected_revision":created["after_revision"],"target":target,"view":"self"}))).await.unwrap();assert_eq!(detail.is_error,Some(false));let detail=detail.structured_content.unwrap();

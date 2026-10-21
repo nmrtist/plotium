@@ -21,7 +21,8 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
     let (bx, by) = (box_geometry.left, box_geometry.top);
     let font_id = FontId::proportional(font);
     if !fig.guide_title.trim().is_empty() {
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(bx + layout.padding * scale, by + layout.padding * scale),
             Align2::LEFT_TOP,
             &fig.guide_title,
@@ -94,7 +95,8 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
                 );
             }
         }
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(lx + sw + 5.0 * scale, ly),
             Align2::LEFT_CENTER,
             name,

@@ -270,7 +270,10 @@ What you control directly:
   heatmap. **Show** also permits a one-entry legend; **Hide** removes the legend
   or colour scale from that plot. **Position** on **Auto** places a legend
   inside the plot in whichever corner or edge midpoint covers the fewest data
-  points and lines, preferring the roomier spot and then the upper right;
+  points and lines, preferring the roomier spot and then the upper right. When
+  every such spot covers data, Plotium extends **Auto** axis ranges on the
+  legend's side, by up to half their span, just far enough to clear one;
+  manual ranges, zoomed views and aspect-locked plots are never changed.
   **Inside** keeps it in the upper right, and **Outside right** or **Outside
   bottom** reserve space beside the plot. **Layout** switches a categorical
   legend between a vertical list and a horizontal row; **Title** is available
@@ -281,6 +284,9 @@ What you control directly:
   **Legend & scales** settings. Drag a categorical legend to place it freely;
   the custom position survives resizing and is used by every export format.
   Double-click a legend or colour scale to restore its automatic placement.
+- Axis titles, legend entries and text use true superscripts and subscripts:
+  type `cm^{-2}` or `H_{2}O`. Characters such as `⁻²` and `₂` are drawn the
+  same way. EMF output falls back to those Unicode characters.
 - **Figure typography** in the Figure Ribbon tab's **Style** group opens the
   document-wide typography section; **Figure Typography…** in the command
   palette shows the same section in its own window with a **Reset to
@@ -326,6 +332,10 @@ What you control directly:
   colour. The legend swatch shows the same marker. Charts whose colours carry
   meaning keep their marker colours.
 - **Canvas themes** carry matching sizes — the Presentation Dark theme, for
-  example, enlarges the axis text for slides.
+  example, enlarges the axis text for slides. The **Nature** theme follows the
+  Nature Portfolio final-artwork guidelines: 7 pt text, 0.6 pt axes with
+  outward 3 pt ticks, 0.75 pt line series, 3 pt markers without an outline and
+  the colour-blind-safe Okabe–Ito palette. The line widths and marker sizes stay
+  when you switch to a theme that does not set them.
 
 When the figure is ready, see [Exporting](/guides/exporting/).

@@ -3,10 +3,13 @@
 use crate::Rect;
 use plotium_figure::{Figure, SeriesKind};
 
+/// Gap between an automatic legend and the plot edges, in points at scale 1.
+pub(crate) const LEGEND_INSET: f32 = 8.0;
+
 /// Candidate anchors as fractions of the free travel inside the plot. The
 /// order is the tie-break preference: upper right first, then the remaining
 /// corners, then the edge midpoints.
-const ANCHORS: [[f32; 2]; 8] = [
+pub(crate) const ANCHORS: [[f32; 2]; 8] = [
     [1.0, 0.0],
     [0.0, 0.0],
     [0.0, 1.0],
@@ -27,6 +30,25 @@ pub(crate) fn auto_legend_origin(
     height: f32,
     inset: f32,
 ) -> (f32, f32) {
+    let candidates = anchor_boxes(plot, width, height, inset);
+    // Data that merely touches the text is still crowded, so test a slightly
+    // grown box. Equally clear anchors then prefer more breathing room, judged
+    // by a wider box; both margins scale with `inset` so zoom cannot change
+    // the choice.
+    let zones = [
+        candidates.map(|r| grow(r, inset * 0.25)),
+        candidates.map(|r| grow(r, inset * 2.0)),
+    ]
+    .concat();
+    let scores = coverage(fig, plot, &zones);
+    let best = (0..ANCHORS.len())
+        .min_by_key(|&index| (scores[index], scores[index + ANCHORS.len()], index))
+        .unwrap_or(0);
+    (candidates[best].left, candidates[best].top)
+}
+
+/// Legend boxes at every anchor in [`ANCHORS`] order.
+pub(crate) fn anchor_boxes(plot: Rect, width: f32, height: f32, inset: f32) -> [Rect; 8] {
     // An oversize legend keeps the upper-right fallback on that axis rather
     // than spilling past the plot's left or top edge.
     let travel_x = plot.width - width - 2.0 * inset;
@@ -38,32 +60,37 @@ pub(crate) fn auto_legend_origin(
             (plot.right() - width - inset).max(plot.left + inset * 0.25)
         }
     };
-    let candidates = ANCHORS
-        .map(|[fx, fy]| Rect::new(left(fx), plot.top + inset + fy * travel_y, width, height));
-    // Data that merely touches the text is still crowded, so test a slightly
-    // grown box. Equally clear anchors then prefer more breathing room, judged
-    // by a wider box; both margins scale with `inset` so zoom cannot change
-    // the choice.
-    let grown = |grow: f32| {
-        candidates.map(|r| {
-            Rect::new(
-                r.left - grow,
-                r.top - grow,
-                r.width + 2.0 * grow,
-                r.height + 2.0 * grow,
-            )
-        })
-    };
-    let zones = [grown(inset * 0.25), grown(inset * 2.0)].concat();
-    let scores = coverage(fig, plot, &zones);
-    let best = (0..ANCHORS.len())
-        .min_by_key(|&index| (scores[index], scores[index + ANCHORS.len()], index))
-        .unwrap_or(0);
-    (candidates[best].left, candidates[best].top)
+    ANCHORS.map(|[fx, fy]| Rect::new(left(fx), plot.top + inset + fy * travel_y, width, height))
+}
+
+pub(crate) fn grow(r: Rect, by: f32) -> Rect {
+    Rect::new(
+        r.left - by,
+        r.top - by,
+        r.width + 2.0 * by,
+        r.height + 2.0 * by,
+    )
 }
 
 /// How many projected samples and drawn segments fall inside each zone.
-fn coverage(fig: &Figure, plot: Rect, zones: &[Rect]) -> Vec<usize> {
+pub(crate) fn coverage(fig: &Figure, plot: Rect, zones: &[Rect]) -> Vec<usize> {
+    let mut scores = vec![0usize; zones.len()];
+    for_each_segment(fig, plot, |a, b| {
+        for (score, zone) in scores.iter_mut().zip(zones) {
+            if segment_hits(a, b, *zone) {
+                *score += 1;
+            }
+        }
+    });
+    scores
+}
+
+/// Visit every projected sample (as a zero-length segment) and drawn segment.
+pub(crate) fn for_each_segment(
+    fig: &Figure,
+    plot: Rect,
+    mut add_segment: impl FnMut((f32, f32), (f32, f32)),
+) {
     let project = |p: [f64; 2]| {
         let tx = fig.x.normalize(p[0]) as f32;
         let ty = fig.y.normalize(p[1]) as f32;
@@ -73,14 +100,6 @@ fn coverage(fig: &Figure, plot: Rect, zones: &[Rect]) -> Vec<usize> {
         )
     };
     let finite = |p: [f64; 2]| p[0].is_finite() && p[1].is_finite();
-    let mut scores = vec![0usize; zones.len()];
-    let mut add_segment = |a: (f32, f32), b: (f32, f32)| {
-        for (score, zone) in scores.iter_mut().zip(zones) {
-            if segment_hits(a, b, *zone) {
-                *score += 1;
-            }
-        }
-    };
     // Dense lines are pooled into one vertical span per output unit, so the
     // cost per call stays bounded by the plot width for long spectra.
     let columns = plot.width.max(1.0).ceil() as usize;
@@ -130,11 +149,15 @@ fn coverage(fig: &Figure, plot: Rect, zones: &[Rect]) -> Vec<usize> {
         let p = project(annotation.at);
         add_segment(p, p);
     }
-    scores
 }
 
 /// Whether segment `a`–`b` (a point when they coincide) touches `zone`.
 fn segment_hits(a: (f32, f32), b: (f32, f32), zone: Rect) -> bool {
+    clip(a, b, zone).is_some()
+}
+
+/// The parameter range of segment `a`–`b` inside `zone`, if any.
+pub(crate) fn clip(a: (f32, f32), b: (f32, f32), zone: Rect) -> Option<(f32, f32)> {
     // Liang–Barsky clip of the segment's parameter range against the box.
     let (dx, dy) = (b.0 - a.0, b.1 - a.1);
     let mut t0 = 0.0_f32;
@@ -147,7 +170,7 @@ fn segment_hits(a: (f32, f32), b: (f32, f32), zone: Rect) -> bool {
     ] {
         if p == 0.0 {
             if q < 0.0 {
-                return false;
+                return None;
             }
         } else {
             let t = q / p;
@@ -157,11 +180,11 @@ fn segment_hits(a: (f32, f32), b: (f32, f32), zone: Rect) -> bool {
                 t1 = t1.min(t);
             }
             if t0 > t1 {
-                return false;
+                return None;
             }
         }
     }
-    true
+    Some((t0, t1))
 }
 
 #[cfg(test)]

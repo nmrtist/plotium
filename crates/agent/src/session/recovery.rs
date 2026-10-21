@@ -227,15 +227,6 @@ pub(super) fn annotate(value: &mut Value) {
             receipt("task", task);
         }
     }
-    if let Some(saves) = value
-        .get_mut("save_state")
-        .and_then(|s| s.get_mut("receipts"))
-        .and_then(Value::as_array_mut)
-    {
-        for save in saves {
-            receipt("save", save);
-        }
-    }
 }
 
 #[cfg(test)]

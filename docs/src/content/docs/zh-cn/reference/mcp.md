@@ -115,15 +115,45 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 未知后绝不重放调用，即使标为幂等；应查询状态或保留回执。升级 Plotium 及其连接器后，
 重新连接客户端以刷新工具目录。
 
+## 读取状态与按需发现能力
+
+`plotium_get_state {}` 读取最新动态状态，返回 `project_context`、`revision`、
+`availability`、`permissions`、`save_state`、`capability_fingerprint`、项目数量摘要
+和有上限的选择分页，不附带完整能力清单或项目蓝图。用绑定 revision 的
+`plotium_document_inspect` 分页或 `plotium_resources_search` 发现精确目标，
+再用 `plotium_resources_inspect` 按明确 ID 读取详情。复制返回的完整目标，不用名称或集合位置代替。
+
+空闲时 `selection` 为 `{items,total,next_offset}`，默认最多返回 16 个稳定资源引用。
+传入 `selection_offset`（默认 0）和 `selection_limit`（1–50）读取后续页，例如：
+
+```json
+{"selection_offset":16,"selection_limit":50}
+```
+
+每次调用都读取当前选择，分页不是冻结快照；GUI 选择变化不一定改变文档 revision。
+不能将多页视作原子选择或把选择当作执行授权。忙碌时 `project` 与 `selection` 为 `null`；
+仍可读取可用性、权限、能力指纹和保存回执 ID。
+
+调用 `plotium_capabilities_get {}` 获取
+`{capability_fingerprint,connection_capabilities}`。指纹是完整静态发现契约按规范 JSON
+对象键顺序计算的 SHA-256。按响应中的指纹缓存契约；状态中的指纹不同时重新发现。
+若读取状态后、能力查询完成前状态已变化，以能力响应随附的指纹标识该契约。
+项目编辑、项目切换、选择或权限变化均不改变静态能力。
+
+静态发现提供所需权限，不返回 `currently_permitted` 标记；当前权限和可用性始终从状态读取。
+执行仍检查服务端权限、上下文、revision 和一次性计划。指纹、缓存的 schema 及 annotations
+不授予权限，也不允许自动重试。保存和导出仍须对每个精确请求取得新的桌面确认。
+升级时一起更新桌面与连接器，并重连客户端以刷新工具目录。
+
 ## 从欢迎页导入原生数据
 
 只打开 Plotium 即可调用 `plotium_get_state {}`；后台工作、恢复或保存阻塞项目访问时也可查询。
 响应包含 `availability` 中的 `project_read`、`project_modify`、
 `native_import`，各项包含 `available` 和可为空的 `{code,message}` 原因。
-可直接从欢迎页导入原生数据或表格。空闲时 `project` 返回项目蓝图，即使尚未导入数据；
+可直接从欢迎页导入原生数据或表格。空闲时 `project` 返回数据集和画布数量，即使尚未导入数据；
 忙碌时 `project` 与 `selection` 均为 `null`。规划操作前请检查 `availability`。
 查询不会新增文档审计记录或未保存修改。
-所有状态下均可发现完整连接能力。
+所有状态下均可通过 `plotium_capabilities_get {}` 发现完整连接能力。
 
 启用 **读取并修改**，从状态复制 `project_context` 和 `revision`，再调用 `plotium_plan`：
 
@@ -160,8 +190,9 @@ CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限
 
 ## 不依赖名称发现结构
 
-先用 `{}` 调用 `plotium_get_state`。其 `connection_capabilities` 描述当前连接的
-十五个工具、输入 schema、结果约定、支持的操作、属性 ID、输出限制和当前执行权限。
+先用 `{}` 调用 `plotium_get_state` 获取当前上下文、revision 和权限。需要静态契约时，
+调用 `plotium_capabilities_get {}`；其 `connection_capabilities` 描述当前连接的工具、
+输入 schema、结果约定、支持的操作、属性定义和输出限制。
 标准 MCP `tools/list` 也提供工具输入 schema。资源描述中的能力属于 **core** 的
 数据和渲染语义；资源列出某项能力，不代表此连接已开放该操作。
 这里可预检 `project.save`、`figure.export`、`resource.rename`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
@@ -599,7 +630,7 @@ GUI 保存重开保留原生绑定和单位；MCP `project.save` 需桌面单独
 可以要求 Agent：“导入这个 CSV，时间单位为 s，电流和误差单位为 mA，
 创建一张可编辑折线图并显示对称 Y 误差。查看预览，再只把该曲线线宽改为
 1.5 pt 并再次预览。”提供绝对输入路径和明确单位。完整导入、创建参数可从
-`plotium_get_state` 的连接能力清单及 `plotium_plan` 工具 schema 发现。
+`plotium_capabilities_get` 的连接能力清单及 `plotium_plan` 工具 schema 发现。
 
 仅数据导入后，从实际导入结果或列元数据读取 DatasetId、FieldId、TableId、
 表 revision 和 ColumnId。通过 `plotium_plan` 规划 `plot.create`，不传顶层
@@ -1332,7 +1363,8 @@ const request = {
 
 保存复用 **Save project** 的原生快照、后台 worker、备份和完成回调，保存当前
 桌面实际状态，不另开 CLI 项目。先读 `plotium_get_state`；`save_state` 给出当前路径、
-已存档案 revision、dirty、edit_generation 和近期保存回执。
+已存档案 revision、dirty、edit_generation 和最多 16 个保留的 `receipt_ids`。
+逐个用 `plotium_save_status` 查询完整回执和恢复动作；仅有 ID 不代表提交成功或已经完成。
 
 首次保存或另存时，不带 `ids`／`targets`：
 

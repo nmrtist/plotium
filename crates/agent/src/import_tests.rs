@@ -269,7 +269,9 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
     let mut s = Session::default();
     let mut app = PlotiumApp::new();
     let context = app.session.project_context;
-    let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut app, "plotium_capabilities_get", json!({}))
+        .unwrap();
     let caps = &state["connection_capabilities"];
     assert_eq!(
         caps["tools"].as_array().unwrap().len(),

@@ -592,6 +592,14 @@ fn axis_strokes_and_tick_length_follow_the_figure_typography() {
 }
 
 #[test]
+fn truncated_range_labels_never_leave_broken_script_markup() {
+    let plot = Rect::new(0.0, 0.0, 70.0, 50.0);
+    let label = range_label_layout(plot, 10.0, 40.0, 7.0, "Δδ / cm^{-2} region", None).unwrap();
+    assert!(label.text.ends_with('…'));
+    assert!(!label.text.contains('^') && !label.text.contains('{'));
+}
+
+#[test]
 fn minor_ticks_split_every_major_interval_and_stay_inside_the_axis() {
     let axis = Axis::new("x", -0.3, 2.1);
     let majors = axis_ticks(axis.min, axis.max, 3);

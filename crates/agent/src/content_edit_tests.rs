@@ -171,7 +171,9 @@ fn content_image_replacement_uses_public_schema_and_discloses_native_attributes(
     s.call(&mut a, "plotium_execute", json!({"plan_id":p["plan_id"]}))
         .unwrap();
     assert_eq!(inspect(&mut s, &mut a, &image), before);
-    let state = s.call(&mut a, "plotium_get_state", json!({})).unwrap();
+    let state = s
+        .call(&mut a, "plotium_capabilities_get", json!({}))
+        .unwrap();
     let ops=state["connection_capabilities"]["operation_constraints"][FIGURE_EDIT]["schema"]["properties"]["edits"]["items"]["oneOf"].as_array().unwrap();
     for op in ["content_frame", "image_replace"] {
         assert!(ops.iter().any(|v| v["properties"]["op"]["const"] == op));
@@ -184,10 +186,12 @@ fn content_and_guide_capabilities_remain_discoverable_together() {
     for allow_modify in [false, true] {
         let mut s = crate::Session::default();
         s.allow_modify = allow_modify;
-        let state = s.call(&mut a, "plotium_get_state", json!({})).unwrap();
+        let state = s
+            .call(&mut a, "plotium_capabilities_get", json!({}))
+            .unwrap();
         let caps = &state["connection_capabilities"];
         let edit = &caps["operation_constraints"][FIGURE_EDIT];
-        assert_eq!(edit["currently_permitted"], allow_modify);
+        assert!(edit.get("currently_permitted").is_none());
         assert_eq!(edit["schema"], figure_edit_schema());
         let ops = edit["schema"]["properties"]["edits"]["items"]["oneOf"]
             .as_array()

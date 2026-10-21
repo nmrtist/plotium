@@ -39,14 +39,16 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
     let [min, max] = heatmap.value_range;
     let text_color = col(fig.typography.legend_color);
     if horizontal {
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(rect.left, rect.bottom() + 2.0 * scale),
             Align2::LEFT_TOP,
             format_value(min),
             font.clone(),
             text_color,
         );
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(rect.right(), rect.bottom() + 2.0 * scale),
             Align2::RIGHT_TOP,
             format_value(max),
@@ -54,14 +56,16 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
             text_color,
         );
     } else {
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(rect.right() + 3.0 * scale, rect.top),
             Align2::LEFT_TOP,
             format_value(max),
             font.clone(),
             text_color,
         );
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(rect.right() + 3.0 * scale, rect.bottom()),
             Align2::LEFT_BOTTOM,
             format_value(min),
