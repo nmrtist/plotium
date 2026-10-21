@@ -4,7 +4,7 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 23] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 24] = [
     "analysis.diffusion.plot",
     "plot.field.create",
     "analysis.dosy.build",
@@ -16,6 +16,7 @@ pub(crate) const EDIT_OPERATIONS: [&str; 23] = [
     "project.save",
     "figure.export",
     "resource.rename",
+    "figure.apply_theme",
     "properties.set",
     "properties.set_many",
     "properties.reset",
@@ -62,7 +63,7 @@ fn build_manifest() -> Value {
             "required_permission":if tool.name=="plotium_execute"{"operation_specific: reversible_modify or per_request_desktop_save/export_authorization"}else if tool.name=="plotium_plan"{"operation_specific: read or reversible_modify"}else if matches!(tool.name.as_ref(),"plotium_preview_plan"|"plotium_tasks_cancel") {"reversible_modify"} else{"read"}})
     }).collect::<Vec<_>>();
     json!({"tools":tools,"editable_operations":EDIT_OPERATIONS,
-        "operation_constraints":{"plot.field.create":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"analysis.diffusion.plot":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"figure.export":{"schema":plotium_core::export::figure_export_schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_export_authorization","result_contract":"plan returns export_id and per-file preflight; execute requests independent desktop consent. Poll plotium_export_status. Each file reports success/failure independently; no automatic retry or Undo for disk effects."},"project.save":{"schema":crate::session::save::schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_save_authorization","result_contract":"plan returns save_id; execute queues a desktop authorization prompt, not a completed save. Poll plotium_save_status. Existing targets require explicit replacement confirmation. Saving is not undoable."},"plot.series.append":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_append_schema(),"result_contract":"binding_plan.appended contains frozen new Series targets; existing bindings are retained; 200 total curves and shared binding row/plan/response budgets apply."},"table.patch":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_patch_schema()},"table.refresh":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_refresh_schema()},"figure.edit":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::figure_edit_schema(),"result_contract":"ToolPlan.figure_plan/result and ToolResult.value contain proposed created/modified exact targets, size_mm, margins/gutter, panel_frames final content_frames and ordered content_edits with requested/effective frames, parent/page coordinates and asset changes. annotation_edits list each annotation op with its plot target, op, plot-local annotation_id and resulting annotation. content_frame edits only that item, not its panel; image_replace changes only its asset reference. Frozen native assets commit once atomically; one Undo/Redo restores content and IDs. Deletion-only plans report deleted_targets, deletions, remaining_series, parent/group/viewport_link/selection changes, retained_asset_ids and native auto_height changes. Reject duplicates, overlaps, nonempty panels, last Series, default/dynamic bindings and mixing deletion with other edits. Source datasets/assets remain; empty parents remain. Selection-effect changes require new preflight. No automatic reflow."},"plot.create":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::plot_create_schema(),"result_contract":"ToolPlan.binding_plan and ToolResult.value contain creation {parent,canvas,panel,plot,created,size_mm,frame_pt,panel_frame_pt,coordinate_units,series_defaults}, and bindings [{target,source,diagnostics}]. Preflight IDs are proposed, not committed. One Undo removes only created content; Redo restores the same IDs. After response loss query proposed IDs/current revision before creating again."},"data.transform":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_transform_schema()},"plot.series.bind":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(false)},"plot.series.materialize_default":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(true)},"data.import":{"schema":plotium_core::automation::data_import_schema(),"native_from_welcome":true,"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"}},
+        "operation_constraints":{"figure.apply_theme":theme_constraint(),"plot.field.create":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"analysis.diffusion.plot":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"figure.export":{"schema":plotium_core::export::figure_export_schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_export_authorization","result_contract":"plan returns export_id and per-file preflight; execute requests independent desktop consent. Poll plotium_export_status. Each file reports success/failure independently; no automatic retry or Undo for disk effects."},"project.save":{"schema":crate::session::save::schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_save_authorization","result_contract":"plan returns save_id; execute queues a desktop authorization prompt, not a completed save. Poll plotium_save_status. Existing targets require explicit replacement confirmation. Saving is not undoable."},"plot.series.append":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_append_schema(),"result_contract":"binding_plan.appended contains frozen new Series targets; existing bindings are retained; 200 total curves and shared binding row/plan/response budgets apply."},"table.patch":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_patch_schema()},"table.refresh":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_refresh_schema()},"figure.edit":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::figure_edit_schema(),"result_contract":"ToolPlan.figure_plan/result and ToolResult.value contain proposed created/modified exact targets, size_mm, margins/gutter, panel_frames final content_frames and ordered content_edits with requested/effective frames, parent/page coordinates and asset changes. annotation_edits list each annotation op with its plot target, op, plot-local annotation_id and resulting annotation. content_frame edits only that item, not its panel; image_replace changes only its asset reference. Frozen native assets commit once atomically; one Undo/Redo restores content and IDs. Deletion-only plans report deleted_targets, deletions, remaining_series, parent/group/viewport_link/selection changes, retained_asset_ids and native auto_height changes. Reject duplicates, overlaps, nonempty panels, last Series, default/dynamic bindings and mixing deletion with other edits. Source datasets/assets remain; empty parents remain. Selection-effect changes require new preflight. No automatic reflow."},"plot.create":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::plot_create_schema(),"result_contract":"ToolPlan.binding_plan and ToolResult.value contain creation {parent,canvas,panel,plot,created,size_mm,frame_pt,panel_frame_pt,coordinate_units,series_defaults}, and bindings [{target,source,diagnostics}]. Preflight IDs are proposed, not committed. One Undo removes only created content; Redo restores the same IDs. After response loss query proposed IDs/current revision before creating again."},"data.transform":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_transform_schema()},"plot.series.bind":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(false)},"plot.series.materialize_default":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(true)},"data.import":{"schema":plotium_core::automation::data_import_schema(),"native_from_welcome":true,"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"}},
         "scientific_operations":plotium_core::automation::ToolRegistry::built_in().descriptors().filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")).map(|d|json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}})).collect::<Vec<_>>(),
         "property_batch":{"operation":"properties.set_many","writes_min":1,"writes_max":200,"atomic":true,"undo_steps":1,"selectors":"exact target/key/value per write; omit top-level ids/targets","target_source":"plot.create ToolResult.value.bindings[].target and value.creation.plot; preserve full resource and component identity","unsupported_property":"error.details.write_index and key identify the rejected write"},
         "recovery_contract":{"location":"error.recovery or receipt.recovery","unknown":"null plan_consumed/committed and unknown submission/completion are not evidence of non-execution","retryable":"false: follow next_action, never replay the failed request","authorization":"recovery actions and annotations grant no permissions; file requests require fresh exact-path desktop consent"},
@@ -81,6 +82,88 @@ fn build_manifest() -> Value {
         "document_root":document_root_target(),
         "limits":{"figure_diagnostic":plotium_core::automation::figure_diagnostic_limits(),"figure_export":{"outputs":8,"dpi_max":2400,"png_edge":16384,"png_pixels":16777216,"asset_bytes":16777216,"decoded_asset_bytes":67108864,"svg_bytes":8388608,"output_bytes":67108864,"in_flight":1,"receipts":16},"table_update":plotium_core::automation::table_update_limits(),"figure_edit":{"max_edits":200,"max_deletion_targets":200,"deletion_curve_rows":2000000,"max_panels":200,"grid_rows_cols_max":16,"max_images":8,"image_file_bytes":1048576,"image_batch_bytes":4194304,"image_decoded_bytes":4194304,"text_utf8_bytes":16384},"plot_creation":{"max_plots":1,"max_series":200,"max_curve_rows":2000000,"pending_curve_rows_shared_with_bindings":2000000,"response_bytes":256*1024},"table_transform":plotium_core::automation::table_transform_limits(),"curve_binding":{"max_edits":200,"max_curve_rows":2000000,"pending_curve_rows":2000000,"response_bytes":256*1024,"diagnostic_rows":20},"document_page_default":DOCUMENT_PAGE_DEFAULT,"document_page_max":DOCUMENT_PAGE_MAX,"document_response_bytes":DOCUMENT_RESPONSE_BYTES,"pending_plans":32,"image_preview":plotium_core::automation::image_preview_limits(),"table_read":plotium_core::automation::table_read_limits(),"native_import":plotium_core::automation::native_import_limits(),"table_import":plotium_core::automation::table_import_limits()},
         "revision_contract":"Fetch get_state after edits or Undo. Revision-bound reads and plans reject stale revisions; execute rechecks permission and revision. Queries do not append project run records or change dirty state, edit generation or revision."})
+}
+
+/// Built-in themes are fixed in the binary, so they belong to the static
+/// capability fingerprint; saved styles change at run time and are listed by a
+/// failed preflight instead.
+fn theme_constraint() -> Value {
+    json!({"preflight_permission":"read","execute_permission":"reversible_modify",
+        "schema":{"type":"object","additionalProperties":false,"required":["theme_id"],"properties":{"theme_id":{"type":"string","minLength":1,"description":"A built-in theme id or the name of a canvas style the user saved in Plotium"}}},
+        "targets":"top-level ids including at least one CanvasId; other resources are skipped",
+        "builtin_themes":plotium_core::theme::Theme::all().iter().map(|theme|json!({"id":theme.id,"name":theme.name})).collect::<Vec<_>>(),
+        "saved_styles":"Not listed here. An unknown theme_id fails preflight with error.details.themes listing every built-in theme and saved style currently available. A saved style is read again when the plan executes.",
+        "result_contract":"One Undo step restyles each canvas: page background, text and shape colours, and every curve's colour, marker paint, marker size and line width the theme defines. The document's style defaults are replaced too: plot text sizes, axis strokes and ticks (so plots on every canvas change) and the default text, panel-label and shape styles for new objects."})
+}
+
+pub(crate) fn check_property(parameters: &Value) -> Result<(), crate::session::Failure> {
+    if crate::session::PROPERTIES
+        .iter()
+        .any(|id| Some(id.as_str()) == parameters.get("key").and_then(Value::as_str))
+    {
+        Ok(())
+    } else {
+        Err(crate::session::Failure::new(
+            "unsupported_property",
+            "Property is outside the connection's supported display properties",
+        ))
+    }
+}
+
+/// Reject what would only fail at execution, so a typo never consumes a plan.
+pub(crate) fn check_theme(
+    plan: &plotium_core::automation::ToolPlan,
+) -> Result<(), crate::session::Failure> {
+    use plotium_core::automation::{TargetCompatibility, TargetSelector};
+    let invalid = |message| Err(crate::session::Failure::new("invalid_parameters", message));
+    if matches!(plan.request.targets, TargetSelector::Components { .. }) {
+        return invalid("Theme application requires canvas ids, not Series targets");
+    }
+    let id = plan
+        .request
+        .parameters
+        .get("theme_id")
+        .and_then(Value::as_str);
+    let dir = plotium_core::theme::styles_dir();
+    let id = id.unwrap_or_default();
+    if let Err(error) = plotium_core::theme::resolve_theme(dir.as_deref(), id) {
+        // A broken style file is still listed, so pointing at the listing
+        // would send the agent back to the same name.
+        if dir
+            .as_deref()
+            .is_some_and(|dir| plotium_core::theme::user_style_exists(dir, id))
+        {
+            return Err(crate::session::Failure::new(
+                "invalid_parameters",
+                format!("saved style \"{}\" cannot be loaded: {error}", id.trim()),
+            ));
+        }
+        let mut themes: Vec<Value> = plotium_core::theme::Theme::all()
+            .iter()
+            .map(|theme| json!({"id":theme.id,"name":theme.name,"source":"builtin"}))
+            .collect();
+        if let Some(dir) = &dir {
+            themes.extend(
+                plotium_core::theme::list_user_styles(dir)
+                    .into_iter()
+                    .map(|style| json!({"id":style.name,"name":style.name,"source":"saved"})),
+            );
+        }
+        let mut failure = crate::session::Failure::new(
+            "invalid_parameters",
+            format!("{error}; choose a theme_id from error.details.themes"),
+        );
+        failure.details = Some(json!({ "themes": themes }));
+        return Err(failure);
+    }
+    if !plan
+        .targets
+        .iter()
+        .any(|target| target.status == TargetCompatibility::Compatible)
+    {
+        return invalid("Theme application requires at least one canvas id");
+    }
+    Ok(())
 }
 
 struct Discovery {

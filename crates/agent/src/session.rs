@@ -14,6 +14,7 @@ mod state;
 mod table;
 mod transform;
 
+use crate::capabilities::check_property;
 use plotium_core::{
     automation::*,
     properties::{self, PropertyId},
@@ -131,19 +132,6 @@ fn selector(
             "invalid_parameters",
             "Supply exactly one nonempty ids or targets array; targets require Series components",
         )),
-    }
-}
-fn check_property(parameters: &Value) -> Result<(), Failure> {
-    if PROPERTIES
-        .iter()
-        .any(|id| Some(id.as_str()) == parameters.get("key").and_then(Value::as_str))
-    {
-        Ok(())
-    } else {
-        Err(Failure::new(
-            "unsupported_property",
-            "Property is outside the connection's supported display properties",
-        ))
     }
 }
 fn request(
@@ -544,7 +532,10 @@ impl Session {
                     "Rename requires resource ids",
                 ));
             }
-            if args.tool_id != "resource.rename" {
+            if !matches!(
+                args.tool_id.as_str(),
+                "resource.rename" | "figure.apply_theme"
+            ) {
                 check_property(&args.parameters)?;
             }
             let mut request = request(
@@ -557,6 +548,9 @@ impl Session {
             guides::validate_request(&mut request)?;
             let plan = plan_tool(app, request)?;
             guides::validate_plan(&plan)?;
+            if plan.request.tool_id == "figure.apply_theme" {
+                crate::capabilities::check_theme(&plan)?;
+            }
             if args.tool_id == "resource.rename"
                 && plan.frozen_targets.targets.iter().any(|r| {
                     !matches!(

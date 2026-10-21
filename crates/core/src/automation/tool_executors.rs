@@ -11,7 +11,7 @@ use super::*;
 use crate::actions::Action;
 use crate::export::{ExportFormat, ExportPageScope, ExportSettings};
 use crate::state::PlotiumApp;
-use crate::theme::Theme;
+use crate::theme::{resolve_theme, styles_dir};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -146,11 +146,13 @@ pub(super) fn execute_theme(
     plan: &ToolPlan,
 ) -> Result<ToolResult, AutomationError> {
     let params: ThemeParams = parse(&plan.request.tool_id, plan.request.parameters.clone())?;
-    let theme =
-        Theme::by_id(&params.theme_id).ok_or_else(|| AutomationError::InvalidParameters {
+    // A saved style is read when the plan executes, as the desktop applies it.
+    let theme = resolve_theme(styles_dir().as_deref(), &params.theme_id).map_err(|error| {
+        AutomationError::InvalidParameters {
             tool_id: plan.request.tool_id.clone(),
-            message: format!("unknown theme '{}'", params.theme_id),
-        })?;
+            message: error.to_string(),
+        }
+    })?;
     let actions = compatible_targets(plan)
         .filter_map(|target| canvas_index(app, &target.id))
         .filter_map(|canvas| app.theme_action(canvas, &theme))

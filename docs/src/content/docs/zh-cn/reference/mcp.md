@@ -60,7 +60,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 `plotium_save_status`），以及导出预检／提交／状态查询均不生成审计记录。
 
 连接支持原生采集导入、CSV/TSV 仅数据导入、原生表格查询、画布预览、图面几何诊断、文档结构、原生建图及页面／面板／文字／本地图片编辑、显式数值曲线绑定、受支持的表格处理、单元格补丁、已存配方显式刷新和
-资源查询、数据集／画布／画布对象重命名，以及以下显示属性：
+资源查询、数据集／画布／画布对象重命名、为画布套用内置主题或已保存的画布风格，以及以下显示属性：
 
 | 属性 ID | 目标 | 取值 |
 | --- | --- | --- |
@@ -197,7 +197,7 @@ CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限
 输入 schema、结果约定、支持的操作、属性定义和输出限制。
 标准 MCP `tools/list` 也提供工具输入 schema。资源描述中的能力属于 **core** 的
 数据和渲染语义；资源列出某项能力，不代表此连接已开放该操作。
-这里可预检 `project.save`、`figure.export`、`resource.rename`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
+这里可预检 `project.save`、`figure.export`、`resource.rename`、`figure.apply_theme`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
 `data.import`／`data.transform` 模式、`table.patch`、`table.refresh`、`figure.edit`、`plot.create` 及 `plot.series.append`／`plot.series.bind`／`plot.series.materialize_default`。
 只读权限允许表格查询及既有属性预检，但拒绝导入／绑定／创建／版式编辑／处理／补丁／刷新预检和所有可撤销修改执行；保存和导出使用下文各自独立的逐次桌面授权，只读也可请求。
 
@@ -1373,6 +1373,32 @@ const request = {
 或同一目标的同一 key 写了两次，预检就拒绝整个批次，不提交任何修改。目标已是该值的
 写入会报告为跳过，其余写入照常生效。`plotium_execute` 把全部写入作为一个**撤销**
 步骤提交；`value.writes` 报告每项写入的序号、key 和结果。
+
+## 为画布套用主题或已保存的风格
+
+`figure.apply_theme` 用 Plotium 的内置主题（例如 `nature`）或在 Plotium 中保存的画布
+风格整体重设画布样式。`theme_id` 可以填 `plotium_capabilities_get` 返回的
+`operation_constraints["figure.apply_theme"].builtin_themes` 中的内置主题 id，也可以填
+已保存风格的名称。已保存的风格不在固定的能力说明里：未知的 `theme_id` 会在预检时以
+`invalid_parameters` 失败，`error.details.themes` 列出当前可用的全部内置主题和已保存
+风格。预检时把画布 id 放在顶层 `ids`：
+
+```json
+{
+  "expected_project_context": "PROJECT_CONTEXT",
+  "expected_revision": 7,
+  "ids": ["CANVAS_ID"],
+  "tool_id": "figure.apply_theme",
+  "parameters": {"theme_id": "nature"}
+}
+```
+
+预检只需只读权限，执行需要 **读取并修改**。未知的 `theme_id`、Series `targets`，
+以及不含任何画布的 `ids` 会在预检时被拒绝；其余不是画布的 id 会被跳过。已保存的风格
+会在执行时重新读取。执行时把每张画布的背景、文字和形状颜色，以及主题规定的每条曲线
+颜色、符号填充与描边、符号大小和线宽作为一个**撤销**步骤一起修改。文档的样式默认值也会被替换：图的文字字号、坐标轴线和
+刻度是整个文档共用的，所以其他画布上的图也会随之改变；新建文字、面板字母和形状的
+默认样式同样改用主题的设置。
 
 ## 保存当前桌面项目
 

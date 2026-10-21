@@ -352,3 +352,76 @@ fn repeated_state_reads_preserve_a_saved_project() {
         );
     }
 }
+#[test]
+fn apply_theme_lists_themes_restyles_canvas_and_undoes_in_one_step() {
+    let mut app = app();
+    let mut session = Session::default();
+    let caps = session
+        .call(&mut app, "plotium_capabilities_get", json!({}))
+        .unwrap()["connection_capabilities"]["operation_constraints"]["figure.apply_theme"]
+        .clone();
+    assert!(
+        caps["builtin_themes"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({"id":"nature","name":"Nature"}))
+    );
+    let id = app.doc.canvases[0].resource_id.to_string();
+    // Preflight is a read; only execution needs modify permission.
+    let p = plan(
+        &mut session,
+        &mut app,
+        "figure.apply_theme",
+        json!({"theme_id": "nature"}),
+        json!([id.clone()]),
+    )
+    .unwrap();
+    assert_eq!(
+        execute(&mut session, &mut app, &p).unwrap_err().code,
+        "permission_denied"
+    );
+    session.allow_modify = true;
+    let before = app.doc.style_library.figure_typography;
+    let p = plan(
+        &mut session,
+        &mut app,
+        "figure.apply_theme",
+        json!({"theme_id": "nature"}),
+        json!([id.clone()]),
+    )
+    .unwrap();
+    execute(&mut session, &mut app, &p).unwrap();
+    let typography = app.doc.style_library.figure_typography;
+    assert_eq!(typography.axis_line_pt, 0.6);
+    assert_eq!(typography.tick_length_pt, 3.0);
+    app.undo();
+    assert_eq!(app.doc.style_library.figure_typography, before);
+
+    let unknown = plan(
+        &mut session,
+        &mut app,
+        "figure.apply_theme",
+        json!({"theme_id": "no such theme"}),
+        json!([id]),
+    )
+    .unwrap_err();
+    assert_eq!(unknown.code, "invalid_parameters");
+    assert!(
+        unknown.details.unwrap()["themes"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({"id":"nature","name":"Nature","source":"builtin"}))
+    );
+    assert_eq!(
+        plan(
+            &mut session,
+            &mut app,
+            "figure.apply_theme",
+            json!({"theme_id": "nature"}),
+            json!(["document"]),
+        )
+        .unwrap_err()
+        .code,
+        "invalid_parameters"
+    );
+}

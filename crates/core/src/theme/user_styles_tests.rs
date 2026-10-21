@@ -118,3 +118,21 @@ fn files_that_cannot_be_managed_by_name_are_not_listed() {
     assert_eq!(names, ["Kept"]);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn resolve_prefers_builtin_ids_then_saved_styles() {
+    let dir = temp_styles_dir("resolve");
+    assert_eq!(resolve_theme(Some(&dir), "nature").unwrap().id, "nature");
+    assert!(resolve_theme(Some(&dir), "Lab paper").is_err());
+    assert!(resolve_theme(None, "Lab paper").is_err());
+
+    let mut style = Theme::by_id("vibrant").unwrap();
+    style.base_font_pt = 9.0;
+    save_user_style(&dir, "Lab paper", &style).unwrap();
+    let resolved = resolve_theme(Some(&dir), "Lab paper").unwrap();
+    assert_eq!(resolved.name, "Lab paper");
+    assert_eq!(resolved.base_font_pt, 9.0);
+    // A name that is not a plain file name never reaches the file system.
+    assert!(resolve_theme(Some(&dir), "../nature").is_err());
+    std::fs::remove_dir_all(&dir).unwrap();
+}

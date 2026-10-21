@@ -253,7 +253,7 @@ structure, preview canvases, create multiple native line or scatter panels,
 set page/panel geometry, align/distribute/grid explicitly chosen panels, add
 editable text and local PNG/JPEG images, change a curve's
 source columns, derive tables with supported native plans, patch existing cells,
-explicitly refresh saved recipes, and rename datasets,
+explicitly refresh saved recipes, apply built-in themes or saved canvas styles to canvases, and rename datasets,
 canvases or objects. Display edits cover exact-curve color, width, stroke style, markers, visibility
 and legend text; axis titles, display units and auto/manual ranges; plot-local
 tick, axis-title and legend sizes; and the existing contour/document font controls. Processing parameters, fitting and other

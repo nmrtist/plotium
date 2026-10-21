@@ -439,7 +439,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
         tool!(
             "figure.apply_theme",
             "Apply theme",
-            "Apply a registered Plotium theme",
+            "Apply a built-in theme or a saved canvas style",
             ThemeParams,
             [KIND_CANVAS],
             [CAP_THEME],
