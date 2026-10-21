@@ -1,5 +1,5 @@
 use super::visible_y_range;
-use plotium_figure::{Axis, Figure, GuideLayout, GuidePlacement, GuideVisibility};
+use plotium_figure::{Axis, AxisFrame, Figure, GuideLayout, GuidePlacement, GuideVisibility};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AxisRange {
@@ -170,6 +170,7 @@ pub struct AxisOverrides {
     pub x_range: Option<AxisRange>,
     pub y_range: Option<AxisRange>,
     pub lock_aspect: Option<bool>,
+    pub axis_frame: Option<AxisFrame>,
     pub x_show_tick_labels: Option<bool>,
     pub x_show_label: Option<bool>,
     pub y_show_tick_labels: Option<bool>,
@@ -204,6 +205,12 @@ impl AxisOverrides {
         }
         if let Some(lock) = self.lock_aspect {
             figure.lock_aspect = lock;
+        }
+        // Charts without axes (pie, 3D) keep their hidden frame.
+        if let Some(frame) = self.axis_frame
+            && figure.axis_frame != AxisFrame::Hidden
+        {
+            figure.axis_frame = frame;
         }
         if let Some(show) = self.x_show_tick_labels {
             figure.x.show_tick_labels = show;
@@ -248,6 +255,7 @@ impl AxisOverrides {
         self.y_label = normalize_label(self.y_label);
         self.x_range = self.x_range.filter(|range| range.is_valid());
         self.y_range = self.y_range.filter(|range| range.is_valid());
+        self.axis_frame = self.axis_frame.filter(|frame| *frame != AxisFrame::Hidden);
         self.guide_title = normalize_label(self.guide_title);
         self.legend_position = self.legend_position.and_then(|[x, y]| {
             (x.is_finite() && y.is_finite()).then(|| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)])
@@ -316,6 +324,28 @@ mod tests {
         .apply_to(&mut figure);
 
         assert_eq!(AxisRange::from_axis(&figure.x), AxisRange::new(-0.5, 2.5));
+    }
+
+    #[test]
+    fn frame_override_boxes_open_axes_but_never_reveals_hidden_ones() {
+        let boxed = AxisOverrides {
+            axis_frame: Some(AxisFrame::Box),
+            ..AxisOverrides::default()
+        };
+        let mut figure = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
+        boxed.apply_to(&mut figure);
+        assert_eq!(figure.axis_frame, AxisFrame::Box);
+
+        figure.axis_frame = AxisFrame::Hidden;
+        boxed.apply_to(&mut figure);
+        assert_eq!(figure.axis_frame, AxisFrame::Hidden);
+
+        let hidden = AxisOverrides {
+            axis_frame: Some(AxisFrame::Hidden),
+            ..AxisOverrides::default()
+        }
+        .normalized();
+        assert_eq!(hidden.axis_frame, None);
     }
 
     #[test]

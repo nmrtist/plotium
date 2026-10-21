@@ -264,6 +264,11 @@ What you control directly:
   range: zooming and panning stay inside it, and a double-click on the plot
   returns to it. Charts without visible axes offer no axis settings, and
   categorical axes have no range controls.
+- **Frame** in the same **Axes** section chooses *Left and bottom* or *All four
+  sides*. The four-sided frame adds top and right axis lines with the same
+  stroke as the other axes; ticks and labels stay on the left and bottom axes.
+  Most plots start with left and bottom axes; 2D maps such as contour plots and
+  heatmaps start with all four sides.
 - Use **Legend & scales** in the Object inspector for any plot. With
   **Visibility** on **Auto**, Plotium shows a categorical legend when the plot
   has two or more named entries and shows a continuous colour scale for a

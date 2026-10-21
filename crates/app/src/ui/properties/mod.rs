@@ -174,6 +174,14 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         uses_canvas_length_unit: false,
     },
     PropertyPresentation {
+        id: axis::FRAME,
+        localized_label: LocalizedText("Frame"),
+        localized_aliases: &[LocalizedText("top and right axes")],
+        home_route: AXIS_HOME,
+        canvas_step: false,
+        uses_canvas_length_unit: false,
+    },
+    PropertyPresentation {
         id: guide::VISIBILITY,
         localized_label: LocalizedText("Visibility"),
         localized_aliases: &[

@@ -87,6 +87,7 @@ canvases and canvas objects, and these display properties only:
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
+| `object.axes.frame` | Object | `open` (left and bottom), `box` (all four sides) |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | Object | compatible code from property inspection |
 | `object.axes.x_range / object.axes.y_range` | Object | auto or manual range object |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | Object | 1–72 pt |
