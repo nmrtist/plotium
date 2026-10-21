@@ -804,7 +804,11 @@ The exact `parent` determines which objects are new:
 
 - Document root: create canvas, single panel and plot. Optional
   `canvas: {name, size_mm: [width, height]}` sets the new canvas (10–1000 mm per
-  dimension); omission freezes the native default size and plot name.
+  dimension), or `canvas: {name, size_preset}` uses a built-in page size such as
+  `nature-1col` (89 mm), `nature-1p5col` (136 mm) or `nature-2col` (183 mm) with
+  its default height and margins (0 mm for journal columns, 15 mm for paper,
+  10 mm for slides); the result reports the applied `size_preset`. Omission freezes the native default size and
+  plot name.
 - Existing canvas without a panel or plot: create panel and plot using native
   GUI empty-page placement and the canvas's existing layout settings/margins.
   Do not supply `canvas` options.
@@ -855,7 +859,7 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 
 | `op` | Required fields and meaning |
 | --- | --- |
-| `page` | At least one of `size_mm: [width,height]`, `margin_mm: [top,right,bottom,left]`, `gutter_mm`; all in mm |
+| `page` | At least one of `size_mm: [width,height]` or `size_preset`, `margin_mm: [top,right,bottom,left]`, `gutter_mm`; lengths in mm. A journal `size_preset` sets the column width and keeps the height of a page with content; paper and slide presets set both dimensions. Presets also replace the page margins (0 mm journal, 15 mm paper, 10 mm slides) unless `margin_mm` is given; the result reports `size_preset` |
 | `panel_frame` | `target: EXACT_PANEL_TARGET`, `frame_pt: [x,y,width,height]` in page pt |
 | `content_frame` | `target: EXACT_CONTENT_TARGET`, complete `frame_pt: [x,y,width,height]` in parent-local pt; changes only this item |
 | `image_replace` | `target: EXACT_RASTER_TARGET`, `path`; replaces only its asset reference with frozen local PNG/JPEG |

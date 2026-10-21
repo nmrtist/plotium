@@ -249,15 +249,14 @@ pub(crate) fn apply_preset(
         return;
     };
     let current = canvas.size_mm;
-    let after = if preset.is_fixed() || canvas.objects.is_empty() {
-        preset.size_mm()
-    } else if app.settings.canvas_size.scale_content {
+    let has_content = !canvas.objects.is_empty();
+    let after = if !preset.is_fixed() && has_content && app.settings.canvas_size.scale_content {
         [
             preset.width_mm,
             (current[1] * preset.width_mm / current[0]).clamp(10.0, 1000.0),
         ]
     } else {
-        [preset.width_mm, current[1]]
+        preset.applied_size_mm(current, has_content)
     };
     apply_size(app, ci, after, Some(preset));
 }

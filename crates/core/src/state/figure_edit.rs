@@ -26,6 +26,9 @@ pub enum FigureEdit {
     },
     Page {
         size_mm: Option<[f32; 2]>,
+        /// Built-in size preset id (`SizePreset::id`); exclusive with `size_mm`.
+        #[serde(default)]
+        size_preset: Option<String>,
         margin_mm: Option<[f32; 4]>,
         gutter_mm: Option<f32>,
     },
@@ -268,6 +271,10 @@ fn insert(
     }
     Ok(TargetRef::resource(canvas_object_ref(page.resource_id, id)))
 }
+pub(crate) fn size_preset_by_id(id: &str) -> Result<&'static SizePreset, String> {
+    preset_by_id(id)
+        .ok_or_else(|| format!("Unknown size preset {id:?}; use an id from the schema."))
+}
 pub(crate) fn validate_page_geometry(page: &CanvasDocument) -> Result<(), String> {
     if !page
         .size_mm
@@ -336,16 +343,31 @@ impl PlotiumApp {
                 }
                 FigureEdit::Page {
                     size_mm,
+                    size_preset,
                     margin_mm,
                     gutter_mm,
                 } => {
-                    if size_mm.is_none() && margin_mm.is_none() && gutter_mm.is_none() {
+                    if size_mm.is_none()
+                        && size_preset.is_none()
+                        && margin_mm.is_none()
+                        && gutter_mm.is_none()
+                    {
                         return Err("Page edit requires a size, margins or gutter.".into());
+                    }
+                    if size_mm.is_some() && size_preset.is_some() {
+                        return Err("Page edit takes size_mm or size_preset, not both.".into());
                     }
                     if let Some(size) = size_mm {
                         let s = PageSizeState::of(&page).after_manual_resize(*size);
                         page.size_mm = s.size_mm;
                         page.size_preset_id = s.preset_id;
+                    }
+                    if let Some(id) = size_preset {
+                        let preset = size_preset_by_id(id)?;
+                        page.size_mm =
+                            preset.applied_size_mm(page.size_mm, !page.objects.is_empty());
+                        page.size_preset_id = Some(preset.id.to_owned());
+                        page.layout.margin_mm = preset.default_margin_mm();
                     }
                     if let Some(m) = margin_mm {
                         page.layout.margin_mm = *m;
@@ -542,7 +564,7 @@ impl PlotiumApp {
         }
         let panel_frames=page.panels.iter().map(|p|json!({"target":TargetRef::resource(panel_resource(&page,p)),"frame_pt":[p.frame.x,p.frame.y,p.frame.width,p.frame.height]})).collect::<Vec<_>>();
         let content_frames = super::figure_edit_content::final_frames(&page, &params.edits)?;
-        let result = json!({"canvas":params.canvas,"size_mm":page.size_mm,"margin_mm":page.layout.margin_mm,"gutter_mm":page.layout.gutter_mm,"panel_frames":panel_frames,"content_edits":content_edits,"content_frames":content_frames,"created":created,"modified":modified,"frame_contract":"Panel frames are page-relative pt; resizing proportionally scales child-local frames. Content frames are parent-local pt (page pt for canvas parent); content_frame changes only the specified item. No automatic reflow."});
+        let result = json!({"canvas":params.canvas,"size_mm":page.size_mm,"size_preset":page.size_preset_id,"margin_mm":page.layout.margin_mm,"gutter_mm":page.layout.gutter_mm,"panel_frames":panel_frames,"content_edits":content_edits,"content_frames":content_frames,"created":created,"modified":modified,"frame_contract":"Panel frames are page-relative pt; resizing proportionally scales child-local frames. Content frames are parent-local pt (page pt for canvas parent); content_frame changes only the specified item. No automatic reflow."});
         Ok(FigureEditPlan {
             expected_revision: revision,
             canvas: params.canvas.clone(),

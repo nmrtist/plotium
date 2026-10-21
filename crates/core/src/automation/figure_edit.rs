@@ -23,11 +23,11 @@ pub fn figure_edit_schema() -> Value {
         let required = std::iter::once("op").chain(required).collect::<Vec<_>>();
         json!({"type":"object","additionalProperties":false,"required":required,"properties":properties})
     };
-    let variants = vec![
+    let mut variants = vec![
         variant(
             "page",
             vec![],
-            json!({"size_mm":arr(2),"margin_mm":arr(4),"gutter_mm":{"type":"number","minimum":0}}),
+            json!({"size_mm":arr(2),"size_preset":size_preset_schema(),"margin_mm":arr(4),"gutter_mm":{"type":"number","minimum":0}}),
         ),
         variant(
             "panel_frame",
@@ -87,7 +87,13 @@ pub fn figure_edit_schema() -> Value {
             json!({"target":series_target}),
         ),
     ];
+    variants[0]["not"] = json!({"required":["size_mm","size_preset"]});
     json!({"type":"object","additionalProperties":false,"required":["canvas","edits"],"properties":{"canvas":target,"edits":{"type":"array","minItems":1,"maxItems":200,"items":{"oneOf":variants}}},"description":"Atomic native authoring on one exact canvas. Panel frames [x,y,w,h] are page pt, resize scales child-local frames. New content frames are parent-local pt. Page size/margins/gutter use mm; margins [top,right,bottom,left]. Grid uses native Frame-basis cells in supplied Panel order, existing page margins/gutter; no page-layout preference change or non-target reflow. Align uses bounding edges/centres, distribution equal centre spacing with endpoints fixed. Panel layout ops require unlocked free-layout Panels. content_frame requires the item and parent unlocked, a free-layout parent and Auto height off; image_replace requires the item and parent unlocked, not a layout mode change. Deletion-only batches accept distinct content_delete, originally empty panel_delete and explicit-column series_delete targets on this canvas. Reject overlaps, last-Series removal, defaults/dynamic displays and mixing deletion with other ops. Preserve empty parents, datasets and assets; preflight lists exact deletions and relationship changes. Hidden exact targets remain addressable. No top-level ids/targets."})
+}
+/// Built-in page size presets by id, shared by page edits and new canvases.
+pub(super) fn size_preset_schema() -> Value {
+    let ids: Vec<_> = crate::state::size_presets().iter().map(|p| p.id).collect();
+    json!({"enum":ids,"description":"Built-in page size instead of size_mm. Journal column presets (e.g. nature-1col 89 mm, nature-1p5col 136 mm, nature-2col 183 mm) set the width and keep the height of a page with content; paper and slide presets set both dimensions. Also sets the preset's page margins unless margin_mm is given."})
 }
 fn invalid(message: impl Into<String>) -> AutomationError {
     AutomationError::InvalidParameters {

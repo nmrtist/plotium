@@ -31,7 +31,8 @@ fn params(app: &PlotiumApp) -> PlotCreateParams {
         name: "Native line".into(),
         canvas: Some(NewPlotCanvas {
             name: "R5 native".into(),
-            size_mm: [120., 80.],
+            size_mm: Some([120., 80.]),
+            size_preset: None,
         }),
         panel_name: None,
         panel_frame_pt: None,
@@ -139,7 +140,7 @@ fn invalid_sources_units_errors_and_stale_revisions_leave_no_containers_or_histo
     p.parent.resource.parent_id = Some("forged".into());
     cases.push(p);
     let mut p = good.clone();
-    p.canvas.as_mut().unwrap().size_mm = [f32::NAN, 80.];
+    p.canvas.as_mut().unwrap().size_mm = Some([f32::NAN, 80.]);
     cases.push(p);
     let mut p = good.clone();
     p.series.clear();
@@ -628,4 +629,43 @@ fn source_with_bad_revision(source: &TableCurveSource) -> TableCurveSource {
     let mut s = source.clone();
     s.table_revision = RevisionId::new();
     s
+}
+#[test]
+fn new_canvas_takes_a_size_preset_with_its_identity() {
+    let mut app = fixture();
+    let mut p = params(&app);
+    p.canvas = Some(NewPlotCanvas {
+        name: "Journal".into(),
+        size_mm: None,
+        size_preset: Some(NATURE_DOUBLE_COLUMN.id.into()),
+    });
+    let planned = plan(&app, &p);
+    let summary = planned.creation.as_ref().unwrap();
+    assert_eq!(summary.size_mm, NATURE_DOUBLE_COLUMN.size_mm());
+    assert_eq!(
+        summary.size_preset.as_deref(),
+        Some(NATURE_DOUBLE_COLUMN.id)
+    );
+    app.commit_curve_bindings(planned).unwrap();
+    let canvas = &app.doc.canvases[0];
+    assert_eq!(canvas.size_mm, NATURE_DOUBLE_COLUMN.size_mm());
+    assert_eq!(
+        canvas.size_preset_id.as_deref(),
+        Some(NATURE_DOUBLE_COLUMN.id)
+    );
+    for (size_mm, size_preset) in [
+        (Some([89., 60.]), Some("nature-1col".to_owned())),
+        (None, None),
+        (None, Some("nature-9col".to_owned())),
+    ] {
+        p.canvas = Some(NewPlotCanvas {
+            name: "Journal".into(),
+            size_mm,
+            size_preset,
+        });
+        assert!(
+            app.plan_plot_creation(DocumentRevision(app.doc.automation_revision), &p)
+                .is_err()
+        );
+    }
 }
