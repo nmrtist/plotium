@@ -14,9 +14,11 @@ on:
 permissions:
   contents: read
 
+# Superseded runs are cancelled on main too. A cancelled push is not lost:
+# the next push classifies its changes against the last successful main run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # Incremental compilation only bloats the CI caches.
@@ -30,6 +32,9 @@ jobs:
     name: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     outputs:
       rust: ${{ steps.classify.outputs.rust }}
       docs: ${{ steps.classify.outputs.docs }}
@@ -51,8 +56,12 @@ jobs:
                 --jq '.[].filename') || files=""
               ;;
             push)
-              before="${{ github.event.before }}"
-              if [ "$before" != "0000000000000000000000000000000000000000" ]; then
+              # Diff against the last green push run, not the previous
+              # commit, so changes from cancelled runs are still checked.
+              before=$(gh api \
+                "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=${{ github.ref_name }}&event=push&status=success&per_page=1" \
+                --jq '.workflow_runs[0].head_sha // empty') || before=""
+              if [ -n "$before" ]; then
                 files=$(gh api \
                   "repos/${{ github.repository }}/compare/$before...${{ github.sha }}" \
                   --jq '.files[].filename') || files=""
