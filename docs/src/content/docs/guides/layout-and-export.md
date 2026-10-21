@@ -265,8 +265,11 @@ What you control directly:
   **Visibility** on **Auto**, Plotium shows a categorical legend when the plot
   has two or more named entries and shows a continuous colour scale for a
   heatmap. **Show** also permits a one-entry legend; **Hide** removes the legend
-  or colour scale from that plot. **Position** can keep it inside the plot or
-  reserve space to its right or below it. **Layout** switches a categorical
+  or colour scale from that plot. **Position** on **Auto** places a legend
+  inside the plot in whichever corner or edge midpoint covers the fewest data
+  points and lines, preferring the roomier spot and then the upper right;
+  **Inside** keeps it in the upper right, and **Outside right** or **Outside
+  bottom** reserve space beside the plot. **Layout** switches a categorical
   legend between a vertical list and a horizontal row; **Title** is available
   under the section's advanced controls.
 - Legends draw no border and no background, on screen and in every export
