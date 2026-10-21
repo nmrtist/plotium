@@ -71,8 +71,11 @@ fn export_readonly_needs_desktop_consent_and_reports_every_file() {
     assert!(a.session.status.contains("Output directory unavailable"));
     assert!(!a.can_undo());
     let generation = a.doc.edit_generation;
-    s.call(&mut a, "plotium_export_status", json!({"export_id":id}))
+    let status = s
+        .call(&mut a, "plotium_export_status", json!({"export_id":id}))
         .unwrap();
+    assert_eq!(status["export"]["recovery"]["completion"], "partial");
+    assert_eq!(status["export"]["recovery"]["replay_allowed"], false);
     assert_eq!(a.doc.edit_generation, generation);
     assert_eq!(
         s.call(&mut a, "plotium_execute", json!({"plan_id":p["plan_id"]}))

@@ -196,7 +196,7 @@ fn malformed_addresses_and_unsupported_operations_are_rejected_atomically() {
         )
         .unwrap_err()
         .code,
-        "unsupported_operation"
+        "unsupported_property"
     );
     app.doc.canvases[0].objects[0]
         .plot_mut()

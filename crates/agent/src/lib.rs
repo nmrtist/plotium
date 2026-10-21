@@ -40,6 +40,13 @@ pub struct PendingRequest {
 }
 
 impl PendingRequest {
+    pub(crate) fn prepare_response(
+        &self,
+        result: Result<serde_json::Value, Failure>,
+    ) -> Result<serde_json::Value, Failure> {
+        result.map_err(|error| error.for_request_if_missing(&self.name, &self.arguments))
+    }
+
     /// Check on the desktop immediately before starting the atomic operation.
     /// The token also covers cancellation before the HTTP task gets rescheduled.
     pub fn is_cancelled(&self) -> bool {

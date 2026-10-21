@@ -12,15 +12,11 @@ pub(crate) struct ImportFlight {
 impl ImportFlight {
     pub(crate) fn cancel(self) {
         self.cancellation.cancel();
-        if self
-            .request
-            .response
-            .send(Err(Failure::new(
-                "project_changed",
-                "Project changed; reread state and replan",
-            )))
-            .is_err()
-        { /* Client disconnected. */ }
+        let result = self.request.prepare_response(Err(Failure::new(
+            "project_changed",
+            "Project changed; reread state and replan",
+        )));
+        if self.request.response.send(result).is_err() { /* Client disconnected. */ }
     }
 }
 impl Connection {
@@ -125,6 +121,7 @@ impl Connection {
             .and_then(|v| v.get("plan_id"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
+        let result = flight.request.prepare_response(result);
         let status = result.as_ref().map(|_| ()).map_err(Clone::clone);
         if flight.request.response.send(result).is_err()
             && let Some(id) = id
@@ -138,6 +135,7 @@ fn respond(
     request: PendingRequest,
     result: Result<serde_json::Value, Failure>,
 ) -> Result<(), Failure> {
+    let result = request.prepare_response(result);
     let status = result.as_ref().map(|_| ()).map_err(Clone::clone);
     if request.response.send(result).is_err() { /* Client disconnected; preflight did not mutate data. */
     }

@@ -1218,11 +1218,54 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 提交的修改无法通过取消回滚，请使用 **Undo**。
 
 稳定错误码包括 `project_changed`、`unavailable`、`connection_lost`、`permission_denied`、`expired_plan`、`stale_revision`、`busy`、
-`invalid_parameters`、`unsupported_operation`、`plan_limit`、
-`request_cancelled`、`connection_stopped`、`response_too_large` 和 `execution_failed`。`busy` 可在编辑手势、
-恢复确认或后台项目操作结束后重试；过期计划及 revision 冲突需重新读取和预检。
+`invalid_parameters`、`unsupported_operation`、`unsupported_property`、`plan_limit`、
+`request_cancelled`、`connection_stopped`、`response_too_large` 和 `execution_failed`。
+错误提供 `error.recovery`，异步保存、导出和任务回执提供 `recovery`。
+`retryable: false` 表示不要重复失败的调用，应遵循下一步动作。`busy` 执行可能已经
+消费计划。revision 冲突需读取状态并审核新计划；过期计划可能已经执行，必须先核查结果。
 AI connections (MCP) 设置页面显示最近操作和错误，后台反馈不会自行打开设置页面。
 
+
+## 恢复动作与未知结果
+
+`recovery` 描述本次请求，不授予执行另一次请求的权限：
+
+| 字段 | 含义 |
+| --- | --- |
+| `plan_consumed` | 确知时为 `true` 或 `false`，未知时为 `null`。已消费的计划不能重用。 |
+| `submission` | `submitted`、`not_submitted` 或 `unknown`；后台工作被接受不代表完成。 |
+| `committed` | 确知时为 `true` 或 `false`，副作用或持久化结果不确定时为 `null`。 |
+| `completion` | `pending`、`succeeded`、`failed`、`partial` 或 `unknown`。 |
+| `receipt` | 状态工具及 `arguments` 中的准确 ID；`retained` 找到时为 `true`，缺失时为 `false`，未知时为 `null`。整个 `receipt` 为 `null` 表示没有已知的回执查询。 |
+| `next_action` | 一个下一步：带准确参数的 `call_tool`、`desktop_file_confirmation`、`check_desktop_connection`、`inspect_outcome` 或 `none`。 |
+| `replay_allowed` | 始终为 `false`，恢复信息不授权重放或自动重新提交。 |
+
+`call_tool` 只调用指定的读取工具。桌面确认时，在 Plotium 审核待处理请求的准确路径和
+覆盖范围，再查询回执。`check_desktop_connection` 要求在桌面检查 AI connections (MCP)
+及访问模式，然后读取状态。`inspect_outcome` 要求对照保留的回执、预检目标／路径和
+当前状态；证据不足时，重新计算科学任务或请求文件写入前需人工审核。
+
+- **Busy：**预检在提交前失败。执行可能先消费计划，再检查 busy；结束桌面操作、读取
+  状态并审核新计划，不能重用已消费的 ID。
+- **Revision 冲突／项目切换／撤权：**刷新状态并在桌面检查权限。切换项目后重新发现
+  新 context 中的目标；计划 ID 和文件权限不能转移到新项目。
+- **安装前保存拒绝或取消：**已消费计划的回执为终态，`phase: not_installed`、
+  `committed: false`、`completion: failed`。关闭确认框也表示拒绝。先检查状态并询问
+  是否仍需保存；新的保存意图需新计划和新的桌面确认。
+  Worker 启动后的取消必须根据最终阶段判断，不会撤销已经安装的输出。
+- **保存／任务尚未完成：**被接受、排队、运行或保存中都是 `pending`，不是成功。
+  查询回执，不提交替代任务或保存。保存 worker 终止后，`installed_unconfirmed`
+  仍表示未知结果。
+- **导出：**只有批次完成且每个文件都成功，整批才成功。混合终态为 `partial`；逐个
+  核查准确路径及错误。文件可能已安装后才发生持久化错误，因此失败不证明路径未变。
+  不能自动重试整批，也不能重写其中已成功的文件。
+- **断连／计划过期／回执未知或淘汰：**保留计划消费、提交和持久化状态的未知性。
+  重连后在同一桌面进程查询已知回执 ID；不存在时核查保存的目标／路径。回执缺失
+  不证明未执行，也不授权重算或覆盖。桌面重启后不保留回执。
+
+这些动作保留服务端权限、revision/context 检查、一次性计划和逐次桌面文件确认。
+工具 annotations 既不授权，也不是重试依据。桌面和连接器一起升级后，重新连接客户端
+并刷新工具目录。
 
 ## 一次计划设置多条曲线的样式
 
@@ -1245,6 +1288,32 @@ AI connections (MCP) 设置页面显示最近操作和错误，后台反馈不�
   ]}
 }
 ```
+
+`plot.create` 执行后，可以直接复用它返回的完整稳定目标。例如，将解码后的创建
+`ToolResult` 存为 `created`，原状态存为 `state`，构造以下 `plotium_plan` 参数：
+
+```js
+const request = {
+  expected_project_context: state.project_context,
+  expected_revision: created.after_revision,
+  tool_id: "properties.set_many",
+  parameters: { writes: [
+    ...created.value.bindings.map((binding, index) => ({
+      target: binding.target,
+      key: "series.label",
+      value: `Sample ${index + 1}`
+    })),
+    { target: created.value.creation.plot,
+      key: "object.axes.x_label", value: "Temperature (°C)" }
+  ] }
+};
+```
+
+复制整个 `target`，保留所属资源的 `kind`、`id`、`parent_id`、`local_id` 和存在时的
+组件身份。单独的 SeriesId、名称或数组下标不是目标选择器。总写入数保持在 200 以内。
+预检上述对象，审核后仅执行一次新 `plan_id`。`unsupported_operation` 表示操作不可用；
+`unsupported_property` 在 `error.details.write_index`（从零开始）和 `key` 指出不支持
+的属性。查询 `plotium_properties_list`，修正整个批次后再预检。
 
 一个批次包含 1–200 项写入，可使用上文列出的显示属性。`preflight.targets`
 按顺序为每项写入列出一行。只要有一项写入的目标不存在、属性不适用于该目标、值无效，

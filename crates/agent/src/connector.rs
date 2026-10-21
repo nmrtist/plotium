@@ -143,11 +143,17 @@ impl ServerHandler for Connector {
         {
             return Err(ErrorData::invalid_params("Unknown tool", None));
         }
+        let request_name = request.name.to_string();
+        let request_arguments =
+            serde_json::Value::Object(request.arguments.clone().unwrap_or_default());
         let entry = match self.discover().await {
             Ok(entry) => entry,
             Err(message) => {
                 return Ok(CallToolResult::structured_error(
-                    Failure::new("unavailable", message).value(),
+                    Failure::new("unavailable", message)
+                        .for_request(&request_name, &request_arguments)
+                        .not_submitted()
+                        .value(),
                 )
                 .into());
             }
@@ -160,7 +166,10 @@ impl ServerHandler for Connector {
             Ok(client) => client,
             Err(message) => {
                 return Ok(CallToolResult::structured_error(
-                    Failure::new("unavailable", message).value(),
+                    Failure::new("unavailable", message)
+                        .for_request(&request_name, &request_arguments)
+                        .not_submitted()
+                        .value(),
                 )
                 .into());
             }
@@ -177,10 +186,12 @@ impl ServerHandler for Connector {
         }
         Ok(match outcome {
             Ok(result) => relayed(result),
-            Err(message) => {
-                CallToolResult::structured_error(Failure::new("connection_lost", message).value())
-                    .into()
-            }
+            Err(message) => CallToolResult::structured_error(
+                Failure::new("connection_lost", message)
+                    .for_request(&request_name, &request_arguments)
+                    .value(),
+            )
+            .into(),
         })
     }
 }

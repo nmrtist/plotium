@@ -56,6 +56,14 @@ fn scientific_receipts_survive_connection_loss_and_consumed_plan_retries() {
     let (plan, submitted) = submit(&mut session, &mut app, &path);
     let task_id = submitted["value"]["task"]["task_id"].clone();
     assert_eq!(submitted["value"]["task"]["status"], "queued");
+    assert_eq!(
+        submitted["value"]["task"]["recovery"]["completion"],
+        "pending"
+    );
+    assert_eq!(
+        submitted["value"]["task"]["recovery"]["next_action"]["tool"],
+        "plotium_tasks_get"
+    );
     assert_eq!(submitted["value"]["task"]["plan_id"], plan["plan_id"]);
     let repeat = session
         .call(
@@ -76,6 +84,8 @@ fn scientific_receipts_survive_connection_loss_and_consumed_plan_retries() {
         .call(&mut app, "plotium_tasks_get", json!({"task_id":task_id}))
         .unwrap();
     assert_eq!(receipt["task"]["status"], "succeeded", "{receipt}");
+    assert_eq!(receipt["task"]["recovery"]["completion"], "succeeded");
+    assert_eq!(receipt["task"]["recovery"]["committed"], true);
     assert_eq!(
         app.doc.datasets[0].as_nmr().unwrap().processed.values(),
         original
@@ -126,6 +136,9 @@ fn scientific_cancellation_and_permission_revocation_prevent_commit() {
             receipt["task"]["status"],
             if cancel { "cancelled" } else { "failed" }
         );
+        assert_eq!(receipt["task"]["recovery"]["completion"], "failed");
+        assert_eq!(receipt["task"]["recovery"]["committed"], false);
+        assert_eq!(receipt["task"]["recovery"]["replay_allowed"], false);
         assert_eq!(app.doc.automation_revision, revision);
         assert!(app.session.undo_stack.is_empty());
     }

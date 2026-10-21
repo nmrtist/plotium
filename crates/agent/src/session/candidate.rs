@@ -47,7 +47,7 @@ impl Session {
         let plan = self.plans.get(&p.plan_id).ok_or_else(|| {
             Failure::new(
                 "expired_plan",
-                "Plan expired or was already submitted; preflight again",
+                "Plan unavailable or already submitted; inspect state and retained receipts before considering a new operation",
             )
         })?;
         if plan.frozen_targets.revision != p.expected_revision {

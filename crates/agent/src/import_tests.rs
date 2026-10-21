@@ -178,7 +178,7 @@ fn background_preflight_keeps_other_tools_available_and_returns_only_when_prepar
             .code,
         "busy"
     );
-    assert!(rx2.blocking_recv().unwrap().is_err());
+    assert_rejected_preflight(&rx2.blocking_recv().unwrap().unwrap_err());
     finish(&mut c, &mut app).unwrap();
     let plan = rx.blocking_recv().unwrap().unwrap();
     assert_eq!(plan["import"]["status"], "prepared");
@@ -212,10 +212,9 @@ fn project_change_stops_import_worker_without_cancelling_its_response() {
     connection.synchronize_project(&app);
     assert!(worker_cancellation.is_cancelled());
     assert!(!request_cancellation.is_cancelled());
-    assert_eq!(
-        response.blocking_recv().unwrap().unwrap_err().code,
-        "project_changed"
-    );
+    let error = response.blocking_recv().unwrap().unwrap_err();
+    assert_eq!(error.code, "project_changed");
+    assert_rejected_preflight(&error);
     assert!(app.doc.datasets.is_empty());
     assert!(app.doc.automation_runs.is_empty());
     assert!(!app.doc.dirty);
@@ -256,7 +255,10 @@ fn cancelled_stopped_stale_or_revoked_preflight_never_installs_data() {
             );
         }
         assert!(app.doc.datasets.is_empty());
-        assert!(rx.blocking_recv().map_or(true, |v| v.is_err()));
+        match rx.blocking_recv() {
+            Ok(result) => assert_rejected_preflight(&result.unwrap_err()),
+            Err(_) => assert_eq!(mode, "stop"),
+        }
         assert!(!app.doc.dirty);
         assert!(app.doc.automation_runs.is_empty());
         assert!(app.session.undo_stack.is_empty() && app.session.redo_stack.is_empty());
@@ -328,7 +330,7 @@ fn import_worker_failure_reaches_client_and_keeps_document_unchanged() {
         finish(&mut c, &mut app).unwrap_err().code,
         "execution_failed"
     );
-    assert!(rx.blocking_recv().unwrap().is_err());
+    assert_rejected_preflight(&rx.blocking_recv().unwrap().unwrap_err());
     assert!(app.doc.datasets.is_empty());
 }
 
@@ -458,4 +460,42 @@ fn real_http_import_columns_and_page_10001_use_the_same_native_table() {
         t.typed_rows_page(10000, 1, &[]).unwrap().columns[1].values[0],
         plotium_core::data::ScalarValue::Int64(20000)
     );
+}
+
+fn assert_rejected_preflight(error: &Failure) {
+    let value = error.value();
+    let recovery = &value["error"]["recovery"];
+    assert_eq!(recovery["plan_consumed"], false);
+    assert_eq!(recovery["submission"], "not_submitted");
+    assert_eq!(recovery["committed"], false);
+    assert_eq!(recovery["completion"], "failed");
+    assert_eq!(recovery["replay_allowed"], false);
+    assert_eq!(value["error"]["retryable"], false);
+}
+
+#[test]
+fn desktop_import_rejection_reports_known_non_submission() {
+    let file = Input::new();
+    for mode in ["busy", "permission_denied", "stale_revision"] {
+        let mut app = PlotiumApp::new_with_settings(Default::default());
+        let mut connection = Connection::start(|| {}).unwrap();
+        let args = arguments(&file, 0, app.session.project_context);
+        if mode == "permission_denied" {
+            connection.session.set_allow_modify(false);
+        }
+        if mode == "stale_revision" {
+            app.doc.automation_revision += 1;
+        }
+        let (request, response) = pending(args);
+        let error = connection
+            .dispatch_request(&mut app, request, mode == "busy")
+            .unwrap_err();
+        assert_eq!(error.code, mode);
+        assert_rejected_preflight(&error);
+        let delivered = response.blocking_recv().unwrap().unwrap_err();
+        assert_eq!(delivered.value(), error.value());
+        assert!(connection.import.is_none());
+        assert!(app.doc.datasets.is_empty());
+        assert!(!app.doc.dirty);
+    }
 }
