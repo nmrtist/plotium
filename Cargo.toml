@@ -134,6 +134,11 @@ opt-level = 3
 [profile.dev.package.rustfft]
 opt-level = 2
 
+# Snapshot reads verify chunk hashes; unoptimized SHA-256 dominates debug
+# runs that page through large tables.
+[profile.dev.package.sha2]
+opt-level = 3
+
 [profile.release]
 lto = false
 codegen-units = 16
