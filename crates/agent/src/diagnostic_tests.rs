@@ -381,7 +381,6 @@ fn saved_views_restore_native_curve_targets_without_persisting_diagnostics() {
         let path = dir.path().join(format!("fixture-{snapshots}.plotium"));
         save_project(&a, &path, snapshots).unwrap();
         let mut reopened = plotium_core::project::load_project(&path).unwrap();
-        reopened.session.project_present = true;
         let mut session = Session::default();
         let q = args(&reopened, &t);
         let (rows, _) = all(&mut reopened, &mut session, q);

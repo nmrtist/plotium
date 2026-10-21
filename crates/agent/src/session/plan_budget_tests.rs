@@ -9,7 +9,6 @@ const TABLE_TOOLS: [&str; 4] = ["data.import", "data.transform", TABLE_PATCH, TA
 fn fixture(dir: &Path) -> (PlotiumApp, Session) {
     std::fs::write(dir.join("input.csv"), "x,y\n0,1\n1,2\n").unwrap();
     let mut app = PlotiumApp::new_with_settings(Default::default());
-    app.session.project_present = true;
     app.doc
         .canvases
         .push(CanvasDocument::new("budget".into(), [180., 90.]));

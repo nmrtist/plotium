@@ -59,7 +59,6 @@ impl PlotiumApp {
                 save_include_view_snapshots: settings.export.include_view_snapshots,
             }),
             session: Session {
-                project_present: false,
                 project_context: Default::default(),
                 scientific_tasks: Default::default(),
                 external_saves: Default::default(),

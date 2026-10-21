@@ -617,9 +617,6 @@ impl DerefMut for SharedDocument {
 /// Window/UI chrome and transient interaction state: viewports, tool selection,
 /// sidebars, the undo history, and in-flight gestures. Not the document itself.
 pub struct Session {
-    /// Distinguishes the welcome state from an intentionally created, still
-    /// empty untitled project.
-    pub project_present: bool,
     pub project_context: super::ProjectContextId,
     pub scientific_tasks: crate::automation::ScientificTasks,
     pub external_saves: super::ExternalSaves,

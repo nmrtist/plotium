@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 
 fn app() -> PlotiumApp {
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     app.doc
         .canvases
         .push(CanvasDocument::new("Figure".into(), [120.0, 80.0]));

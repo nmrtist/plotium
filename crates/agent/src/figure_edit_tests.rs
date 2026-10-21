@@ -6,7 +6,6 @@ fn args(a: &PlotiumApp) -> Value {
 #[test]
 fn figure_edit_permissions_discovery_single_use_revision_context_and_busy_are_enforced() {
     let mut a = PlotiumApp::new();
-    a.session.project_present = true;
     a.doc
         .canvases
         .push(CanvasDocument::new("R7".into(), [120., 80.]));

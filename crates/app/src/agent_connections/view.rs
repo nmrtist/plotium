@@ -14,13 +14,7 @@ impl AgentConnections {
             .project_path
             .as_ref()
             .map(|p| p.display().to_string())
-            .unwrap_or_else(|| {
-                if app.session.project_present {
-                    "Untitled".into()
-                } else {
-                    "No project — open a project first".into()
-                }
-            });
+            .unwrap_or_else(|| "Untitled".into());
         ui.label(format!("Current project: {project}"));
         let before = app.settings.agent.access;
         ui.horizontal_wrapped(|ui| {

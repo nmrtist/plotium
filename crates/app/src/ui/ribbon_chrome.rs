@@ -57,19 +57,19 @@ pub(crate) fn configure_viewport(viewport: egui::ViewportBuilder) -> egui::Viewp
     viewport
 }
 
-pub(super) fn inline_project_title(app: &PlotiumApp) -> Option<String> {
+pub(super) fn inline_project_title(app: &PlotiumApp) -> String {
     let project = app
         .doc
         .project_path
         .as_deref()
         .and_then(std::path::Path::file_name)
         .map(|name| name.to_string_lossy().into_owned())
-        .or_else(|| app.session.project_present.then(|| "Untitled".to_owned()))?;
-    Some(if app.doc.dirty {
+        .unwrap_or_else(|| "Untitled".to_owned());
+    if app.doc.dirty {
         format!("* {project}")
     } else {
         project
-    })
+    }
 }
 
 pub(super) fn controls_need_compacting(
@@ -250,21 +250,18 @@ mod tests {
     }
 
     #[test]
-    fn inline_title_only_describes_a_present_project() {
+    fn inline_title_describes_clean_empty_and_modified_projects() {
         let mut app = app();
-        assert_eq!(inline_project_title(&app), None);
+        assert_eq!(inline_project_title(&app), "Untitled");
 
-        app.session.project_present = true;
-        assert_eq!(inline_project_title(&app).as_deref(), Some("Untitled"));
+        app.close_project();
+        assert_eq!(inline_project_title(&app), "Untitled");
 
         app.doc.dirty = true;
-        assert_eq!(inline_project_title(&app).as_deref(), Some("* Untitled"));
+        assert_eq!(inline_project_title(&app), "* Untitled");
 
         app.doc.project_path = Some(std::path::PathBuf::from("/tmp/report.plotium"));
-        assert_eq!(
-            inline_project_title(&app).as_deref(),
-            Some("* report.plotium")
-        );
+        assert_eq!(inline_project_title(&app), "* report.plotium");
     }
 
     #[test]

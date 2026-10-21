@@ -209,7 +209,7 @@ fn barrier(app: &PlotiumApp, blocked: bool) -> Result<(), Failure> {
             "Resolve recovery or save operation and retry",
         ));
     }
-    crate::session::ensure_idle(app)
+    crate::session::ensure_not_busy(app)
 }
 fn expired() -> Failure {
     Failure::new(

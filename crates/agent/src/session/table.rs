@@ -25,9 +25,6 @@ impl Session {
             ));
         }
         let params = DataImportParams::parse(args.parameters.clone())?;
-        if matches!(params, DataImportParams::Table(_)) {
-            ensure_idle(app)?;
-        }
         let plan = plan_tool(
             app,
             request(

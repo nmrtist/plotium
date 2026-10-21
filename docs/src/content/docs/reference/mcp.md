@@ -134,11 +134,12 @@ and its connector, reconnect the client to refresh the tool catalog.
 
 `plotium_get_state {}` works immediately after opening Plotium, including while
 background work, recovery or saving blocks project access. It adds
-`project_present` and `availability` entries for `project_read`, `project_modify`
+`availability` entries for `project_read`, `project_modify`
 and `native_import`; each has `available` and a nullable `{code,message}` reason.
-On the welcome page, `project` is `null` and `selection` is empty. While busy,
-`project` and `selection` are both `null`. These queries create no project or
-project audit entry, including idle queries of an existing project.
+You can import native data or tables directly from the welcome page. When idle,
+`project` contains the project blueprint, even before importing data. While busy,
+`project` and `selection` are both `null`. Check `availability` before planning
+an operation. Queries add no project audit entry or unsaved changes.
 Connection capabilities remain discoverable in every state.
 
 Enable **Read and modify**, copy `project_context` and `revision` from state,
@@ -163,17 +164,17 @@ import contract. Discover the shared schema in
 
 Preflight runs in the background and returns per-input format, dimensions,
 warnings, failures and proposed dataset/canvas IDs in `import.items[].metadata`.
-It creates no project or resources. Call `plotium_execute {"plan_id":"PLAN_ID"}`
+It creates no resources or document edits. Call `plotium_execute {"plan_id":"PLAN_ID"}`
 to commit frozen data; changing or deleting the source after preflight does not
-affect execution. Success adds native datasets and default canvases, displaying a
-project through the normal edit lifecycle when necessary, retaining its context
-and current selection. Existing projects always receive appended resources.
+affect execution. Success adds native datasets and default canvases to the current
+project, preserving its context and selection.
 
 Results report `succeeded`, `partial` or `failed`. All successful inputs commit
 atomically in one Undo step. Undo leaves an empty project when the batch was its
-first content; Redo restores the same resource IDs. All-failed or cancelled imports
-leave the welcome page unchanged. Permissions, context and revision are checked
-again at submission. Plans are single-use even when execution is refused. After
+first content; Redo restores the same resource IDs. If every input fails or the
+import is cancelled, no resources, Undo entry or unsaved changes are added.
+Successful imports retain scientific provenance. Permissions, context and revision
+are checked again at submission. Plans are single-use even when execution is refused. After
 `project_changed`, read state and preflight again.
 
 Native import allows 16 inputs per batch, one preflight in flight and four retained
@@ -1483,7 +1484,7 @@ roll back an edit that has already started its atomic commit; use **Undo**.
 
 Errors include stable codes: `permission_denied`, `expired_plan`,
 `stale_revision`, `busy`, `invalid_parameters`, `unsupported_operation`,
-`project_changed`, `no_project`, `unavailable`, `connection_lost`, `plan_limit`, `request_cancelled`, `connection_stopped`, `response_too_large` and `execution_failed`.
+`project_changed`, `unavailable`, `connection_lost`, `plan_limit`, `request_cancelled`, `connection_stopped`, `response_too_large` and `execution_failed`.
 A `busy` response is retryable after the active edit, recovery confirmation or background project
 operation finishes. For stale or expired plans, read state and preflight again.
 The AI connections (MCP) settings page shows recent operations and errors without

@@ -39,7 +39,7 @@ pub(crate) fn manifest(allow_modify: bool) -> Value {
             "plotium_analysis_results_inspect"=>(vec!["analysis.results.inspect"],"ToolResult.value: paginated native DOSY/ILT columns, validity, counts and provenance","one result field ID"),
             "plotium_diffusion_inspect"=>(vec!["diffusion.inspect"],"ToolResult.value: {resolution_source,increment_count,input:DiffusionInputReport,field_requirement,executable,acquisition_evidence}","one dataset or field ID"),
             "plotium_processing_inspect"=>(vec!["processing.inspect"],"ToolResult.value: {dataset,axes:[{axis,pipeline,pending_apply}]}","one dataset ID"),
-            "plotium_get_state"=>(vec!["project.get_blueprint"],"{project_context,revision,project_present,availability:{project_read,project_modify,native_import},project,selection,permissions,connection_capabilities,save_state}","application; project and selection are null while busy"),
+            "plotium_get_state"=>(vec!["project.get_blueprint"],"{project_context,revision,availability:{project_read,project_modify,native_import},project,selection,permissions,connection_capabilities,save_state}","application; project and selection are null while busy"),
             "plotium_resources_search"=>(vec!["resources.search"],"ToolResult.value: FrozenTargetSet","ResourceQuery"),
             "plotium_resources_inspect"=>(vec!["resources.inspect"],"ToolResult.value: ResourceDescriptor[]","explicit resource IDs"),
             "plotium_properties_list"=>(vec!["properties.list"],"{properties:[{id,label,scope,schema,access,applicability}]}","static; no target"),

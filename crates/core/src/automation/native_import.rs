@@ -118,9 +118,6 @@ impl PreparedDataImport {
             Self::Native(p) => p.reserved_bytes,
         }
     }
-    pub fn is_native(&self) -> bool {
-        matches!(self, Self::Native(_))
-    }
     pub(super) fn commit(
         self,
         app: &mut PlotiumApp,
@@ -426,8 +423,6 @@ pub fn execute_prepared_data_import(
         }
         prepared.commit(app, &plan)
     })();
-    if app.session.project_present {
-        run.finish(app, &outcome)?;
-    }
+    run.finish(app, &outcome)?;
     outcome
 }

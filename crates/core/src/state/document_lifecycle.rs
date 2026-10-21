@@ -55,7 +55,6 @@ impl PlotiumApp {
     /// from edits that happen while they are running.
     pub fn mark_document_dirty(&mut self) {
         self.doc.mark_dirty();
-        self.session.project_present = true;
     }
 
     pub fn request_project_transition(&mut self, target: ProjectTransition) {
@@ -95,15 +94,13 @@ impl PlotiumApp {
     pub fn start_new_project(&mut self) {
         let fresh = Self::new_with_settings(self.settings.clone());
         self.install_loaded_project(fresh);
-        self.session.project_present = true;
         self.session.status = "New project ready.".to_owned();
     }
 
     pub fn close_project(&mut self) {
         let fresh = Self::new_with_settings(self.settings.clone());
         self.install_loaded_project(fresh);
-        self.session.project_present = false;
-        self.session.status = "Project closed.".to_owned();
+        self.session.status = "Project closed. Empty project ready.".to_owned();
     }
 }
 
@@ -154,12 +151,69 @@ mod tests {
     }
 
     #[test]
-    fn new_and_close_have_distinct_welcome_state() {
+    fn startup_new_and_close_have_clean_editable_empty_projects() {
         let mut app = PlotiumApp::new_with_settings(crate::settings::Settings::default());
-        app.start_new_project();
-        assert!(app.session.project_present);
+        for reset in [
+            None,
+            Some(ProjectTransition::New),
+            Some(ProjectTransition::Close),
+        ] {
+            let context = app.session.project_context;
+            match reset {
+                Some(ProjectTransition::New) => app.start_new_project(),
+                Some(ProjectTransition::Close) => app.close_project(),
+                _ => {}
+            }
+            if reset.is_some() {
+                assert_ne!(app.session.project_context, context);
+            }
 
+            assert!(app.session.active_canvas.is_none());
+            assert!(app.doc.datasets.is_empty() && app.doc.canvases.is_empty());
+            assert!(app.doc.assets.is_empty() && app.doc.automation_runs.is_empty());
+            assert!(app.doc.project_path.is_none() && app.doc.project_revision.is_none());
+            assert!(!app.doc.dirty);
+            assert_eq!(app.doc.edit_generation, 0);
+            assert_eq!(app.doc.automation_revision, 0);
+            assert!(app.session.undo_stack.is_empty() && app.session.redo_stack.is_empty());
+            app.request_project_transition(ProjectTransition::Quit);
+            assert_eq!(
+                app.session.ui.project_transition.as_ref().unwrap().phase,
+                ProjectTransitionPhase::CheckUnsaved
+            );
+            // Even content-free edits must still prompt before they are discarded.
+            app.mark_document_dirty();
+            app.request_project_transition(ProjectTransition::Close);
+            assert_eq!(
+                app.session.ui.project_transition.as_ref().unwrap().phase,
+                ProjectTransitionPhase::NeedsConfirmation
+            );
+        }
+    }
+
+    #[test]
+    fn opening_replaces_context_but_failed_open_preserves_empty_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.plotium");
+        let mut app = PlotiumApp::new_with_settings(Default::default());
+        crate::project::save_project_snapshot(crate::project::prepare_project_save(
+            &app, &path, false,
+        ))
+        .unwrap();
+        let initial = app.session.project_context;
+        assert!(app.load_project_from(&path));
+        assert_ne!(app.session.project_context, initial);
+
+        assert_eq!(app.doc.project_path.as_deref(), Some(path.as_path()));
+        assert!(!app.doc.dirty);
+        assert!(app.session.active_canvas.is_none());
         app.close_project();
-        assert!(!app.session.project_present);
+        let context = app.session.project_context;
+        assert!(!app.load_project_from(&dir.path().join("missing.plotium")));
+        assert_eq!(app.session.project_context, context);
+
+        assert!(app.doc.project_path.is_none());
+        assert!(!app.doc.dirty);
+        assert!(app.session.undo_stack.is_empty());
     }
 }

@@ -82,7 +82,6 @@ impl PlotiumApp {
         match result {
             Ok(outcome) => {
                 self.doc.project_path = Some(path.to_owned());
-                self.session.project_present = true;
                 self.doc.save_include_view_snapshots = include_view_snapshots;
                 self.settings.export.include_view_snapshots = include_view_snapshots;
                 if self.doc.edit_generation == captured_generation {

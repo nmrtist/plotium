@@ -11,10 +11,9 @@ struct Titlebar {
 }
 
 impl Titlebar {
-    fn new(project_present: bool) -> Self {
+    fn new() -> Self {
         let mut app = PlotiumApp::new_with_settings(Default::default());
-        app.session.project_present = project_present;
-        app.doc.dirty = project_present;
+        app.doc.dirty = true;
         Self {
             ctx: crate::typography::test_context(),
             app,
@@ -90,7 +89,7 @@ fn window_commands(output: FullOutput) -> Vec<ViewportCommand> {
 #[test]
 fn titlebar_project_title_double_click_maximizes_and_restores_without_selection() {
     for maximized in [false, true] {
-        let mut bar = Titlebar::new(true);
+        let mut bar = Titlebar::new();
         bar.maximized = maximized;
         let pos = bar.text_center("* Untitled");
         let commands = bar.double_click(pos, PointerButton::Primary);
@@ -106,20 +105,18 @@ fn titlebar_project_title_double_click_maximizes_and_restores_without_selection(
 }
 
 #[test]
-fn titlebar_empty_space_double_click_works_with_and_without_project() {
-    for project_present in [false, true] {
-        let mut bar = Titlebar::new(project_present);
-        // The gap after the task tabs, before the trailing controls.
-        let pos = bar.text_center("View") + vec2(360.0, 0.0);
-        let commands = bar.double_click(pos, PointerButton::Primary);
-        assert_eq!(commands, vec![ViewportCommand::Maximized(true)]);
-    }
+fn titlebar_empty_space_double_click_maximizes() {
+    let mut bar = Titlebar::new();
+    // The gap after the task tabs, before the trailing controls.
+    let pos = bar.text_center("View") + vec2(360.0, 0.0);
+    let commands = bar.double_click(pos, PointerButton::Primary);
+    assert_eq!(commands, vec![ViewportCommand::Maximized(true)]);
 }
 
 #[test]
 fn titlebar_drag_still_moves_window_from_title_and_empty_space() {
     for title in [true, false] {
-        let mut bar = Titlebar::new(true);
+        let mut bar = Titlebar::new();
         let pos = if title {
             bar.text_center("* Untitled")
         } else {
@@ -134,14 +131,14 @@ fn titlebar_drag_still_moves_window_from_title_and_empty_space() {
 
 #[test]
 fn titlebar_secondary_double_click_does_not_resize() {
-    let mut bar = Titlebar::new(true);
+    let mut bar = Titlebar::new();
     let pos = bar.text_center("* Untitled");
     assert!(bar.double_click(pos, PointerButton::Secondary).is_empty());
 }
 
 #[test]
 fn titlebar_task_tab_double_click_does_not_resize_window() {
-    let mut bar = Titlebar::new(true);
+    let mut bar = Titlebar::new();
     let pos = bar.text_center("Figure");
     assert!(bar.double_click(pos, PointerButton::Primary).is_empty());
     assert_eq!(bar.app.session.ui.ribbon_tab, WorkflowTab::Figure);
@@ -149,7 +146,7 @@ fn titlebar_task_tab_double_click_does_not_resize_window() {
 
 #[test]
 fn titlebar_double_click_does_not_change_fullscreen_window() {
-    let mut bar = Titlebar::new(true);
+    let mut bar = Titlebar::new();
     bar.fullscreen = true;
     let pos = bar.text_center("* Untitled");
     assert!(bar.double_click(pos, PointerButton::Primary).is_empty());

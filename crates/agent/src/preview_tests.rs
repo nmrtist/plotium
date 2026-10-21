@@ -4,7 +4,6 @@ use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 fn fixture() -> PlotiumApp {
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let mut c = CanvasDocument::new("Preview test".into(), [100., 50.]);
     let id = c.allocate_object_id();
     c.objects.push(ContentItem {

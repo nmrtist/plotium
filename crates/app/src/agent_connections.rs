@@ -204,13 +204,7 @@ impl AgentConnections {
             .project_path
             .as_ref()
             .map(|p| p.display().to_string())
-            .unwrap_or_else(|| {
-                if app.session.project_present {
-                    "Untitled".into()
-                } else {
-                    "No project — open a project first".into()
-                }
-            });
+            .unwrap_or_else(|| "Untitled".into());
         let permission = if app.settings.agent.access == AgentAccess::ReadOnly {
             "Read only"
         } else {

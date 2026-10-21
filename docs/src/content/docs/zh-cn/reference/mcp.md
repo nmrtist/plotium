@@ -112,10 +112,11 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 ## 从欢迎页导入原生数据
 
 只打开 Plotium 即可调用 `plotium_get_state {}`；后台工作、恢复或保存阻塞项目访问时也可查询。
-响应新增 `project_present` 以及 `availability` 中的 `project_read`、`project_modify`、
+响应包含 `availability` 中的 `project_read`、`project_modify`、
 `native_import`，各项包含 `available` 和可为空的 `{code,message}` 原因。
-欢迎页返回 `project: null` 和空选择；忙碌时 `project` 与 `selection` 均为 `null`。
-这些查询不创建项目或文档审计记录，包括空闲且已有项目时的查询。
+可直接从欢迎页导入原生数据或表格。空闲时 `project` 返回项目蓝图，即使尚未导入数据；
+忙碌时 `project` 与 `selection` 均为 `null`。规划操作前请检查 `availability`。
+查询不会新增文档审计记录或未保存修改。
 所有状态下均可发现完整连接能力。
 
 启用 **读取并修改**，从状态复制 `project_context` 和 `revision`，再调用 `plotium_plan`：
@@ -135,12 +136,14 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 完整共享 schema 位于 `connection_capabilities.operation_constraints["data.import"].schema`。
 
 预检在后台完成，`import.items[].metadata` 返回各输入的格式、维度、警告、失败原因和拟创建的
-数据集／画布 ID。预检不创建项目或资源。调用 `plotium_execute {"plan_id":"PLAN_ID"}`
-提交冻结数据；预检后修改或删除源文件不影响执行。成功提交原生数据集和默认画布，必要时通过
-正常文档修改生命周期显示项目，保留项目上下文和当前选择。已有项目始终追加资源。
+数据集／画布 ID。预检不创建资源或修改文档。调用 `plotium_execute {"plan_id":"PLAN_ID"}`
+提交冻结数据；预检后修改或删除源文件不影响执行。成功后向当前项目添加原生数据集和默认画布，
+保留项目上下文和当前选择。
 
 结果为 `succeeded`、`partial` 或 `failed`；所有成功项一次原子提交、一次撤销。
-撤销首批内容后留下空项目；重做恢复相同资源 ID。全部失败或取消则保留欢迎页。
+撤销首批内容后移除导入的内容；重做恢复相同资源 ID。全部输入失败或导入取消时，
+不新增资源、撤销记录或未保存修改。
+成功导入仍保留科学溯源记录。
 提交时重新检查权限、上下文和版本；即使执行被拒绝，计划也已消耗，不能重复使用。
 遇到 `project_changed` 后重新查询状态并预检。
 
@@ -1214,7 +1217,7 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 重启连接会清空计划。桌面开始执行前已取消的请求不会修改项目；已进入原子
 提交的修改无法通过取消回滚，请使用 **Undo**。
 
-稳定错误码包括 `project_changed`、`no_project`、`unavailable`、`connection_lost`、`permission_denied`、`expired_plan`、`stale_revision`、`busy`、
+稳定错误码包括 `project_changed`、`unavailable`、`connection_lost`、`permission_denied`、`expired_plan`、`stale_revision`、`busy`、
 `invalid_parameters`、`unsupported_operation`、`plan_limit`、
 `request_cancelled`、`connection_stopped`、`response_too_large` 和 `execution_failed`。`busy` 可在编辑手势、
 恢复确认或后台项目操作结束后重试；过期计划及 revision 冲突需重新读取和预检。

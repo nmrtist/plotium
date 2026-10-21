@@ -2,9 +2,7 @@ use super::*;
 use plotium_core::state::{PlotiumApp, ProjectTransition};
 use serde_json::json;
 fn project() -> PlotiumApp {
-    let mut app = PlotiumApp::new_with_settings(Default::default());
-    app.start_new_project();
-    app
+    PlotiumApp::new_with_settings(Default::default())
 }
 #[test]
 fn equal_revisions_never_authorize_another_project_and_old_plans_stay_revoked() {
@@ -14,7 +12,7 @@ fn equal_revisions_never_authorize_another_project_and_old_plans_stay_revoked() 
     let context = app.session.project_context;
     let query = json!({"expected_project_context":context,"expected_revision":0,"query":{}});
     let p = session.call(&mut app, "plotium_plan", json!({"expected_project_context":context,"expected_revision":0,"ids":["document"],"tool_id":"properties.set","parameters":{"key":"document.figure.typography.tick_pt","value":15}})).unwrap();
-    app.start_new_project();
+    app.close_project();
     assert_ne!(app.session.project_context, context);
     assert_eq!(app.doc.automation_revision, 0);
     assert_eq!(
@@ -38,16 +36,9 @@ fn equal_revisions_never_authorize_another_project_and_old_plans_stay_revoked() 
     assert_eq!(app.doc.automation_revision, 0);
 }
 #[test]
-fn missing_project_and_transition_cancellation_have_explicit_results() {
+fn cancelled_transition_preserves_context_and_project_access() {
     let mut app = PlotiumApp::new_with_settings(Default::default());
     let mut session = Session::default();
-    assert_eq!(
-        session
-            .call(&mut app, "plotium_get_state", json!({}))
-            .unwrap()["availability"]["project_read"]["reason"]["code"],
-        "no_project"
-    );
-    app.start_new_project();
     let context = app.session.project_context;
     app.request_project_transition(ProjectTransition::Close);
     assert_eq!(
@@ -74,6 +65,48 @@ fn missing_project_and_transition_cancellation_have_explicit_results() {
     );
     app.close_project();
     assert_ne!(app.session.project_context, context);
+}
+
+#[test]
+fn empty_project_document_edit_is_undoable_and_preserves_context() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    let mut session = Session::default();
+    let context = app.session.project_context;
+    let state = session
+        .call(&mut app, "plotium_get_state", json!({}))
+        .unwrap();
+    assert!(state["project"].is_object());
+    assert_eq!(state["availability"]["project_read"]["available"], true);
+    assert!(!app.doc.dirty);
+    assert_eq!(app.doc.edit_generation, 0);
+    assert!(app.doc.automation_runs.is_empty());
+    assert_eq!(
+        state["availability"]["project_modify"]["reason"]["code"],
+        "permission_denied"
+    );
+    session.set_allow_modify(true);
+    let original = app.doc.style_library.clone();
+    let plan = session.call(&mut app, "plotium_plan", json!({
+        "expected_project_context":context,"expected_revision":0,"ids":["document"],
+        "tool_id":"properties.set","parameters":{"key":"document.figure.typography.tick_pt","value":15}
+    })).unwrap();
+    session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    assert!(app.doc.dirty);
+    assert_eq!(app.doc.automation_runs.len(), 1);
+    assert_eq!(app.session.project_context, context);
+    assert!(app.session.active_canvas.is_none());
+    let edited = app.doc.style_library.clone();
+    app.undo();
+    assert_eq!(app.doc.style_library, original);
+    assert!(app.doc.dirty);
+    app.redo();
+    assert_eq!(app.doc.style_library, edited);
 }
 #[test]
 fn queue_and_background_snapshot_cannot_complete_into_replacement_project() {

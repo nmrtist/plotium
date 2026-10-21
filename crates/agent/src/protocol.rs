@@ -114,7 +114,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
     document["properties"]["expected_revision"] = revision.clone();
     document["required"] = json!(["expected_revision", "target", "view"]);
     let mut tools: Vec<Tool> = [
-        ("plotium_get_state", "Read application availability, project presence, revision, selection, capabilities and permissions, including on the welcome page or while busy. Queries do not append project run records or change dirty state, edit generation or revision.", json!({}), json!([])),
+        ("plotium_get_state", "Read application availability, revision, selection, capabilities and permissions, including on the welcome page or while busy. Queries do not append project run records or change dirty state, edit generation or revision.", json!({}), json!([])),
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
         ("plotium_properties_list", "List supported display property definitions: schema, units, scope and static applicability. Does not create a run record.", json!({}), json!([])),

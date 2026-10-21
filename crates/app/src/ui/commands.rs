@@ -242,14 +242,6 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 .any(|dataset| dataset.as_mass_spec().is_some()),
             "Load an LC–MS dataset before running a scientific script.",
         ),
-        CommandId::CloseProject => requires(
-            app.session.project_present
-                || app.doc.project_path.is_some()
-                || !app.doc.datasets.is_empty()
-                || !app.doc.canvases.is_empty()
-                || app.doc.dirty,
-            "There is no project to close.",
-        ),
         CommandId::SaveProject => requires(
             !app.session.ui.project_save_in_progress,
             "Wait for the current project save to finish.",

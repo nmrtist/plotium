@@ -255,7 +255,7 @@ impl Session {
                     "Resolve recovery or save operation and retry",
                 ))
             } else {
-                ensure_idle(app)
+                ensure_not_busy(app)
             }
         };
         if name == "plotium_execute" {
@@ -304,17 +304,7 @@ impl Session {
             plan.submitted_plan_id = Some(args.plan_id.clone());
             let prepared = self.imports.remove(&args.plan_id);
             let transform = self.transforms.remove(&args.plan_id);
-            if prepared.as_ref().is_some_and(PreparedDataImport::is_native) {
-                if blocked {
-                    return Err(Failure::new(
-                        "busy",
-                        "Resolve recovery or save operation and retry",
-                    ));
-                }
-                ensure_not_busy(app)?;
-            } else {
-                barrier()?;
-            }
+            barrier()?;
             let authority = if self.allow_modify {
                 ExecutionAuthority::ReversibleModify
             } else {
@@ -682,17 +672,6 @@ pub fn ensure_not_busy(app: &PlotiumApp) -> Result<(), Failure> {
     Ok(())
 }
 
-pub fn ensure_idle(app: &PlotiumApp) -> Result<(), Failure> {
-    ensure_not_busy(app)?;
-    if !app.session.project_present {
-        return Err(Failure::new(
-            "no_project",
-            "Open a project first / 请先打开项目",
-        ));
-    }
-    Ok(())
-}
-
 impl Session {
     pub(crate) fn prepare_preview(
         &self,
@@ -707,7 +686,7 @@ impl Session {
                 "Resolve recovery or save operation and retry",
             ));
         }
-        ensure_idle(app)?;
+        ensure_not_busy(app)?;
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Args {

@@ -4,7 +4,6 @@ use serde_json::{Value, json};
 
 pub(super) fn fixture(contour: bool) -> (PlotiumApp, String) {
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let dataset = if contour {
         let dim = |nucleus: &str| plotium_io::Dim {
             spectral_width_hz: 4000.0,
@@ -103,7 +102,6 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
     ] {
         let (mut app, id) = fixture(contour);
         let context = app.session.project_context;
-        app.session.project_present = true;
         let mut session = Session::default();
         session.allow_modify = true;
         let rev = revision(&mut app);
@@ -178,7 +176,6 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
 fn inapplicable_targets_are_skipped_and_deleted_targets_cannot_execute() {
     let (mut app, id) = fixture(false);
     let context = app.session.project_context;
-    app.session.project_present = true;
     let mut session = Session::default();
     session.allow_modify = true;
     let result = invoke(

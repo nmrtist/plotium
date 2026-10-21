@@ -10,7 +10,6 @@ fn app() -> PlotiumApp {
     data.diffusion_input = Some(input);
     let mut app = PlotiumApp::new_with_settings(Default::default());
     app.doc.datasets.push(Dataset::Nmr2D(Box::new(data)));
-    app.session.project_present = true;
     app
 }
 fn request(app: &PlotiumApp, id: &str, parameters: serde_json::Value, field: bool) -> ToolRequest {

@@ -18,7 +18,7 @@ impl Session {
                 "Resolve recovery or save operation and retry",
             ));
         }
-        ensure_idle(app)?;
+        ensure_not_busy(app)?;
         let reserved: u64 = self
             .transforms
             .values()

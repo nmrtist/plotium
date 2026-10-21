@@ -140,7 +140,6 @@ fn run_operation(
         let loaded = plotium_core::workflow::load_dataset(&input).map_err(|e| e.to_string())?;
         let mut app = PlotiumApp::new_with_settings(Default::default());
         app.doc.datasets.push(loaded.dataset);
-        app.session.project_present = true;
         app
     };
     if operation.targets.is_some() && operation.field_key.is_some() {

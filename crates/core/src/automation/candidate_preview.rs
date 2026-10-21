@@ -241,7 +241,6 @@ pub fn capture_plan_preview(
         .filter_map(|id| app.doc.assets.get(&id).map(|a| (id, a.clone())))
         .collect();
     candidate.session.project_context = app.session.project_context;
-    candidate.session.project_present = true;
     let active = app
         .session
         .active_canvas

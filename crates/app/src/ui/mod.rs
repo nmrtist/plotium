@@ -252,11 +252,11 @@ fn project_window_title(app: &PlotiumApp) -> String {
         .as_deref()
         .and_then(std::path::Path::file_name)
         .map(|name| name.to_string_lossy().into_owned())
-        .or_else(|| app.session.project_present.then(|| "Untitled".to_owned()));
-    match project {
-        Some(project) if app.doc.dirty => format!("* {project} — Plotium"),
-        Some(project) => format!("{project} — Plotium"),
-        None => "Plotium".to_owned(),
+        .unwrap_or_else(|| "Untitled".to_owned());
+    if app.doc.dirty {
+        format!("* {project} — Plotium")
+    } else {
+        format!("{project} — Plotium")
     }
 }
 

@@ -13,7 +13,6 @@ fn project() -> PlotiumApp {
     a.doc
         .canvases
         .push(CanvasDocument::new("export".into(), [180.0, 90.0]));
-    a.session.project_present = true;
     a
 }
 fn plan(s: &mut Session, a: &mut PlotiumApp, outputs: Value) -> Value {

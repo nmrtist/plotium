@@ -178,7 +178,6 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             .collect(),
     });
     app.rebuild_canvas(0);
-    app.session.project_present = true;
     app.session.active_canvas = Some(0);
     app.clear_history();
     let project = out.join("before.plotium");

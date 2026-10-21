@@ -147,7 +147,6 @@ fn default_ilt_of_20480_points_plots_and_invalidated_result_explains_recomputati
     })
     .unwrap();
     let mut app = PlotiumApp::new_with_settings(Default::default());
-    app.session.project_present = true;
     app.doc.datasets.push(Dataset::Nmr2D(Box::new(dataset)));
     let mut session = Session::default();
     session.set_allow_modify(true);
