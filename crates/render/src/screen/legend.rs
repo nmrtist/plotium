@@ -3,7 +3,7 @@ use crate::{
     LegendMark, Rect, legend_entries, legend_entry_origin, legend_layout, legend_rect,
     renders_legend,
 };
-use egui::{Align2, FontId, Pos2, Stroke, Vec2};
+use egui::{Align2, Pos2, Stroke, Vec2};
 use plotium_figure::Figure;
 
 pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f32) {
@@ -19,7 +19,7 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
     };
     // Legends draw neither a frame nor a backing.
     let (bx, by) = (box_geometry.left, box_geometry.top);
-    let font_id = FontId::proportional(font);
+    let font_id = crate::rich_text::plot_font(font, &fig.typography);
     if !fig.guide_title.trim().is_empty() {
         crate::rich_text::paint(
             painter,

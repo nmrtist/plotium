@@ -161,6 +161,17 @@ fn write_figure(
     y_title_clearance: f32,
 ) {
     let ty = fig.typography;
+    // Plot text inherits the figure face; explicitly bold text stays bold.
+    let _ = write!(
+        s,
+        r#"<g font-family="{family}"{weight}>"#,
+        family = crate::rich_text::svg_font_family(ty.typeface),
+        weight = if ty.font_weight.is_bold() {
+            r#" font-weight="bold""#
+        } else {
+            ""
+        },
+    );
     let w = outer.width;
     let h = outer.height;
     let layout = axis_layout(fig, outer.width, outer.height);
@@ -516,6 +527,7 @@ fn write_figure(
 
     legend::write(s, fig, plot);
     color_scale::write(s, fig, plot);
+    let _ = write!(s, "</g>");
 }
 
 fn write_error_bars(s: &mut String, fig: &Figure, proj: &Projector<'_>, draw_over_data: bool) {

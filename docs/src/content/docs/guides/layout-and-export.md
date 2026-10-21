@@ -305,10 +305,20 @@ What you control directly:
 - Axis titles, legend entries and text use true superscripts and subscripts:
   type `cm^{-2}` or `H_{2}O`. Characters such as `⁻²` and `₂` are drawn the
   same way. EMF output falls back to those Unicode characters.
-- Figure text is set in Arial on the canvas and in every export format.
-  Without Arial, Plotium uses Helvetica or a metric-compatible sans such as
-  Liberation Sans. SVG files name Arial, so a vector editor keeps the typeface
-  Nature-portfolio journals ask for.
+- By default, figure text is set in Arial on the canvas and in every export
+  format. Without Arial, Plotium uses Helvetica or a metric-compatible sans
+  such as Liberation Sans. SVG files name the typeface, so a vector editor
+  keeps the Arial that Nature-portfolio journals ask for.
+- **Font** in the **Figure typography** section switches the text inside every
+  plot — tick labels, axis titles, the figure title, legends, colour scales
+  and plot annotations — between *Arial* (the default), *Helvetica* and
+  *Times New Roman*. Helvetica is drawn as Helvetica on macOS; Windows and
+  Linux draw it with Arial or Liberation Sans, which have the same character
+  widths, and SVG files still name Helvetica first. Without Times New Roman,
+  Plotium uses a metric-compatible serif such as Liberation Serif. **Font weight** (an advanced control) sets that text
+  *Regular* or *Bold*. Text boxes and panel letters on the canvas keep their
+  own Arial styling. Both settings travel with themes and saved styles; the
+  built-in themes set Arial Regular.
 - **Figure typography** in the Figure Ribbon tab's **Style** group opens the
   document-wide typography section; **Figure Typography…** in the command
   palette shows the same section in its own window with a **Reset to
@@ -363,7 +373,8 @@ What you control directly:
   when you switch to a theme that does not set them.
 - **Save Canvas Style…** (View ▸ Canvas Theme, or **Save Style** in the
   Figure Ribbon tab's Style group) saves the active canvas's look as a named
-  style: background, text colour and size, figure typography, axis and tick
+  style: background, text colour and size, figure typography (including the
+  font and font weight), axis and tick
   strokes, curve colours with their marker fills, outlines and hollow setting,
   line width and marker size. **Canvas Styles…** lists saved styles to apply to the active canvas or
   delete. Applying a style is one undoable step. To change a style, apply it,

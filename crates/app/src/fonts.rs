@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use egui::{FontData, FontDefinitions, FontFamily};
 use fontdb::{Database, Family, Query, Weight};
+use plotium_figure::{FontWeight, Typeface};
+use plotium_render::rich_text::{FIGURE_FONT_FAMILY, figure_font_family};
 
 use crate::typography::EMPHASIZED_FAMILY_NAME;
 
@@ -9,12 +11,25 @@ const SYSTEM_UI_REGULAR_KEY: &str = "plotium-system-ui-regular";
 const SYSTEM_UI_SEMIBOLD_KEY: &str = "plotium-system-ui-semibold";
 const SYSTEM_CJK_REGULAR_KEY: &str = "plotium-system-cjk-regular";
 const SYSTEM_CJK_SEMIBOLD_KEY: &str = "plotium-system-cjk-semibold";
-const FIGURE_KEY: &str = "plotium-figure-regular";
 
 #[derive(Clone)]
 struct LoadedFont {
     bytes: Vec<u8>,
     index: u32,
+}
+
+/// One installed face of plot text.
+struct FigureFace {
+    typeface: Typeface,
+    weight: FontWeight,
+    font: LoadedFont,
+}
+
+impl FigureFace {
+    /// Font-data key; the family of the same name lists this face first.
+    fn key(&self) -> &'static str {
+        figure_font_family(self.typeface, self.weight)
+    }
 }
 
 #[derive(Default)]
@@ -23,8 +38,9 @@ struct PlatformFonts {
     system_ui_semibold: Option<LoadedFont>,
     system_cjk_regular: Option<LoadedFont>,
     system_cjk_semibold: Option<LoadedFont>,
-    /// Arial or Helvetica, so figures on the canvas match their exports.
-    figure: Option<LoadedFont>,
+    /// Plot typefaces in each weight, so figures on the canvas match their
+    /// exports.
+    figure: Vec<FigureFace>,
 }
 
 pub(crate) fn definitions() -> FontDefinitions {
@@ -46,8 +62,8 @@ fn build_definitions(platform: PlatformFonts) -> FontDefinitions {
     if let Some(font) = platform.system_ui_semibold.clone() {
         insert_font(&mut fonts, SYSTEM_UI_SEMIBOLD_KEY, font);
     }
-    if let Some(font) = platform.figure.clone() {
-        insert_font(&mut fonts, FIGURE_KEY, font);
+    for face in &platform.figure {
+        insert_font(&mut fonts, face.key(), face.font.clone());
     }
 
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
@@ -57,24 +73,41 @@ fn build_definitions(platform: PlatformFonts) -> FontDefinitions {
     fonts
 }
 
-/// Figure text uses the export typeface first and the UI stack for glyphs it
-/// lacks, such as CJK.
+/// Figure text uses the export typeface first, then the regular face when a
+/// bold one is missing, and the UI stack for glyphs it lacks, such as CJK.
+/// The default figure family, for canvas text outside plots, is Arial regular.
 fn build_figure_family(fonts: &mut FontDefinitions, platform: &PlatformFonts) {
-    let mut family = Vec::new();
-    if platform.figure.is_some() {
-        family.push(FIGURE_KEY.to_owned());
+    let fallback = fonts
+        .families
+        .get(&FontFamily::Proportional)
+        .expect("egui default fonts include a proportional family")
+        .clone();
+    let stack = |typeface: Typeface, weight: FontWeight| {
+        let mut family: Vec<String> = [weight, FontWeight::Regular]
+            .into_iter()
+            .filter_map(|weight| {
+                platform
+                    .figure
+                    .iter()
+                    .find(|face| face.typeface == typeface && face.weight == weight)
+            })
+            .map(|face| face.key().to_owned())
+            .collect();
+        family.dedup();
+        family.extend(fallback.iter().cloned());
+        family
+    };
+    for typeface in Typeface::ALL {
+        for weight in [FontWeight::Regular, FontWeight::Bold] {
+            fonts.families.insert(
+                FontFamily::Name(figure_font_family(typeface, weight).into()),
+                stack(typeface, weight),
+            );
+        }
     }
-    family.extend(
-        fonts
-            .families
-            .get(&FontFamily::Proportional)
-            .expect("egui default fonts include a proportional family")
-            .iter()
-            .cloned(),
-    );
     fonts.families.insert(
-        FontFamily::Name(plotium_render::rich_text::FIGURE_FONT_FAMILY.into()),
-        family,
+        FontFamily::Name(FIGURE_FONT_FAMILY.into()),
+        stack(Typeface::Arial, FontWeight::Regular),
     );
 }
 
@@ -162,17 +195,37 @@ fn load_platform_fonts() -> PlatformFonts {
             &cjk_families,
             Weight::SEMIBOLD,
         ),
-        figure: load(
-            &db,
-            "Arial or Helvetica for figure text",
-            &[
-                Family::Name("Arial"),
-                Family::Name("Helvetica"),
-                Family::Name("Liberation Sans"),
-            ],
-            Weight::NORMAL,
-        ),
+        figure: load_figure_faces(&db),
     }
+}
+
+fn load_figure_faces(db: &Database) -> Vec<FigureFace> {
+    let mut faces = Vec::new();
+    for typeface in Typeface::ALL {
+        let mut families = vec![Family::Name(typeface.family_name())];
+        if let Some(twin) = typeface.metric_twin() {
+            families.push(Family::Name(twin));
+        }
+        families.push(Family::Name(typeface.metric_substitute()));
+        // Match the serif export falls back to when Liberation is missing.
+        if typeface == Typeface::TimesNewRoman {
+            families.push(Family::Name("DejaVu Serif"));
+        }
+        for (weight, query_weight) in [
+            (FontWeight::Regular, Weight::NORMAL),
+            (FontWeight::Bold, Weight::BOLD),
+        ] {
+            let label = format!("{} {weight:?} for figure text", typeface.family_name());
+            if let Some(font) = load(db, &label, &families, query_weight) {
+                faces.push(FigureFace {
+                    typeface,
+                    weight,
+                    font,
+                });
+            }
+        }
+    }
+    faces
 }
 
 fn load(db: &Database, label: &str, families: &[Family<'_>], weight: Weight) -> Option<LoadedFont> {
@@ -258,7 +311,11 @@ mod tests {
             system_ui_semibold: Some(fake_font(2)),
             system_cjk_regular: Some(fake_font(3)),
             system_cjk_semibold: Some(fake_font(4)),
-            figure: Some(fake_font(5)),
+            figure: vec![FigureFace {
+                typeface: Typeface::Arial,
+                weight: FontWeight::Regular,
+                font: fake_font(5),
+            }],
         });
 
         assert_eq!(
@@ -274,11 +331,20 @@ mod tests {
         assert_eq!(fonts.font_data[SYSTEM_UI_SEMIBOLD_KEY].index, 2);
         assert_eq!(fonts.font_data[SYSTEM_CJK_REGULAR_KEY].index, 3);
         assert_eq!(fonts.font_data[SYSTEM_CJK_SEMIBOLD_KEY].index, 4);
-        let figure = FontFamily::Name(plotium_render::rich_text::FIGURE_FONT_FAMILY.into());
+        let arial = figure_font_family(Typeface::Arial, FontWeight::Regular);
+        let figure = FontFamily::Name(FIGURE_FONT_FAMILY.into());
         assert_eq!(
             &fonts.families[&figure][..2],
-            [FIGURE_KEY, SYSTEM_UI_REGULAR_KEY]
+            [arial, SYSTEM_UI_REGULAR_KEY]
         );
+        // A missing bold face falls back to the regular one.
+        let bold = FontFamily::Name(figure_font_family(Typeface::Arial, FontWeight::Bold).into());
+        assert_eq!(&fonts.families[&bold][..2], [arial, SYSTEM_UI_REGULAR_KEY]);
+        // A missing typeface falls back to the UI stack.
+        let times = FontFamily::Name(
+            figure_font_family(Typeface::TimesNewRoman, FontWeight::Regular).into(),
+        );
+        assert_eq!(fonts.families[&times][0], SYSTEM_UI_REGULAR_KEY);
     }
 
     #[test]
@@ -288,7 +354,7 @@ mod tests {
             system_ui_semibold: None,
             system_cjk_regular: None,
             system_cjk_semibold: None,
-            figure: None,
+            figure: Vec::new(),
         });
         let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
         assert_eq!(fonts.families[&emphasized][0], SYSTEM_UI_REGULAR_KEY);
@@ -318,7 +384,7 @@ mod tests {
             system_ui_semibold: None,
             system_cjk_regular: Some(fake_font(3)),
             system_cjk_semibold: None,
-            figure: None,
+            figure: Vec::new(),
         });
         let proportional = &fonts.families[&FontFamily::Proportional];
         let phosphor = proportional
@@ -341,6 +407,7 @@ mod tests {
         ]
         .into_iter()
         .flatten()
+        .chain(platform.figure.iter().map(|face| &face.font))
         {
             let face = FontRef::from_index(&face.bytes, face.index).expect("valid system UI face");
             assert!(face.charmap().map('A').is_some());

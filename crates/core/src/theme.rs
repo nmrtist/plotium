@@ -7,7 +7,9 @@ use crate::actions::Action;
 use crate::state::{
     ObjectId, ObjectStyle, PlotiumApp, ShapeKind, ShapeObject, StyleLibrary, TextBox,
 };
-use plotium_figure::{Color, FigureTypography, PositiveFiniteF32, TickDirection};
+use plotium_figure::{
+    Color, FigureTypography, FontWeight, PositiveFiniteF32, TickDirection, Typeface,
+};
 use serde::{Deserialize, Serialize};
 
 mod user_styles;
@@ -197,6 +199,8 @@ impl Theme {
                 tick_length_pt: 3.0,
                 tick_direction: TickDirection::Out,
                 minor_ticks: 0,
+                typeface: Typeface::Arial,
+                font_weight: FontWeight::Regular,
             },
             // Okabe–Ito, yellow last because it has the weakest contrast on
             // white.

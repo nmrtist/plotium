@@ -5,8 +5,10 @@ mod colormap;
 mod display;
 mod encoding;
 mod reference_line;
+mod typeface;
 pub use display::*;
 pub use reference_line::{ReferenceLine, ReferenceOrientation};
+pub use typeface::{FontWeight, Typeface};
 
 pub use colormap::ColormapId;
 pub use encoding::{
@@ -67,6 +69,12 @@ pub struct FigureTypography {
     /// Unlabelled minor ticks between neighbouring major ticks; zero hides them.
     #[serde(default)]
     pub minor_ticks: u8,
+    /// Typeface of all text drawn inside a plot.
+    #[serde(default)]
+    pub typeface: Typeface,
+    /// Weight of all text drawn inside a plot.
+    #[serde(default)]
+    pub font_weight: FontWeight,
 }
 
 /// Which side of the axis line the tick marks point to.
@@ -156,6 +164,8 @@ impl Default for FigureTypography {
             tick_length_pt: default_tick_length_pt(),
             tick_direction: TickDirection::Out,
             minor_ticks: 0,
+            typeface: Typeface::Arial,
+            font_weight: FontWeight::Regular,
         }
     }
 }
@@ -733,5 +743,7 @@ mod tests {
         assert_eq!(typography.tick_length_pt, 3.0);
         assert_eq!(typography.tick_direction, TickDirection::Out);
         assert_eq!(typography.minor_ticks, 0);
+        assert_eq!(typography.typeface, super::Typeface::Arial);
+        assert_eq!(typography.font_weight, super::FontWeight::Regular);
     }
 }

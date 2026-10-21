@@ -1,6 +1,6 @@
 use crate::curve_style::dashed_segments;
 use crate::{Projector, Rect, TextAnchor, range_label_layout};
-use egui::{Align2, Color32, FontId, Pos2, Stroke};
+use egui::{Align2, Color32, Pos2, Stroke};
 use plotium_figure::{Figure, LineStyle};
 
 pub(crate) fn paint(
@@ -50,7 +50,7 @@ pub(crate) fn paint(
                 TextAnchor::Right => Align2::RIGHT_TOP,
             },
             label.text,
-            FontId::proportional(figure.typography.tick_pt * scale),
+            crate::rich_text::plot_font(figure.typography.tick_pt * scale, &figure.typography),
             color,
         );
     }
@@ -90,7 +90,7 @@ pub(crate) fn paint_reference_lines(
                     TextAnchor::Right => Align2::RIGHT_TOP,
                 },
                 label.text,
-                FontId::proportional(label.size),
+                crate::rich_text::plot_font(label.size, &figure.typography),
                 color,
             );
         }

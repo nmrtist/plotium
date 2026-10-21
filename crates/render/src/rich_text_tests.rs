@@ -67,6 +67,28 @@ fn svg_root_names_the_figure_typeface() {
     assert!(svg.contains(&format!(r#"font-family="{SVG_FONT_FAMILY}""#)));
 }
 
+#[test]
+fn svg_plot_group_carries_the_chosen_face_and_weight() {
+    let mut fig = plotium_figure::Figure::new(
+        "",
+        plotium_figure::Axis::new("x", 0.0, 1.0),
+        plotium_figure::Axis::new("y", 0.0, 1.0),
+    );
+    let svg = crate::svg::export(&fig);
+    assert!(svg.contains(&format!(r#"<g font-family="{SVG_FONT_FAMILY}">"#)));
+
+    fig.typography.typeface = plotium_figure::Typeface::Helvetica;
+    let svg = crate::svg::export(&fig);
+    assert!(svg.contains(r#"<g font-family="Helvetica, Arial, sans-serif">"#));
+
+    fig.typography.typeface = plotium_figure::Typeface::TimesNewRoman;
+    fig.typography.font_weight = plotium_figure::FontWeight::Bold;
+    let svg = crate::svg::export(&fig);
+    assert!(
+        svg.contains(r#"<g font-family="'Times New Roman', Times, serif" font-weight="bold">"#)
+    );
+}
+
 #[cfg(feature = "screen")]
 #[test]
 fn figure_font_uses_the_registered_family_for_proportional_text() {
@@ -84,15 +106,25 @@ fn figure_font_uses_the_registered_family_for_proportional_text() {
             let painter = ui.painter();
             seen.push(figure_font(painter, egui::FontId::proportional(7.0)).family);
             seen.push(figure_font(painter, egui::FontId::monospace(7.0)).family);
+            let times = plotium_figure::FigureTypography {
+                typeface: plotium_figure::Typeface::TimesNewRoman,
+                ..Default::default()
+            };
+            seen.push(figure_font(painter, plot_font(7.0, &times)).family);
         });
         seen
     };
+    // An unregistered plot face falls back to the default figure family.
     assert_eq!(
         fonts_for(true),
-        [figure.clone(), egui::FontFamily::Monospace]
+        [figure.clone(), egui::FontFamily::Monospace, figure.clone()]
     );
     assert_eq!(
         fonts_for(false),
-        [egui::FontFamily::Proportional, egui::FontFamily::Monospace]
+        [
+            egui::FontFamily::Proportional,
+            egui::FontFamily::Monospace,
+            egui::FontFamily::Proportional
+        ]
     );
 }

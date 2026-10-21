@@ -2,7 +2,7 @@
 //! and primitive drawing over a metafile DC.
 
 use crate::Rect;
-use plotium_figure::Color;
+use plotium_figure::{Color, FontWeight, Typeface};
 use std::collections::HashMap;
 use windows_sys::Win32::Foundation::POINT;
 use windows_sys::Win32::Graphics::Gdi::{
@@ -17,7 +17,6 @@ use windows_sys::Win32::Graphics::Gdi::{
 
 /// Logical units per point, so hairline geometry survives integer coordinates.
 const SCALE: f32 = 20.0;
-const FONT_FACE: &str = "Arial";
 
 pub(super) fn l(v: f32) -> i32 {
     (v * SCALE).round() as i32
@@ -79,7 +78,10 @@ pub(super) struct Dc {
     pub hdc: HDC,
     pub pens: HashMap<(u32, i32), HGDIOBJ>,
     pub brushes: HashMap<u32, HGDIOBJ>,
-    pub fonts: HashMap<(i32, bool, i32), HGDIOBJ>,
+    pub fonts: HashMap<(Typeface, i32, bool, i32), HGDIOBJ>,
+    /// Face and weight of the plot being written; text outside plots keeps
+    /// the default Arial regular.
+    pub plot_text: (Typeface, FontWeight),
 }
 
 impl Dc {
@@ -110,14 +112,22 @@ impl Dc {
     }
 
     fn font(&mut self, size: f32, bold: bool, escapement_deci_deg: i32) -> HGDIOBJ {
-        let key = (l(size), bold, escapement_deci_deg);
+        let (typeface, weight) = self.plot_text;
+        let bold = bold || weight.is_bold();
+        let key = (typeface, l(size), bold, escapement_deci_deg);
         *self.fonts.entry(key).or_insert_with(|| unsafe {
             let mut face = [0u16; 32];
-            for (i, u) in FONT_FACE.encode_utf16().take(31).enumerate() {
+            // Windows has no Helvetica; GDI could map the name to an unrelated
+            // face, so draw its metric twin Arial directly.
+            let family = match typeface {
+                Typeface::Helvetica => Typeface::Arial.family_name(),
+                _ => typeface.family_name(),
+            };
+            for (i, u) in family.encode_utf16().take(31).enumerate() {
                 face[i] = u;
             }
             CreateFontW(
-                -key.0,
+                -key.1,
                 0,
                 escapement_deci_deg,
                 escapement_deci_deg,

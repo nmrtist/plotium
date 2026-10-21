@@ -122,7 +122,7 @@ fn paint_with_detail_and_stats_impl(
             ),
             Align2::CENTER_CENTER,
             &fig.title,
-            FontId::proportional(ty.title_pt * scale),
+            crate::rich_text::plot_font(ty.title_pt * scale, &ty),
             col(Color::BLACK),
         );
     }
@@ -215,7 +215,7 @@ fn paint_with_detail_and_stats_impl(
                 ),
                 Align2::CENTER_CENTER,
                 label,
-                FontId::proportional(ty.tick_pt * scale),
+                crate::rich_text::plot_font(ty.tick_pt * scale, &ty),
                 col(Color::AXIS),
             );
         }
@@ -237,7 +237,7 @@ fn paint_with_detail_and_stats_impl(
                 Pos2::new(y_tick_x, py),
                 Align2::RIGHT_CENTER,
                 label,
-                FontId::proportional(ty.tick_pt * scale),
+                crate::rich_text::plot_font(ty.tick_pt * scale, &ty),
                 col(Color::AXIS),
             );
         }
@@ -251,7 +251,7 @@ fn paint_with_detail_and_stats_impl(
             Pos2::new(y_axis_x, plot.top - TICK_LABEL_PAD * scale),
             Align2::LEFT_BOTTOM,
             multiplier,
-            FontId::proportional(ty.tick_pt * scale),
+            crate::rich_text::plot_font(ty.tick_pt * scale, &ty),
             col(Color::AXIS),
         );
     }
@@ -266,7 +266,7 @@ fn paint_with_detail_and_stats_impl(
             ),
             Align2::RIGHT_CENTER,
             multiplier,
-            FontId::proportional(ty.tick_pt * scale),
+            crate::rich_text::plot_font(ty.tick_pt * scale, &ty),
             col(Color::AXIS),
         );
     }
@@ -285,7 +285,7 @@ fn paint_with_detail_and_stats_impl(
             ),
             Align2::CENTER_CENTER,
             &fig.x.label,
-            FontId::proportional(ty.label_pt * scale),
+            crate::rich_text::plot_font(ty.label_pt * scale, &ty),
             col(Color::AXIS),
         );
     }
@@ -293,7 +293,7 @@ fn paint_with_detail_and_stats_impl(
         let galley = crate::rich_text::galley(
             painter,
             &fig.y.label,
-            FontId::proportional(ty.label_pt * scale),
+            crate::rich_text::plot_font(ty.label_pt * scale, &ty),
             col(Color::AXIS),
         );
         let galley_size = galley.size();
@@ -379,7 +379,7 @@ fn paint_with_detail_and_stats_impl(
         let galley = crate::rich_text::galley(
             &clipped,
             &curve.label.text,
-            FontId::proportional(curve.label.font_size),
+            crate::rich_text::plot_font(curve.label.font_size, &ty),
             col(curve.label.color),
         );
         let size = galley.size();
@@ -401,7 +401,7 @@ fn paint_with_detail_and_stats_impl(
             Pos2::new(px, py),
             Align2::CENTER_BOTTOM,
             &a.text,
-            FontId::proportional(a.size * scale),
+            crate::rich_text::plot_font(a.size * scale, &ty),
             col(a.color),
         );
     }

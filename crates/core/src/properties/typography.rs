@@ -9,7 +9,7 @@ use super::{
     ValueSchema, definition, static_schema,
 };
 use crate::state::PlotiumApp;
-use plotium_figure::{Color, TickDirection};
+use plotium_figure::{Color, FontWeight, TickDirection, Typeface};
 
 pub const TICK_PT: PropertyId = PropertyId("document.figure.typography.tick_pt");
 pub const LABEL_PT: PropertyId = PropertyId("document.figure.typography.label_pt");
@@ -20,6 +20,8 @@ pub const AXIS_LINE_PT: PropertyId = PropertyId("document.figure.typography.axis
 pub const TICK_LENGTH_PT: PropertyId = PropertyId("document.figure.typography.tick_length_pt");
 pub const TICK_DIRECTION: PropertyId = PropertyId("document.figure.typography.tick_direction");
 pub const MINOR_TICKS: PropertyId = PropertyId("document.figure.typography.minor_ticks");
+pub const TYPEFACE: PropertyId = PropertyId("document.figure.typography.typeface");
+pub const FONT_WEIGHT: PropertyId = PropertyId("document.figure.typography.font_weight");
 
 pub const OUT: &str = "out";
 pub const IN: &str = "in";
@@ -27,6 +29,37 @@ const TICK_DIRECTIONS: &[EnumVariant] = &[
     EnumVariant::new(OUT, "Outward"),
     EnumVariant::new(IN, "Inward"),
 ];
+
+pub const ARIAL: &str = "arial";
+pub const HELVETICA: &str = "helvetica";
+pub const TIMES_NEW_ROMAN: &str = "times_new_roman";
+const TYPEFACES: &[EnumVariant] = &[
+    EnumVariant::new(ARIAL, "Arial"),
+    EnumVariant::new(HELVETICA, "Helvetica"),
+    EnumVariant::new(TIMES_NEW_ROMAN, "Times New Roman"),
+];
+
+pub const REGULAR: &str = "regular";
+pub const BOLD: &str = "bold";
+const FONT_WEIGHTS: &[EnumVariant] = &[
+    EnumVariant::new(REGULAR, "Regular"),
+    EnumVariant::new(BOLD, "Bold"),
+];
+
+fn typeface_key(typeface: Typeface) -> &'static str {
+    match typeface {
+        Typeface::Arial => ARIAL,
+        Typeface::Helvetica => HELVETICA,
+        Typeface::TimesNewRoman => TIMES_NEW_ROMAN,
+    }
+}
+
+fn font_weight_key(weight: FontWeight) -> &'static str {
+    match weight {
+        FontWeight::Regular => REGULAR,
+        FontWeight::Bold => BOLD,
+    }
+}
 
 const POINT_BOUNDS: FloatBounds = FloatBounds::inclusive(1.0, 72.0);
 /// A quarter point per drag notch: point sizes are chosen to a half point, and
@@ -176,6 +209,41 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         canonical_label: "Figure minor ticks",
         canonical_aliases: &["minor tick count", "subticks", "minor tick marks"],
     },
+    PropertyDefinition {
+        id: TYPEFACE,
+        scope_kind: ScopeKind::Document,
+        value_schema: ValueSchema::Enum {
+            variants: TYPEFACES,
+        },
+        access: PropertyAccess::ReadWrite,
+        applicability: Applicability::component(ComponentKind::None),
+        default_policy: DefaultPolicy::Fixed(PropertyValue::Enum(ARIAL)),
+        tier: Tier::Essential,
+        copies: ValueCopies::PerTarget,
+        canonical_label: "Figure font",
+        canonical_aliases: &[
+            "font family",
+            "typeface",
+            "helvetica",
+            "serif",
+            "times",
+            "figure typography",
+        ],
+    },
+    PropertyDefinition {
+        id: FONT_WEIGHT,
+        scope_kind: ScopeKind::Document,
+        value_schema: ValueSchema::Enum {
+            variants: FONT_WEIGHTS,
+        },
+        access: PropertyAccess::ReadWrite,
+        applicability: Applicability::component(ComponentKind::None),
+        default_policy: DefaultPolicy::Fixed(PropertyValue::Enum(REGULAR)),
+        tier: Tier::Advanced,
+        copies: ValueCopies::PerTarget,
+        canonical_label: "Figure font weight",
+        canonical_aliases: &["bold text", "font weight", "figure typography"],
+    },
 ];
 
 pub(crate) struct TypographyProvider;
@@ -210,6 +278,8 @@ impl PropertyProvider for TypographyProvider {
                 TickDirection::In => IN,
             }),
             MINOR_TICKS => PropertyValue::Int(i64::from(typography.minor_ticks)),
+            TYPEFACE => PropertyValue::Enum(typeface_key(typography.typeface)),
+            FONT_WEIGHT => PropertyValue::Enum(font_weight_key(typography.font_weight)),
             _ => return Err(PropertyError::UnknownProperty(definition.id.to_string())),
         };
         Ok(ResolvedProperty {
@@ -277,6 +347,37 @@ impl PropertyProvider for TypographyProvider {
                 }
             };
             transaction.figure_typography(app).tick_direction = value;
+            return Ok(());
+        }
+        if definition.id == TYPEFACE {
+            let key = enum_edit(definition, operation, ARIAL)?;
+            let typeface = Typeface::ALL
+                .into_iter()
+                .find(|typeface| typeface_key(*typeface) == key)
+                .ok_or_else(|| PropertyError::InvalidValue {
+                    property: definition.id,
+                    message: format!(
+                        "unknown font `{key}`: expected `{ARIAL}`, `{HELVETICA}` or \
+                         `{TIMES_NEW_ROMAN}`"
+                    ),
+                })?;
+            transaction.figure_typography(app).typeface = typeface;
+            return Ok(());
+        }
+        if definition.id == FONT_WEIGHT {
+            let weight = match enum_edit(definition, operation, REGULAR)? {
+                REGULAR => FontWeight::Regular,
+                BOLD => FontWeight::Bold,
+                key => {
+                    return Err(PropertyError::InvalidValue {
+                        property: definition.id,
+                        message: format!(
+                            "unknown font weight `{key}`: expected `{REGULAR}` or `{BOLD}`"
+                        ),
+                    });
+                }
+            };
+            transaction.figure_typography(app).font_weight = weight;
             return Ok(());
         }
         if definition.id == MINOR_TICKS {
@@ -351,5 +452,25 @@ impl PropertyProvider for TypographyProvider {
             _ => return Err(PropertyError::UnknownProperty(definition.id.to_string())),
         }
         Ok(())
+    }
+}
+
+/// The enum key an edit sets, with a reset yielding `default`.
+fn enum_edit<'a>(
+    definition: &PropertyDefinition,
+    operation: &EditOp<'a>,
+    default: &'a str,
+) -> Result<&'a str, PropertyError> {
+    match operation {
+        EditOp::Set(PropertyValue::Enum(key)) => Ok(key),
+        EditOp::Reset => Ok(default),
+        EditOp::Set(value) => Err(PropertyError::InvalidValue {
+            property: definition.id,
+            message: format!("expected a choice, got {}", value.kind()),
+        }),
+        EditOp::Step(_) => Err(PropertyError::InvalidValue {
+            property: definition.id,
+            message: "this setting has no step gesture".to_owned(),
+        }),
     }
 }

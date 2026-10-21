@@ -246,9 +246,17 @@ NMR 核素质量数。新数据集默认使用 89 × 60 mm 单栏画布：单个
   所有导出格式。双击图例或色标可恢复自动位置。
 - 轴标题、图例和文字支持真正的上下标：输入 `cm^{-2}` 或 `H_{2}O`。
   `⁻²`、`₂` 这类字符也按同样方式绘制。EMF 导出仍使用这些 Unicode 字符。
-- 图中文字在画布和所有导出格式中都使用 Arial。没有 Arial 时改用 Helvetica
-  或 Liberation Sans 等字宽相同的无衬线字体。SVG 文件写明 Arial，用矢量软件
+- 图中文字默认在画布和所有导出格式中都使用 Arial。没有 Arial 时改用 Helvetica
+  或 Liberation Sans 等字宽相同的无衬线字体。SVG 文件写明字体，用矢量软件
   打开也保持 Nature 系列期刊要求的字体。
+- **Figure typography** 分区中的 **Font** 切换所有图内文字的字体——刻度标签、
+  轴标题、图标题、图例、色标和图内标注——可选 *Arial*（默认）、*Helvetica*
+  或 *Times New Roman*。Helvetica 在 macOS 上用 Helvetica 绘制；Windows 和
+  Linux 上改用字宽相同的 Arial 或 Liberation Sans，SVG 文件仍把 Helvetica
+  写在首位。没有 Times New Roman 时改用 Liberation Serif 等字宽相同
+  的衬线字体。高级设置中的 **Font weight** 把这些文字设为 *Regular*（常规）或
+  *Bold*（粗体）。画布上的文本框和分图字母仍保持各自的 Arial 样式。这两项设置
+  随主题和已保存的样式一起保存和套用；内置主题使用 Arial Regular。
 - Figure Ribbon 选项卡 **Style** 分组中的 **Figure typography** 会打开文档级
   排版分区；命令面板中的 **Figure Typography…** 以独立窗口显示同一分区，并
   多出 **Reset to defaults** 按钮。两者都一次设定文档内所有图的文字尺寸
@@ -290,7 +298,7 @@ NMR 核素质量数。新数据集默认使用 89 × 60 mm 单栏画布：单个
   主题时，这些线宽和符号大小会保留。
 - **Save Canvas Style…**（View ▸ Canvas Theme，或 Figure Ribbon 选项卡 Style
   组中的 **Save Style**）把当前画布的外观保存为命名样式：背景、文字颜色与
-  字号、图形排版、坐标轴和刻度线宽、曲线颜色及其符号填充色、描边和空心设置、线宽和符号
+  字号、图形排版（包括字体和字重）、坐标轴和刻度线宽、曲线颜色及其符号填充色、描边和空心设置、线宽和符号
   大小。
   **Canvas Styles…** 列出已保存的样式，可套用到当前画布或删除。套用样式是一次
   可撤销的操作。要修改某个样式，先套用它，调整画布后再用同一名称保存。样式以

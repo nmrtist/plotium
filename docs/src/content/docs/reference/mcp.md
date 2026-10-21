@@ -103,6 +103,8 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `document.figure.typography.tick_length_pt` | document | 0–20 pt |
 | `document.figure.typography.tick_direction` | document | `out`, `in` |
 | `document.figure.typography.minor_ticks` | document | 0–9 minor ticks per major interval; 0 hides them |
+| `document.figure.typography.typeface` | document | `arial`, `helvetica`, `times_new_roman`; text inside every plot |
+| `document.figure.typography.font_weight` | document | `regular`, `bold`; text inside every plot |
 
 Scientific processing and task interfaces are described below. Preferences, new format parsers, automatic scientific-result plotting and built-in chat are outside this interface.
 

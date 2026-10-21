@@ -91,6 +91,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `document.figure.typography.tick_length_pt` | document | 0–20 pt |
 | `document.figure.typography.tick_direction` | document | `out`、`in` |
 | `document.figure.typography.minor_ticks` | document | 每个主刻度间隔 0–9 个子刻度；0 为不显示 |
+| `document.figure.typography.typeface` | document | `arial`、`helvetica`、`times_new_roman`；作用于所有图内文字 |
+| `document.figure.typography.font_weight` | document | `regular`、`bold`；作用于所有图内文字 |
 
 科学处理与任务接口见下文。应用偏好、新格式解析、科学结果自动建图及内置聊天暂不在此接口范围内。
 

@@ -297,7 +297,7 @@ fn migrated_canvas_and_typography_controls_keep_their_visibility_and_section_den
         ),
         (
             panel::TYPOGRAPHY_SECTION,
-            4,
+            5,
             "a document with all typography controls",
         ),
     ] {

@@ -24,6 +24,8 @@ fn save_list_load_delete_roundtrip() {
         }),
         None,
     ];
+    style.figure_typography.typeface = plotium_figure::Typeface::TimesNewRoman;
+    style.figure_typography.font_weight = plotium_figure::FontWeight::Bold;
 
     assert!(list_user_styles(&dir).is_empty());
     let path = save_user_style(&dir, "  Lab paper  ", &style).unwrap();
