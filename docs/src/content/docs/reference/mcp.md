@@ -98,6 +98,38 @@ canvases and canvas objects, and these display properties only:
 
 Scientific processing and task interfaces are described below. Preferences, new format parsers, automatic scientific-result plotting and built-in chat are outside this interface.
 
+### Tool annotations and client approval
+
+Every tool advertises MCP `annotations` in `tools/list` and in
+`connection_capabilities.tools`, independently of the current **Access** setting.
+`readOnlyHint` describes environment changes; `destructiveHint` distinguishes
+potentially destructive writes from additive ones; `idempotentHint` describes
+whether repeating identical arguments has additional effects; `openWorldHint`
+describes interaction with external entities, including local input/output files.
+Destructive and idempotent hints are meaningful only for non-read-only tools.
+See the [MCP annotation definitions](https://modelcontextprotocol.io/specification/2025-11-25/schema#toolannotations).
+
+Queries, previews and receipt inspection are read-only and operate on native
+project/application state. Diagnosis is also read-only, but continuation cursors
+are single-use. `plotium_plan` is not read-only: each successful call retains a new
+executable plan and can read external data, schema, processing-scheme or image
+files and prepare computation. It does not commit the candidate or write
+save/export outputs. `plotium_execute` covers edits, deletion, scientific tasks
+and save/export requests, so the entire tool advertises potentially destructive,
+non-idempotent, open-world behavior. Task cancellation is a potentially destructive
+write to task state; repeating cancellation for the same retained task has no
+additional effect.
+
+A client's policy may use trusted-server hints when deciding whether to ask for
+approval; clients can still ask, and untrusted annotations must not authorize
+calls. Client approval, Plotium **Access**, and desktop file consent are separate
+decisions. Annotations grant no permission: revision/context checks, revocation
+and one-use plans still apply. Every save/export request retains its own desktop
+confirmation and exact file/overwrite scope, including in **Read only**.
+Never replay a call after disconnection or an unknown outcome, even when marked
+idempotent; inspect state or retained receipts instead. After upgrading Plotium
+and its connector, reconnect the client to refresh the tool catalog.
+
 ## Import native data from the welcome page
 
 `plotium_get_state {}` works immediately after opening Plotium, including while

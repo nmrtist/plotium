@@ -59,7 +59,7 @@ fn real_http_mcp_handshake_discovery_bridge_and_authentication() {
                     .await
                     .unwrap();
             let tools = client.list_all_tools().await.unwrap();
-            assert_eq!(tools.len(), crate::protocol::definitions().len());
+            assert_eq!(tools, crate::protocol::definitions());
             assert!(
                 tools
                     .iter()

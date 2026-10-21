@@ -40,8 +40,8 @@ fn one_stdio_session_survives_offline_start_restart_and_revocation_without_repla
         let client = ().serve(client_io).await.unwrap();
         let service = server.await.unwrap().unwrap();
         assert_eq!(
-            client.list_all_tools().await.unwrap().len(),
-            crate::protocol::definitions().len()
+            client.list_all_tools().await.unwrap(),
+            crate::protocol::definitions()
         );
         let result = client
             .call_tool(CallToolRequestParams::new("plotium_get_state"))
