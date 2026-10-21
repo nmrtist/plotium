@@ -874,6 +874,9 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `text_create` | `parent: EXACT_CANVAS_OR_PANEL_TARGET`, `name`, `frame_pt`, `text`, `font_pt` |
 | `text_set` | `target: EXACT_TEXT_TARGET`, `text`; optional `font_pt` |
 | `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG or JPEG) |
+| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt` |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt` |
+| `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
 
@@ -899,6 +902,17 @@ moving preserves child-local coordinates; resizing scales all child-local frames
 proportionally, without changing curve IDs, bindings, styles, axis ranges or fonts.
 This differs from the free Panel inspector's container-only dimensions.
 New text/image frames are parent-local pt, or page pt for a canvas parent.
+
+Plot annotations are anchored in data coordinates, not page pt: the label is
+centred above its `at` point and follows the plot's axis ranges, zoom and pan,
+in the canvas and in every export. An anchor outside the visible range is
+clipped with the plot. `annotation_id` is local to the plot and never reused
+after deletion; read it from `annotation_edits` in the result or from the plot's
+`annotations` list in `plotium_document_inspect`. `at` uses the plot's source
+units reported in `coordinate_units`, not a display unit chosen for the tick
+labels. Annotation text permits 1024 UTF-8 bytes (nonblank), and a plot holds at
+most 256 annotations. The plot and its parent panel must be unlocked; Auto height
+may stay on.
 
 Align uses the selected bounding edges/centres. Distribution equalizes centres
 between fixed endpoints, not edge gaps. Grid composes the existing native cell
@@ -1267,7 +1281,7 @@ proof of occlusion.
 | Existing plan | Candidate support |
 | --- | --- |
 | `properties.set` / `properties.reset` | The five `object.guides.*` properties above, including their native multi-target batch |
-| `figure.edit` local edits | `content_frame`, `image_replace`, `text_set`, including native batches |
+| `figure.edit` local edits | `content_frame`, `image_replace`, `text_set`, `annotation_create`/`annotation_set`/`annotation_delete`, including native batches |
 | `figure.edit` deletion-only batch | `content_delete`, originally empty `panel_delete`, explicit-column `series_delete`; all existing refusal rules remain |
 | Other operations, including save/export | `unsupported_operation`; their normal execution contract is unchanged |
 

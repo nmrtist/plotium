@@ -80,6 +80,23 @@ pub enum FigureEdit {
         frame_pt: [f32; 4],
         path: std::path::PathBuf,
     },
+    AnnotationCreate {
+        target: TargetRef,
+        text: String,
+        at: [f64; 2],
+        font_pt: f32,
+    },
+    AnnotationSet {
+        target: TargetRef,
+        annotation_id: AnnotationId,
+        text: Option<String>,
+        at: Option<[f64; 2]>,
+        font_pt: Option<f32>,
+    },
+    AnnotationDelete {
+        target: TargetRef,
+        annotation_id: AnnotationId,
+    },
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -322,6 +339,9 @@ impl PlotiumApp {
                     FigureEdit::PanelLabel { .. }
                         | FigureEdit::TextSet { .. }
                         | FigureEdit::ImageReplace { .. }
+                        | FigureEdit::AnnotationCreate { .. }
+                        | FigureEdit::AnnotationSet { .. }
+                        | FigureEdit::AnnotationDelete { .. }
                 )
             })
         {
@@ -334,6 +354,7 @@ impl PlotiumApp {
         let mut input_bytes = 0usize;
         let mut image_count = 0;
         let mut content_edits = Vec::new();
+        let mut annotation_edits = Vec::new();
         for (edit_index, edit) in params.edits.iter().enumerate() {
             match edit {
                 FigureEdit::ContentDelete { .. }
@@ -533,6 +554,12 @@ impl PlotiumApp {
                     }
                     modified.push(target.clone());
                 }
+                FigureEdit::AnnotationCreate { target, .. }
+                | FigureEdit::AnnotationSet { target, .. }
+                | FigureEdit::AnnotationDelete { target, .. } => {
+                    annotation_edits.push(super::figure_edit_annotation::apply(&mut page, edit)?);
+                    modified.push(target.clone());
+                }
                 FigureEdit::ImageCreate {
                     parent,
                     name,
@@ -564,7 +591,7 @@ impl PlotiumApp {
         }
         let panel_frames=page.panels.iter().map(|p|json!({"target":TargetRef::resource(panel_resource(&page,p)),"frame_pt":[p.frame.x,p.frame.y,p.frame.width,p.frame.height]})).collect::<Vec<_>>();
         let content_frames = super::figure_edit_content::final_frames(&page, &params.edits)?;
-        let result = json!({"canvas":params.canvas,"size_mm":page.size_mm,"size_preset":page.size_preset_id,"margin_mm":page.layout.margin_mm,"gutter_mm":page.layout.gutter_mm,"panel_frames":panel_frames,"content_edits":content_edits,"content_frames":content_frames,"created":created,"modified":modified,"frame_contract":"Panel frames are page-relative pt; resizing proportionally scales child-local frames. Content frames are parent-local pt (page pt for canvas parent); content_frame changes only the specified item. No automatic reflow."});
+        let result = json!({"canvas":params.canvas,"size_mm":page.size_mm,"size_preset":page.size_preset_id,"margin_mm":page.layout.margin_mm,"gutter_mm":page.layout.gutter_mm,"panel_frames":panel_frames,"content_edits":content_edits,"content_frames":content_frames,"annotation_edits":annotation_edits,"created":created,"modified":modified,"frame_contract":"Panel frames are page-relative pt; resizing proportionally scales child-local frames. Content frames are parent-local pt (page pt for canvas parent); content_frame changes only the specified item. No automatic reflow."});
         Ok(FigureEditPlan {
             expected_revision: revision,
             canvas: params.canvas.clone(),

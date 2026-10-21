@@ -99,7 +99,7 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
                 if plotium_render::renders_legend(plot.figure()) {
                     fonts.push(typography.legend_pt);
                 }
-                for annotation in &plot.figure().annotations {
+                for annotation in plot.figure().text_annotations() {
                     fonts.push(annotation.size);
                 }
                 for series in &plot.figure().series {

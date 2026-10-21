@@ -574,6 +574,9 @@ pub fn view_to_canvas(
                     &figure,
                 )
                 .map_err(ProjectError::Invalid)?;
+                axis_overrides.annotations.validate().map_err(|e| {
+                    ProjectError::Invalid(format!("view {view_id} object {}: {e}", view_object.id))
+                })?;
                 // Must track the branch actually taken above: a snapshot has axis
                 // overrides and the viewport already baked in, a rebuilt figure
                 // does not, so a bypassed snapshot has to be treated as absent
@@ -596,6 +599,9 @@ pub fn view_to_canvas(
                 if !snapshot_backed {
                     axis_overrides.apply_to(&mut figure);
                 }
+                // Overrides are the one source of authored annotations; a
+                // snapshot's baked copy is a lifecycle copy, not a second state.
+                figure.author_annotations = axis_overrides.annotations.lower();
                 let mut viewport = view_object
                     .viewport
                     .as_ref()

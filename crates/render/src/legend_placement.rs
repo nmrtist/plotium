@@ -145,7 +145,7 @@ pub(crate) fn for_each_segment(
             add_segment(project(low), project(high));
         }
     }
-    for annotation in fig.annotations.iter().filter(|a| finite(a.at)) {
+    for annotation in fig.text_annotations().filter(|a| finite(a.at)) {
         let p = project(annotation.at);
         add_segment(p, p);
     }

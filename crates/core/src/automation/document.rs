@@ -182,6 +182,14 @@ impl Node<'_> {
                         out["coordinate_units"] = json!(p.binding.coordinates);
                         out["chart_id"] = json!(p.chart.type_id);
                         out["chart_column"] = json!(p.chart.column);
+                        out["annotations"] = json!(
+                            p.axis_overrides
+                                .annotations
+                                .items
+                                .iter()
+                                .map(crate::state::annotation_reading)
+                                .collect::<Vec<_>>()
+                        );
                     }
                     ContentKind::Text(text) => {
                         out["text"] = json!(text.text);

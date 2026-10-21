@@ -123,6 +123,7 @@ macro_rules! local_id {
 local_id!(SeriesId);
 local_id!(FieldId);
 local_id!(ContentId);
+local_id!(AnnotationId);
 
 /// Transitional source-level spelling used by the existing chart editing UI.
 /// Persisted page content is identified by `ContentId`; this alias does not

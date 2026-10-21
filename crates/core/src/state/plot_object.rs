@@ -307,6 +307,14 @@ impl PlotObject {
         self.axis_overrides.apply_to(&mut self.figure);
     }
 
+    /// Replace authored annotations without a rebuild: anchors are data
+    /// coordinates, so only the lowered labels and legend room change.
+    pub(crate) fn set_annotations(&mut self, annotations: super::PlotAnnotations) {
+        self.figure.author_annotations = annotations.lower();
+        self.axis_overrides.annotations = annotations;
+        self.apply_viewport();
+    }
+
     pub(crate) fn set_figure_typography(&mut self, typography: FigureTypography) {
         self.figure.typography = typography;
         self.axis_overrides
