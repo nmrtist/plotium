@@ -56,7 +56,6 @@ fn data_only_import_requires_permission_and_one_use_plan() {
     let f = Input::new();
     let mut s = Session::default();
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let context = app.session.project_context;
     assert_eq!(
         s.call(&mut app, "plotium_plan", arguments(&f, 0, context))
@@ -100,9 +99,19 @@ fn data_only_import_requires_permission_and_one_use_plan() {
     assert_eq!(result["value"]["status"], "succeeded");
     assert_ne!(result["produced"][0]["id"], proposed);
     assert!(app.doc.canvases.is_empty());
+    assert!(app.session.active_canvas.is_none());
+    assert!(app.doc.dirty);
+    assert_eq!(app.doc.automation_runs.len(), 1);
+    let id = app.doc.datasets[0].resource_id();
+    app.undo();
+    assert!(app.doc.datasets.is_empty());
+
+    assert!(app.doc.dirty);
+    app.redo();
+    assert_eq!(app.doc.datasets[0].resource_id(), id);
     s.allow_modify = false;
     let metadata = &result["value"]["items"][0]["metadata"];
-    let read = json!({"expected_project_context":context,"expected_revision":1,"dataset_id":metadata["dataset_id"],"table_revision":metadata["table_revision"]});
+    let read = json!({"expected_project_context":context,"expected_revision":app.doc.automation_revision,"dataset_id":metadata["dataset_id"],"table_revision":metadata["table_revision"]});
     assert_eq!(
         s.call(&mut app, "plotium_table_columns", read.clone())
             .unwrap()["value"]["total_rows"],
@@ -115,10 +124,42 @@ fn data_only_import_requires_permission_and_one_use_plan() {
     );
 }
 #[test]
+fn all_failed_import_keeps_pristine_project_clean_and_undo_free() {
+    let dir = tempfile::tempdir().unwrap();
+    for parameters in [
+        json!({"mode":"table_data_only","paths":[dir.path().join("missing.csv")],"header":"present"}),
+        json!({"paths":[dir.path().join("missing.jdf")]}),
+    ] {
+        let mut app = PlotiumApp::new_with_settings(Default::default());
+        let mut s = Session::default();
+        s.set_allow_modify(true);
+        let context = app.session.project_context;
+        let plan = s.call(&mut app, "plotium_plan", json!({
+            "expected_project_context":context,"expected_revision":0,"tool_id":"data.import",
+            "parameters":parameters
+        })).unwrap();
+        let result = s
+            .call(
+                &mut app,
+                "plotium_execute",
+                json!({"plan_id":plan["plan_id"]}),
+            )
+            .unwrap();
+        assert_eq!(result["value"]["status"], "failed");
+        assert_eq!(app.session.project_context, context);
+        assert!(app.doc.datasets.is_empty() && app.doc.canvases.is_empty());
+        assert!(!app.doc.dirty);
+        assert_eq!(app.doc.edit_generation, 0);
+        assert_eq!(app.doc.automation_revision, 0);
+        assert!(app.doc.automation_runs.is_empty());
+        assert!(app.session.undo_stack.is_empty() && app.session.redo_stack.is_empty());
+    }
+}
+
+#[test]
 fn background_preflight_keeps_other_tools_available_and_returns_only_when_prepared() {
     let f = Input::new();
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let context = app.session.project_context;
     let mut c = Connection::start(|| {}).unwrap();
     let (req, mut rx) = pending(arguments(&f, 0, context));
@@ -184,7 +225,6 @@ fn cancelled_stopped_stale_or_revoked_preflight_never_installs_data() {
     let f = Input::new();
     for mode in ["cancel", "stop", "stale", "permission", "barrier"] {
         let mut app = PlotiumApp::new();
-        app.session.project_present = true;
         let context = app.session.project_context;
         let mut c = Connection::start(|| {}).unwrap();
         let (req, rx) = pending(arguments(&f, 0, context));
@@ -217,13 +257,15 @@ fn cancelled_stopped_stale_or_revoked_preflight_never_installs_data() {
         }
         assert!(app.doc.datasets.is_empty());
         assert!(rx.blocking_recv().map_or(true, |v| v.is_err()));
+        assert!(!app.doc.dirty);
+        assert!(app.doc.automation_runs.is_empty());
+        assert!(app.session.undo_stack.is_empty() && app.session.redo_stack.is_empty());
     }
 }
 #[test]
 fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
     let mut s = Session::default();
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let context = app.session.project_context;
     let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
     let caps = &state["connection_capabilities"];
@@ -268,7 +310,6 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
 fn import_worker_failure_reaches_client_and_keeps_document_unchanged() {
     let f = Input::new();
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let context = app.session.project_context;
     let mut c = Connection::start(|| {}).unwrap();
     let args = arguments(&f, 0, context);
@@ -308,7 +349,6 @@ fn real_http_import_columns_and_page_10001_use_the_same_native_table() {
     }
     std::fs::write(&f.0, text).unwrap();
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let context = app.session.project_context;
     let args = arguments(&f, 0, context);
     let mut c = Connection::start(|| {}).unwrap();

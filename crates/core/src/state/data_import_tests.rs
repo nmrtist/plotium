@@ -100,7 +100,8 @@ fn document_swap_discards_ready_results_and_queued_requests() {
     app.queue_data_import("old queued".into(), || {
         panic!("old request must be dropped")
     });
-    app.start_new_project();
+    app.close_project();
+
     assert!(sender.send(Event::Finished).is_err());
     assert!(!app.poll_data_import());
     assert!(app.doc.datasets.is_empty());

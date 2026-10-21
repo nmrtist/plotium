@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 
 fn fixture() -> PlotiumApp {
     let (mut app, _) = crate::component_tests::fixture();
-    app.session.project_present = true;
     app.doc.canvases.truncate(1);
     let c = &mut app.doc.canvases[0];
     let mut object = c.objects[0].clone();

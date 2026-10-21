@@ -30,36 +30,7 @@ fn session() -> Session {
 }
 
 #[test]
-fn welcome_state_is_readable_without_creating_or_auditing_a_project() {
-    let mut app = PlotiumApp::new_with_settings(Default::default());
-    let mut s = session();
-    let context = app.session.project_context;
-    for blocked in [false, true] {
-        let v = s
-            .call_when_available(&mut app, "plotium_get_state", json!({}), blocked)
-            .unwrap();
-        assert_eq!(v["project_present"], false);
-        assert!(v["project"].is_null());
-        assert_eq!(v["availability"]["native_import"]["available"], !blocked);
-        assert!(
-            v["connection_capabilities"]["operation_constraints"]["data.import"]["schema"]["oneOf"]
-                .is_array()
-        );
-    }
-    assert_eq!(app.session.project_context, context);
-    assert!(!app.doc.dirty);
-    assert!(app.doc.automation_runs.is_empty());
-    app.start_new_project();
-    app.session.ui.phase_edit_active = true;
-    let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
-    assert_eq!(state["project_present"], true);
-    assert!(state["project"].is_null() && state["selection"].is_null());
-    assert!(app.doc.automation_runs.is_empty());
-    assert!(!app.doc.dirty);
-}
-
-#[test]
-fn frozen_jdf_from_welcome_keeps_science_context_and_all_ids_through_undo_redo() {
+fn native_import_freezes_source_and_preserves_science_provenance_and_undo_ids() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("synthetic.jdf");
     std::fs::copy(fixture("jeol-diffusion.jdf"), &path).unwrap();
@@ -67,7 +38,6 @@ fn frozen_jdf_from_welcome_keeps_science_context_and_all_ids_through_undo_redo()
     let mut s = session();
     let context = app.session.project_context;
     let p = plan(&mut s, &mut app, std::slice::from_ref(&path));
-    assert!(!app.session.project_present);
     assert!(!app.doc.dirty);
     assert!(app.doc.automation_runs.is_empty());
     let proposed = &p["import"]["items"][0]["metadata"];
@@ -75,6 +45,27 @@ fn frozen_jdf_from_welcome_keeps_science_context_and_all_ids_through_undo_redo()
     std::fs::remove_file(path).unwrap();
     let result = execute(&mut s, &mut app, &p).unwrap();
     assert_eq!(result["value"]["status"], "succeeded");
+    assert_eq!(app.doc.automation_runs.len(), 1);
+    let saved = temp.path().join("imported.plotium");
+    plotium_core::project::save_project_snapshot(plotium_core::project::prepare_project_save(
+        &app, &saved, false,
+    ))
+    .unwrap();
+    let reloaded = plotium_core::project::load_project(&saved).unwrap();
+    assert_eq!(
+        serde_json::to_value(&reloaded.doc.automation_runs).unwrap(),
+        serde_json::to_value(&app.doc.automation_runs).unwrap()
+    );
+    assert_eq!(
+        reloaded.doc.datasets[0]
+            .as_nmr2d()
+            .unwrap()
+            .suggested_diffusion_input(),
+        app.doc.datasets[0]
+            .as_nmr2d()
+            .unwrap()
+            .suggested_diffusion_input()
+    );
     assert_eq!(
         json!(app.doc.datasets[0].resource_id()),
         proposed["dataset_id"]
@@ -83,7 +74,6 @@ fn frozen_jdf_from_welcome_keeps_science_context_and_all_ids_through_undo_redo()
         json!(app.doc.canvases[0].resource_id),
         proposed["canvas_id"]
     );
-    assert!(app.session.project_present);
     assert_eq!(app.session.project_context, context);
     let d = app.doc.datasets[0].as_nmr2d().unwrap();
     assert_eq!(d.data.rows, 14);
@@ -143,7 +133,6 @@ fn frozen_jdf_from_welcome_keeps_science_context_and_all_ids_through_undo_redo()
     );
     app.undo();
     assert!(app.doc.datasets.is_empty() && app.doc.canvases.is_empty());
-    assert!(app.session.project_present);
     app.redo();
     assert_eq!(
         json!(app.doc.datasets[0].resource_id()),
@@ -195,15 +184,6 @@ fn generic_loader_handles_jcamp_atomic_bruker_directory_and_partial_failure() {
     app.undo();
     assert_eq!(app.doc.datasets.len(), 2);
     assert_eq!(app.doc.datasets[0].resource_id(), first);
-    let mut welcome = PlotiumApp::new_with_settings(Default::default());
-    let p = plan(&mut s, &mut welcome, &[missing]);
-    assert_eq!(
-        execute(&mut s, &mut welcome, &p).unwrap()["value"]["status"],
-        "failed"
-    );
-    assert!(!welcome.session.project_present);
-    assert!(!welcome.doc.dirty);
-    assert!(welcome.doc.automation_runs.is_empty());
 }
 
 #[test]
@@ -274,9 +254,9 @@ fn background_native_preflight_keeps_state_responsive_and_discards_cancelled_or_
         c.dispatch_request(&mut app, req, false).unwrap();
         assert!(rx.try_recv().is_err());
         assert!(
-            !c.session
+            c.session
                 .call(&mut app, "plotium_get_state", json!({}))
-                .unwrap()["project_present"]
+                .unwrap()["availability"]["project_read"]["available"]
                 .as_bool()
                 .unwrap()
         );
@@ -304,6 +284,8 @@ fn background_native_preflight_keeps_state_responsive_and_discards_cancelled_or_
         );
         assert!(app.doc.datasets.is_empty());
         assert!(!app.doc.dirty);
+        assert!(app.doc.automation_runs.is_empty());
+        assert!(app.session.undo_stack.is_empty() && app.session.redo_stack.is_empty());
     }
 }
 
@@ -349,61 +331,4 @@ fn native_reservations_are_shared_and_released_on_every_plan_consumption() {
         "stale_revision"
     );
     assert_eq!(s.remaining_import_bytes(), NATIVE_IMPORT_BYTES);
-}
-
-#[test]
-fn real_mcp_imports_jdf_from_welcome_and_discovers_produced_resources() {
-    use rmcp::{
-        ServiceExt,
-        model::CallToolRequestParams,
-        transport::{
-            StreamableHttpClientTransport,
-            streamable_http_client::StreamableHttpClientTransportConfig,
-        },
-    };
-    let mut c = Connection::start(|| {}).unwrap();
-    c.session.allow_modify = true;
-    let mut app = PlotiumApp::new_with_settings(Default::default());
-    let mut config = StreamableHttpClientTransportConfig::with_uri(c.url.clone());
-    config.auth_header = Some(c.token.clone());
-    let path = fixture("jeol-diffusion.jdf");
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
-        let client=tokio::spawn(async move {
-            let http=reqwest::Client::builder().no_proxy().build().unwrap();
-            let client=().serve(StreamableHttpClientTransport::with_client(http,config)).await.unwrap();
-            async fn call(client: &rmcp::service::RunningService<rmcp::RoleClient,()>, name: &str, args: Value) -> Value {
-                let r=client.call_tool(CallToolRequestParams::new(name.to_owned()).with_arguments(args.as_object().unwrap().clone())).await.unwrap();
-                assert_eq!(r.is_error,Some(false),"{r:?}");
-                r.structured_content.unwrap()
-            }
-            let state=call(&client,"plotium_get_state",json!({})).await;
-            assert_eq!(state["project_present"],false);
-            let p=call(&client,"plotium_plan",json!({"tool_id":"data.import","parameters":{"paths":[path]},"expected_revision":state["revision"],"expected_project_context":state["project_context"]})).await;
-            assert_eq!(p["import"]["items"][0]["metadata"]["inspection"]["dimension"]["shape"][0],14);
-            let r=call(&client,"plotium_execute",json!({"plan_id":p["plan_id"]})).await;
-            assert_eq!(r["value"]["status"],"succeeded");
-            assert_eq!(r["produced"].as_array().unwrap().len(),2);
-            let resources=call(&client,"plotium_resources_search",json!({"expected_revision":r["after_revision"],"expected_project_context":state["project_context"],"query":{}})).await;
-            for produced in r["produced"].as_array().unwrap() { assert!(resources.to_string().contains(produced["id"].as_str().unwrap())); }
-            client.cancel().await.unwrap();
-        });
-        tokio::time::timeout(Duration::from_secs(30),async {
-            while !client.is_finished() {
-                if let Some(req)=c.next_request() {c.dispatch_request(&mut app,req,false).unwrap();}
-                c.poll_import(&mut app,false).unwrap();
-                tokio::time::sleep(Duration::from_millis(1)).await;
-            }
-            client.await.unwrap();
-        }).await.unwrap();
-    });
-    let d = app.doc.datasets[0].as_nmr2d().unwrap();
-    assert_eq!(d.data.rows, 14);
-    assert_eq!(
-        d.data
-            .jeol_diffusion
-            .as_ref()
-            .unwrap()
-            .seconds("diffusion_time"),
-        Some(0.1)
-    );
 }

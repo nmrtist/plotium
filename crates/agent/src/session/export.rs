@@ -54,7 +54,7 @@ impl Session {
                 "Wait for the current desktop operation",
             ));
         }
-        ensure_idle(app)?;
+        ensure_not_busy(app)?;
         if plan.revision != app.doc.automation_revision {
             return Err(Failure::new(
                 "stale_revision",

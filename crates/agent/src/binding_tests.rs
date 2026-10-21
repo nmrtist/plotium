@@ -4,7 +4,6 @@ use serde_json::{Value, json};
 use std::time::Duration;
 fn fixture() -> PlotiumApp {
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let cols = [
         ("x", vec![0., 1., 2.]),
         ("y", vec![1., 2., 4.]),

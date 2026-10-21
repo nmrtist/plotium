@@ -174,7 +174,7 @@ Claude Desktop 中与 AI 对话。
 请保留完整的 Plotium 发行目录，包括 `plotium-mcp`（Windows 下为
 `plotium-mcp.exe`）。接入前，先安装你要使用的 AI 客户端。
 
-1. 在 Plotium 中打开或新建项目。
+1. 打开 Plotium。
 2. 打开 **Preferences → AI connections (MCP)**。也可以点击 Ribbon 中操作历史
    旁的机器人图标，或使用菜单 **File → AI connections (MCP)…**。
 3. 开启 **Enable MCP**。在 **Access** 中，选择 **Read only**（只读）可先查看项目，
@@ -297,7 +297,7 @@ Ribbon 折叠后仍可使用此图标。
 | 错误提示缺少 Node.js | 检查客户端的 Node.js 安装，或选择独立的客户端可执行文件后重试 |
 | 已有另一个名为 `plotium` 的服务器 | 先检查现有配置；确定要替换时点击 **Back up and replace this entry**。Plotium 会备份原条目，不改动其他服务器 |
 | 显示 **Configured**，但没有客户端活动 | 重载客户端的 MCP 配置或重启客户端，再发送上面的首次请求；检查客户端是否禁用或阻止了该服务器 |
-| 客户端提示先打开项目 | 在 Plotium 中打开或新建项目，再让客户端重新查看 |
+| 客户端报告项目状态过时 | 让客户端重新调用 `plotium_get_state` 后再继续 |
 | 提示连接由另一个 Plotium 实例提供 | 使用提供连接的实例，或退出该实例，让当前实例接入。切换窗口焦点不会切换 AI 访问的项目 |
 | Windows 更新时提示连接器被占用 | 退出正在使用 Plotium 的 AI 客户端，再在连接设置中点击 **Retry** |
 | 缺少连接器或 Claude Desktop 扩展 | 重新解压完整 Plotium 发行包，将其中的文件保留在一起 |

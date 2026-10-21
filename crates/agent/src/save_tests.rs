@@ -82,7 +82,7 @@ fn captured_worker_isolated_from_new_edits_same_revision_projects_and_connection
     isolated(
         "save_tests::captured_worker_isolated_from_new_edits_same_revision_projects_and_connection_stop",
         || {
-            for mode in ["edit", "project", "stop"] {
+            for mode in ["edit", "project", "close", "stop"] {
                 let dir = tempfile::tempdir().unwrap();
                 let path = dir.path().join("save.plotium");
                 let mut a = project();
@@ -110,6 +110,7 @@ fn captured_worker_isolated_from_new_edits_same_revision_projects_and_connection
                         a.mark_document_dirty();
                     }
                     "project" => a.start_new_project(),
+                    "close" => a.close_project(),
                     _ => c.stop(),
                 };
                 tx.send(()).unwrap();
@@ -133,7 +134,7 @@ fn captured_worker_isolated_from_new_edits_same_revision_projects_and_connection
                     );
                     assert!(!path.exists());
                     assert!(!a.external_save_can_apply(&id));
-                    if mode == "project" {
+                    if mode == "project" || mode == "close" {
                         assert_eq!(a.doc.automation_revision, identity.document_revision);
                         assert!(a.doc.project_path.is_none());
                         assert!(!a.doc.dirty);

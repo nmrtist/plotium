@@ -57,3 +57,5 @@ description: 浏览数据集与派生结果，并把工作保存为项目。
 
 **File → New Project**、**Close Project**、打开其他项目和退出 Plotium 在
 当前项目有未保存修改时，都使用同一个 **Save / Discard / Cancel** 确认流程。
+
+在欢迎页可打开数据、导入表格或打开已保存的项目。**Close Project** 会返回欢迎页。

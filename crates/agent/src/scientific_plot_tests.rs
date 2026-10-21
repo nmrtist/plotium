@@ -134,16 +134,12 @@ fn input() -> Value {
 }
 
 #[test]
-fn welcome_to_native_decay_mono_exp_and_ilt_plots_checks_science_and_undo() {
+fn native_decay_mono_exp_and_ilt_plots_check_science_and_undo() {
     let dir = tempfile::tempdir().unwrap();
     let path = acquisition(dir.path());
     let mut a = PlotiumApp::new_with_settings(Default::default());
     let mut s = Session::default();
     s.set_allow_modify(true);
-    assert_eq!(
-        s.call(&mut a, "plotium_get_state", json!({})).unwrap()["project_present"],
-        false
-    );
     let imported = edit(&mut s, &mut a, "data.import", json!({"paths":[path]}), None);
     assert_eq!(imported["value"]["status"], "succeeded", "{imported}");
     let source = resource(&a, KIND_FIELD, "nmr.stack");
@@ -488,7 +484,7 @@ async fn http_preview(client: &Client, canvas: &Value, size_mm: Value) {
 }
 
 #[test]
-fn real_http_mcp_welcome_processing_fit_and_both_dosy_native_pngs() {
+fn real_http_mcp_processing_fit_and_both_dosy_native_pngs() {
     use rmcp::{
         ServiceExt,
         transport::{
@@ -507,7 +503,6 @@ fn real_http_mcp_welcome_processing_fit_and_both_dosy_native_pngs() {
         let task = tokio::spawn(async move {
             let client=().serve(StreamableHttpClientTransport::with_client(reqwest::Client::builder().no_proxy().build().unwrap(),config)).await.unwrap();
             let state = http_call(&client,"plotium_get_state",json!({})).await;
-            assert_eq!(state["project_present"],false);
             assert!(state["connection_capabilities"]["operation_constraints"][FIELD_PLOT_CREATE]["schema"].is_object());
             let imported = http_edit(&client,"data.import",json!({"paths":[path]}),None).await;
             assert_eq!(imported["value"]["status"],"succeeded");

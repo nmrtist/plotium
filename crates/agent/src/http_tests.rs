@@ -19,7 +19,6 @@ fn real_http_mcp_handshake_discovery_bridge_and_authentication() {
         .build()
         .unwrap();
     let mut app = plotium_core::state::PlotiumApp::new();
-    app.session.project_present = true;
     runtime.block_on(async {
         let client = tokio::spawn(async move {
             let http = reqwest::Client::builder().no_proxy().build().unwrap();
@@ -153,7 +152,6 @@ fn stop_revokes_token_rejects_queue_and_restart_changes_credentials() {
 fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
     let (mut app, targets) = crate::component_tests::fixture();
     let context = app.session.project_context;
-    app.session.project_present = true;
     let resource_id = targets[0].resource.id.clone();
     let original = crate::component_tests::values(&app, &targets);
     let before = app.doc.automation_revision;

@@ -4,7 +4,6 @@ use serde_json::{Value, json};
 
 fn fixture() -> PlotiumApp {
     let mut app = PlotiumApp::new();
-    app.session.project_present = true;
     let table = materialized_float_series_table(
         ("x".into(), "s".into(), vec![Some(0.), Some(1.), Some(2.)]),
         [vec![1., 2., 3.], vec![2., 3., 4.]]

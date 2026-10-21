@@ -19,7 +19,7 @@ impl Session {
                 "Resolve recovery or save operation and retry",
             ));
         }
-        ensure_idle(app)?;
+        ensure_not_busy(app)?;
         if !self.allow_modify {
             return Err(Failure::new(
                 "permission_denied",

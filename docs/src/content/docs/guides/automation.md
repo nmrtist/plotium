@@ -193,7 +193,7 @@ Keep the complete Plotium release folder, including `plotium-mcp`
 (`plotium-mcp.exe` on Windows). Install the AI client you want to use before
 adding it to Plotium.
 
-1. Open or create a project in Plotium.
+1. Open Plotium.
 2. Open **Preferences → AI connections (MCP)**. You can also click the robot
    beside Operation history in the Ribbon, or use **File → AI connections (MCP)…**.
 3. Turn on **Enable MCP**. Under **Access**, choose **Read only** to explore
@@ -348,7 +348,7 @@ open connection settings; it remains available when the Ribbon is collapsed.
 | An error mentions Node.js | Check the client's Node.js installation, or select a standalone client executable, then try again |
 | A different server named `plotium` already exists | Review the existing entry. Choose **Back up and replace this entry** only if you want to replace it; Plotium backs it up and leaves other servers unchanged |
 | **Configured**, but no client activity | Reload the client's MCP configuration or restart it, then send the first request above. Check whether the client has disabled or blocked the server |
-| The client asks you to open a project | Open or create a project in Plotium, then ask the client to inspect it again |
+| The client reports outdated project state | Ask it to read `plotium_get_state` again before continuing |
 | Another Plotium instance owns the connection | Use the instance providing the connection, or exit it so this instance can connect. Switching window focus does not switch the AI's target |
 | Windows reports that the connector is in use during an update | Exit AI clients using Plotium, then press **Retry** in connection settings |
 | A connector or Claude Desktop extension is missing | Extract the complete Plotium release again; keep its files together |

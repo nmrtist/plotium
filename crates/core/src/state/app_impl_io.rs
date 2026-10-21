@@ -10,7 +10,6 @@ impl PlotiumApp {
             Ok(mut loaded) => {
                 loaded.doc.project_path = Some(path.to_owned());
                 loaded.doc.dirty = false;
-                loaded.session.project_present = true;
                 loaded.clear_history();
                 self.install_loaded_project(loaded);
                 // A dataset whose stored analysis result could not be restored is

@@ -294,6 +294,11 @@ impl PreparedToolRun {
         let tool_id = plan.request.tool_id.clone();
         let tool_version = plan.request.tool_version;
         let end_revision = DocumentRevision(app.doc.automation_revision);
+        // An import that committed nothing has no scientific output to record.
+        // Keep its failure feedback in runtime state without dirtying the document.
+        if tool_id == "data.import" && start_revision == end_revision {
+            return Ok(());
+        }
         let (result, errors) = match outcome {
             Ok(result) => {
                 // A tool that reports a per-target failure without failing outright

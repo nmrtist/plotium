@@ -70,3 +70,6 @@ overwrite is recoverable.
 **File → New Project**, **Close Project**, opening another project, and
 quitting all use the same **Save / Discard / Cancel** check when the current
 project has unsaved changes.
+
+Use the welcome page to open data, import a table, or open a saved project.
+**Close Project** returns to this page.

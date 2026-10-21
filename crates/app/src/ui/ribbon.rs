@@ -127,10 +127,8 @@ fn render_task_row_contents(
         }
     }
 
-    if let (Some(title), Some(width)) = (
-        super::ribbon_chrome::inline_project_title(app),
-        inline_title_width,
-    ) {
+    if let Some(width) = inline_title_width {
+        let title = super::ribbon_chrome::inline_project_title(app);
         ui.separator();
         let title = ui.add_sized(
             [width, ui.spacing().interact_size.y],
