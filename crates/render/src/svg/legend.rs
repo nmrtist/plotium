@@ -17,17 +17,8 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
     let Some(box_geometry) = legend_rect(fig, plot, 1.0) else {
         return;
     };
-    let (bx, by, box_w, box_h) = (
-        box_geometry.left,
-        box_geometry.top,
-        box_geometry.width,
-        box_geometry.height,
-    );
-    let _ = write!(
-        s,
-        r#"<rect x="{bx:.2}" y="{by:.2}" width="{box_w:.2}" height="{box_h:.2}" rx="3" fill="white" fill-opacity="0.85" stroke="{axis}" stroke-width="0.75"/>"#,
-        axis = plotium_figure::Color::AXIS.to_hex(),
-    );
+    // Legends draw neither a frame nor a backing.
+    let (bx, by) = (box_geometry.left, box_geometry.top);
     if !fig.guide_title.trim().is_empty() {
         let _ = write!(
             s,

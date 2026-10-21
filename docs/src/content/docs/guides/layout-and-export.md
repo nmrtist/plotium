@@ -269,6 +269,8 @@ What you control directly:
   reserve space to its right or below it. **Layout** switches a categorical
   legend between a vertical list and a horizontal row; **Title** is available
   under the section's advanced controls.
+- Legends draw no border and no background, on screen and in every export
+  format; only their entries and title are drawn.
 - With **Select** active, click a legend or colour scale to open its
   **Legend & scales** settings. Drag a categorical legend to place it freely;
   the custom position survives resizing and is used by every export format.

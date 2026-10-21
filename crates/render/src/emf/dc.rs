@@ -11,8 +11,8 @@ use windows_sys::Win32::Graphics::Gdi::{
     DEFAULT_CHARSET, DIB_RGB_COLORS, DeleteDC, DeleteObject, Ellipse, ExtCreatePen, ExtTextOutW,
     FW_BOLD, FW_NORMAL, GdiAlphaBlend, GetTextMetricsW, HALFTONE, HDC, HGDIOBJ, IntersectClipRect,
     LOGBRUSH, LineTo, MoveToEx, NULL_BRUSH, NULL_PEN, PS_ENDCAP_ROUND, PS_GEOMETRIC, PS_JOIN_ROUND,
-    PS_SOLID, PolyPolyline, Polygon as GdiPolygon, Polyline, Rectangle, RestoreDC, RoundRect,
-    SaveDC, SelectObject, SetStretchBltMode, SetTextAlign, SetTextColor, TA_BASELINE, TEXTMETRICW,
+    PS_SOLID, PolyPolyline, Polygon as GdiPolygon, Polyline, Rectangle, RestoreDC, SaveDC,
+    SelectObject, SetStretchBltMode, SetTextAlign, SetTextColor, TA_BASELINE, TEXTMETRICW,
 };
 
 /// Logical units per point, so hairline geometry survives integer coordinates.
@@ -158,27 +158,6 @@ impl Dc {
         self.stroke_fill(stroke, fill);
         unsafe {
             Rectangle(self.hdc, l(r.left), l(r.top), l(r.right()), l(r.bottom()));
-        }
-    }
-
-    pub fn round_rect(
-        &mut self,
-        r: Rect,
-        corner: f32,
-        fill: Option<Color>,
-        stroke: Option<(Color, f32)>,
-    ) {
-        self.stroke_fill(stroke, fill);
-        unsafe {
-            RoundRect(
-                self.hdc,
-                l(r.left),
-                l(r.top),
-                l(r.right()),
-                l(r.bottom()),
-                l(corner * 2.0),
-                l(corner * 2.0),
-            );
         }
     }
 
