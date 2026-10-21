@@ -229,6 +229,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
     tools.push(Tool::new("plotium_save_status", "Read a retained desktop save receipt after submission or reconnect, without an audit mutation. Queued/running is not success. Never replay an unknown save.", json!({"type":"object","additionalProperties":false,"required":["save_id"],"properties":{"save_id":{"type":"string"}}}).as_object().expect("local schema").clone()));
     tools.push(Tool::new("plotium_export_status", "Read retained per-file native export receipts without an audit mutation, including after reconnect. Never replay unknown exports.", json!({"type":"object","additionalProperties":false,"required":["export_id"],"properties":{"export_id":{"type":"string"}}}).as_object().expect("local schema").clone()));
     for tool in &mut tools {
+        tool.annotations = Some(crate::tool_effects::annotations(&tool.name));
         if !matches!(
             tool.name.as_ref(),
             "plotium_get_state"

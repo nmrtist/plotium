@@ -328,6 +328,12 @@ Plotium stops access. After restarting Plotium or turning MCP back on, you can
 continue in the same AI session without adding the client again. After a project
 switch, ask the AI to inspect the current project before continuing edits.
 
+MCP tool annotations describe tool effects and may inform client approval policy.
+They grant no Plotium permissions and do not remove desktop file confirmation.
+The mixed planning/execution tools use conservative hints. Keep client approval
+scoped to the intended tools and follow the
+[annotation and authorization guidance](/reference/mcp/#tool-annotations-and-client-approval).
+
 ### Understand the robot icon
 
 Hover over the robot for the project, permission and last activity. Click it to

@@ -105,12 +105,16 @@ fn scientific_cancellation_and_permission_revocation_prevent_commit() {
         let (_, submitted) = submit(&mut session, &mut app, &path);
         let task_id = submitted["value"]["task"]["task_id"].clone();
         if cancel {
-            session
+            let cancelled = session
                 .call(&mut app, "plotium_tasks_cancel", json!({"task_id":task_id}))
                 .unwrap();
-            session
-                .call(&mut app, "plotium_tasks_cancel", json!({"task_id":task_id}))
-                .unwrap();
+            assert_eq!(cancelled["task"]["status"], "cancelled");
+            assert_eq!(
+                session
+                    .call(&mut app, "plotium_tasks_cancel", json!({"task_id":task_id}))
+                    .unwrap(),
+                cancelled
+            );
         } else {
             session.set_allow_modify(false);
         }

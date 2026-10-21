@@ -86,6 +86,29 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 
 科学处理与任务接口见下文。应用偏好、新格式解析、科学结果自动建图及内置聊天暂不在此接口范围内。
 
+### 工具 annotations 与客户端审批
+
+每个工具都在 `tools/list` 和 `connection_capabilities.tools` 中提供 MCP
+`annotations`，不随当前 **Access** 设置变化。`readOnlyHint` 表示是否改变环境；
+`destructiveHint` 区分可能破坏性写入与仅追加操作；`idempotentHint` 表示相同参数的
+重复调用是否产生额外影响；`openWorldHint` 表示是否与外部实体交互，包括本地输入／
+输出文件。破坏性和幂等提示仅对非只读工具有意义。参见
+[MCP 注解定义](https://modelcontextprotocol.io/specification/2025-11-25/schema#toolannotations)。
+
+查询、预览和回执查看均为只读，仅访问原生项目／应用状态。诊断也是只读，但续查游标
+仅可使用一次。`plotium_plan` 不是只读：每次成功调用都会保留新的可执行计划，部分
+操作会读取外部数据、schema、处理方案或图片文件，并准备计算；它不提交候选结果，
+也不写出保存／导出目标文件。`plotium_execute` 覆盖编辑、删除、科学任务提交及保存／
+导出请求，因此整个工具保守声明为可能破坏性、非幂等、开放交互域。任务取消会改变任务
+状态，属于可能破坏性写操作；对同一保留任务重复取消不会产生额外影响。
+
+客户端可以依据策略使用可信服务端的提示来决定是否询问审批，但仍可能询问；不可信
+注解不能作为授权依据。客户端审批、Plotium **Access** 与桌面文件确认是独立决定。
+注解不授予权限：revision／context 检查、撤权与一次性计划规则仍然生效。每次保存／导出
+请求仍保留独立桌面确认及准确的文件／覆盖范围，包括 **Read only** 模式。断连或结果
+未知后绝不重放调用，即使标为幂等；应查询状态或保留回执。升级 Plotium 及其连接器后，
+重新连接客户端以刷新工具目录。
+
 ## 从欢迎页导入原生数据
 
 只打开 Plotium 即可调用 `plotium_get_state {}`；后台工作、恢复或保存阻塞项目访问时也可查询。

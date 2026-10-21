@@ -8,6 +8,7 @@ mod imports;
 mod preview;
 mod protocol;
 mod session;
+mod tool_effects;
 mod transforms;
 #[cfg(windows)]
 mod windows_private;

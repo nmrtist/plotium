@@ -33,7 +33,9 @@ pub(crate) const EDIT_OPERATIONS: [&str; 23] = [
 pub(crate) fn manifest(allow_modify: bool) -> Value {
     let tools=crate::protocol::definitions().iter().map(|tool|{
         let (operations,result,targets)=match tool.name.as_ref(){
-            "plotium_tasks_get" | "plotium_tasks_list" | "plotium_tasks_cancel"=>(vec!["tasks.get","tasks.list","tasks.cancel"],"TaskReceipt or {tasks:TaskReceipt[]}; retained in the application process; task_not_found never authorizes replay","TaskId or offset/limit; callable while busy or after project change"),
+            "plotium_tasks_get"=>(vec!["tasks.get"],"{task:TaskReceipt}; retained in the application process; task_not_found never authorizes replay","TaskId; callable while busy or after project change"),
+            "plotium_tasks_list"=>(vec!["tasks.list"],"{tasks:TaskReceipt[]}; retained in the application process","offset/limit; callable while busy or after project change"),
+            "plotium_tasks_cancel"=>(vec!["tasks.cancel"],"{task:TaskReceipt}; task_not_found never authorizes replay","TaskId; callable while busy or after project change; requires reversible_modify"),
             "plotium_analysis_results_inspect"=>(vec!["analysis.results.inspect"],"ToolResult.value: paginated native DOSY/ILT columns, validity, counts and provenance","one result field ID"),
             "plotium_diffusion_inspect"=>(vec!["diffusion.inspect"],"ToolResult.value: {resolution_source,increment_count,input:DiffusionInputReport,field_requirement,executable,acquisition_evidence}","one dataset or field ID"),
             "plotium_processing_inspect"=>(vec!["processing.inspect"],"ToolResult.value: {dataset,axes:[{axis,pipeline,pending_apply}]}","one dataset ID"),
@@ -54,7 +56,7 @@ pub(crate) fn manifest(allow_modify: bool) -> Value {
             "plotium_save_status"=>(vec!["project.save.status"],"{save:SaveReceipt,current_project_context,current_revision,current_dirty,current_path,matches_current_project}; no audit mutation","opaque save_id; retained across reconnect/project changes in this desktop process"),
             _=>unreachable!("all connection tools have discovery contracts"),
         };
-        json!({"name":tool.name,"operations":operations,"input_schema":tool.input_schema,
+        json!({"name":tool.name,"operations":operations,"input_schema":tool.input_schema,"annotations":tool.annotations,
             "result_contract":result,"targets":targets,
             "required_permission":if tool.name=="plotium_execute"{"operation_specific: reversible_modify or per_request_desktop_save/export_authorization"}else if matches!(tool.name.as_ref(),"plotium_preview_plan"|"plotium_tasks_cancel") {"reversible_modify"} else{"read"},
             "currently_permitted":!matches!(tool.name.as_ref(),"plotium_preview_plan"|"plotium_tasks_cancel") || allow_modify})
