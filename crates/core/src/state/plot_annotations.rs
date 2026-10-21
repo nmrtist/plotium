@@ -51,11 +51,17 @@ pub struct PlotAnnotations {
     /// automation reference cannot silently address a newer annotation.
     pub next_id: AnnotationId,
     pub items: Vec<PlotAnnotation>,
+    pub reference_lines: Vec<super::PlotReferenceLine>,
 }
 
 impl PlotAnnotations {
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+        self.items.is_empty() && self.reference_lines.is_empty()
+    }
+
+    /// Annotations of every kind, which share one per-plot budget.
+    pub fn len(&self) -> usize {
+        self.items.len() + self.reference_lines.len()
     }
 
     pub fn get(&self, id: AnnotationId) -> Option<&PlotAnnotation> {
@@ -73,7 +79,7 @@ impl PlotAnnotations {
         text: String,
         font_size: f32,
     ) -> Result<AnnotationId, String> {
-        if self.items.len() >= MAX_PLOT_ANNOTATIONS {
+        if self.len() >= MAX_PLOT_ANNOTATIONS {
             return Err(format!(
                 "A plot holds at most {MAX_PLOT_ANNOTATIONS} annotations."
             ));
@@ -101,7 +107,7 @@ impl PlotAnnotations {
 
     /// Reject files whose annotations could alias an id or fail to render.
     pub fn validate(&self) -> Result<(), String> {
-        if self.items.len() > MAX_PLOT_ANNOTATIONS {
+        if self.len() > MAX_PLOT_ANNOTATIONS {
             return Err(format!(
                 "a plot holds at most {MAX_PLOT_ANNOTATIONS} annotations"
             ));
@@ -109,10 +115,15 @@ impl PlotAnnotations {
         let mut seen = std::collections::BTreeSet::new();
         for annotation in &self.items {
             annotation.validate()?;
-            if annotation.id >= self.next_id || !seen.insert(annotation.id) {
+        }
+        for line in &self.reference_lines {
+            line.validate()?;
+        }
+        let ids = self.items.iter().map(|a| a.id);
+        for id in ids.chain(self.reference_lines.iter().map(|l| l.id)) {
+            if id >= self.next_id || !seen.insert(id) {
                 return Err(format!(
-                    "annotation {} is duplicated or not below the allocator",
-                    annotation.id
+                    "annotation {id} is duplicated or not below the allocator"
                 ));
             }
         }

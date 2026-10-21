@@ -1,6 +1,10 @@
 use super::dto::RangeDto;
-use crate::state::{AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations};
-use plotium_figure::{AxisFrame, GuideLayout, GuidePlacement, GuideVisibility};
+use crate::state::{
+    AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations, PlotReferenceLine,
+};
+use plotium_figure::{
+    AxisFrame, GuideLayout, GuidePlacement, GuideVisibility, LineStyle, ReferenceOrientation,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -49,6 +53,51 @@ pub struct AxisOverridesDto {
 struct PlotAnnotationsDto {
     next_id: AnnotationId,
     items: Vec<PlotAnnotationDto>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    reference_lines: Vec<PlotReferenceLineDto>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PlotReferenceLineDto {
+    id: AnnotationId,
+    orientation: ReferenceOrientation,
+    /// Constant data coordinate in the plot's axis units.
+    value: f64,
+    color: [u8; 3],
+    width: f32,
+    line_style: LineStyle,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    font_size: Option<f32>,
+}
+
+impl PlotReferenceLineDto {
+    fn from_line(line: &PlotReferenceLine) -> Self {
+        Self {
+            id: line.id,
+            orientation: line.orientation,
+            value: line.value,
+            color: [line.color.r, line.color.g, line.color.b],
+            width: line.width,
+            line_style: line.line_style,
+            label: line.label.clone(),
+            font_size: line.font_size,
+        }
+    }
+
+    fn to_line(&self) -> PlotReferenceLine {
+        PlotReferenceLine {
+            id: self.id,
+            orientation: self.orientation,
+            value: self.value,
+            color: plotium_figure::Color::rgb(self.color[0], self.color[1], self.color[2]),
+            width: self.width,
+            line_style: self.line_style,
+            label: self.label.clone(),
+            font_size: self.font_size,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -76,6 +125,11 @@ impl PlotAnnotationsDto {
                     color: [a.color.r, a.color.g, a.color.b],
                 })
                 .collect(),
+            reference_lines: annotations
+                .reference_lines
+                .iter()
+                .map(PlotReferenceLineDto::from_line)
+                .collect(),
         })
     }
 
@@ -92,6 +146,11 @@ impl PlotAnnotationsDto {
                     font_size: a.font_size,
                     color: plotium_figure::Color::rgb(a.color[0], a.color[1], a.color[2]),
                 })
+                .collect(),
+            reference_lines: self
+                .reference_lines
+                .iter()
+                .map(PlotReferenceLineDto::to_line)
                 .collect(),
         }
     }

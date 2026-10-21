@@ -82,9 +82,15 @@ pub enum FigureEdit {
     },
     AnnotationCreate {
         target: TargetRef,
-        text: String,
-        at: [f64; 2],
-        font_pt: f32,
+        #[serde(default)]
+        kind: AnnotationKind,
+        text: Option<String>,
+        at: Option<[f64; 2]>,
+        font_pt: Option<f32>,
+        orientation: Option<plotium_figure::ReferenceOrientation>,
+        value: Option<f64>,
+        label: Option<String>,
+        line: Option<ReferenceLineStyleEdit>,
     },
     AnnotationSet {
         target: TargetRef,
@@ -92,6 +98,10 @@ pub enum FigureEdit {
         text: Option<String>,
         at: Option<[f64; 2]>,
         font_pt: Option<f32>,
+        orientation: Option<plotium_figure::ReferenceOrientation>,
+        value: Option<f64>,
+        label: Option<String>,
+        line: Option<ReferenceLineStyleEdit>,
     },
     AnnotationDelete {
         target: TargetRef,

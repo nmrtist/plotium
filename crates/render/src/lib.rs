@@ -6,6 +6,7 @@ pub mod contour;
 mod curve_style;
 pub mod diagnostics;
 pub mod integral;
+mod reference_lines;
 pub mod rich_text;
 #[cfg(feature = "screen")]
 mod screen_contour_cache;

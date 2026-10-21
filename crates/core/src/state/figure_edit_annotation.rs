@@ -32,10 +32,22 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
         .ok_or("Plot target disappeared.")?;
     let mut annotations = plot.axis_overrides.annotations.clone();
     let missing = || "Discover an exact annotation id on this plot.".to_owned();
+    if let Some(id) = super::figure_edit_reference_line::apply(&mut annotations, edit)? {
+        let reading = annotations
+            .reference_line(id)
+            .map(super::figure_edit_reference_line::reference_line_reading);
+        plot.set_annotations(annotations);
+        return Ok(json!({"target":target,"op":op,"annotation_id":id,"annotation":reading}));
+    }
     let id = match edit {
         FigureEdit::AnnotationCreate {
             text, at, font_pt, ..
-        } => annotations.add_text(*at, text.clone(), *font_pt)?,
+        } => match (text, at, font_pt) {
+            (Some(text), Some(at), Some(font_pt)) => {
+                annotations.add_text(*at, text.clone(), *font_pt)?
+            }
+            _ => return Err("A text annotation requires text, at and font_pt.".into()),
+        },
         FigureEdit::AnnotationSet {
             annotation_id: id,
             text,
@@ -74,5 +86,5 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
 }
 
 pub(crate) fn annotation_reading(annotation: &PlotAnnotation) -> Value {
-    json!({"id":annotation.id,"text":annotation.text,"at":annotation.at,"font_pt":annotation.font_size,"anchor_space":"data"})
+    json!({"id":annotation.id,"kind":"text","text":annotation.text,"at":annotation.at,"font_pt":annotation.font_size,"anchor_space":"data"})
 }

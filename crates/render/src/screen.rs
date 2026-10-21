@@ -347,6 +347,7 @@ fn paint_with_detail_and_stats_impl(
     }
 
     crate::screen_annotations::paint(&clipped, fig, &proj, plot, scale);
+    crate::screen_annotations::paint_reference_lines(&clipped, fig, &proj, plot, scale);
 
     paint_contours(
         painter,

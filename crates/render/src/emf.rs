@@ -21,6 +21,7 @@ use windows_sys::Win32::Graphics::Gdi::{
 
 mod curves;
 mod dc;
+mod reference_lines;
 
 use dc::{Dc, TextStyle, blend, l};
 
@@ -486,6 +487,7 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) 
                 ),
             );
         }
+        reference_lines::write(dc, fig, &proj, plot);
         for contour in &fig.contours {
             let segs: Vec<[(f32, f32); 2]> = contour
                 .segments

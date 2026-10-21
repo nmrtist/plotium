@@ -188,6 +188,13 @@ impl Node<'_> {
                                 .items
                                 .iter()
                                 .map(crate::state::annotation_reading)
+                                .chain(
+                                    p.axis_overrides
+                                        .annotations
+                                        .reference_lines
+                                        .iter()
+                                        .map(crate::state::reference_line_reading)
+                                )
                                 .collect::<Vec<_>>()
                         );
                     }

@@ -730,7 +730,8 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 | `text_set` | `target: 完整文字目标`、`text`；可选 `font_pt` |
 | `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG 或 JPEG） |
 | `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt` |
-| `annotation_set` | `target: 完整图目标`、`annotation_id`；`text`、`at`、`font_pt` 至少提供一项 |
+| `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line` 之一 |
 | `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
@@ -764,6 +765,23 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 `coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。标注文字最多 1024
 UTF-8 字节且不得空白，每张图最多 256 个标注。图及其父面板须未锁定；不要求关闭
 Auto height。
+
+参考线是 `kind: "reference_line"` 的图内标注：在 x = `value` 处画竖线，或在
+y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它跟随轴范围、缩放和平移，
+`value` 不在可见范围内时不显示。`line` 设置 `color`（`#rrggbb`）、`width_pt`
+（0.1–20）和 `style`（`solid`、`dashed`、`dotted` 或 `dash_dot`）；新参考线默认
+`#272727`、0.75 pt、虚线，`annotation_set` 中省略的 `line` 字段保持原值。可选
+`label` 以线条颜色显示在竖线顶部附近或横线右端；未设置 `font_pt` 时使用刻度标签
+字号，一旦用 `font_pt` 设定字号便保持该值直至再次修改；`label` 为空字符串时移除
+标签。参考线与文字标注共用同一 id 序列和
+每张图 256 个的上限，`plotium_document_inspect` 在 `annotations` 中同时列出二者，
+并以 `kind` 区分。提供另一类标注的字段会被拒绝，而不是被忽略。
+
+```json
+{"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"reference_line",
+ "orientation":"horizontal","value":0,"label":"baseline",
+ "line":{"color":"#7f7f7f","width_pt":0.5,"style":"dotted"}}
+```
 
 Align 依据所选边界／中心；Distribute 在固定两端中心间等分中心位置，不等分边缘
 间隙。Grid 将已有原生格子算法与 authoring 尺寸 setter 组合用于明确子集，不表示
@@ -1050,7 +1068,7 @@ target 调用 `plotium_preview_plan`：
 | 已有计划 | 候选支持范围 |
 | --- | --- |
 | `properties.set` / `properties.reset` | 上述五个 `object.guides.*` 属性及原生多目标批次 |
-| `figure.edit` 局部编辑 | `content_frame`、`image_replace`、`text_set`、`annotation_create`／`annotation_set`／`annotation_delete` 及原生批次 |
+| `figure.edit` 局部编辑 | `content_frame`、`image_replace`、`text_set`、`annotation_create`／`annotation_set`／`annotation_delete`（文字标注与参考线）及原生批次 |
 | `figure.edit` 纯删除批次 | `content_delete`、原本为空的 `panel_delete`、显式列绑定 `series_delete`；原拒绝规则不变 |
 | 其他操作，包括保存和导出 | 返回 `unsupported_operation`，不改变其正常 execute 合同 |
 
