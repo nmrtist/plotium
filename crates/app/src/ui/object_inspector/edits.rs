@@ -59,13 +59,7 @@ pub(super) fn selection_context_label(app: &PlotiumApp, ci: usize, ids: &[Object
             .and_then(|path| path.panel)
             .and_then(|id| canvas.panel(id))
         {
-            let label = match &panel.label.mode {
-                plotium_core::state::PanelLabelMode::Auto { slot } => {
-                    canvas.panel_label_style.format(*slot as usize)
-                }
-                plotium_core::state::PanelLabelMode::LockedAuto { value }
-                | plotium_core::state::PanelLabelMode::Manual { value } => value.clone(),
-            };
+            let label = canvas.panel_label_text(panel);
             return format!(
                 "{} / {}",
                 canvas.name,
@@ -110,13 +104,7 @@ pub(super) fn selection_context_label(app: &PlotiumApp, ci: usize, ids: &[Object
         .map(|object| object.name.clone())
         .unwrap_or_else(|| "Object".to_owned());
     if let Some(panel) = canvas.parent_panel(ids[0]).and_then(|id| canvas.panel(id)) {
-        let label = match &panel.label.mode {
-            plotium_core::state::PanelLabelMode::Auto { slot } => {
-                canvas.panel_label_style.format(*slot as usize)
-            }
-            plotium_core::state::PanelLabelMode::LockedAuto { value }
-            | plotium_core::state::PanelLabelMode::Manual { value } => value.clone(),
-        };
+        let label = canvas.panel_label_text(panel);
         return format!(
             "{} / {} / {}",
             canvas.name,

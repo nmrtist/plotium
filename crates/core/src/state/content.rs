@@ -235,12 +235,7 @@ pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentIt
         })
         .collect();
     items.extend(canvas.panels.iter().filter_map(|panel| {
-        let text = match &panel.label.mode {
-            PanelLabelMode::Auto { slot } => canvas.panel_label_style.format(*slot as usize),
-            PanelLabelMode::LockedAuto { value } | PanelLabelMode::Manual { value } => {
-                value.clone()
-            }
-        };
+        let text = canvas.panel_label_text(panel);
         (!text.is_empty()).then(|| plotium_render::DocumentItem::PanelLabel {
             frame: panel.frame.rect(),
             text: plotium_render::DocumentText {

@@ -52,7 +52,6 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::DuplicatePanel,
         CommandId::MergePanels,
         CommandId::SplitPanel,
-        CommandId::ReorderPanelLabels,
         CommandId::SetPanelLayout(plotium_core::state::PanelLayout::Free),
         CommandId::SetPanelLayout(plotium_core::state::PanelLayout::VerticalStack),
         CommandId::SetPanelLayout(plotium_core::state::PanelLayout::HorizontalStack),

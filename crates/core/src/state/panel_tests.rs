@@ -163,3 +163,26 @@ fn panel_resize_scales_children_to_the_requested_frame() {
         ObjectFrame::new(0.0, 0.0, 50.0, 30.0)
     );
 }
+
+#[test]
+fn automatic_letters_follow_reading_order_not_creation_order() {
+    let (mut page, _) = page();
+    // Created top-left, bottom-left, then top-right.
+    let a = page.create_panel("a".to_owned(), ObjectFrame::new(0.0, 0.0, 40.0, 40.0));
+    let c = page.create_panel("c".to_owned(), ObjectFrame::new(0.0, 50.0, 40.0, 40.0));
+    let b = page.create_panel("b".to_owned(), ObjectFrame::new(50.0, 0.0, 40.0, 40.0));
+    let letters =
+        |page: &CanvasDocument| [a, b, c].map(|id| page.panel_label_text(page.panel(id).unwrap()));
+    assert_eq!(letters(&page), ["a", "b", "c"]);
+
+    page.panel_mut(c).unwrap().frame.x = -60.0;
+    page.panel_mut(c).unwrap().frame.y = 0.0;
+    assert_eq!(letters(&page), ["b", "c", "a"], "moving re-letters live");
+
+    page.panel_mut(a).unwrap().label.participates_in_sequence = false;
+    assert_eq!(
+        letters(&page),
+        ["", "b", "a"],
+        "opted-out panels show no letter"
+    );
+}

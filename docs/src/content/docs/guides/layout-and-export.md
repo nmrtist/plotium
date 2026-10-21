@@ -102,8 +102,11 @@ Use the Panel inspector to control visibility, locking, clipping, labels, and
 layout. **Vertical Stack**, **Horizontal Stack**, and **Grid** arrange the
 contents using the selected gap, padding, and alignment. Automatic panel letters
 appear only when a page has more than one visible Panel and follow reading order:
-left to right, then top to bottom. A letter placed over an image automatically
-switches between black and white for contrast. Manual and locked labels remain
+rows from top to bottom, left to right within a row. They update as soon as you
+move or add a Panel. Choose **Locked auto** to keep a Panel's current
+letter, or clear **Participates in sequence** to leave it unlettered. A letter
+placed over an image automatically switches between black and white for
+contrast. Manual and locked labels remain
 visible on a page with one Panel.
 
 Drag a single Panel completely clear of every canvas and keep it outside for

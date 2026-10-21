@@ -68,7 +68,6 @@ pub enum CommandId {
     DuplicatePanel,
     MergePanels,
     SplitPanel,
-    ReorderPanelLabels,
     SetPanelLayout(plotium_core::state::PanelLayout),
     MoveContentToPanel(Option<plotium_core::state::PanelId>),
     TogglePrimarySidebar,
@@ -371,14 +370,6 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 .any(|path| path.panel.is_some() && path.content.is_some())
                 && selected_paths_unlocked(app),
             "Select unlocked content inside an unlocked panel before splitting it.",
-        ),
-        CommandId::ReorderPanelLabels => requires(
-            has_canvas
-                && app
-                    .session
-                    .active_canvas
-                    .is_some_and(|ci| !app.doc.canvases[ci].panels.is_empty()),
-            "Create a panel before renumbering panel labels.",
         ),
         CommandId::ZoomToFit => requires(has_canvas, "Open a canvas before showing all of it."),
         CommandId::FitPlotY | CommandId::FitPlotXY => requires(

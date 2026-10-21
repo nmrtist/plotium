@@ -111,10 +111,6 @@ pub(super) fn command_identity(
         CommandId::DuplicatePanel => plain("Duplicate Panel", Some(icon::COPY)),
         CommandId::MergePanels => plain("Merge Selected Panels", Some(icon::UNION)),
         CommandId::SplitPanel => plain("Split Selected Contents into Panel", Some(icon::SCISSORS)),
-        CommandId::ReorderPanelLabels => plain(
-            "Renumber Panels by Reading Order",
-            Some(icon::SORT_ASCENDING),
-        ),
         CommandId::SetPanelLayout(layout) => plain(
             match layout {
                 PanelLayout::Free => "Panel Layout: Free",
@@ -457,7 +453,6 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::DuplicatePanel => "panel.duplicate",
         CommandId::MergePanels => "panel.merge",
         CommandId::SplitPanel => "panel.split",
-        CommandId::ReorderPanelLabels => "panel.renumber",
         CommandId::MoveContentToPanel(_) => "panel.move_content.context",
         CommandId::TogglePrimarySidebar => "view.primary_sidebar",
         CommandId::ToggleSecondarySidebar => "view.secondary_sidebar",

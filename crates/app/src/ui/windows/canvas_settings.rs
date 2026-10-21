@@ -112,8 +112,8 @@ fn panels_section(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) {
         ui.weak("No plots on this page yet.");
         return;
     }
-    for (i, id) in order.into_iter().enumerate() {
-        let letter = app.doc.canvases[ci].panel_label_style.format(i);
+    for id in order {
+        let letter = app.doc.canvases[ci].panel_letter(id).unwrap_or_default();
         let Some(_panel) = app.doc.canvases[ci].panel_meta_for_content(id) else {
             continue;
         };
