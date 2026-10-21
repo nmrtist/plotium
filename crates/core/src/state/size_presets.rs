@@ -68,6 +68,17 @@ impl SizePreset {
         !matches!(self.group, SizePresetGroup::Journal)
     }
 
+    /// Page size after applying this preset to a page of `current_mm`. Fixed
+    /// rectangles and empty pages take the preset size; a journal preset on a
+    /// page with content fixes the width and keeps the content-driven height.
+    pub fn applied_size_mm(&self, current_mm: [f32; 2], has_content: bool) -> [f32; 2] {
+        if self.is_fixed() || !has_content {
+            self.size_mm()
+        } else {
+            [self.width_mm, current_mm[1]]
+        }
+    }
+
     pub fn matches(&self, size_mm: [f32; 2]) -> bool {
         let eq = |a: f32, b: f32| (a - b).abs() < MATCH_TOLERANCE_MM;
         if self.is_fixed() {
@@ -416,6 +427,20 @@ mod tests {
         assert_eq!(NATURE_SINGLE_COLUMN.default_margin_mm(), [0.0; 4]);
         assert_eq!(PAPER_A4.default_margin_mm(), [15.0; 4]);
         assert_eq!(PRESENTATION_16X9.default_margin_mm(), [10.0; 4]);
+    }
+
+    #[test]
+    fn journal_presets_keep_the_height_of_a_page_with_content() {
+        let current = [300.0, 140.0];
+        assert_eq!(
+            NATURE_SINGLE_COLUMN.applied_size_mm(current, true),
+            [89.0, 140.0]
+        );
+        assert_eq!(
+            NATURE_SINGLE_COLUMN.applied_size_mm(current, false),
+            NATURE_SINGLE_COLUMN.size_mm()
+        );
+        assert_eq!(PAPER_A4.applied_size_mm(current, true), PAPER_A4.size_mm());
     }
 
     #[test]

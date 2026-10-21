@@ -671,8 +671,10 @@ GUI 保存重开保留原生绑定和单位；MCP `project.save` 需桌面单独
 完整 `parent` 决定新建范围：
 
 - document 根：新建画布、单面板和图对象。可选
-  `canvas: {name, size_mm: [宽, 高]}`，每边为 10–1000 mm；省略时在预检中
-  冻结原生默认尺寸，画布名称使用图对象名称。
+  `canvas: {name, size_mm: [宽, 高]}`，每边为 10–1000 mm；或用
+  `canvas: {name, size_preset}` 选内置页面尺寸，例如 `nature-1col`（89 mm）、
+  `nature-1p5col`（136 mm）、`nature-2col`（183 mm），并采用该预设的默认高度和
+  边距（期刊栏宽 0 mm、纸张 15 mm、幻灯片 10 mm），结果中返回所用 `size_preset`；省略时在预检中冻结原生默认尺寸，画布名称使用图对象名称。
 - 没有面板或图对象的已有画布：按 GUI 共用的原生空画布放置服务及已有
   布局设置、边距创建面板和图对象。不传 `canvas`。
 - 已有内容的画布：明确提供 `panel_frame_pt: [x,y,宽,高]`，以页面 pt 坐标
@@ -713,7 +715,7 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 
 | `op` | 必需字段及含义 |
 | --- | --- |
-| `page` | 至少提供 `size_mm: [宽,高]`、`margin_mm: [上,右,下,左]`、`gutter_mm` 之一，均为 mm |
+| `page` | 至少提供 `size_mm: [宽,高]` 或 `size_preset`、`margin_mm: [上,右,下,左]`、`gutter_mm` 之一，长度均为 mm。期刊 `size_preset` 设定栏宽，已有内容的页面保持原高度；纸张和幻灯片预设同时设定宽高。未给 `margin_mm` 时页边距改为预设值（期刊 0 mm、纸张 15 mm、幻灯片 10 mm）；结果中返回 `size_preset` |
 | `panel_frame` | `target: 完整面板目标`、`frame_pt: [x,y,宽,高]`，页面 pt |
 | `content_frame` | `target: 完整内容目标`、完整 `frame_pt: [x,y,宽,高]`，父局部 pt；只改该内容 |
 | `image_replace` | `target: 完整 raster 目标`、`path`；以冻结的本地 PNG/JPEG 仅替换资产引用 |

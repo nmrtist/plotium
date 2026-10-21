@@ -242,6 +242,7 @@ fn figure_exact_geometry_rejects_nonfinite_auto_height_and_native_grid_clamping(
         edits: vec![
             FigureEdit::Page {
                 size_mm: Some([180., 90.]),
+                size_preset: None,
                 margin_mm: Some([4., 89.99, 15., 89.99]),
                 gutter_mm: Some(0.),
             },
@@ -270,6 +271,48 @@ fn figure_exact_geometry_rejects_nonfinite_auto_height_and_native_grid_clamping(
             .unwrap_err()
             .contains("Auto height")
     );
+}
+
+#[test]
+fn page_size_preset_sets_journal_width_identity_and_margins_as_one_undo() {
+    let mut a = fixture();
+    a.doc.canvases[0].layout.margin_mm = [3.; 4];
+    let before = a.doc.canvases[0].clone();
+    let p = plan(&a, json!([{"op":"page","size_preset":"science-3col"}]));
+    assert_eq!(p.result["size_mm"], json!([183., before.size_mm[1]]));
+    assert_eq!(p.result["size_preset"], json!("science-3col"));
+    a.commit_figure_edit(p).unwrap();
+    let c = &a.doc.canvases[0];
+    assert_eq!(c.size_mm, [183., before.size_mm[1]]);
+    assert_eq!(c.size_preset_id.as_deref(), Some("science-3col"));
+    assert_eq!(c.layout.margin_mm, [0.; 4]);
+    a.undo();
+    let c = &a.doc.canvases[0];
+    assert_eq!((c.size_mm, c.layout), (before.size_mm, before.layout));
+    assert_eq!(c.size_preset_id, before.size_preset_id);
+    let p = plan(
+        &a,
+        json!([{"op":"page","size_preset":"paper-a4","margin_mm":[5,5,5,5]}]),
+    );
+    assert_eq!(p.result["size_mm"], json!([210., 297.]));
+    assert_eq!(p.result["margin_mm"], json!([5., 5., 5., 5.]));
+    let canvas = TargetRef::resource(a.doc.canvases[0].resource_id.into());
+    for (edit, message) in [
+        (
+            json!({"op":"page","size_preset":"nature-9col"}),
+            "Unknown size preset",
+        ),
+        (
+            json!({"op":"page","size_preset":"nature-1col","size_mm":[89,60]}),
+            "not both",
+        ),
+    ] {
+        let p = serde_json::from_value(json!({"canvas":canvas,"edits":[edit]})).unwrap();
+        let error = a
+            .plan_figure_edit(DocumentRevision(a.doc.automation_revision), &p)
+            .unwrap_err();
+        assert!(error.contains(message), "{error}");
+    }
 }
 
 fn materialize_default(a: &mut PlotiumApp, object: ObjectId) -> TargetRef {

@@ -333,7 +333,8 @@ pub(super) fn prepare(
                     name: p.name.clone(),
                     canvas: Some(NewPlotCanvas {
                         name: p.name.clone(),
-                        size_mm: [180., 150.],
+                        size_mm: Some([180., 150.]),
+                        size_preset: None,
                     }),
                     panel_name: None,
                     panel_frame_pt: Some([36., 50., 438., 235.]),

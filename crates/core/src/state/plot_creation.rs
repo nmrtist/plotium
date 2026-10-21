@@ -31,7 +31,11 @@ pub struct NewCurve {
 #[serde(deny_unknown_fields)]
 pub struct NewPlotCanvas {
     pub name: String,
-    pub size_mm: [f32; 2],
+    /// Exactly one of `size_mm` and `size_preset` (`SizePreset::id`).
+    #[serde(default)]
+    pub size_mm: Option<[f32; 2]>,
+    #[serde(default)]
+    pub size_preset: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -57,6 +61,9 @@ pub struct PlotCreationSummary {
     pub plot: TargetRef,
     pub created: Vec<TargetRef>,
     pub size_mm: [f32; 2],
+    /// Built-in size preset id of a newly created canvas, if one was requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_preset: Option<String>,
     /// Panel-local content rectangle, in points.
     pub frame_pt: [f32; 4],
     /// Panel rectangle in canvas/page points, independent of the content-local origin.
@@ -246,6 +253,7 @@ impl PlotiumApp {
             plot: plot_target,
             created,
             size_mm: page.size_mm,
+            size_preset: page.size_preset_id.clone().filter(|_| new_canvas),
             frame_pt: [0., 0., frame.width, frame.height],
             panel_frame_pt: [frame.x, frame.y, frame.width, frame.height],
             coordinate_units: coordinates,
@@ -285,12 +293,21 @@ impl PlotiumApp {
         params: &PlotCreateParams,
     ) -> Result<(CanvasDocument, Option<PanelId>, bool), String> {
         if params.parent == document_root_target() {
-            let (canvas_name, size) = params
-                .canvas
-                .as_ref()
-                .map_or((params.name.as_str(), DEFAULT_CANVAS_SIZE_MM), |c| {
-                    (c.name.as_str(), c.size_mm)
-                });
+            let (canvas_name, size, preset) = match &params.canvas {
+                None => (params.name.as_str(), DEFAULT_CANVAS_SIZE_MM, None),
+                Some(c) => match (c.size_mm, c.size_preset.as_deref()) {
+                    (Some(size), None) => (c.name.as_str(), size, None),
+                    (None, Some(id)) => {
+                        let preset = super::figure_edit::size_preset_by_id(id)?;
+                        (c.name.as_str(), preset.size_mm(), Some(preset))
+                    }
+                    _ => {
+                        return Err(
+                            "A new canvas takes exactly one of size_mm or size_preset.".into()
+                        );
+                    }
+                },
+            };
             name(canvas_name)?;
             if !size
                 .into_iter()
@@ -300,7 +317,12 @@ impl PlotiumApp {
                     "Canvas width and height must be finite and between 10 and 1000 mm.".into(),
                 );
             }
-            return Ok((CanvasDocument::new(canvas_name.into(), size), None, true));
+            let mut page = CanvasDocument::new(canvas_name.into(), size);
+            if let Some(preset) = preset {
+                page.size_preset_id = Some(preset.id.to_owned());
+                page.layout.margin_mm = preset.default_margin_mm();
+            }
+            return Ok((page, None, true));
         }
         if params.parent.component.is_some() || params.canvas.is_some() {
             return Err(
