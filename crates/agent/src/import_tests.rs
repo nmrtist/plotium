@@ -295,7 +295,7 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
         s.call(
             &mut app,
             "plotium_plan",
-            json!({"expected_project_context":context,"expected_revision":0,"ids":["document"],"tool_id":"figure.apply_theme","parameters":{}})
+            json!({"expected_project_context":context,"expected_revision":0,"ids":["document"],"tool_id":"results.compare","parameters":{}})
         )
         .unwrap_err()
         .code,

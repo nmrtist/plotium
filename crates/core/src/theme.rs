@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 mod user_styles;
 pub use user_styles::{
     STYLE_EXTENSION, StyleError, UserStyleInfo, delete_user_style, list_user_styles,
-    load_user_style, save_user_style, styles_dir, user_style_exists, validate_style_name,
+    load_user_style, resolve_theme, save_user_style, styles_dir, user_style_exists,
+    validate_style_name,
 };
 
 /// A named bundle of document-level style defaults. `trace_palette[0]` is the

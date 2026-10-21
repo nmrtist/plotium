@@ -157,6 +157,21 @@ fn check_sizes(theme: &Theme) -> Result<(), StyleError> {
     Ok(())
 }
 
+/// Resolve a built-in theme id, or else the name of a style saved in `dir`.
+/// Built-in ids win because a style may not be saved under one.
+pub fn resolve_theme(dir: Option<&Path>, id: &str) -> Result<Theme, StyleError> {
+    if let Some(theme) = Theme::by_id(id) {
+        return Ok(theme);
+    }
+    match dir {
+        Some(dir) if user_style_exists(dir, id) => load_user_style(dir, id),
+        _ => Err(StyleError::Invalid(format!(
+            "unknown theme or saved style \"{}\"",
+            id.trim()
+        ))),
+    }
+}
+
 pub fn delete_user_style(dir: &Path, name: &str) -> Result<(), StyleError> {
     std::fs::remove_file(style_path(dir, name)?)?;
     Ok(())

@@ -72,7 +72,7 @@ the static property catalog and save coordination (planning, submission and
 
 The connection supports native acquisition import and CSV/TSV data-only import, native table queries, canvas previews, figure geometry diagnostics,
 document structure, native plot creation and page/panel/text/local-image authoring, explicit numeric curve bindings, supported table transforms, cell patches, explicit saved-recipe refreshes and resource queries, renaming datasets,
-canvases and canvas objects, and these display properties only:
+canvases and canvas objects, applying built-in themes or saved canvas styles to canvases, and these display properties only:
 
 | Property ID | Target | Value |
 | --- | --- | --- |
@@ -242,7 +242,7 @@ contracts, supported operations, property definitions and limits. Standard MCP
 `tools/list` also lists tool input schemas. Resource descriptors describe **core** data and
 rendering capabilities; a capability listed on a resource
 does not make that operation callable through this connection. Only
-`project.save`, `figure.export`, `resource.rename`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
+`project.save`, `figure.export`, `resource.rename`, `figure.apply_theme`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
 `data.import` / `data.transform` modes, `table.patch`, `table.refresh`, `figure.edit`, `plot.create` and `plot.series.append` / `plot.series.bind` / `plot.series.materialize_default` below can be planned here. Read-only access allows table reads
 and existing property preflight, but refuses import/binding/creation/figure-edit/transform/patch/refresh preflight and all reversible edit execution. Saving and exporting use separate per-request desktop authorization, also in Read only mode.
 
@@ -1678,6 +1678,36 @@ reported as skipped while the others apply. `plotium_execute` commits every
 write as one **Undo** step; `value.writes` reports each write's index, key and
 outcome.
 
+## Apply a theme or saved style to a canvas
+
+`figure.apply_theme` restyles whole canvases with one of Plotium's built-in
+themes, such as `nature`, or with a canvas style saved in Plotium. Set
+`theme_id` to a built-in id from
+`operation_constraints["figure.apply_theme"].builtin_themes` in
+`plotium_capabilities_get`, or to the saved style's name. Saved styles are not
+part of the static capabilities: an unknown `theme_id` fails preflight with
+`invalid_parameters`, and `error.details.themes` lists every built-in theme and
+saved style currently available. Plan it with the canvas ids in top-level `ids`:
+
+```json
+{
+  "expected_project_context": "PROJECT_CONTEXT",
+  "expected_revision": 7,
+  "ids": ["CANVAS_ID"],
+  "tool_id": "figure.apply_theme",
+  "parameters": {"theme_id": "nature"}
+}
+```
+
+Preflight needs only read access; executing requires Read and modify.
+Preflight rejects an unknown `theme_id`, Series `targets`, and ids that include
+no canvas; other ids that are not canvases are skipped. A saved style is read
+again when the plan executes. Execution changes each canvas's background, text
+and shape colours, and every curve's colour, marker paint, marker size and line
+width the theme defines, as one **Undo** step.
+The document's style defaults are also replaced: plot text sizes, axis strokes
+and ticks, so plots on other canvases change with them, and the default text,
+panel-label and shape styles for new objects.
 
 ## Save the current desktop project
 
