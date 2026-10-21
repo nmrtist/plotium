@@ -284,6 +284,9 @@ What you control directly:
   **Legend & scales** settings. Drag a categorical legend to place it freely;
   the custom position survives resizing and is used by every export format.
   Double-click a legend or colour scale to restore its automatic placement.
+- Axis titles, legend entries and text use true superscripts and subscripts:
+  type `cm^{-2}` or `H_{2}O`. Characters such as `⁻²` and `₂` are drawn the
+  same way. EMF output falls back to those Unicode characters.
 - **Figure typography** in the Figure Ribbon tab's **Style** group opens the
   document-wide typography section; **Figure Typography…** in the command
   palette shows the same section in its own window with a **Reset to

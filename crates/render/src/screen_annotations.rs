@@ -40,7 +40,8 @@ pub(crate) fn paint(
         ) else {
             continue;
         };
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(label.x, label.top),
             match label.anchor {
                 TextAnchor::Left => Align2::LEFT_TOP,

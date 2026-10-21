@@ -6,6 +6,7 @@ pub mod contour;
 mod curve_style;
 pub mod diagnostics;
 pub mod integral;
+pub mod rich_text;
 #[cfg(feature = "screen")]
 mod screen_contour_cache;
 #[cfg(feature = "screen")]
@@ -433,10 +434,9 @@ pub(crate) fn legend_layout(fig: &Figure, entries: &[(&str, Color, LegendMark)])
     let padding = (font * 0.6).max(3.0);
     let chars = entries
         .iter()
-        .map(|(name, _, _)| name.chars().count())
-        .max()
-        .unwrap_or(0);
-    let entry_width = swatch + 5.0 + chars as f32 * font * 0.6;
+        .map(|(name, _, _)| rich_text::width_in_chars(name))
+        .fold(0.0, f32::max);
+    let entry_width = swatch + 5.0 + chars * font * 0.6;
     let columns = if matches!(fig.guide_layout, plotium_figure::GuideLayout::Horizontal) {
         entries.len().max(1)
     } else {
@@ -447,7 +447,7 @@ pub(crate) fn legend_layout(fig: &Figure, entries: &[(&str, Color, LegendMark)])
     } else {
         row
     };
-    let title_width = fig.guide_title.chars().count() as f32 * font * 0.6;
+    let title_width = rich_text::width_in_chars(&fig.guide_title) * font * 0.6;
     let entries_width = entry_width * columns as f32;
     let entry_rows = entries.len().div_ceil(columns).max(1);
     LegendLayout {
@@ -644,14 +644,16 @@ pub fn range_label_layout(
     // each backend and prevents wide glyphs from leaking through the clip.
     let char_width = font.max(f32::MIN_POSITIVE);
     let max_chars = ((plot.width - inset * 2.0).max(char_width) / char_width).floor() as usize;
-    let count = text.chars().count();
+    // Measure and cut the flattened text so a cut never leaves broken markup.
+    let plain = rich_text::plain(text);
+    let count = plain.chars().count();
     let displayed = if count > max_chars {
         let keep = max_chars.saturating_sub(1);
-        format!("{}…", text.chars().take(keep).collect::<String>())
+        format!("{}…", plain.chars().take(keep).collect::<String>())
     } else {
         text.to_owned()
     };
-    let width = displayed.chars().count() as f32 * char_width;
+    let width = rich_text::plain(&displayed).chars().count() as f32 * char_width;
     if let Some([x, y]) = manual_position {
         let half_width = (width * 0.5).min(plot.width * 0.5);
         let center_x = (plot.left + x.clamp(0.0, 1.0) * plot.width)

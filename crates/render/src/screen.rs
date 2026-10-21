@@ -92,7 +92,8 @@ fn paint_with_detail_and_stats_impl(
     );
 
     if !fig.title.trim().is_empty() {
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(
                 outer.left + outer.width / 2.0,
                 outer.top + (OUTER_PAD + ty.title_pt * 0.5) * scale,
@@ -171,7 +172,8 @@ fn paint_with_detail_and_stats_impl(
             axis_stroke,
         );
         if fig.x.show_tick_labels {
-            painter.text(
+            crate::rich_text::paint(
+                painter,
                 Pos2::new(
                     px,
                     plot.bottom() + (ty.tick_outset() + TICK_LABEL_PAD + ty.tick_pt * 0.5) * scale,
@@ -195,7 +197,8 @@ fn paint_with_detail_and_stats_impl(
             axis_stroke,
         );
         if fig.y.show_tick_labels {
-            painter.text(
+            crate::rich_text::paint(
+                painter,
                 Pos2::new(y_tick_x, py),
                 Align2::RIGHT_CENTER,
                 label,
@@ -208,7 +211,8 @@ fn paint_with_detail_and_stats_impl(
     if fig.y.show_tick_labels
         && let Some(multiplier) = y_ticks.multiplier()
     {
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(y_axis_x, plot.top - TICK_LABEL_PAD * scale),
             Align2::LEFT_BOTTOM,
             multiplier,
@@ -219,7 +223,8 @@ fn paint_with_detail_and_stats_impl(
     if fig.x.show_tick_labels
         && let Some(multiplier) = x_ticks.multiplier()
     {
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(
                 plot.right(),
                 outer.bottom() - (OUTER_PAD + ty.tick_pt * 0.5) * scale,
@@ -237,7 +242,8 @@ fn paint_with_detail_and_stats_impl(
         } else {
             0.0
         };
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             Pos2::new(
                 (plot.left + plot.right()) / 2.0,
                 outer.bottom() - (OUTER_PAD + multiplier_clearance + ty.label_pt * 0.5) * scale,
@@ -249,8 +255,9 @@ fn paint_with_detail_and_stats_impl(
         );
     }
     if !hidden_frame && fig.y.show_label {
-        let galley = painter.layout_no_wrap(
-            fig.y.label.clone(),
+        let galley = crate::rich_text::galley(
+            painter,
+            &fig.y.label,
             FontId::proportional(ty.label_pt * scale),
             col(Color::AXIS),
         );
@@ -333,8 +340,9 @@ fn paint_with_detail_and_stats_impl(
                 Stroke::new(curve.width * scale, col(curve.color)),
             ));
         }
-        let galley = clipped.layout_no_wrap(
-            curve.label.text,
+        let galley = crate::rich_text::galley(
+            &clipped,
+            &curve.label.text,
             FontId::proportional(curve.label.font_size),
             col(curve.label.color),
         );
@@ -351,7 +359,8 @@ fn paint_with_detail_and_stats_impl(
 
     for a in &fig.annotations {
         let (px, py) = proj.project(a.at);
-        clipped.text(
+        crate::rich_text::paint(
+            &clipped,
             Pos2::new(px, py),
             Align2::CENTER_BOTTOM,
             &a.text,
@@ -581,8 +590,16 @@ fn paint_document_impl(
                     text,
                     document.background,
                 );
-                item_painter.text(pos, Align2::LEFT_TOP, &text.text, font.clone(), col(color));
-                item_painter.text(
+                crate::rich_text::paint(
+                    &item_painter,
+                    pos,
+                    Align2::LEFT_TOP,
+                    &text.text,
+                    font.clone(),
+                    col(color),
+                );
+                crate::rich_text::paint(
+                    &item_painter,
                     pos + Vec2::new(0.6, 0.0),
                     Align2::LEFT_TOP,
                     &text.text,
@@ -629,14 +646,16 @@ fn paint_document_object(
             frame.top + title.position[1] * viewport.zoom,
         );
         let font = FontId::proportional((title.font_size * viewport.zoom).max(6.0));
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             pos,
             Align2::LEFT_TOP,
             &title.text,
             font.clone(),
             col(Color::BLACK),
         );
-        painter.text(
+        crate::rich_text::paint(
+            painter,
             pos + Vec2::new(0.6, 0.0),
             Align2::LEFT_TOP,
             &title.text,
@@ -680,10 +699,18 @@ fn paint_overlay_text(painter: &egui::Painter, frame: Rect, t: &OverlayText, zoo
     let font = FontId::proportional(size);
     let mut y = frame.top;
     for line in t.text.lines() {
-        painter.text(Pos2::new(x, y), anchor, line, font.clone(), col(t.color));
+        crate::rich_text::paint(
+            painter,
+            Pos2::new(x, y),
+            anchor,
+            line,
+            font.clone(),
+            col(t.color),
+        );
         if t.bold {
             // egui has no bold weight; a hair-offset second pass fakes it.
-            painter.text(
+            crate::rich_text::paint(
+                painter,
                 Pos2::new(x + 0.6, y),
                 anchor,
                 line,
