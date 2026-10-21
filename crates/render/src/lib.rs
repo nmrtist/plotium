@@ -395,6 +395,8 @@ pub use guide_geometry::{GuideGeometry, guide_geometry, legend_entry_count};
 mod legend_content;
 mod legend_placement;
 use legend_content::{LegendMark, legend_entries};
+mod legend_room;
+pub use legend_room::make_legend_room;
 
 /// Whether the renderer will emit a legend for this figure.
 pub fn renders_legend(fig: &Figure) -> bool {
@@ -488,9 +490,13 @@ pub fn legend_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
             plotium_figure::GuidePlacement::OutsideBottom => {
                 (plot.left, plot.bottom() + 8.0 * scale)
             }
-            plotium_figure::GuidePlacement::Auto => {
-                legend_placement::auto_legend_origin(fig, plot, width, height, 8.0 * scale)
-            }
+            plotium_figure::GuidePlacement::Auto => legend_placement::auto_legend_origin(
+                fig,
+                plot,
+                width,
+                height,
+                legend_placement::LEGEND_INSET * scale,
+            ),
             plotium_figure::GuidePlacement::Inside => (
                 (plot.right() - width - 8.0 * scale).max(plot.left + 2.0 * scale),
                 plot.top + 8.0 * scale,

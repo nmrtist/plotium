@@ -270,7 +270,10 @@ What you control directly:
   heatmap. **Show** also permits a one-entry legend; **Hide** removes the legend
   or colour scale from that plot. **Position** on **Auto** places a legend
   inside the plot in whichever corner or edge midpoint covers the fewest data
-  points and lines, preferring the roomier spot and then the upper right;
+  points and lines, preferring the roomier spot and then the upper right. When
+  every such spot covers data, Plotium extends **Auto** axis ranges on the
+  legend's side, by up to half their span, just far enough to clear one;
+  manual ranges, zoomed views and aspect-locked plots are never changed.
   **Inside** keeps it in the upper right, and **Outside right** or **Outside
   bottom** reserve space beside the plot. **Layout** switches a categorical
   legend between a vertical list and a horizontal row; **Title** is available
