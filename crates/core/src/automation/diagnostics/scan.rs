@@ -349,7 +349,7 @@ impl FigureDiagnosticScan {
                     || !figure.contours.is_empty()
                     || figure.heatmap.is_some()
                     || !figure.integral_curves.is_empty()
-                    || !figure.annotations.is_empty()
+                    || figure.text_annotations().next().is_some()
                     || !figure.range_annotations.is_empty()
                     || figure.top_projection.is_some()
                     || figure.left_projection.is_some()

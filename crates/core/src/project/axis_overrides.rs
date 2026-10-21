@@ -1,5 +1,5 @@
 use super::dto::RangeDto;
-use crate::state::AxisOverrides;
+use crate::state::{AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations};
 use plotium_figure::{AxisFrame, GuideLayout, GuidePlacement, GuideVisibility};
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +41,60 @@ pub struct AxisOverridesDto {
     guide_title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     legend_position: Option<[f32; 2]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    annotations: Option<PlotAnnotationsDto>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PlotAnnotationsDto {
+    next_id: AnnotationId,
+    items: Vec<PlotAnnotationDto>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PlotAnnotationDto {
+    id: AnnotationId,
+    /// Data-coordinate anchor `[x, y]` in the plot's axis units.
+    at: [f64; 2],
+    text: String,
+    font_size: f32,
+    color: [u8; 3],
+}
+
+impl PlotAnnotationsDto {
+    fn from_annotations(annotations: &PlotAnnotations) -> Option<Self> {
+        (annotations != &PlotAnnotations::default()).then(|| Self {
+            next_id: annotations.next_id,
+            items: annotations
+                .items
+                .iter()
+                .map(|a| PlotAnnotationDto {
+                    id: a.id,
+                    at: a.at,
+                    text: a.text.clone(),
+                    font_size: a.font_size,
+                    color: [a.color.r, a.color.g, a.color.b],
+                })
+                .collect(),
+        })
+    }
+
+    fn to_annotations(&self) -> PlotAnnotations {
+        PlotAnnotations {
+            next_id: self.next_id,
+            items: self
+                .items
+                .iter()
+                .map(|a| PlotAnnotation {
+                    id: a.id,
+                    at: a.at,
+                    text: a.text.clone(),
+                    font_size: a.font_size,
+                    color: plotium_figure::Color::rgb(a.color[0], a.color[1], a.color[2]),
+                })
+                .collect(),
+        }
+    }
 }
 
 impl AxisOverridesDto {
@@ -64,6 +118,7 @@ impl AxisOverridesDto {
             guide_layout: overrides.guide_layout,
             guide_title: overrides.guide_title.clone(),
             legend_position: overrides.legend_position,
+            annotations: PlotAnnotationsDto::from_annotations(&overrides.annotations),
         })
     }
 
@@ -87,6 +142,11 @@ impl AxisOverridesDto {
             guide_layout: self.guide_layout,
             guide_title: self.guide_title.clone(),
             legend_position: self.legend_position,
+            annotations: self
+                .annotations
+                .as_ref()
+                .map(PlotAnnotationsDto::to_annotations)
+                .unwrap_or_default(),
         }
         .normalized()
     }

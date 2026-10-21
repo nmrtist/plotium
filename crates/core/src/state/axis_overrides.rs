@@ -180,6 +180,8 @@ pub struct AxisOverrides {
     pub guide_layout: Option<GuideLayout>,
     pub guide_title: Option<String>,
     pub legend_position: Option<[f32; 2]>,
+    /// Author text anchored in data coordinates, lowered on every apply.
+    pub annotations: super::PlotAnnotations,
 }
 
 impl AxisOverrides {
@@ -237,6 +239,7 @@ impl AxisOverrides {
             figure.guide_title.clone_from(title);
         }
         figure.legend_position = self.legend_position;
+        figure.author_annotations = self.annotations.lower();
     }
 
     /// A dragged or explicitly positioned legend is always an inside guide.

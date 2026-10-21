@@ -729,6 +729,9 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 | `text_create` | `parent: 完整画布或面板目标`、`name`、`frame_pt`、`text`、`font_pt` |
 | `text_set` | `target: 完整文字目标`、`text`；可选 `font_pt` |
 | `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG 或 JPEG） |
+| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt` |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；`text`、`at`、`font_pt` 至少提供一项 |
+| `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
 
@@ -753,6 +756,14 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 子内容局部坐标，改尺寸按比例缩放全部子内容 frame，不改曲线身份、绑定、样式、
 轴范围或字号。这不同于自由 Panel inspector 仅修改容器尺寸的行为。
 新文字／图片 frame 使用父面板局部 pt；父目标为画布时则使用页面 pt。
+
+图内标注按数据坐标定位，而不是页面 pt：文字居中显示在 `at` 点上方，画布和所有
+导出中都跟随该图的轴范围、缩放和平移移动；锚点在可见范围外时随图一起裁切。
+`annotation_id` 只在所属图内有效，删除后不会复用；可从结果的 `annotation_edits`
+或 `plotium_document_inspect` 返回的图 `annotations` 列表读取。`at` 使用
+`coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。标注文字最多 1024
+UTF-8 字节且不得空白，每张图最多 256 个标注。图及其父面板须未锁定；不要求关闭
+Auto height。
 
 Align 依据所选边界／中心；Distribute 在固定两端中心间等分中心位置，不等分边缘
 间隙。Grid 将已有原生格子算法与 authoring 尺寸 setter 组合用于明确子集，不表示
@@ -1039,7 +1050,7 @@ target 调用 `plotium_preview_plan`：
 | 已有计划 | 候选支持范围 |
 | --- | --- |
 | `properties.set` / `properties.reset` | 上述五个 `object.guides.*` 属性及原生多目标批次 |
-| `figure.edit` 局部编辑 | `content_frame`、`image_replace`、`text_set` 及原生批次 |
+| `figure.edit` 局部编辑 | `content_frame`、`image_replace`、`text_set`、`annotation_create`／`annotation_set`／`annotation_delete` 及原生批次 |
 | `figure.edit` 纯删除批次 | `content_delete`、原本为空的 `panel_delete`、显式列绑定 `series_delete`；原拒绝规则不变 |
 | 其他操作，包括保存和导出 | 返回 `unsupported_operation`，不改变其正常 execute 合同 |
 

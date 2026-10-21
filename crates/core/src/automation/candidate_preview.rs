@@ -78,6 +78,9 @@ pub fn validate_plan_preview(
                     FigureEdit::ContentFrame { .. }
                         | FigureEdit::ImageReplace { .. }
                         | FigureEdit::TextSet { .. }
+                        | FigureEdit::AnnotationCreate { .. }
+                        | FigureEdit::AnnotationSet { .. }
+                        | FigureEdit::AnnotationDelete { .. }
                         | FigureEdit::ContentDelete { .. }
                         | FigureEdit::PanelDelete { .. }
                         | FigureEdit::SeriesDelete { .. }

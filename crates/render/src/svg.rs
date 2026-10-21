@@ -492,7 +492,7 @@ fn write_figure(
             text = svg_content(&curve.label.text, curve.label.font_size),
         );
     }
-    for a in &fig.annotations {
+    for a in fig.text_annotations() {
         let (px, py) = proj.project(a.at);
         let _ = write!(
             s,

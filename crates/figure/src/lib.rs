@@ -537,6 +537,11 @@ pub struct Figure {
     #[serde(default)]
     pub error_bars: Vec<ErrorBar>,
     pub annotations: Vec<Annotation>,
+    /// Author-placed text anchored in data coordinates. Plot author overrides
+    /// own and replace this list on every apply, so it stays apart from the
+    /// builder-derived `annotations` and re-applying overrides is idempotent.
+    #[serde(default)]
+    pub author_annotations: Vec<Annotation>,
     pub range_annotations: Vec<RangeAnnotation>,
     /// Zero, one, or many contour overlays painted on the shared axes (e.g. one
     /// per dataset in a 2D color-overlay stack), each with its own colour/width.
@@ -598,6 +603,7 @@ impl Figure {
             heatmap: None,
             error_bars: Vec::new(),
             annotations: Vec::new(),
+            author_annotations: Vec::new(),
             range_annotations: Vec::new(),
             contours: Vec::new(),
             top_projection: None,
@@ -636,6 +642,11 @@ impl Figure {
     pub fn with_annotation(mut self, a: Annotation) -> Self {
         self.annotations.push(a);
         self
+    }
+
+    /// Every data-anchored text label: builder-derived first, then authored.
+    pub fn text_annotations(&self) -> impl Iterator<Item = &Annotation> {
+        self.annotations.iter().chain(&self.author_annotations)
     }
 
     pub fn with_contour(mut self, c: Contour) -> Self {

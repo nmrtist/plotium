@@ -392,7 +392,7 @@ fn paint_with_detail_and_stats_impl(
         clipped.add(label);
     }
 
-    for a in &fig.annotations {
+    for a in fig.text_annotations() {
         let (px, py) = proj.project(a.at);
         crate::rich_text::paint(
             &clipped,

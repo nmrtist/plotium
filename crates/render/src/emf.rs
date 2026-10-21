@@ -509,7 +509,7 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) 
                     .rotated(),
             );
         }
-        for a in &fig.annotations {
+        for a in fig.text_annotations() {
             let (px, py) = proj.project(a.at);
             dc.text(
                 &a.text,
