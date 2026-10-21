@@ -52,7 +52,10 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 收到 `project_changed` 后重新读取状态、发现目标并规划，不沿用旧目标或计划。
 执行计划绑定创建时的上下文。
 
-实际 agent 项目读取和执行保存运行记录，使项目进入未保存状态；握手、工具发现、
+项目编辑、科学计算和数据变换保留持久运行溯源，使项目进入未保存状态。普通查询（状态、
+资源／属性／表格／文档浏览、科学结果查看、预览及诊断）不追加项目审计记录，也不改变
+dirty、edit generation 或 automation revision。纯查询工作流同样不改变项目；包含修改
+操作的工作流仍保留完整运行记录，包括复现操作所需的查询输入。握手、工具发现、
 已认证状态查询、每五秒心跳、静态属性目录以及保存协调（预检、提交与
 `plotium_save_status`），以及导出预检／提交／状态查询均不生成审计记录。
 
@@ -89,7 +92,7 @@ claude mcp add --transport stdio --scope user plotium -- /ABSOLUTE/USER/DATA/bin
 响应新增 `project_present` 以及 `availability` 中的 `project_read`、`project_modify`、
 `native_import`，各项包含 `available` 和可为空的 `{code,message}` 原因。
 欢迎页返回 `project: null` 和空选择；忙碌时 `project` 与 `selection` 均为 `null`。
-这些查询不创建项目或文档审计记录；空闲且已有项目时保留正常审计。
+这些查询不创建项目或文档审计记录，包括空闲且已有项目时的查询。
 所有状态下均可发现完整连接能力。
 
 启用 **读取并修改**，从状态复制 `project_context` 和 `revision`，再调用 `plotium_plan`：
@@ -894,7 +897,7 @@ stdio 结束时关闭；其他工具仍使用原来的单次调用 transport，�
 及传输关闭会使相关工作失效；过期／已消费 cursor 返回 `expired_cursor`。
 遇到 `stale_revision` 或 `project_changed`，重新读状态并开始扫描，不混合新旧页。
 只读权限即可使用；对象、绑定、手动范围、几何、Undo 历史和 automation revision
-不变，但审计摘要按既有读操作政策标 dirty。不持久化诊断几何、问题、cursor 或 PNG 副本。
+以及 dirty、edit generation 不变，不追加项目审计记录。不持久化诊断几何、问题、cursor 或 PNG 副本。
 
 按 `preview_request` 取得并实际查看原生 PNG。X 坐标转像素为
 `x * width_px / output.size_pt[0]`，Y 使用对应高度；核对其
@@ -926,7 +929,7 @@ stdio 结束时关闭；其他工具仍使用原来的单次调用 transport，�
 图像覆盖整页，使用原生版式、背景、面板裁剪、文字、曲线及项目内嵌栅格资产。
 渲染基于不可变快照在后台执行，`render_revision` 标识该快照；截取后发生的人工
 修改不会被标成图像内容。执行后续修改前请重新读取状态。只读连接也允许预览。
-完成的读取保存仅含元数据的运行记录，使项目变为未保存，但不推进 revision。
+预览不追加项目运行记录，也不改变 dirty、edit generation 或 automation revision。
 
 `max_edge` 默认 1440 px，可取 1–2048；保持宽高比，按像素取整，每轴至少一个
 像素。预算为输出 4,194,304 像素、引用资产编码数据合计 16 MiB、按实际文件头
@@ -989,7 +992,7 @@ target 调用 `plotium_preview_plan`：
 
 预览借用冻结输入和图像字节，不重读换图路径、不重分配已规划身份，也不在真实项目执行
 再 Undo。它不改变 authored 内容、数据、绑定、选择、历史、automation revision 或持久
-资产。沿用读审计：dirty 如实增加，只保存元数据，**不保存 PNG 字节**。无候选文件或缓存。
+资产、dirty 或 edit generation。不追加项目审计记录，**不保存 PNG 字节**。无候选文件或缓存。
 候选与真实预览共享单个渲染槽、取消和上述图像预算；另以 64 MiB 原生快照估计约束候选
 构造（画布几何、来源字段按每元素 64 字节、元数据及冻结资产），不表示整个进程内存上限。
 切项目取消的任务在有界 renderer 退出前继续占用渲染槽。
@@ -1055,8 +1058,8 @@ Guide 写入在提交前验证全部显式目标；存在但不适用的目标�
 256 KiB（超限为 `response_too_large`），继续共享 32 个待执行计划上限。
 形状错误、非有限或越界值返回 `invalid_parameters`。查询仍报告不适用目标。
 只读连接可以查询及预检，execute 需要可撤销修改权限；context/revision 变化、撤权、
-busy 和过期计划保留原有单次生命周期。查询可能写审计记录并标记 dirty，但不改变
-automation revision 或 Undo 历史。能力发现见 `connection_capabilities.guide_contract`。
+busy 和过期计划保留原有单次生命周期。查询不追加项目审计记录，也不改变 dirty、
+edit generation、automation revision 或 Undo 历史。能力发现见 `connection_capabilities.guide_contract`。
 
 ## 精确修改显示，不重建图对象
 
@@ -1278,10 +1281,10 @@ Plotium 保留已序列化的候选文件，并报告准确恢复路径。只有
 `snapshot.edit_generation`、`persisted_revision`、准确路径、`state_applied`、
 `dirty_after_completion`、错误及恢复说明。查询结果另给当前 context/path/revision/dirty
 和 `matches_current_project`。快照在桌面批准后、后台工作前捕获；之后的新编辑
-保持 dirty，完成不等于当前所有编辑或后续读取产生的审计记录已落盘。
+保持 dirty，完成不等于当前所有编辑已落盘。
 已安装但未确认同步时仍保持 dirty，并记录已安装基线供原生恢复使用。
-保存规划／提交和状态查询仅用临时桌面回执，不加审计记录；其他项目读取仍沿用
-原有审计 dirty 语义。
+保存规划／提交和状态查询仅用临时桌面回执，不加审计记录；普通项目读取同样不追加
+项目审计记录，也不改变 dirty。
 
 切项目或停止连接撤销待写权限。worker 只持有原项目快照和路径，并在安装边界检查
 授权；即便 document revision 相同，旧完成也不能装入另一项目或清它的 dirty。

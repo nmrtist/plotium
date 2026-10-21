@@ -90,11 +90,7 @@ fn desktop_preview_is_background_readonly_bounded_and_revision_frozen() {
             .all(|v| !v.text.contains("png_base64"))
     );
     assert_eq!(image.structured_content.unwrap()["value"]["width_px"], 320);
-    assert!(app.doc.automation_runs.iter().all(|r| {
-        !r.nodes
-            .iter()
-            .any(|n| n.result.value.get("png_base64").is_some())
-    }));
+    assert!(app.doc.automation_runs.is_empty());
 }
 #[test]
 fn cancellation_stop_barrier_and_stale_revision_are_not_successful_previews() {
@@ -115,7 +111,7 @@ fn cancellation_stop_barrier_and_stale_revision_are_not_successful_previews() {
         rx.blocking_recv().unwrap().unwrap_err().code,
         "request_cancelled"
     );
-    assert!(app.doc.automation_runs.last().unwrap().cancelled);
+    assert!(app.doc.automation_runs.is_empty());
     let (req, rx) = pending(args(&app));
     c.dispatch_request(&mut app, req, false).unwrap();
     let runs = app.doc.automation_runs.len();
@@ -306,5 +302,5 @@ fn worker_failure_reaches_client_and_leaves_a_failed_run() {
         receive.blocking_recv().unwrap().unwrap_err().code,
         "execution_failed"
     );
-    assert!(!app.doc.automation_runs.last().unwrap().errors.is_empty());
+    assert!(app.doc.automation_runs.is_empty());
 }

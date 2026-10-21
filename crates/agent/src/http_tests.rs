@@ -101,11 +101,7 @@ fn real_http_mcp_handshake_discovery_bridge_and_authentication() {
         .await
         .unwrap();
     });
-    assert_eq!(app.doc.automation_runs.len(), 1);
-    assert_eq!(
-        app.doc.automation_runs[0].caller,
-        plotium_core::automation::CallerType::Agent
-    );
+    assert!(app.doc.automation_runs.is_empty());
     connection.stop();
 }
 

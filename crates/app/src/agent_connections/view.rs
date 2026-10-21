@@ -129,7 +129,7 @@ impl AgentConnections {
                 if ui.button("Copy stable stdio configuration").clicked() { ui.ctx().copy_text(config.to_string()); }
                 ui.monospace(config.to_string());
             }
-            ui.label("Project reads create saved run records. Handshake, status and heartbeat do not.");
+            ui.label("Queries leave the project unchanged. Edits and scientific tasks retain run provenance.");
             ui.label("Temporary HTTP diagnostics expire whenever the service restarts. Keep tokens private.");
             if let Some(connection) = &self.connection {
                 ui.label(format!("Listening: {}", connection.url));

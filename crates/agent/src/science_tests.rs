@@ -87,6 +87,13 @@ fn scientific_receipts_survive_connection_loss_and_consumed_plan_retries() {
         !app.compute_busy(),
         "Redo must reuse the candidate snapshot"
     );
+    let audit = json!(app.doc.automation_runs);
+    assert_eq!(audit.as_array().unwrap().len(), 1);
+    assert_eq!(audit[0]["nodes"][0]["tool_id"], "processing.apply_scheme");
+    let project = _dir.path().join("science.plotium");
+    plotium_core::project::save_project(&app, &project, false).unwrap();
+    let restored = plotium_core::project::load_project(&project).unwrap();
+    assert_eq!(json!(restored.doc.automation_runs), audit);
 }
 #[test]
 fn scientific_cancellation_and_permission_revocation_prevent_commit() {

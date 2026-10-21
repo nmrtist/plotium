@@ -63,8 +63,33 @@ fn acquisition(dir: &std::path::Path) -> PathBuf {
 fn call(s: &mut Session, a: &mut PlotiumApp, name: &str, mut v: Value) -> Value {
     v["expected_revision"] = json!(a.doc.automation_revision);
     v["expected_project_context"] = json!(a.session.project_context);
-    s.call(a, name, v)
-        .unwrap_or_else(|e| panic!("{name}: {e:?}"))
+    let before = (
+        a.doc.dirty,
+        a.doc.edit_generation,
+        a.doc.automation_revision,
+        a.doc.automation_runs.len(),
+    );
+    let result = s
+        .call(a, name, v)
+        .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+    if matches!(
+        name,
+        "plotium_processing_inspect"
+            | "plotium_diffusion_inspect"
+            | "plotium_analysis_results_inspect"
+    ) {
+        assert_eq!(
+            (
+                a.doc.dirty,
+                a.doc.edit_generation,
+                a.doc.automation_revision,
+                a.doc.automation_runs.len()
+            ),
+            before,
+            "{name}"
+        );
+    }
+    result
 }
 fn edit(
     s: &mut Session,

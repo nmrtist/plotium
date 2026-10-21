@@ -34,7 +34,7 @@ pub fn plan_preview_contract() -> Value {
         "rendering":"Ordinary line/scatter plots, native text, raster and shapes. No background scientific computation.",
         "snapshot_estimate_bytes":CANDIDATE_SNAPSHOT_BYTES,"snapshot_estimate":"Native canvas geometry plus source field dimensions at 64 bytes/element, metadata and frozen assets; not peak process memory.",
         "lifecycle":"Borrow only; no consumption, TTL extension or new authority. No candidate cache. Same single preview flight and image limits.",
-        "audit":"Existing metadata-only read audit marks dirty without advancing automation revision."})
+        "audit":"Queries do not append project audit records or change dirty state or automation revision."})
 }
 fn invalid(message: impl Into<String>) -> AutomationError {
     AutomationError::InvalidParameters {

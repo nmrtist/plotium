@@ -222,18 +222,8 @@ fn declared_targets(
         .collect()
 }
 
-/// Run one tool and audit the call.
-///
-/// A single tool invocation by a workflow or an agent *is* a one-node workflow:
-/// it has the same inputs, produces the same node record and needs the same
-/// reproducibility evidence. Synthesizing that node here rather than inventing a
-/// second audit shape means the manifest an agent leaves behind is byte-for-byte
-/// the manifest a one-node workflow leaves behind, and every reader of
-/// `automation_runs` keeps working unchanged (§9, principle 5).
-///
-/// A `Human` call is untouched: an interactive edit is audited by the document's
-/// own final state plus undo, and writing a run manifest for every button press
-/// would bury the runs that describe automation.
+/// Run one tool, retaining project provenance for non-query automation calls.
+/// Interactive edits use document state and Undo instead of run manifests.
 pub fn execute_tool(
     app: &mut PlotiumApp,
     plan: ToolPlan,
@@ -254,7 +244,7 @@ pub fn execute_tool(
         }
     }
     let caller = plan.request.caller;
-    if caller == CallerType::Human {
+    if caller == CallerType::Human || !persists_tool_run(&plan.request.tool_id) {
         return execute_planned_tool(app, plan, authority);
     }
     let run = PreparedToolRun::begin(app, &plan);
@@ -294,7 +284,7 @@ impl PreparedToolRun {
             start_revision,
             started,
         } = self;
-        if plan.request.caller == CallerType::Human {
+        if plan.request.caller == CallerType::Human || !persists_tool_run(&plan.request.tool_id) {
             return Ok(());
         }
         let caller = plan.request.caller;
@@ -387,14 +377,14 @@ impl PreparedToolRun {
     }
 }
 
-/// The one place a finished run is appended to the document.
-///
-/// A manifest *is* document content, so appending one makes the document
-/// unsaved. Nothing else establishes that: a run made entirely of read-only
-/// tools executes no [`Action`](crate::actions::Action) at all, so without this
-/// the audit record we promised to keep would be dropped when the window closes
-/// without ever offering to save it. Both writers go through here so the next
-/// one cannot forget.
+/// Whether an automation call needs durable project provenance.
+pub(super) fn persists_tool_run(tool_id: &str) -> bool {
+    ToolRegistry::built_in()
+        .get(tool_id)
+        .is_none_or(|descriptor| descriptor.effect != EffectLevel::ReadOnly)
+}
+
+/// Append a modifying run and mark its provenance as unsaved document content.
 ///
 /// `automation_revision` is deliberately untouched. It is the baseline of the
 /// optimistic-concurrency check, and advancing it here would invalidate the plan

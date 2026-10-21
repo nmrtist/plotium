@@ -206,14 +206,14 @@ fn closed_capability_boundary_and_parameter_validation() {
     );
 }
 #[test]
-fn busy_plan_consumption_limit_and_read_audit() {
+fn busy_plan_consumption_limit_and_query_isolation() {
     let mut app = app();
     let mut session = Session::default();
     session
         .call(&mut app, "plotium_get_state", json!({}))
         .unwrap();
-    assert!(app.doc.dirty);
-    assert_eq!(app.doc.automation_runs.len(), 1);
+    assert!(!app.doc.dirty);
+    assert!(app.doc.automation_runs.is_empty());
     let p = typography(&mut session, &mut app, 15.0);
     app.session.ui.phase_edit_active = true;
     assert_eq!(
@@ -294,4 +294,34 @@ fn queued_import_blocks_project_access_before_background_insertion() {
         execute(&mut session, &mut app, &p).unwrap_err().code,
         "expired_plan"
     );
+}
+
+#[test]
+fn repeated_state_reads_preserve_a_saved_project() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("state.plotium");
+    plotium_core::project::save_project(&app(), &path, false).unwrap();
+    let mut app = plotium_core::project::load_project(&path).unwrap();
+    let mut session = Session::default();
+    let before = (
+        app.doc.dirty,
+        app.doc.edit_generation,
+        app.doc.automation_revision,
+        app.doc.automation_runs.len(),
+    );
+    assert!(!before.0);
+    for _ in 0..10 {
+        session
+            .call(&mut app, "plotium_get_state", json!({}))
+            .unwrap();
+        assert_eq!(
+            (
+                app.doc.dirty,
+                app.doc.edit_generation,
+                app.doc.automation_revision,
+                app.doc.automation_runs.len()
+            ),
+            before
+        );
+    }
 }

@@ -238,7 +238,7 @@ Claude Desktop 中与 AI 对话。
 保留数据、单位、手动范围、其他同名对象及有意裁切／重叠，不要缩字或隐藏数据消除告警。”
 
 候选支持原生 guide 编辑、内容几何、原位换图、文字更新和精确删除。它需要 **Read and
-modify**，但不改 authored state 或 Undo/Redo；正常读审计仍可使项目显示未保存。如果你在
+modify**，但不改 authored state、Undo/Redo、dirty 或 edit generation，也不追加项目审计记录。如果你在
 Agent 审阅候选时编辑项目，旧计划必须重做。一次 execute 仍是一个原生 Undo 步骤。
 详见[支持矩阵与候选元数据](/zh-cn/reference/mcp/#提交前读取计划候选)。
 
@@ -270,7 +270,7 @@ Plotium 会在重启后记住权限和 **Enable MCP** 的选择。改为 **Read 
 后续编辑，包括已准备但尚未应用的修改；仍可查看数据和预览图形。
 
 支持的修改会立即显示在桌面中，可使用 Plotium 的 **Undo**（撤销）和 **Redo**
-（重做）。读取项目数据也会添加运行记录，因此只读请求后项目也可能显示为未保存。
+（重做）。普通查询、预览和诊断不改变项目审计记录、dirty、edit generation 或 automation revision。
 
 关闭 **Enable MCP** 会立即停止访问，并保留客户端配置。关闭设置或切换项目不会
 断开连接；退出 Plotium 则停止访问。重启 Plotium 或重新开启 MCP 后，可继续使用
