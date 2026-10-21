@@ -318,6 +318,16 @@ impl AxisTicks {
 }
 
 pub(crate) fn estimated_text_width(text: &str, font_size: f32) -> f32 {
+    if crate::rich_text::has_scripts(text) {
+        return crate::rich_text::runs(text)
+            .iter()
+            .map(|run| estimated_plain_width(&run.text, font_size * run.script.scale()))
+            .sum();
+    }
+    estimated_plain_width(text, font_size)
+}
+
+fn estimated_plain_width(text: &str, font_size: f32) -> f32 {
     text.chars()
         .map(|ch| match ch {
             '0'..='9' => 0.56,

@@ -590,3 +590,11 @@ fn axis_strokes_and_tick_length_follow_the_figure_typography() {
     assert!(!svg.contains(r#"stroke-width="1""#));
     assert!(svg.contains("v2.5\""));
 }
+
+#[test]
+fn truncated_range_labels_never_leave_broken_script_markup() {
+    let plot = Rect::new(0.0, 0.0, 70.0, 50.0);
+    let label = range_label_layout(plot, 10.0, 40.0, 7.0, "Δδ / cm^{-2} region", None).unwrap();
+    assert!(label.text.ends_with('…'));
+    assert!(!label.text.contains('^') && !label.text.contains('{'));
+}

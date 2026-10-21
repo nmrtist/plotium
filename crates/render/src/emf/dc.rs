@@ -351,7 +351,8 @@ impl Dc {
                     y += tm.tmAscent - tm.tmHeight / 2;
                 }
             }
-            let utf16 = wide(text);
+            // EMF text is one run; scripts fall back to Unicode characters.
+            let utf16 = wide(&crate::rich_text::unicode(text));
             ExtTextOutW(
                 self.hdc,
                 l(pos.0),
