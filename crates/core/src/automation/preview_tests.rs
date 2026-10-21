@@ -207,9 +207,7 @@ fn native_text_curve_asset_snapshot_matches_existing_renderer_and_survives_edits
     assert_eq!(result.before_revision, DocumentRevision(0));
     assert_eq!(result.after_revision, DocumentRevision(0));
     run.finish(&mut app, &Ok(result)).unwrap();
-    let audit = app.doc.automation_runs.last().unwrap();
-    assert!(audit.nodes[0].result.value.get("png_base64").is_none());
-    assert_eq!(audit.nodes[0].result.value["render_revision"], 0);
+    assert!(app.doc.automation_runs.is_empty());
     assert_eq!(app.doc.automation_revision, 1);
     assert!(matches!(
         plan_tool(&app, plan.request),
@@ -303,7 +301,7 @@ fn every_byte_budget_accepts_boundary_and_rejects_next_byte() {
     assert_eq!(image.value["width_px"], PREVIEW_MAX_EDGE);
 }
 #[test]
-fn old_svg_entry_and_read_audit_contract_remain_usable() {
+fn svg_and_image_queries_preserve_document_state() {
     let mut app = fixture();
     let mut req = request(&app, 64);
     req.tool_id = "render.preview".into();
@@ -315,6 +313,7 @@ fn old_svg_entry_and_read_audit_contract_remain_usable() {
     let image = execute_tool(&mut app, plan, ExecutionAuthority::Read).unwrap();
     assert!(!pixels(&image).is_empty());
     assert_eq!(app.doc.automation_revision, 0);
+    assert!(app.doc.automation_runs.is_empty());
     let mut req = request(&app, 64);
     req.tool_id = "resource.rename".into();
     req.parameters = json!({"name":"Rename"});

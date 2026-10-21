@@ -132,7 +132,7 @@ fn one_stdio_session_survives_offline_start_restart_and_revocation_without_repla
         let mut connection = crate::Connection::start_in(directory.clone(), || {}).unwrap();
         connector.heartbeat().await;
         assert!(connection.next_request().is_none());
-        assert_eq!(app.doc.automation_runs.len(), 1);
+        assert!(app.doc.automation_runs.is_empty());
         client.cancel().await.unwrap();
         service.cancel().await.unwrap();
     });

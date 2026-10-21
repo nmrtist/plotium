@@ -68,7 +68,7 @@ fn save_requires_distinct_desktop_permission_and_overwrite_confirmation() {
             assert_eq!(before, a.doc.edit_generation);
             a.session.ui.project_save_in_progress = false;
             s.call(&mut a, "plotium_get_state", json!({})).unwrap();
-            assert!(a.doc.dirty); // Audit reads retain the existing dirty semantics.
+            assert!(!a.doc.dirty);
             assert_eq!(
                 plan(&mut s, &mut a, None)["preflight"]["path"],
                 json!(path.canonicalize().unwrap())

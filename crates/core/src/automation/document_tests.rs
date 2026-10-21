@@ -182,12 +182,7 @@ fn traverse_same_named_panels_objects_series_and_actual_source_columns() {
                     .inspect(source_id)
                     .is_some()
             );
-            assert_eq!(
-                app.doc.automation_runs.last().unwrap().nodes[0]
-                    .frozen_targets
-                    .component_targets,
-                vec![t.clone()]
-            );
+            assert!(app.doc.automation_runs.is_empty());
             found.push(t);
         }
     }

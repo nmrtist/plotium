@@ -455,7 +455,15 @@ pub fn execute_workflow(
         table_revisions,
         table_plans,
     };
-    super::tools::record_run(&mut app.doc, manifest.clone());
+    // Classify the whole definition: query nodes can supply inputs to edits,
+    // including edits skipped by conditions or cancellation in this execution.
+    if workflow.nodes.iter().any(|node| {
+        registry
+            .get(&node.tool_id)
+            .is_none_or(|descriptor| descriptor.effect != EffectLevel::ReadOnly)
+    }) {
+        super::tools::record_run(&mut app.doc, manifest.clone());
+    }
     observer(TaskEvent::Finished {
         id: TaskId(run_id),
         cancelled,

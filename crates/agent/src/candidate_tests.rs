@@ -39,7 +39,7 @@ pub(super) fn target(a: &PlotiumApp, index: usize) -> TargetRef {
     ))
 }
 /// Persisted native presentation + non-persisted provenance/geometry + exact data blocks.
-/// Audit/dirty are checked separately, as required by the existing read policy.
+/// Persistent audit and save state are checked alongside candidate contents.
 pub(super) fn content(a: &PlotiumApp) -> Value {
     json!({"pages":a.doc.canvases.iter().map(|c| {
         json!({"view":canvas_to_view(&a.doc.datasets,c,"test").unwrap(),
@@ -64,11 +64,13 @@ pub(super) fn roundtrip(a: &mut PlotiumApp, s: &mut Session, request: Value) -> 
     let history = a.session.undo_stack.len();
     let runs = a.doc.automation_runs.len();
     let generation = a.doc.edit_generation;
+    let dirty = a.doc.dirty;
     let p = preview_args(a, &plan);
     let candidate = s.call(a, "plotium_preview_plan", p.clone()).unwrap();
     assert_eq!(state(a), before);
-    assert!(a.doc.dirty && a.doc.edit_generation > generation);
-    assert_eq!(a.doc.automation_runs.len(), runs + 1);
+    assert_eq!(a.doc.dirty, dirty);
+    assert_eq!(a.doc.edit_generation, generation);
+    assert_eq!(a.doc.automation_runs.len(), runs);
     assert!(
         a.doc
             .automation_runs

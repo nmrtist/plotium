@@ -60,7 +60,7 @@ fn session_discovery_walks_to_exact_series_and_preserves_original_tools() {
         .unwrap();
     assert_eq!(property["value"]["readings"][0]["target"], t);
     assert_eq!(app.doc.automation_revision, before);
-    assert!(app.doc.automation_runs.len() > runs);
+    assert_eq!(app.doc.automation_runs.len(), runs);
     let state = s.call(&mut app, "plotium_get_state", json!({})).unwrap();
     assert_eq!(
         state["connection_capabilities"]["tools"]

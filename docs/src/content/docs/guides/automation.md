@@ -286,8 +286,8 @@ and intentional clipping or overlap. Do not shrink text or hide data to clear wa
 
 Candidate preview supports native guide edits, content geometry, image replacement,
 text updates and exact deletion. It needs **Read and modify**, but leaves authored
-state and Undo/Redo untouched; the normal read audit can still mark the project
-unsaved. If you edit while the agent is reviewing a candidate, its old plan must be
+state, Undo/Redo, dirty state and edit generation untouched, and adds no project
+audit record. If you edit while the agent is reviewing a candidate, its old plan must be
 replaced. One execution remains one native Undo step. See the [support matrix and
 candidate metadata](/reference/mcp/#preview-a-plan-before-committing-it).
 
@@ -319,8 +319,8 @@ restarts. Choose **Read only** to block further edits, including edits that have
 been prepared but not yet applied. You can still inspect data and preview figures.
 
 Supported changes appear in the desktop immediately and use Plotium's normal
-**Undo** and **Redo**. Reading project data also adds a run record, so the project
-may show unsaved changes even after a read-only request.
+**Undo** and **Redo**. Ordinary queries, previews and diagnostics leave project
+audit records, dirty state, edit generation and automation revision unchanged.
 
 Turn off **Enable MCP** to stop access immediately. Your client setup is retained.
 Closing Preferences or switching projects keeps the connection running; exiting

@@ -60,8 +60,13 @@ revision numbers match. Switching clears plans and rejects queued work;
 On `project_changed`, reread state and replan with newly discovered targets.
 Never reuse old targets or plans. Executions bind the context of their saved plan.
 
-Real agent project reads and executions save run records and mark the project as
-unsaved. Handshakes, tool listing, authenticated status, five-second heartbeats,
+Project edits, scientific computations and data transformations retain durable run
+provenance and mark the project as unsaved. Ordinary queries, including state,
+resource/property/table/document browsing, scientific result inspection, previews
+and diagnostics, do not append project audit records or change dirty state, edit
+generation or automation revision. Query-only workflows also leave the project
+unchanged; workflows containing modifying operations retain the complete run,
+including query inputs needed to reproduce those operations. Handshakes, tool listing, authenticated status, five-second heartbeats,
 the static property catalog and save coordination (planning, submission and
 `plotium_save_status`), and export planning/submission/status do not add audit records.
 
@@ -101,7 +106,7 @@ background work, recovery or saving blocks project access. It adds
 and `native_import`; each has `available` and a nullable `{code,message}` reason.
 On the welcome page, `project` is `null` and `selection` is empty. While busy,
 `project` and `selection` are both `null`. These queries create no project or
-project audit entry; idle queries of an existing project retain normal auditing.
+project audit entry, including idle queries of an existing project.
 Connection capabilities remain discoverable in every state.
 
 Enable **Read and modify**, copy `project_context` and `revision` from state,
@@ -1087,8 +1092,8 @@ Edits, project changes, cancellation, connection shutdown and transport closure
 invalidate affected work; expired/consumed cursors return `expired_cursor`.
 After `stale_revision` or `project_changed`, read state and start again, never combine
 old and new pages. Read-only access suffices. Reads change no object, binding, manual
-range, geometry, Undo history or automation revision, but audit summaries mark the
-project dirty under the existing read policy. Geometry, issues, cursors and PNGs are
+range, geometry, Undo history, automation revision, edit generation or dirty state.
+They do not append project audit records. Geometry, issues, cursors and PNGs are
 not persisted as diagnostic copies.
 
 Use `preview_request` to obtain the native PNG, then inspect it. Convert a returned
@@ -1123,8 +1128,8 @@ The image covers the whole page with its native layout, background, panel clips,
 text, curves and embedded local raster assets. Rendering runs off the desktop
 thread from an immutable snapshot. `render_revision` identifies that snapshot;
 human edits after capture do not change it. Read state again before editing.
-Read-only connections permit previews. Completed reads save a metadata-only run
-record and mark the project unsaved without advancing its revision.
+Read-only connections permit previews. Previews do not append project run records
+or change dirty state, edit generation or automation revision.
 
 `max_edge` defaults to 1440 px and accepts 1–2048; aspect ratio is preserved
 with pixel rounding and a minimum of one pixel per axis. Limits are 4,194,304
@@ -1203,8 +1208,8 @@ outcome-unknown execute after a disconnect.
 Preview borrows frozen inputs and image bytes, without rereading a replacement
 path, allocating planned identities or executing then undoing the live document.
 It does not change authored content, data, bindings, selection, history, automation
-revision or persistent assets. Its existing read audit marks dirty and retains
-metadata, **not PNG bytes**. No candidate file or cache is created. Candidate and
+revision, persistent assets, edit generation or dirty state. It adds no project
+audit record and persists no PNG bytes. No candidate file or cache is created. Candidate and
 committed previews share the single rendering slot, cancellation and image budgets
 above. Candidate construction additionally rejects a native snapshot estimate over
 64 MiB (canvas geometry, source field dimensions at 64 bytes/element, metadata and
@@ -1287,8 +1292,8 @@ Malformed/out-of-range values fail with `invalid_parameters`. Inspection reports
 inapplicable targets. Read-only connections can inspect/preflight but execute
 requires reversible-modify permission. Context/revision changes, revocation,
 busy and expired-plan failures retain the normal single-use contract. Inspection
-may add an audit record and mark dirty, without changing automation revision or
-Undo history. Discover these rules in `connection_capabilities.guide_contract`.
+does not add project audit records or change dirty state, edit generation,
+automation revision or Undo history. Discover these rules in `connection_capabilities.guide_contract`.
 
 ## Change display without rebuilding the plot
 
@@ -1552,7 +1557,7 @@ The receipt records original `project_context`, `snapshot.document_revision`,
 reports current context/path/revision/dirty and `matches_current_project`.
 The snapshot is captured after desktop approval and before background work.
 New edits after capture remain dirty; a committed save does not mean every
-current edit or subsequent audit read is on disk. An installed-but-unconfirmed
+current edit is on disk. An installed-but-unconfirmed
 save keeps dirty and records the installed baseline for native recovery.
 
 Switching projects or stopping the connection revokes pending write permission.

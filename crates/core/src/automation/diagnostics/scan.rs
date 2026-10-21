@@ -149,7 +149,7 @@ impl FigureDiagnosticScan {
             "items":rows,"coverage":{"requested_checks":self.params.checks,"supported_checks":all_checks(),"unsupported_checks":["non_line_scatter_internal_geometry","error_bar_clipping_occlusion","image_alpha_pixel_occlusion","scientific_derived_annotation_detail","exact_cross_backend_glyph_bounds"],"status":if !complete{"partial"}else if self.unavailable>0||self.unsupported>0{"limited"}else{"complete"},"scan_complete":complete,"scanned_objects":self.scanned_objects,"scanned_points":self.scanned_points,"scanned_overlap_pairs":self.scanned_pairs,"unavailable_items":self.unavailable,"unsupported_items":self.unsupported,"sampling":false},
             "budget":{"limits":figure_diagnostic_limits(),"snapshot_bytes":self.snapshot_bytes,"batch_objects":objects,"batch_points":points},"truncated":!complete,"continuation_required":!complete,
             "preview_request":{"tool":"plotium_render_preview","arguments":{"expected_project_context":self.project_context,"expected_revision":self.revision,"target":self.params.canvas,"max_edge":1440},"mapping":"PNG pixel x/y = output_page_pt x/y * returned width_px/height_px divided by output page width_pt/height_pt. Editor zoom is unrelated."},
-            "read_policy":{"modifies_content":false,"advances_revision":false,"audit":"summary_only_marks_dirty","persists_diagnostic_geometry":false}})
+            "read_policy":{"modifies_content":false,"advances_revision":false,"audit":"none","persists_diagnostic_geometry":false}})
     }
     fn box_observation(
         &mut self,

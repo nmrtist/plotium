@@ -45,15 +45,12 @@ fn an_agent_single_call_writes_a_run_manifest() {
     assert!(manifest.end_revision > manifest.start_revision);
 }
 
-/// A read-only agent call changes nothing in the document and so produces no
-/// `Action` — but it does append a run manifest, and a manifest is document
-/// content. If appending one left the document clean, closing the window would
-/// discard the audit record we promised to keep without ever offering to save.
 #[test]
-fn a_read_only_agent_call_leaves_the_document_unsaved() {
+fn a_read_only_agent_call_preserves_saved_document() {
     let (mut app, _) = contour_app();
     app.doc.dirty = false;
     let before_revision = app.doc.automation_revision;
+    let before_generation = app.doc.edit_generation;
     let inspect = request(
         &app,
         TOOL_INSPECT,
@@ -62,24 +59,18 @@ fn a_read_only_agent_call_leaves_the_document_unsaved() {
         CallerType::Agent,
     );
     run(&mut app, inspect).expect("inspect succeeds");
-    assert_eq!(app.doc.automation_runs.len(), 1);
-    assert!(
-        app.doc.dirty,
-        "a run record is unsaved document content, even when the run read only"
-    );
-    assert_eq!(
-        app.doc.automation_revision, before_revision,
-        "recording a run must not advance the optimistic-concurrency baseline"
-    );
+    assert!(app.doc.automation_runs.is_empty());
+    assert!(!app.doc.dirty);
+    assert_eq!(app.doc.edit_generation, before_generation);
+    assert_eq!(app.doc.automation_revision, before_revision);
 }
 
-/// The same for a workflow whose every node is read-only: it too writes one
-/// manifest and executes no action.
 #[test]
-fn a_read_only_workflow_leaves_the_document_unsaved() {
+fn a_read_only_workflow_preserves_saved_document() {
     let (mut app, _) = contour_app();
     app.doc.dirty = false;
     let before_revision = app.doc.automation_revision;
+    let before_generation = app.doc.edit_generation;
     let workflow = WorkflowDefinition {
         schema: WORKFLOW_SCHEMA.to_owned(),
         inputs: std::collections::BTreeMap::new(),
@@ -105,16 +96,15 @@ fn a_read_only_workflow_leaves_the_document_unsaved() {
         &mut |_| {},
     )
     .expect("the workflow runs");
-    assert_eq!(app.doc.automation_runs.len(), 1);
-    assert!(app.doc.dirty, "the manifest is unsaved document content");
+    assert!(app.doc.automation_runs.is_empty());
+    assert!(!app.doc.dirty);
+    assert_eq!(app.doc.edit_generation, before_generation);
     assert_eq!(app.doc.automation_revision, before_revision);
 }
 
-/// Marking the document unsaved is a statement about the file on disk, not
-/// about the state a caller planned against. A plan held across an intervening
-/// audit record must still commit.
+/// Queries must leave a previously prepared edit current.
 #[test]
-fn recording_a_run_does_not_invalidate_a_plan_in_flight() {
+fn a_query_does_not_invalidate_a_plan_in_flight() {
     let (mut app, _) = contour_app();
     let plan = plan_tool(
         &app,
@@ -128,7 +118,7 @@ fn recording_a_run_does_not_invalidate_a_plan_in_flight() {
         vec![plot_resource_id(&app)],
         CallerType::Agent,
     );
-    run(&mut app, inspect).expect("a read-only call lands its own run record");
+    run(&mut app, inspect).expect("a read-only call succeeds");
     execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify)
         .expect("the earlier plan is still current");
 }

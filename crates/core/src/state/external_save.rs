@@ -237,7 +237,7 @@ impl PlotiumApp {
         saved.receipt.dirty_after_completion = applied.then_some(dirty);
         saved.receipt.error_code = error.as_ref().map(|_| "save_failed".into());
         saved.receipt.message = match phase {
-            SavePhase::Committed => "Captured snapshot durably committed. Later edits and audit reads may remain unsaved. Undo does not restore disk files.".into(),
+            SavePhase::Committed => "Captured snapshot durably committed. Later edits may remain unsaved. Undo does not restore disk files.".into(),
             SavePhase::NotInstalled => format!("Target not installed. Resolve the failure, inspect current state, then request fresh authorization. {}", error.unwrap_or_default()),
             SavePhase::InstalledUnconfirmed => format!("Snapshot installed at the target, but durable completion is unconfirmed. Keep the project open; inspect the target and storage before an explicitly authorized retry. {}", error.unwrap_or_default()),
         };

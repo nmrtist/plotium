@@ -542,8 +542,7 @@ fn stable_ids_rows_columns_runs_and_revision_survive_project_roundtrip() {
         column_ids
     );
     assert_eq!(restored.doc.automation_revision, 7);
-    assert_eq!(restored.doc.automation_runs.len(), 1);
-    assert_eq!(restored.doc.automation_runs[0].schema, RUN_MANIFEST_SCHEMA);
+    assert!(restored.doc.automation_runs.is_empty());
 }
 
 struct SyntheticProvider;
@@ -778,3 +777,6 @@ fn task_manager_propagates_cancellation_and_worker_events() {
     )));
     manager.forget(&id);
 }
+
+#[path = "query_audit_tests.rs"]
+mod query_audit_tests;

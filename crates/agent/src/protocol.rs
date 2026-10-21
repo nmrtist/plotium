@@ -114,7 +114,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
     document["properties"]["expected_revision"] = revision.clone();
     document["required"] = json!(["expected_revision", "target", "view"]);
     let mut tools: Vec<Tool> = [
-        ("plotium_get_state", "Read application availability, project presence, revision, selection, capabilities and permissions, including on the welcome page or while busy. Idle reads of an existing project create saved run records.", json!({}), json!([])),
+        ("plotium_get_state", "Read application availability, project presence, revision, selection, capabilities and permissions, including on the welcome page or while busy. Queries do not append project run records or change dirty state, edit generation or revision.", json!({}), json!([])),
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
         ("plotium_properties_list", "List supported display property definitions: schema, units, scope and static applicability. Does not create a run record.", json!({}), json!([])),
@@ -167,7 +167,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         {"required":["canvas","output"],"not":{"required":["cursor"]}},
         {"required":["cursor"],"not":{"anyOf":[{"required":["canvas"]},{"required":["output"]},{"required":["checks"]},{"required":["targets"]},{"required":["overlap_targets"]},{"required":["view"]},{"required":["limit"]}]}}
     ]);
-    tools.push(Tool::new("plotium_figure_diagnose", "Read native figure geometry and potential issues at explicit physical size. Coverage is mandatory: no issues is not proof of full coverage. Follow one-use continuation with the same context/revision; a new initial query replaces the previous scan. Audit summaries mark dirty without changing revision.", diagnostic.as_object().expect("local schema").clone()));
+    tools.push(Tool::new("plotium_figure_diagnose", "Read native figure geometry and potential issues at explicit physical size. Coverage is mandatory: no issues is not proof of full coverage. Follow one-use continuation with the same context/revision; a new initial query replaces the previous scan. Queries do not append project audit records or change dirty state, edit generation or revision.", diagnostic.as_object().expect("local schema").clone()));
     tools.push(Tool::new("plotium_preview_plan", "Read an uncommitted candidate PNG for one existing local edit plan. Does not execute or consume the plan. Requires current context, revision, reversible-modify permission and valid plan at capture and delivery. Use plotium_execute explicitly afterwards.", plotium_core::automation::plan_preview_schema().as_object().expect("local schema").clone()));
     let mut preview = plotium_core::automation::image_preview_schema();
     preview["properties"]["expected_revision"] = json!({"type":"integer","minimum":0});

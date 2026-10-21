@@ -82,6 +82,8 @@ fn diagnostic_fixture_localizes_reads_and_preserves_native_state() {
     let rev = a.doc.automation_revision;
     let undo = a.session.undo_stack.len();
     a.doc.dirty = false;
+    let generation = a.doc.edit_generation;
+    let runs = a.doc.automation_runs.len();
     let (rows, last) = all(&mut a, &mut s, q);
     assert!(issue(&rows, "out_of_canvas", &t[0]));
     assert!(issue(&rows, "text_container_overflow", &t[1]));
@@ -104,7 +106,9 @@ fn diagnostic_fixture_localizes_reads_and_preserves_native_state() {
     assert_eq!(last["coverage"]["sampling"], false);
     assert_eq!(a.doc.automation_revision, rev);
     assert_eq!(a.session.undo_stack.len(), undo);
-    assert!(a.doc.dirty);
+    assert!(!a.doc.dirty);
+    assert_eq!(a.doc.edit_generation, generation);
+    assert_eq!(a.doc.automation_runs.len(), runs);
     assert_eq!(
         a.doc.canvases[0]
             .objects
@@ -126,17 +130,6 @@ fn diagnostic_fixture_localizes_reads_and_preserves_native_state() {
             .collect::<Vec<_>>(),
         plots
     );
-    for run in a
-        .doc
-        .automation_runs
-        .iter()
-        .filter(|r| r.nodes.iter().any(|n| n.tool_id == FIGURE_DIAGNOSE))
-    {
-        let value = &run.nodes[0].result.value;
-        assert_eq!(value["audit"], "summary_only");
-        assert!(value.get("items").is_none());
-        assert!(value.get("continuation").is_none());
-    }
     for r in rows.iter().filter(|r| r["kind"] == "issue") {
         let q = json!({"expected_project_context":a.session.project_context,"expected_revision":a.doc.automation_revision,"target":r["target"],"view":"self"});
         assert!(s.call(&mut a, "plotium_document_inspect", q).is_ok());
