@@ -56,7 +56,7 @@ impl PlotObject {
         viewport: CanvasViewport,
     ) -> Self {
         let derived_axes = DerivedAxes::from_figure(&figure);
-        Self {
+        let mut plot = Self {
             display_owner,
             next_series_id,
             binding,
@@ -68,7 +68,9 @@ impl PlotObject {
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),
             viewport,
-        }
+        };
+        plot.make_legend_room();
+        plot
     }
 
     /// Restore a materialized figure that already contains author overrides and
@@ -108,6 +110,7 @@ impl PlotObject {
         plot.axis_overrides
             .typography
             .apply_to(&mut plot.figure.typography);
+        plot.make_legend_room();
         plot
     }
 
@@ -192,6 +195,7 @@ impl PlotObject {
         );
         prepare(self, &mut figure);
         self.figure = figure;
+        self.make_legend_room();
         self.figure_geometry_generation = next_figure_geometry_generation();
     }
 
@@ -258,6 +262,22 @@ impl PlotObject {
 
     pub fn apply_viewport(&mut self) {
         self.viewport.apply_to(&mut self.figure);
+        self.make_legend_room();
+    }
+
+    /// Widen automatic axes when the automatic legend has no free slot. An
+    /// axis qualifies only without a manual range and while it shows its full
+    /// extent, so zoomed and author-set windows are never changed. The growth
+    /// lives only in the figure and is recomputed from the viewport each time.
+    fn make_legend_room(&mut self) {
+        let viewport = &self.viewport;
+        let full_x = viewport.view_x == viewport.full_x;
+        let grow_x = self.axis_overrides.x_range.is_none() && full_x;
+        let grow_y = self.axis_overrides.y_range.is_none()
+            && full_x
+            && (viewport.view_y == viewport.full_y || viewport.auto_y);
+        let size = [self.figure.width, self.figure.height];
+        plotium_render::make_legend_room(&mut self.figure, size, grow_x, grow_y);
     }
 
     /// Zoom the requested axes in place without cloning the materialized figure.
@@ -274,7 +294,7 @@ impl PlotObject {
         if let Some(anchor) = y_anchor {
             self.viewport.zoom_y(anchor, scale);
         }
-        self.viewport.apply_to(&mut self.figure);
+        self.apply_viewport();
     }
 
     pub(crate) fn apply_axis_overrides(&mut self) {
@@ -292,6 +312,7 @@ impl PlotObject {
         self.axis_overrides
             .typography
             .apply_to(&mut self.figure.typography);
+        self.apply_viewport();
     }
 
     pub(crate) fn set_integral_curves(
@@ -327,6 +348,7 @@ impl PlotObject {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::AxisRange;
     use plotium_figure::{Axis, Color, Contour, Series};
 
     #[test]
@@ -366,5 +388,104 @@ mod tests {
 
         assert_eq!(plot.figure().series[0].points.as_ptr(), line_buffer);
         assert_eq!(plot.figure().contours[0].segments.as_ptr(), contour_buffer);
+    }
+
+    fn crowded_plot(overrides: AxisOverrides) -> PlotObject {
+        let mut figure = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+        figure.width = 320.0;
+        figure.height = 220.0;
+        figure.guide_visibility = plotium_figure::GuideVisibility::Show;
+        // Horizontal lines fill every inside legend anchor.
+        figure.series = (0..=20)
+            .map(|i| {
+                let y = f64::from(i) * 0.5;
+                let name = if i < 2 {
+                    format!("S{i}")
+                } else {
+                    String::new()
+                };
+                Series::line(name, vec![[0.0, y], [10.0, y]])
+            })
+            .collect();
+        overrides.apply_to(&mut figure);
+        let mut viewport = CanvasViewport::from_figure(&figure);
+        viewport.auto_y = overrides.y_range.is_none();
+        PlotObject::new(
+            None,
+            SeriesId::new(1),
+            DataBinding {
+                coordinates: None,
+                series: Vec::new(),
+            },
+            ChartSpec::default(),
+            StackSpec::default(),
+            AxisProjections::default(),
+            overrides,
+            figure,
+            viewport,
+        )
+    }
+
+    fn windows(plot: &PlotObject) -> [AxisRange; 2] {
+        [
+            AxisRange::from_axis(&plot.figure().x),
+            AxisRange::from_axis(&plot.figure().y),
+        ]
+    }
+
+    #[test]
+    fn automatic_axes_grow_for_a_crowded_legend_and_recover_without_one() {
+        let mut plot = crowded_plot(AxisOverrides::default());
+        let [x, y] = windows(&plot);
+        assert_ne!(
+            [x, y],
+            [AxisRange::new(0.0, 10.0), AxisRange::new(0.0, 10.0)]
+        );
+        assert!(x.min <= 0.0 && x.max >= 10.0 && y.min <= 0.0 && y.max >= 10.0);
+        // The viewport keeps the data-derived window; only the figure grows.
+        assert_eq!(plot.viewport.full_x, AxisRange::new(0.0, 10.0));
+
+        plot.figure.guide_placement = plotium_figure::GuidePlacement::Inside;
+        plot.apply_viewport();
+        assert_eq!(
+            windows(&plot),
+            [AxisRange::new(0.0, 10.0), AxisRange::new(0.0, 10.0)]
+        );
+    }
+
+    #[test]
+    fn manual_ranges_and_zoomed_views_never_grow() {
+        let manual = AxisRange::new(0.0, 10.0);
+        let plot = crowded_plot(AxisOverrides {
+            x_range: Some(manual),
+            y_range: Some(manual),
+            ..AxisOverrides::default()
+        });
+        assert_eq!(windows(&plot), [manual, manual]);
+
+        let mut plot = crowded_plot(AxisOverrides {
+            y_range: Some(manual),
+            ..AxisOverrides::default()
+        });
+        assert_eq!(windows(&plot)[1], manual);
+        assert_ne!(windows(&plot)[0], manual);
+
+        let mut zoomed = crowded_plot(AxisOverrides::default());
+        zoomed.zoom_viewport_around(Some(5.0), Some(5.0), 0.8);
+        assert_eq!(
+            windows(&zoomed),
+            [zoomed.viewport.view_x, zoomed.viewport.view_y]
+        );
+        plot.zoom_viewport_around(Some(5.0), None, 0.8);
+        assert_eq!(windows(&plot), [plot.viewport.view_x, manual]);
+
+        // A pan leaves y at its full extent; a zoomed x still keeps y fixed.
+        let mut panned = crowded_plot(AxisOverrides::default());
+        panned.viewport.auto_y = false;
+        panned.zoom_viewport_around(Some(5.0), None, 0.8);
+        assert_eq!(
+            windows(&panned),
+            [panned.viewport.view_x, panned.viewport.full_y]
+        );
     }
 }

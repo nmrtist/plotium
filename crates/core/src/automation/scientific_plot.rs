@@ -406,8 +406,8 @@ pub(super) fn prepare(
         // every observation. These are persisted native presentation defaults.
         for object in &mut worker.doc.canvases[0].objects {
             if let Some(plot) = object.plot_mut() {
-                let x = AxisRange::from_axis(&plot.figure().x);
-                let y = AxisRange::from_axis(&plot.figure().y);
+                // The viewport holds the data-derived window, without legend room.
+                let (x, y) = (plot.viewport.full_x, plot.viewport.full_y);
                 plot.axis_overrides.x_range = Some(AxisRange::new(
                     x.min - x.span() * 0.05,
                     x.max + x.span() * 0.05,
