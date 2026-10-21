@@ -177,6 +177,14 @@ object**——此后按住 `Alt` 就只为这一次拖放删除空页面。
 **X text** 与 **Y text** 两行可分别切换 **Tick labels** 和 **Title**，
 **Automatic** 则让该轴恢复为两者都显示。
 
+若要把较大的刻度值写成 `1,000` 而不是 `1000`，请在同一 **Axes** 区域展开
+**Advanced**，打开 **X thousands separator** 或 **Y thousands separator**。
+当该轴范围达到 ±10,000 时，其刻度标签会完整写出（如 `15,000`），不再
+使用统一的 ×10ⁿ 倍数；若该轴达到 10¹⁵ 及以上，或其最大值小于 0.001，
+则仍保留倍数。智能体可通过
+`object.axes.x_thousands_separator` 与 `object.axes.y_thousands_separator`
+属性设置同一选项。
+
 ## 堆叠与多数据集图
 
 一个图框可以同时显示多个 1D 数据集——可叠加显示，也可以按可调的垂直

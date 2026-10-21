@@ -10,6 +10,8 @@ pub struct DerivedAxes {
     pub x_show_label: bool,
     pub y_show_tick_labels: bool,
     pub y_show_label: bool,
+    pub x_thousands_separator: bool,
+    pub y_thousands_separator: bool,
     pub frame: AxisFrame,
 }
 
@@ -22,6 +24,8 @@ impl DerivedAxes {
             x_show_label: figure.x.show_label,
             y_show_tick_labels: figure.y.show_tick_labels,
             y_show_label: figure.y.show_label,
+            x_thousands_separator: figure.x.thousands_separator,
+            y_thousands_separator: figure.y.thousands_separator,
             frame: figure.axis_frame,
         }
     }

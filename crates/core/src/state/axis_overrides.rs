@@ -175,6 +175,8 @@ pub struct AxisOverrides {
     pub x_show_label: Option<bool>,
     pub y_show_tick_labels: Option<bool>,
     pub y_show_label: Option<bool>,
+    pub x_thousands_separator: Option<bool>,
+    pub y_thousands_separator: Option<bool>,
     pub guide_visibility: Option<GuideVisibility>,
     pub guide_placement: Option<GuidePlacement>,
     pub guide_layout: Option<GuideLayout>,
@@ -225,6 +227,12 @@ impl AxisOverrides {
         }
         if let Some(show) = self.y_show_label {
             figure.y.show_label = show;
+        }
+        if let Some(group) = self.x_thousands_separator {
+            figure.x.thousands_separator = group;
+        }
+        if let Some(group) = self.y_thousands_separator {
+            figure.y.thousands_separator = group;
         }
         if let Some(visibility) = self.guide_visibility {
             figure.guide_visibility = visibility;

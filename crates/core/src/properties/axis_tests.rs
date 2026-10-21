@@ -39,6 +39,8 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
             x_show_label: Some(false),
             y_show_tick_labels: Some(false),
             y_show_label: Some(false),
+            x_thousands_separator: Some(true),
+            y_thousands_separator: Some(true),
             axis_frame: Some(plotium_figure::AxisFrame::Open),
             guide_visibility: Some(plotium_figure::GuideVisibility::Hide),
             guide_placement: Some(plotium_figure::GuidePlacement::OutsideRight),
@@ -69,6 +71,12 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
         }),
         (axis::Y_SHOW_LABEL, |value: &AxisOverrides| {
             value.y_show_label.is_none()
+        }),
+        (axis::X_THOUSANDS_SEPARATOR, |value: &AxisOverrides| {
+            value.x_thousands_separator.is_none()
+        }),
+        (axis::Y_THOUSANDS_SEPARATOR, |value: &AxisOverrides| {
+            value.y_thousands_separator.is_none()
         }),
         (axis::FRAME, |value: &AxisOverrides| {
             value.axis_frame.is_none()
@@ -429,4 +437,47 @@ fn axis_frame_is_disabled_on_charts_without_axes() {
         .expect("write plans with a skip");
     assert!(commit.applied.is_empty());
     assert_eq!(commit.skipped.len(), 1);
+}
+
+#[test]
+fn thousands_separator_write_reaches_the_figure_and_undo_restores_plain_labels() {
+    let (mut app, target, object) = axis_app();
+    let figure_groups = |app: &PlotiumApp| {
+        app.doc.canvases[0]
+            .object(object)
+            .and_then(|object| object.plot())
+            .expect("plot")
+            .figure()
+            .y
+            .thousands_separator
+    };
+    let address = PropertyAddress::new(target.clone(), axis::Y_THOUSANDS_SEPARATOR);
+    let before = app.resolve_property(&address).expect("separator reads");
+    assert_eq!(
+        before.value,
+        AggregateValue::Uniform(PropertyValue::Bool(false))
+    );
+    assert_eq!(before.default_value, Some(PropertyValue::Bool(false)));
+    assert_eq!(before.modified, Some(false));
+
+    let commit = app
+        .plan_property_write(
+            axis::Y_THOUSANDS_SEPARATOR,
+            std::slice::from_ref(&target),
+            &PropertyValue::Bool(true),
+        )
+        .expect("separator write plans");
+    app.commit_property(commit);
+    assert_eq!(overrides(&app, object).y_thousands_separator, Some(true));
+    assert!(figure_groups(&app));
+    let after = app.resolve_property(&address).expect("separator reads");
+    assert_eq!(
+        after.value,
+        AggregateValue::Uniform(PropertyValue::Bool(true))
+    );
+    assert_eq!(after.modified, Some(true));
+
+    app.undo();
+    assert_eq!(overrides(&app, object).y_thousands_separator, None);
+    assert!(!figure_groups(&app));
 }
