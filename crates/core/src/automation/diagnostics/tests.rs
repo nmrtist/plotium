@@ -132,6 +132,7 @@ fn missing_data_and_unsupported_native_geometry_cannot_claim_clean() {
         at: [0.5, 0.5],
         size: 8.,
         color: plotium_figure::Color::BLACK,
+        anchor: plotium_figure::TextAnchor::Point,
     });
     let target = TargetRef::resource(canvas_object_ref(
         a.doc.canvases[0].resource_id,

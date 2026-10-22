@@ -252,22 +252,20 @@ fn bar_series_in_one_plot_are_grouped_side_by_side() {
 }
 
 #[test]
-fn bars_mix_with_lines_only_on_a_numeric_x() {
+fn bars_mix_with_lines_and_points_on_either_x_but_not_both() {
     let app = fixture();
-    let mixed = vec![
-        curve(CurveKind::Bar, source(&app, X, Y, None)),
-        curve(CurveKind::Line, source(&app, X, Y2, None)),
-    ];
-    assert!(plan(&app, mixed).is_ok());
     for series in [
+        vec![
+            curve(CurveKind::Bar, source(&app, X, Y, None)),
+            curve(CurveKind::Line, source(&app, X, Y2, None)),
+        ],
         vec![
             curve(CurveKind::Bar, source(&app, GROUP, Y, None)),
             curve(CurveKind::Line, source(&app, GROUP, Y2, None)),
         ],
         vec![curve(CurveKind::Scatter, source(&app, GROUP, Y, None))],
     ] {
-        let error = plan(&app, series).unwrap_err();
-        assert!(error.contains("text x column needs bar series"), "{error}");
+        assert!(plan(&app, series).is_ok());
     }
     let error = plan(
         &app,
@@ -415,4 +413,17 @@ fn bar_outlines_follow_the_theme_until_set_by_hand() {
         width.default_value,
         Some(PropertyValue::Float(f64::from(0.3_f32)))
     );
+}
+
+#[test]
+fn a_numeric_line_beside_bars_keeps_its_true_x() {
+    let mut app = fixture();
+    let curves = vec![
+        curve(CurveKind::Bar, source(&app, X, Y, None)),
+        curve(CurveKind::Bar, source(&app, X, Y2, None)),
+        curve(CurveKind::Line, source(&app, X, Y2, None)),
+    ];
+    create(&mut app, curves);
+    let xs: Vec<f64> = figure(&app).series[0].points.iter().map(|p| p[0]).collect();
+    assert_eq!(xs, vec![1.0, 2.0, 3.0, 4.0]);
 }

@@ -40,6 +40,7 @@ impl PlotAnnotation {
             at: self.at,
             color: self.color,
             size: self.font_size,
+            anchor: plotium_figure::TextAnchor::Point,
         }
     }
 }

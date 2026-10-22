@@ -56,7 +56,7 @@ fn coordinate_unit(plot: &PlotObject, x: bool) -> Option<UnitSpec> {
     plot.binding
         .coordinates
         .as_ref()
-        .and_then(|c| if x { c.x.clone() } else { c.y.clone() })
+        .and_then(|c| if x { c.horizontal() } else { c.vertical() }.cloned())
 }
 fn shown_unit(plot: &PlotObject, x: bool) -> Option<UnitSpec> {
     (if x {

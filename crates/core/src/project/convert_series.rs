@@ -34,20 +34,10 @@ pub(super) fn validate_columns(datasets: &[Dataset], binding: &DataBinding) -> R
                     })
                     .collect()
             };
-            let bar = matches!(
-                &series.encoding,
-                plotium_figure::SeriesEncoding::Line(line)
-                    if line.kind == plotium_figure::SeriesKind::Bar
-            );
             for columns in columns {
                 let target = coordinates.for_axis(series.y_axis());
-                let extracted = crate::state::extract_table_curve(table, columns, &target)
+                crate::state::extract_table_curve(table, columns, &target)
                     .map_err(ProjectError::Invalid)?;
-                if extracted.categories.is_some() && !bar {
-                    return Err(ProjectError::Invalid(
-                        "Only bar curves may use a text x column.".into(),
-                    ));
-                }
             }
         }
     }

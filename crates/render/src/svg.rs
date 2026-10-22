@@ -505,9 +505,22 @@ fn write_figure(
         if !crate::is_finite_point((px, py)) {
             continue;
         }
+        let at = crate::text_place::place(a.anchor, (px, py), a.size, 1.0);
+        let anchor = match at.align {
+            crate::text_place::TextAlign::Center => "middle",
+            crate::text_place::TextAlign::Start => "start",
+            crate::text_place::TextAlign::End => "end",
+        };
+        let baseline = if at.middle {
+            r#" dominant-baseline="central""#
+        } else {
+            ""
+        };
         let _ = write!(
             s,
-            r#"<text x="{px:.2}" y="{py:.2}" text-anchor="middle" font-size="{sz}" fill="{col}">{txt}</text>"#,
+            r#"<text x="{x:.2}" y="{y:.2}" text-anchor="{anchor}"{baseline} font-size="{sz}" fill="{col}">{txt}</text>"#,
+            x = at.x,
+            y = at.y,
             sz = a.size,
             col = a.color.to_hex(),
             txt = svg_content(&a.text, a.size),

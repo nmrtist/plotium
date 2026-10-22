@@ -107,10 +107,13 @@ pub(crate) fn axis_values(
         .iter()
         .filter(move |bar| (x || bar.y_axis == side) && inside(bar.center[0]))
         .flat_map(move |bar| {
-            if x {
-                [bar.center[0], bar.center[0]]
-            } else {
-                [bar.center[1] - bar.negative, bar.center[1] + bar.positive]
+            // A whisker spans the axis it is measured on; the other sees its centre.
+            let spread = |c: f64| [c - bar.negative, c + bar.positive];
+            match (x, bar.horizontal) {
+                (true, true) => spread(bar.center[0]),
+                (true, false) => [bar.center[0], bar.center[0]],
+                (false, true) => [bar.center[1], bar.center[1]],
+                (false, false) => spread(bar.center[1]),
             }
         });
     points.chain(bars)

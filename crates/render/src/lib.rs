@@ -10,6 +10,7 @@ pub mod integral;
 mod projected;
 mod reference_lines;
 mod shape_stroke;
+mod text_place;
 pub(crate) use projected::{
     clip_to_plot, error_bar_segments, finite_runs, is_finite_point, range_annotation_xs,
     stick_segment,

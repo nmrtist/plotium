@@ -23,6 +23,11 @@ pub struct CurveCoordinates {
     /// `y` is by the plot's first curve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub y2: Option<UnitSpec>,
+    /// Draw the data x along the vertical axis and values along the
+    /// horizontal one (horizontal bars). Presentation only: units, ranges and
+    /// extraction keep the data's own x and y.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub transposed: bool,
 }
 
 impl CurveCoordinates {
@@ -33,10 +38,21 @@ impl CurveCoordinates {
                 x: self.x.clone(),
                 y: self.y2.clone(),
                 y2: None,
+                transposed: self.transposed,
             })
         } else {
             std::borrow::Cow::Borrowed(self)
         }
+    }
+
+    /// Unit of the values drawn along the horizontal axis.
+    pub fn horizontal(&self) -> Option<&UnitSpec> {
+        if self.transposed { &self.y } else { &self.x }.as_ref()
+    }
+
+    /// Unit of the values drawn along the vertical axis.
+    pub fn vertical(&self) -> Option<&UnitSpec> {
+        if self.transposed { &self.x } else { &self.y }.as_ref()
     }
 }
 
@@ -170,5 +186,6 @@ pub fn table_curve_coordinates(
         x: unit(columns.x_column_id)?,
         y: unit(columns.y_column_id)?,
         y2: None,
+        transposed: false,
     })
 }

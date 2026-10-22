@@ -565,11 +565,7 @@ fn a_dormant_right_display_unit_passes_display_validation() {
         ..AxisOverrides::default()
     };
     let figure = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
-    let coordinates = CurveCoordinates {
-        x: None,
-        y: None,
-        y2: None,
-    };
+    let coordinates = CurveCoordinates::default();
     assert_eq!(
         super::super::axis_display::validate_display(&overrides, Some(&coordinates), &figure),
         Ok(())

@@ -134,7 +134,9 @@ pub(crate) fn for_each_segment(
             match series.kind {
                 SeriesKind::Line => add_segment(previous.unwrap_or(p), p),
                 // Builders lower bars to polygons; treat a stray one as points.
-                SeriesKind::Points | SeriesKind::Bar => add_segment(p, p),
+                SeriesKind::Points | SeriesKind::Bar | SeriesKind::Box | SeriesKind::Violin => {
+                    add_segment(p, p)
+                }
                 SeriesKind::Stick => {
                     let baseline = crate::clip_to_plot(project([point[0], 0.0], side), plot);
                     add_segment(baseline.unwrap_or(p), p);
@@ -144,8 +146,17 @@ pub(crate) fn for_each_segment(
         }
     }
     for bar in &fig.error_bars {
-        let low = [bar.center[0], bar.center[1] - bar.negative];
-        let high = [bar.center[0], bar.center[1] + bar.positive];
+        let (low, high) = if bar.horizontal {
+            (
+                [bar.center[0] - bar.negative, bar.center[1]],
+                [bar.center[0] + bar.positive, bar.center[1]],
+            )
+        } else {
+            (
+                [bar.center[0], bar.center[1] - bar.negative],
+                [bar.center[0], bar.center[1] + bar.positive],
+            )
+        };
         if let (Some(low), Some(high)) = (
             crate::clip_to_plot(project(low, bar.y_axis), plot),
             placed(high, bar.y_axis),

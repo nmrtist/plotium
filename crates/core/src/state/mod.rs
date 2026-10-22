@@ -62,6 +62,7 @@ mod data_import;
 mod dataset_identity;
 pub use data_import::DataImports;
 mod curve_bars;
+mod curve_layout;
 pub(crate) use curve_bars::bar_edge_color;
 mod curve_binding;
 mod curve_candidate;
@@ -325,6 +326,9 @@ mod plot_creation_tests;
 
 #[cfg(test)]
 mod bar_curve_tests;
+
+#[cfg(test)]
+mod category_chart_tests;
 
 #[cfg(test)]
 mod display_tests;

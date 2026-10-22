@@ -88,6 +88,9 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
 | `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt, or the theme's supporting-line width) |
 | `series.y_axis` | Object + Series | `left`, `right` (line and scatter curves; bars stay left) |
+| `series.points.spread` | Object + Series | 0–1 spread of replicate points across their mark (point and line curves; default 0) |
+| `series.value_labels` | Object + Series | boolean; write each bar's or point's value (bar, point and line curves) |
+| `object.chart.orientation` | Object | `vertical`, `horizontal` (explicit-column plots) |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -681,7 +684,7 @@ For MCP, omit top-level `ids`/`targets` and provide the exact whole plot target:
 
 Copy targets, FieldId and all table/column IDs from discovery; labels are not
 identity. The target must already have explicit coordinates. A batch adds
-1–200 selected line/scatter/bar curves, with at most 200 total curves in that plot.
+1–200 selected line/scatter/bar/box/violin curves, with at most 200 total curves in that plot.
 Existing bars regroup to share their slots with appended bars.
 The shared binding validator checks every source revision, complete curve data,
 errors and units before one atomic commit. Compatible source units convert to
@@ -815,7 +818,7 @@ top-level `ids` or `targets`:
 ```
 
 Replace every identity, including the example FieldId, with the actual returned
-identity. `kind` is `line`, `scatter` or `bar`; explicitly set `y_error_column_id` to a
+identity. `kind` is `line`, `scatter`, `bar`, `box` or `violin`; explicitly set `y_error_column_id` to a
 ColumnId or `null`. A `bar` curve draws filled bars from zero with optional
 error whiskers, filled in the curve color with a thin outline. Whiskers use the
 outline's color and width, and their caps span 45% of the bar. A bar too small
@@ -826,11 +829,22 @@ neighbours sit closer. Its x column may be numeric or a
 Utf8 text column; text values become categories in table row order, and equal
 texts share one slot. Bar curves that share a slot sit side by side within it; a
 bar alone in its slot keeps the full width, so one bar curve per category gives
-centred bars in their own colors.
-A plot with a text x holds bar curves only; bars mix with line and scatter
-curves on a numeric x. Bar plots have no logarithmic axes. Optional `y_axis`
-is `left` (default) or `right` for a line or scatter curve; `right` on a bar is
-rejected. Any right curve gives the plot a right y axis with its own automatic
+centred bars in their own colors. A `box` or `violin` curve summarises the raw y
+samples that share each x (Tukey box: median, IQR and 1.5 × IQR whiskers with
+outliers; violin: Gaussian kernel density with a quartile bar), takes no y error
+column, and shares slots with bars. `line` and `scatter` curves may use a text x
+too and overlay the slots: the k-th line or scatter curve sits on the k-th bar,
+box or violin curve's position, so raw points line up with their bar.
+`series.points.spread` spreads replicate points that share an x across that
+mark (0–1 of its width, in row order), and `series.value_labels` writes each
+bar's or point's value past its end (or whisker) in tick-label size.
+`object.chart.orientation` `horizontal` turns an explicit plot on its side:
+categories run down the vertical axis, first at the top, and values along the
+horizontal one; error bars, labels and axis titles turn with it, and the view
+resets. All series in one plot share a text or a numeric x. Plots with bars,
+boxes or violins have no logarithmic axes. Optional `y_axis`
+is `left` (default) or `right` for a line or scatter curve; `right` on a bar,
+box or violin is rejected. Any right curve gives the plot a right y axis with its own automatic
 range, scale and title, which starts as the first right curve's column name and
 unit; that curve also fixes the right axis's unit. Reference lines, annotations
 and arrows stay in left-axis coordinates. Multiple entries create independent native Series in this
@@ -1562,8 +1576,9 @@ an override, native point curves retain their existing width-based radius; the
 existing stroke-width API retains this behavior. Reset restores the native
 marker/size, and an explicit empty legend label omits that legend entry. Stroke
 style applies to line curves; scatter curves are skipped for that property.
-Markers apply to line/scatter curves, not sticks or bars. Bar width applies to
-bar curves only, as do the bar outline color and width. Marker fill and edge color
+Markers apply to line/scatter curves, not sticks, bars, boxes or violins. Bar
+width and outline width apply to bar, box and violin curves; the outline color to
+bar curves. Marker fill and edge color
 apply to closed markers and follow the curve color until set; reset returns
 them to it. A hollow marker draws no fill and keeps an outline, 0.5 pt when
 no edge width is set. A chart that owns semantic colors rejects a single series

@@ -543,11 +543,15 @@ fn write_figure_content(
             if !crate::is_finite_point((px, py)) {
                 continue;
             }
-            dc.text(
-                &a.text,
-                (px, py),
-                TextStyle::new(a.size, a.color, TA_CENTER),
-            );
+            let at = crate::text_place::place(a.anchor, (px, py), a.size, 1.0);
+            let align = match at.align {
+                crate::text_place::TextAlign::Center => TA_CENTER,
+                crate::text_place::TextAlign::Start => TA_LEFT,
+                crate::text_place::TextAlign::End => TA_RIGHT,
+            };
+            let style = TextStyle::new(a.size, a.color, align);
+            let style = if at.middle { style.middle() } else { style };
+            dc.text(&a.text, (at.x, at.y), style);
         }
     });
     // Spines go over the clipped data, so a bar or trace resting on an axis

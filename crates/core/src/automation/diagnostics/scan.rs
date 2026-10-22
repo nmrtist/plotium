@@ -411,7 +411,7 @@ impl FigureDiagnosticScan {
                             &st,
                             "curve_primitives",
                             "unsupported",
-                            "Bar encoding is drawn as filled rectangles, not an ordinary line/scatter curve.",
+                            "Bar, box and violin encodings are drawn as filled shapes, not ordinary line/scatter curves.",
                         );
                     } else if source != "resolved" && source != "incompatible_encoding" {
                         self.coverage(&st,"curve_primitives","unavailable",&format!("{source}: native source is unavailable. Cached rendered geometry, if present, is reported separately."));

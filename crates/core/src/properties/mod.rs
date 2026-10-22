@@ -14,6 +14,7 @@ pub mod axis;
 pub mod baseline;
 pub mod bin;
 pub mod canvas;
+pub mod chart_layout;
 pub mod contour;
 pub mod export_dpi;
 pub mod group_delay;
@@ -58,6 +59,9 @@ pub(crate) static GROUPS: &[PropertyProviderGroup] = &[
     },
     PropertyProviderGroup {
         provider: &plot_display::PROVIDER,
+    },
+    PropertyProviderGroup {
+        provider: &chart_layout::PROVIDER,
     },
     PropertyProviderGroup {
         provider: &apodization::PROVIDER,

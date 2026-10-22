@@ -279,16 +279,35 @@ impl PropertyProvider for DisplayProvider {
             } else if marker_property
                 && matches!(
                     kind,
-                    plotium_figure::SeriesKind::Stick | plotium_figure::SeriesKind::Bar
+                    plotium_figure::SeriesKind::Stick
+                        | plotium_figure::SeriesKind::Bar
+                        | plotium_figure::SeriesKind::Box
+                        | plotium_figure::SeriesKind::Violin
                 )
             {
                 Availability::Disabled("Choose a line or scatter curve to edit markers.")
-            } else if matches!(d.id, BAR_WIDTH | BAR_EDGE_COLOR | BAR_EDGE_WIDTH)
-                && kind != plotium_figure::SeriesKind::Bar
+            } else if d.id == BAR_EDGE_COLOR && kind != plotium_figure::SeriesKind::Bar {
+                Availability::Disabled("Choose a bar curve to edit its outline color.")
+            } else if matches!(d.id, BAR_WIDTH | BAR_EDGE_WIDTH)
+                && !matches!(
+                    kind,
+                    plotium_figure::SeriesKind::Bar
+                        | plotium_figure::SeriesKind::Box
+                        | plotium_figure::SeriesKind::Violin
+                )
             {
-                Availability::Disabled("Choose a bar curve to edit its bar settings.")
+                Availability::Disabled("Choose a bar, box or violin curve to edit its width.")
             } else if d.id == Y_AXIS && !crate::state::right_axis_supports(kind) {
                 Availability::Disabled(crate::state::right_axis::RIGHT_AXIS_KINDS)
+            } else if d.id == Y_AXIS
+                && !line.appearance.y_axis.is_right()
+                && app.doc.canvases[c.canvas]
+                    .object(c.object)
+                    .and_then(|o| o.plot())
+                    .and_then(|p| p.binding.coordinates.as_ref())
+                    .is_some_and(|coordinates| coordinates.transposed)
+            {
+                Availability::Disabled(crate::state::right_axis::HORIZONTAL_ONE_VALUE_AXIS)
             } else if d.id == STYLE && kind != plotium_figure::SeriesKind::Line {
                 Availability::Disabled("Choose a line curve to edit its stroke style.")
             } else {
