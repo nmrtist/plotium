@@ -15,6 +15,8 @@ use plotium_figure::FigureTypography;
 
 #[path = "transaction_object.rs"]
 mod object;
+#[path = "transaction_shared_x.rs"]
+mod shared_x;
 use object::{ObjectPlans, ObjectTargetSnapshot};
 
 /// Persistence boundaries a provider can select.

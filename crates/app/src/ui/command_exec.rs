@@ -3,8 +3,8 @@
 //! within the repository size limit.
 
 use plotium_core::state::{
-    CanvasDocument, CommandPaletteState, FrameRef, LineShapeKind, ObjectFrame, PlotiumApp,
-    ProjectTransition, Tool, ToolGroup,
+    CanvasDocument, CommandPaletteState, FrameRef, LineShapeKind, ObjectFrame, PanelLayout,
+    PlotiumApp, ProjectTransition, Tool, ToolGroup,
 };
 
 use super::clipboard_table::ClipboardTablePaste;
@@ -123,6 +123,7 @@ fn execute_inner(
         | CommandId::DeletePanel
         | CommandId::DuplicatePanel
         | CommandId::MergePanels
+        | CommandId::StackPanelsSharedX
         | CommandId::SplitPanel
         | CommandId::SetPanelLayout(_)
         | CommandId::MoveContentToPanel(_) => execute_panel_command(id, app),
@@ -351,11 +352,33 @@ fn execute_panel_command(id: CommandId, app: &mut PlotiumApp) {
                     .map_err(|error| error.to_string())
             })
         }
+        CommandId::StackPanelsSharedX => {
+            let panels: Vec<_> = paths
+                .iter()
+                .filter_map(|path| (path.content.is_none()).then_some(path.panel).flatten())
+                .collect();
+            let primary = panels
+                .first()
+                .copied()
+                .ok_or_else(|| "Select at least two panels to stack.".to_owned());
+            primary.and_then(|primary| {
+                app.stack_panels_shared_x_action(ci, primary, &panels[1..])
+                    .map(|action| (Some(primary), action))
+                    .map_err(|error| error.to_string())
+            })
+        }
         CommandId::SplitPanel => selected_panel
             .ok_or_else(|| "Select content inside a panel before splitting it.".to_owned())
             .and_then(|panel| {
                 app.split_panel_action(ci, panel, &selected_contents, "Panel".to_owned())
                     .map(|(new_panel, action)| (Some(new_panel), action))
+                    .map_err(|error| error.to_string())
+            }),
+        CommandId::SetPanelLayout(PanelLayout::SharedXStack) => selected_panel
+            .ok_or_else(|| "Select a panel before changing its layout.".to_owned())
+            .and_then(|panel| {
+                app.set_shared_x_stack_action(ci, panel, true, None)
+                    .map(|action| (Some(panel), action))
                     .map_err(|error| error.to_string())
             }),
         CommandId::SetPanelLayout(layout) => selected_panel

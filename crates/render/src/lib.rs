@@ -23,8 +23,11 @@ mod screen_contours;
 mod screen_lod;
 #[cfg(feature = "screen")]
 mod screen_stats;
+mod stack;
 pub mod svg;
 mod ticks;
+
+pub use stack::{StackPlacement, XFurniture, axis_layout_placed};
 
 pub use ticks::{
     AxisLayout, AxisTicks, axis_layout, axis_ticks, axis_ticks_for, minor_tick_values, ticks,
@@ -147,6 +150,8 @@ pub struct DocumentObject<'a> {
     /// under, so a panel letter in the corner never sits on it. Zero when
     /// nothing occupies the corner.
     pub y_title_clearance: f32,
+    /// Runtime position inside a shared-x stack, derived from the panel.
+    pub stack: Option<StackPlacement>,
 }
 
 /// A plot's in-frame panel letter (a/b/c…), drawn bold at the top-left corner.
@@ -390,7 +395,9 @@ pub(crate) fn heatmap_cells(proj: &Projector<'_>, grid: &HeatmapGrid) -> Vec<(Re
 }
 
 mod guide_geometry;
-pub use guide_geometry::{GuideGeometry, guide_geometry, legend_entry_count};
+pub use guide_geometry::{
+    GuideGeometry, guide_geometry, guide_geometry_placed, legend_entry_count,
+};
 mod legend_content;
 mod legend_placement;
 use legend_content::{LegendMark, legend_entries};

@@ -19,6 +19,8 @@ struct SnapshotItem {
 enum SnapshotKind {
     Plot {
         figure: Box<plotium_figure::Figure>,
+        /// Shared-x stack geometry the renderers apply to this plot.
+        stack: Option<plotium_render::StackPlacement>,
         selected_series: Option<BTreeSet<SeriesId>>,
         declared: Vec<(SeriesId, bool, String)>,
     },

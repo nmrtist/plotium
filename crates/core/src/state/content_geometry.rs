@@ -30,7 +30,8 @@ impl CanvasDocument {
             if parent.locked {
                 return Err("Parent panel is locked; unlock it before editing content.".into());
             }
-            if geometry && parent.layout != PanelLayout::Free {
+            // A stack member's height is its share of the stack.
+            if geometry && !matches!(parent.layout, PanelLayout::Free | PanelLayout::SharedXStack) {
                 return Err(
                     "Use a free-layout parent panel before editing a content frame.".into(),
                 );
@@ -58,10 +59,17 @@ impl CanvasDocument {
                 aspect_locked_size(item.frame, requested, MIN_CONTENT_FRAME_PT);
         }
         self.validate_content_frame_geometry(id, effective)?;
-        self.object_mut(id)
-            .ok_or("Content target disappeared.")?
-            .frame = effective;
-        Ok(effective)
+        let item = self.object_mut(id).ok_or("Content target disappeared.")?;
+        let before = std::mem::replace(&mut item.frame, effective);
+        if let Some(stack) = self.shared_x_stack_of(id).map(|panel| panel.id)
+            && let Err(error) = self.reflow_shared_x_stack(stack)
+        {
+            if let Some(item) = self.object_mut(id) {
+                item.frame = before;
+            }
+            return Err(error);
+        }
+        Ok(self.object(id).map_or(effective, |item| item.frame))
     }
 
     /// Validate against the current parent, including after later batch edits.

@@ -107,6 +107,7 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
                         Command(CommandId::DeletePanel),
                         Command(CommandId::DuplicatePanel),
                         Command(CommandId::MergePanels),
+                        Command(CommandId::StackPanelsSharedX),
                         Command(CommandId::SplitPanel),
                         Separator,
                         Command(CommandId::SetPanelLayout(
@@ -120,6 +121,9 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
                         )),
                         Command(CommandId::SetPanelLayout(
                             plotium_core::state::PanelLayout::Grid { rows: 2, cols: 2 },
+                        )),
+                        Command(CommandId::SetPanelLayout(
+                            plotium_core::state::PanelLayout::SharedXStack,
                         )),
                     ],
                 ),

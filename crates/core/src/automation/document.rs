@@ -165,9 +165,25 @@ impl Node<'_> {
             Self::Canvas(c) => {
                 out["size_mm"] = json!(c.size_mm);
             }
-            Self::Panel(_, p) => {
+            Self::Panel(c, p) => {
                 out["frame"] = frame(p.frame);
                 out["locked"] = json!(p.locked);
+                out["layout"] = json!(match p.layout {
+                    crate::state::PanelLayout::Free => "free",
+                    crate::state::PanelLayout::VerticalStack => "vertical_stack",
+                    crate::state::PanelLayout::HorizontalStack => "horizontal_stack",
+                    crate::state::PanelLayout::Grid { .. } => "grid",
+                    crate::state::PanelLayout::SharedXStack => "shared_x_stack",
+                });
+                if p.layout == crate::state::PanelLayout::SharedXStack {
+                    out["shared_x_stack"] = json!({
+                        "members_top_to_bottom": p.item_order.iter()
+                            .filter_map(|id| c.object(*id))
+                            .map(|o| object_target(c, o))
+                            .collect::<Vec<_>>(),
+                        "gap_pt": p.layout_gap,
+                    });
+                }
             }
             Self::Content(c, o) => {
                 out.as_object_mut().expect("local detail object").extend(

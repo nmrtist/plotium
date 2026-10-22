@@ -178,6 +178,7 @@ impl FigureDiagnosticScan {
                         });
                     SnapshotKind::Plot {
                         figure: Box::new(f.clone()),
+                        stack: c.shared_x_stack_placement(o.id),
                         selected_series,
                         declared: binding
                             .series

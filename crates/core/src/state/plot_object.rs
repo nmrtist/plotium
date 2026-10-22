@@ -40,6 +40,11 @@ pub struct PlotObject {
     /// their contour buffers have identical contents; figure rebuilds replace it.
     figure_geometry_generation: u64,
     pub viewport: CanvasViewport,
+    /// Runtime x direction imposed by a shared-x stack (its bottom plot's), never
+    /// persisted. `None` draws the direction the figure was built with.
+    stack_x_reversed: Option<bool>,
+    /// The x direction of the latest built figure, restored on leaving a stack.
+    natural_x_reversed: bool,
 }
 
 impl PlotObject {
@@ -56,6 +61,7 @@ impl PlotObject {
         viewport: CanvasViewport,
     ) -> Self {
         let derived_axes = DerivedAxes::from_figure(&figure);
+        let natural_x_reversed = figure.x.reversed;
         let mut plot = Self {
             display_owner,
             next_series_id,
@@ -68,6 +74,8 @@ impl PlotObject {
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),
             viewport,
+            stack_x_reversed: None,
+            natural_x_reversed,
         };
         plot.make_legend_room();
         plot
@@ -88,6 +96,7 @@ impl PlotObject {
         figure: Figure,
         viewport: CanvasViewport,
     ) -> Self {
+        let natural_x_reversed = figure.x.reversed;
         let mut plot = Self {
             display_owner,
             next_series_id,
@@ -100,6 +109,8 @@ impl PlotObject {
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),
             viewport,
+            stack_x_reversed: None,
+            natural_x_reversed,
         };
         super::axis_display::apply_display(
             &mut plot.figure,
@@ -116,6 +127,21 @@ impl PlotObject {
 
     pub fn figure(&self) -> &Figure {
         &self.figure
+    }
+
+    /// The x direction this plot draws outside a shared-x stack.
+    pub fn natural_x_reversed(&self) -> bool {
+        self.natural_x_reversed
+    }
+
+    /// Follow a shared-x stack's x direction, or return to the built one.
+    pub(crate) fn set_stack_x_reversed(&mut self, reversed: Option<bool>) {
+        if self.stack_x_reversed == reversed {
+            return;
+        }
+        self.stack_x_reversed = reversed;
+        self.figure.x.reversed = reversed.unwrap_or(self.natural_x_reversed);
+        self.figure_geometry_generation = next_figure_geometry_generation();
     }
 
     pub fn figure_geometry_generation(&self) -> u64 {
@@ -187,6 +213,7 @@ impl PlotObject {
         prepare: impl FnOnce(&mut Self, &mut Figure),
     ) {
         self.derived_axes = DerivedAxes::from_figure(&figure);
+        self.natural_x_reversed = figure.x.reversed;
         super::axis_display::apply_display(
             &mut figure,
             self.binding.coordinates.as_ref(),
@@ -194,6 +221,9 @@ impl PlotObject {
             &self.axis_overrides,
         );
         prepare(self, &mut figure);
+        if let Some(reversed) = self.stack_x_reversed {
+            figure.x.reversed = reversed;
+        }
         self.figure = figure;
         self.make_legend_room();
         self.figure_geometry_generation = next_figure_geometry_generation();

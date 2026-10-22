@@ -6,6 +6,9 @@ use crate::state::{
 
 #[path = "panel_detach.rs"]
 mod detach;
+#[path = "panel_stack.rs"]
+mod stack;
+pub(crate) use stack::stack_panels;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum PanelActionError {
@@ -346,102 +349,7 @@ impl PlotiumApp {
     ) -> Result<Action, PanelActionError> {
         let before = self.panel_state(canvas)?;
         let mut page = self.doc.canvases[canvas].clone();
-        let mut ids = vec![primary];
-        ids.extend_from_slice(others);
-        ids.sort();
-        ids.dedup();
-        let selected: Vec<Panel> = ids
-            .iter()
-            .map(|id| {
-                page.panel(*id)
-                    .cloned()
-                    .ok_or(PanelActionError::MissingPanel(*id))
-            })
-            .collect::<Result<_, _>>()?;
-        if selected.len() < 2 {
-            return Err(PanelActionError::Invalid(
-                "merge requires two panels".to_owned(),
-            ));
-        }
-        let frame = bounds(selected.iter().map(|panel| panel.frame)).expect("non-empty");
-        let mut ordered: Vec<_> = selected
-            .iter()
-            .flat_map(|panel| {
-                panel
-                    .item_order
-                    .iter()
-                    .copied()
-                    .map(move |content| (content, panel.frame))
-            })
-            .collect();
-        ordered.sort_by_key(|(content, _)| {
-            page.objects
-                .iter()
-                .position(|item| item.id == *content)
-                .unwrap_or(usize::MAX)
-        });
-        for (content, old_panel) in &ordered {
-            let item = page
-                .object_mut(*content)
-                .ok_or(PanelActionError::MissingContent(*content))?;
-            item.frame.x += old_panel.x - frame.x;
-            item.frame.y += old_panel.y - frame.y;
-        }
-        let primary_index = page
-            .panels
-            .iter()
-            .position(|panel| panel.id == primary)
-            .ok_or(PanelActionError::MissingPanel(primary))?;
-        page.panels[primary_index].frame = frame;
-        page.panels[primary_index].item_order = ordered.iter().map(|(id, _)| *id).collect();
-        let notes: Vec<_> = selected
-            .iter()
-            .filter(|panel| panel.id != primary)
-            .map(|panel| panel.note.trim())
-            .filter(|note| !note.is_empty())
-            .collect();
-        if !notes.is_empty() {
-            page.panels[primary_index]
-                .note
-                .push_str(&format!("\n\n{}", notes.join("\n\n")));
-        }
-        page.panels
-            .retain(|panel| panel.id == primary || !ids.contains(&panel.id));
-        let affected_group_ids: Vec<_> = page
-            .groups
-            .iter()
-            .filter(|group| {
-                group
-                    .members
-                    .iter()
-                    .any(|member| matches!(member, GroupMember::Panel(id) if ids.contains(id)))
-            })
-            .map(|group| group.id)
-            .collect();
-        if let Some(&group_id) = affected_group_ids.first() {
-            let mut members = std::collections::BTreeSet::new();
-            for group in page
-                .groups
-                .iter()
-                .filter(|group| affected_group_ids.contains(&group.id))
-            {
-                for member in &group.members {
-                    members.insert(match member {
-                        GroupMember::Panel(id) if ids.contains(id) => GroupMember::Panel(primary),
-                        member => *member,
-                    });
-                }
-            }
-            page.groups
-                .retain(|group| !affected_group_ids.contains(&group.id));
-            if members.len() >= 2 {
-                page.groups.push(LayoutGroup {
-                    id: group_id,
-                    members: members.into_iter().collect(),
-                });
-            }
-        }
-        page.reconcile_content_group_scopes();
+        merge_panels(&mut page, primary, others)?;
         page.validate_structure()
             .map_err(PanelActionError::Invalid)?;
         Ok(Action::ReplacePanelState {
@@ -536,6 +444,112 @@ impl PlotiumApp {
     }
 }
 
+/// Merge `others` into `primary` on one page: their content keeps its page
+/// position inside the union frame, in canvas object order.
+pub(crate) fn merge_panels(
+    page: &mut crate::state::CanvasDocument,
+    primary: PanelId,
+    others: &[PanelId],
+) -> Result<(), PanelActionError> {
+    let mut ids = vec![primary];
+    ids.extend_from_slice(others);
+    ids.sort();
+    ids.dedup();
+    let selected: Vec<Panel> = ids
+        .iter()
+        .map(|id| {
+            page.panel(*id)
+                .cloned()
+                .ok_or(PanelActionError::MissingPanel(*id))
+        })
+        .collect::<Result<_, _>>()?;
+    if selected.len() < 2 {
+        return Err(PanelActionError::Invalid(
+            "merge requires two panels".to_owned(),
+        ));
+    }
+    let frame = bounds(selected.iter().map(|panel| panel.frame)).expect("non-empty");
+    let mut ordered: Vec<_> = selected
+        .iter()
+        .flat_map(|panel| {
+            panel
+                .item_order
+                .iter()
+                .copied()
+                .map(move |content| (content, panel.frame))
+        })
+        .collect();
+    ordered.sort_by_key(|(content, _)| {
+        page.objects
+            .iter()
+            .position(|item| item.id == *content)
+            .unwrap_or(usize::MAX)
+    });
+    for (content, old_panel) in &ordered {
+        let item = page
+            .object_mut(*content)
+            .ok_or(PanelActionError::MissingContent(*content))?;
+        item.frame.x += old_panel.x - frame.x;
+        item.frame.y += old_panel.y - frame.y;
+    }
+    let primary_index = page
+        .panels
+        .iter()
+        .position(|panel| panel.id == primary)
+        .ok_or(PanelActionError::MissingPanel(primary))?;
+    page.panels[primary_index].frame = frame;
+    page.panels[primary_index].item_order = ordered.iter().map(|(id, _)| *id).collect();
+    let notes: Vec<_> = selected
+        .iter()
+        .filter(|panel| panel.id != primary)
+        .map(|panel| panel.note.trim())
+        .filter(|note| !note.is_empty())
+        .collect();
+    if !notes.is_empty() {
+        page.panels[primary_index]
+            .note
+            .push_str(&format!("\n\n{}", notes.join("\n\n")));
+    }
+    page.panels
+        .retain(|panel| panel.id == primary || !ids.contains(&panel.id));
+    let affected_group_ids: Vec<_> = page
+        .groups
+        .iter()
+        .filter(|group| {
+            group
+                .members
+                .iter()
+                .any(|member| matches!(member, GroupMember::Panel(id) if ids.contains(id)))
+        })
+        .map(|group| group.id)
+        .collect();
+    if let Some(&group_id) = affected_group_ids.first() {
+        let mut members = std::collections::BTreeSet::new();
+        for group in page
+            .groups
+            .iter()
+            .filter(|group| affected_group_ids.contains(&group.id))
+        {
+            for member in &group.members {
+                members.insert(match member {
+                    GroupMember::Panel(id) if ids.contains(id) => GroupMember::Panel(primary),
+                    member => *member,
+                });
+            }
+        }
+        page.groups
+            .retain(|group| !affected_group_ids.contains(&group.id));
+        if members.len() >= 2 {
+            page.groups.push(LayoutGroup {
+                id: group_id,
+                members: members.into_iter().collect(),
+            });
+        }
+    }
+    page.reconcile_content_group_scopes();
+    Ok(())
+}
+
 /// Reflow one Panel from its persisted layout settings. Structural changes such
 /// as reparenting call this as well as the property editor, so Stack and Grid
 /// have one deterministic layout rule irrespective of how content arrived.
@@ -543,6 +557,9 @@ fn apply_panel_layout(
     page: &mut crate::state::CanvasDocument,
     panel_id: PanelId,
 ) -> Result<(), PanelActionError> {
+    // A stack's members must read one x axis before their frames are fixed.
+    page.unify_shared_x_window(panel_id)
+        .map_err(PanelActionError::Invalid)?;
     let panel = page
         .panel(panel_id)
         .cloned()
@@ -582,12 +599,20 @@ fn layout_frames(
             })
             .collect();
     }
+    if layout == PanelLayout::SharedXStack {
+        let mut stack = panel.clone();
+        stack.layout_gap = gap;
+        stack.layout_padding = padding;
+        return page
+            .shared_x_stack_frames(&stack)
+            .map_err(PanelActionError::Invalid);
+    }
     let count = panel.item_order.len();
     let (rows, cols) = match layout {
         PanelLayout::VerticalStack => (count, 1),
         PanelLayout::HorizontalStack => (1, count),
         PanelLayout::Grid { rows, cols } => (rows as usize, cols as usize),
-        PanelLayout::Free => unreachable!(),
+        PanelLayout::Free | PanelLayout::SharedXStack => unreachable!(),
     };
     if rows == 0 || cols == 0 || rows.saturating_mul(cols) < count {
         return Err(PanelActionError::Invalid(

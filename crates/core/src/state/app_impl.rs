@@ -724,6 +724,7 @@ impl PlotiumApp {
             let fig = self.build_object_figure(owner, &binding, &chart, &stack, &projections, size);
             self.apply_viewport_to_plot_object(ci, id, fig);
         }
+        self.doc.canvases[ci].sync_shared_x_direction();
     }
 }
 

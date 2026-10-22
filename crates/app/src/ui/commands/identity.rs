@@ -110,6 +110,7 @@ pub(super) fn command_identity(
         CommandId::DeletePanel => plain("Delete Panel and Contents", Some(icon::TRASH)),
         CommandId::DuplicatePanel => plain("Duplicate Panel", Some(icon::COPY)),
         CommandId::MergePanels => plain("Merge Selected Panels", Some(icon::UNION)),
+        CommandId::StackPanelsSharedX => plain("Stack with Shared X", Some(icon::ROWS)),
         CommandId::SplitPanel => plain("Split Selected Contents into Panel", Some(icon::SCISSORS)),
         CommandId::SetPanelLayout(layout) => plain(
             match layout {
@@ -117,6 +118,7 @@ pub(super) fn command_identity(
                 PanelLayout::VerticalStack => "Panel Layout: Vertical Stack",
                 PanelLayout::HorizontalStack => "Panel Layout: Horizontal Stack",
                 PanelLayout::Grid { .. } => "Panel Layout: Grid",
+                PanelLayout::SharedXStack => "Panel Layout: Shared X Stack",
             },
             Some(icon::SQUARES_FOUR),
         ),
@@ -454,6 +456,7 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::DeletePanel => "panel.delete",
         CommandId::DuplicatePanel => "panel.duplicate",
         CommandId::MergePanels => "panel.merge",
+        CommandId::StackPanelsSharedX => "panel.stack_shared_x",
         CommandId::SplitPanel => "panel.split",
         CommandId::MoveContentToPanel(_) => "panel.move_content.context",
         CommandId::TogglePrimarySidebar => "view.primary_sidebar",
@@ -520,6 +523,7 @@ fn panel_layout_slug(layout: PanelLayout) -> &'static str {
         PanelLayout::VerticalStack => "vertical_stack",
         PanelLayout::HorizontalStack => "horizontal_stack",
         PanelLayout::Grid { .. } => "grid_2x2",
+        PanelLayout::SharedXStack => "shared_x_stack",
     }
 }
 

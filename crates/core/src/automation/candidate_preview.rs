@@ -29,7 +29,7 @@ pub fn plan_preview_schema() -> Value {
 }
 pub fn plan_preview_contract() -> Value {
     json!({"properties":["properties.set","properties.reset"],"property_keys":[guide::VISIBILITY.as_str(),guide::PLACEMENT.as_str(),guide::LAYOUT.as_str(),guide::TITLE.as_str(),guide::POSITION.as_str()],
-        "figure_edits":["content_frame","image_replace","text_set","content_delete","panel_delete","series_delete"],
+        "figure_edits":["content_frame","image_replace","text_set","panel_stack","content_delete","panel_delete","series_delete"],
         "batch":"Full native batch; deletion-only rules unchanged. Multi-canvas guide plans may be previewed one affected canvas at a time.",
         "rendering":"Ordinary line/scatter plots, native text, raster and shapes. No background scientific computation.",
         "snapshot_estimate_bytes":CANDIDATE_SNAPSHOT_BYTES,"snapshot_estimate":"Native canvas geometry plus source field dimensions at 64 bytes/element, metadata and frozen assets; not peak process memory.",
@@ -76,6 +76,7 @@ pub fn validate_plan_preview(
                 !matches!(
                     op,
                     FigureEdit::ContentFrame { .. }
+                        | FigureEdit::PanelStack { .. }
                         | FigureEdit::ImageReplace { .. }
                         | FigureEdit::TextSet { .. }
                         | FigureEdit::AnnotationCreate { .. }
