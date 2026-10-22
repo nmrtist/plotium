@@ -526,6 +526,16 @@ pub(super) fn execute_planned_tool(
     };
     result.before_revision = before;
     result.after_revision = DocumentRevision(app.doc.automation_revision);
+    if let Some(id) = &plan.task_id {
+        app.session.scientific_tasks.set_recovery(
+            id,
+            ScientificRecovery {
+                request: plan.request.clone(),
+                targets: plan.frozen_targets.targets.clone(),
+                desktop_region: plan.desktop_region,
+            },
+        );
+    }
     record_external_write(app, &plan, &result);
     Ok(result)
 }

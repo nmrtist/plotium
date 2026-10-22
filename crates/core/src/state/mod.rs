@@ -141,6 +141,7 @@ mod reference_pick;
 mod region;
 mod reports;
 mod scientific_compute;
+mod scientific_recovery;
 mod scientific_summary;
 mod selection;
 mod series_binding;

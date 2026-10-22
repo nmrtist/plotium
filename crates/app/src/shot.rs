@@ -95,6 +95,7 @@ enum Op {
     /// Open the result's synchronized read-only values.
     RegionData,
     History(bool),
+    ScientificConflict,
     XpsSetup,
     CraftSetup,
     PanelControls(bool),
@@ -149,6 +150,8 @@ const SCENES: &[Scene] = &[
     shot(8, "band"),
     act(2, Op::History(true)),
     shot(30, "activity_results"),
+    act(2, Op::ScientificConflict),
+    shot(30, "scientific_conflict"),
     act(2, Op::History(false)),
     act(2, Op::LineFit),
     shot(10, "fitted"),
@@ -400,6 +403,7 @@ fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), Strin
         Op::PinSymmetry => pin_symmetry(app)?,
         Op::RegionResult => region_result(app),
         Op::History(open) => workspace_shot::activity(app, ctx, open)?,
+        Op::ScientificConflict => workspace_shot::scientific_conflict(app, ctx)?,
         Op::RegionData => {
             app.session.ui.sheet_open = Some(1);
             app.session.ui.curve_fit_task_collapsed = true;

@@ -549,3 +549,235 @@ fn synchronous_scheme_worker_failure_stops_dependent_nodes() {
         before
     );
 }
+
+#[test]
+fn recompute_uses_fresh_revision_and_original_stable_source_without_replaying_task() {
+    let mut app = app();
+    let source = app.doc.datasets[0].resource_id();
+    let id = TaskId(uuid::Uuid::new_v4().to_string());
+    app.start_dosy_task(source, id.clone(), None, None, None)
+        .unwrap();
+    app.doc.automation_revision += 1;
+    wait_for_compute(&mut app);
+    let stale = app.session.scientific_tasks.get(&id).unwrap();
+    assert_eq!(stale.status, TaskStatus::Stale);
+    assert!(stale.message.as_deref().unwrap().contains("not applied"));
+    assert_eq!(app.session.background_activity.operations().len(), 1);
+    assert_eq!(
+        app.session.background_activity.operations()[0]
+            .task_id
+            .as_ref(),
+        Some(&id)
+    );
+    let before = app.doc.automation_revision;
+    let retry = app.recompute_scientific_task(&id).unwrap();
+    assert_ne!(retry.task_id, id);
+    assert_eq!(retry.start_revision, DocumentRevision(before));
+    assert_eq!(retry.targets, vec![ResourceRef::from(source)]);
+    assert!(
+        app.scientific_task_recompute_unavailable(&id)
+            .unwrap()
+            .contains("Wait")
+    );
+    wait_for_compute(&mut app);
+    assert_eq!(
+        app.session
+            .scientific_tasks
+            .get(&retry.task_id)
+            .unwrap()
+            .status,
+        TaskStatus::Succeeded
+    );
+    assert_eq!(
+        app.session.scientific_tasks.get(&id).unwrap().status,
+        TaskStatus::Stale
+    );
+    assert!(app.doc.datasets[0].as_nmr2d().unwrap().dosy_map.is_some());
+    let retry_operation = app.session.background_activity.operations().back().unwrap();
+    assert_eq!(retry_operation.task_id.as_ref(), Some(&retry.task_id));
+    assert_eq!(
+        retry_operation.outcome,
+        crate::operation::OperationOutcome::Success
+    );
+    assert_eq!(app.session.background_activity.operations().len(), 2);
+    app.session.clear_operation_history();
+    app.poll_compute();
+    assert!(app.session.background_activity.operations().is_empty());
+}
+
+#[test]
+fn recompute_refuses_deleted_sources_replaced_projects_and_revoked_permission() {
+    for reason in ["deleted", "project", "permission"] {
+        let mut app = app();
+        let source = app.doc.datasets[0].resource_id();
+        let id = TaskId(uuid::Uuid::new_v4().to_string());
+        app.start_dosy_task(source, id.clone(), None, None, None)
+            .unwrap();
+        if reason == "permission" {
+            let token = TaskCancellation::default();
+            app.session
+                .scientific_tasks
+                .bind_permission(&id, token.clone());
+            token.cancel();
+        } else if reason == "project" {
+            app.start_new_project();
+        } else {
+            app.doc.datasets.clear();
+            app.doc.automation_revision += 1;
+        }
+        wait_for_compute(&mut app);
+        if reason == "deleted" {
+            assert_eq!(
+                app.session
+                    .scientific_tasks
+                    .get(&id)
+                    .unwrap()
+                    .failure_code
+                    .as_deref(),
+                Some("target_deleted")
+            );
+        }
+        assert!(app.scientific_task_recompute_unavailable(&id).is_some());
+        assert!(app.recompute_scientific_task(&id).is_err());
+        assert_eq!(app.session.scientific_tasks.list(0, 128).len(), 1);
+    }
+}
+
+#[test]
+fn human_cancelled_task_is_retained_once_without_claiming_failure() {
+    let mut app = app();
+    let source = app.doc.datasets[0].resource_id();
+    let id = TaskId(uuid::Uuid::new_v4().to_string());
+    app.start_dosy_task(source, id.clone(), None, None, None)
+        .unwrap();
+    app.cancel_scientific_task(&id);
+    wait_for_compute(&mut app);
+    let operation = app.session.background_activity.operations().back().unwrap();
+    assert_eq!(operation.task_id.as_ref(), Some(&id));
+    assert_eq!(
+        operation.outcome,
+        crate::operation::OperationOutcome::Warning
+    );
+    assert!(
+        operation
+            .diagnostics
+            .iter()
+            .any(|text| text.contains("cancelled"))
+    );
+    app.poll_compute();
+    assert_eq!(app.session.background_activity.operations().len(), 1);
+}
+
+#[test]
+fn recompute_resolves_omitted_diffusion_input_but_preserves_explicit_input() {
+    for explicit in [false, true] {
+        let mut app = app();
+        let mut parameters = json!({"method":"mono_exp"});
+        if explicit {
+            parameters["input"] = serde_json::to_value(
+                app.doc.datasets[0]
+                    .as_nmr2d()
+                    .unwrap()
+                    .diffusion_input
+                    .as_ref()
+                    .unwrap(),
+            )
+            .unwrap();
+        }
+        let plan = plan_tool(&app, request(&app, DOSY_BUILD, parameters.clone(), true)).unwrap();
+        let original = plan.task_id.clone().unwrap();
+        execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify).unwrap();
+        app.doc.datasets[0]
+            .as_nmr2d_mut()
+            .unwrap()
+            .diffusion_input
+            .as_mut()
+            .unwrap()
+            .confirmed = false;
+        app.doc.automation_revision += 1;
+        wait_for_compute(&mut app);
+        assert_eq!(
+            app.session.scientific_tasks.get(&original).unwrap().status,
+            TaskStatus::Stale
+        );
+        assert_eq!(
+            app.session
+                .scientific_tasks
+                .recovery(&original)
+                .unwrap()
+                .request
+                .parameters,
+            parameters
+        );
+        let retry = app.recompute_scientific_task(&original);
+        if explicit {
+            let retry = retry.unwrap();
+            assert_ne!(retry.task_id, original);
+            wait_for_compute(&mut app);
+            assert_eq!(
+                app.session
+                    .scientific_tasks
+                    .get(&retry.task_id)
+                    .unwrap()
+                    .status,
+                TaskStatus::Succeeded
+            );
+        } else {
+            assert!(
+                retry.is_err(),
+                "current unconfirmed input must not reuse an old resolved input"
+            );
+            assert_eq!(app.session.scientific_tasks.list(0, 128).len(), 1);
+        }
+    }
+}
+
+#[test]
+fn recompute_revalidates_changed_input_shape_and_retains_the_rejection() {
+    let mut app = app();
+    let source = app.doc.datasets[0].resource_id();
+    let id = TaskId(uuid::Uuid::new_v4().to_string());
+    app.start_dosy_task(source, id.clone(), None, None, None)
+        .unwrap();
+    app.doc.automation_revision += 1;
+    wait_for_compute(&mut app);
+    let data = app.doc.datasets[0].as_nmr2d_mut().unwrap();
+    let Processed2D::Stack(stack) = &mut data.processed else {
+        panic!("stack fixture")
+    };
+    std::sync::Arc::make_mut(stack).traces.pop();
+    assert!(app.scientific_task_recompute_unavailable(&id).is_none());
+    assert!(app.recompute_scientific_task(&id).is_err());
+    assert_eq!(app.session.scientific_tasks.list(0, 128).len(), 1);
+    let rejected = app.session.background_activity.operations().back().unwrap();
+    assert_eq!(
+        rejected.outcome,
+        crate::operation::OperationOutcome::Failure
+    );
+    assert!(rejected.task_id.is_none());
+    assert!(!rejected.diagnostics.is_empty());
+    assert!(app.doc.datasets[0].as_nmr2d().unwrap().dosy_map.is_none());
+}
+
+#[test]
+fn file_backed_scheme_recovery_requires_explicit_file_reselection() {
+    let mut app = app();
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("routine.plotiumproc");
+    crate::project::save_scheme(&path, &app.doc.datasets[0]).unwrap();
+    app.session.compute = ComputeService::inactive();
+    let req = request(&app, "processing.apply_scheme", json!({"path":path}), false);
+    let plan = plan_tool(&app, req).unwrap();
+    let id = plan.task_id.clone().unwrap();
+    execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify).unwrap();
+    assert_eq!(
+        app.session.scientific_tasks.get(&id).unwrap().status,
+        TaskStatus::Failed
+    );
+    assert!(
+        app.scientific_task_recompute_unavailable(&id)
+            .unwrap()
+            .contains("scheme again")
+    );
+    assert!(app.recompute_scientific_task(&id).is_err());
+}

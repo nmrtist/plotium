@@ -85,3 +85,26 @@ fn cancellation_is_terminal_and_project_invalidation_keeps_history() {
         TaskStatus::Cancelled
     );
 }
+
+#[test]
+fn scientific_warning_preserves_successful_execution_without_claiming_valid_science() {
+    let mut task = receipt("fit");
+    task.status = TaskStatus::Succeeded;
+    task.summary = serde_json::json!({"converged":false});
+    assert!(
+        task.scientific_warning()
+            .unwrap()
+            .contains("did not converge")
+    );
+    task.summary = serde_json::json!({"status":"empty","accepted_columns":0});
+    assert!(
+        task.scientific_warning()
+            .unwrap()
+            .contains("no accepted result")
+    );
+    task.summary = serde_json::json!({"converged":true,"status":"available"});
+    assert!(task.scientific_warning().is_none());
+    task.status = TaskStatus::Failed;
+    task.summary = serde_json::json!({"converged":false});
+    assert!(task.scientific_warning().is_none());
+}

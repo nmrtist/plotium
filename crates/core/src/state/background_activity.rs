@@ -5,7 +5,7 @@ use crate::automation::{
     ToolResult,
 };
 use crate::operation::OperationOutcome;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub const BACKGROUND_ACTIVITY_CAPACITY: usize = 128;
 
@@ -23,6 +23,7 @@ pub struct ActivityOperation {
     pub id: ActivityId,
     pub title: String,
     pub tool_id: String,
+    pub task_id: Option<TaskId>,
     pub outcome: OperationOutcome,
     pub created: usize,
     pub updated: usize,
@@ -49,6 +50,7 @@ pub struct BackgroundActivity {
     operations: VecDeque<ActivityOperation>,
     results: VecDeque<ActivityResult>,
     pending: BTreeMap<TaskId, (ProjectContextId, String)>,
+    observed_tasks: BTreeSet<TaskId>,
 }
 
 impl BackgroundActivity {
@@ -150,6 +152,27 @@ impl PlotiumApp {
             .and_then(|result| result.value.get("task"))
             .and_then(|value| serde_json::from_value::<TaskReceipt>(value.clone()).ok())
         {
+            if receipt.status.terminal()
+                && self
+                    .session
+                    .background_activity
+                    .observed_tasks
+                    .contains(&receipt.task_id)
+            {
+                if self
+                    .session
+                    .background_activity
+                    .operations
+                    .iter()
+                    .any(|operation| operation.task_id.as_ref() == Some(&receipt.task_id))
+                {
+                    return;
+                }
+                self.session
+                    .background_activity
+                    .observed_tasks
+                    .remove(&receipt.task_id);
+            }
             self.session
                 .background_activity
                 .pending
@@ -161,6 +184,7 @@ impl PlotiumApp {
             id: ActivityId(0),
             title: descriptor.title.clone(),
             tool_id: tool_id.into(),
+            task_id: None,
             outcome: OperationOutcome::Success,
             created: 0,
             updated: 0,
@@ -230,19 +254,44 @@ impl PlotiumApp {
     pub(crate) fn poll_background_activity(&mut self) {
         let ready = self
             .session
-            .background_activity
-            .pending
-            .iter()
-            .filter_map(|(id, (context, tool))| {
-                self.session
-                    .scientific_tasks
-                    .get(id)
-                    .filter(|receipt| receipt.status.terminal())
-                    .map(|receipt| (id.clone(), *context, tool.clone(), receipt.clone()))
+            .scientific_tasks
+            .list(0, 128)
+            .into_iter()
+            .filter_map(|receipt| {
+                if !receipt.status.terminal()
+                    || self
+                        .session
+                        .background_activity
+                        .observed_tasks
+                        .contains(&receipt.task_id)
+                {
+                    return None;
+                }
+                let pending = self
+                    .session
+                    .background_activity
+                    .pending
+                    .get(&receipt.task_id);
+                Some((receipt.clone(), pending.is_some()))
             })
             .collect::<Vec<_>>();
-        for (id, context, tool, receipt) in ready {
+        for (receipt, background) in ready {
+            let id = receipt.task_id.clone();
+            let context = receipt.project_context;
+            let tool = receipt.operation.clone();
             self.session.background_activity.pending.remove(&id);
+            self.session
+                .background_activity
+                .observed_tasks
+                .insert(id.clone());
+            let scientific_warning = receipt.scientific_warning();
+            if context != self.session.project_context
+                || (!background
+                    && receipt.status == TaskStatus::Succeeded
+                    && scientific_warning.is_none())
+            {
+                continue;
+            }
             let outcome = if receipt.status == TaskStatus::Succeeded {
                 Ok(ToolResult {
                     tool_id: tool.clone(),
@@ -251,7 +300,7 @@ impl PlotiumApp {
                     targets: Vec::new(),
                     produced: receipt.produced,
                     modified: receipt.modified,
-                    diagnostics: Vec::new(),
+                    diagnostics: scientific_warning.map(str::to_owned).into_iter().collect(),
                     verification: Vec::new(),
                     value: serde_json::Value::Null,
                 })
@@ -270,6 +319,14 @@ impl PlotiumApp {
                 )))
             };
             self.record_background_tool(context, CallerType::Agent, &tool, outcome.as_ref());
+            if let Some(operation) = self.session.background_activity.operations.back_mut() {
+                operation.task_id = Some(id);
+                if matches!(receipt.status, TaskStatus::Cancelled | TaskStatus::Stale)
+                    || scientific_warning.is_some()
+                {
+                    operation.outcome = OperationOutcome::Warning;
+                }
+            }
         }
     }
 }

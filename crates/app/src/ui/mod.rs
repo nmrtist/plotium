@@ -39,6 +39,7 @@ pub(crate) mod properties;
 mod ribbon;
 mod ribbon_chrome;
 mod scientific_script;
+mod scientific_task_feedback;
 mod secondary_sidebar;
 mod settings_dialog;
 mod shortcuts;
