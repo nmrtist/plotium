@@ -1,5 +1,7 @@
 use super::visible_y_range;
-use plotium_figure::{Axis, AxisFrame, Figure, GuideLayout, GuidePlacement, GuideVisibility};
+use plotium_figure::{
+    Axis, AxisFrame, AxisScale, Figure, GuideLayout, GuidePlacement, GuideVisibility,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AxisRange {
@@ -89,11 +91,11 @@ impl CanvasViewport {
     pub fn sync_full_from(&mut self, fig: &Figure) {
         self.full_x = AxisRange::from_axis(&fig.x);
         self.full_y = AxisRange::from_axis(&fig.y);
-        self.view_x = self.view_x.clamp_to(self.full_x);
+        self.view_x = self.view_x.clamp_in(self.full_x, fig.x.scale);
         if self.auto_y {
             self.refresh_auto_y(fig);
         } else {
-            self.view_y = self.view_y.clamp_to(self.full_y);
+            self.view_y = self.view_y.clamp_in(self.full_y, fig.y.scale);
         }
     }
 
@@ -123,30 +125,41 @@ impl CanvasViewport {
     }
 
     pub fn zoom_x(&mut self, fig: &Figure, anchor: f64, scale: f64) {
-        self.view_x = self.view_x.zoom_around(self.full_x, anchor, scale);
+        self.view_x = self
+            .view_x
+            .zoom_around_in(self.full_x, anchor, scale, fig.x.scale);
         if self.auto_y {
             self.refresh_auto_y(fig);
         }
     }
 
     pub fn set_linked_x(&mut self, fig: &Figure, range: AxisRange) {
-        self.view_x = range.clamp_to(self.full_x);
+        self.view_x = range.clamp_in(self.full_x, fig.x.scale);
         if self.auto_y {
             self.refresh_auto_y(fig);
         }
     }
 
-    pub fn zoom_y(&mut self, anchor: f64, scale: f64) {
-        self.view_y = self.view_y.zoom_around(self.full_y, anchor, scale);
+    pub fn zoom_y(&mut self, fig: &Figure, anchor: f64, scale: f64) {
+        self.view_y = self
+            .view_y
+            .zoom_around_in(self.full_y, anchor, scale, fig.y.scale);
+        self.auto_y = false;
+    }
+
+    /// Pan by fractions of the visible window, measured in each axis scale.
+    pub fn pan(&mut self, fig: &Figure, x_fraction: f64, y_fraction: f64) {
+        self.view_x = self.view_x.shifted_in(self.full_x, x_fraction, fig.x.scale);
+        self.view_y = self.view_y.shifted_in(self.full_y, y_fraction, fig.y.scale);
         self.auto_y = false;
     }
 
     pub fn select(&mut self, fig: &Figure, x: Option<AxisRange>, y: Option<AxisRange>) {
         if let Some(x) = x {
-            self.view_x = x.clamp_to(self.full_x);
+            self.view_x = x.clamp_in(self.full_x, fig.x.scale);
         }
         if let Some(y) = y {
-            self.view_y = y.clamp_to(self.full_y);
+            self.view_y = y.clamp_in(self.full_y, fig.y.scale);
             self.auto_y = false;
         } else if self.auto_y {
             self.refresh_auto_y(fig);
@@ -171,6 +184,8 @@ pub struct AxisOverrides {
     pub y_range: Option<AxisRange>,
     pub lock_aspect: Option<bool>,
     pub axis_frame: Option<AxisFrame>,
+    pub x_scale: Option<AxisScale>,
+    pub y_scale: Option<AxisScale>,
     pub x_show_tick_labels: Option<bool>,
     pub x_show_label: Option<bool>,
     pub y_show_tick_labels: Option<bool>,
@@ -210,6 +225,7 @@ impl AxisOverrides {
         if let Some(lock) = self.lock_aspect {
             figure.lock_aspect = lock;
         }
+        self.apply_scales(figure);
         // Charts without axes (pie, 3D) keep their hidden frame.
         if let Some(frame) = self.axis_frame
             && figure.axis_frame != AxisFrame::Hidden

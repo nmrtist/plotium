@@ -19,15 +19,12 @@ impl<Id: Copy> BandHit<Id> {
 /// Hit-test one-dimensional bands with their resize edges taking priority.
 pub(crate) fn band_hit<Id: Copy>(
     bands: impl IntoIterator<Item = (Id, f64, f64)> + Clone,
-    plot: PlotRect,
-    xmin: f64,
-    xspan: f64,
-    xrev: bool,
+    to_screen: impl Fn(f64) -> f32,
     px: f32,
 ) -> Option<BandHit<Id>> {
     for (id, lo, hi) in bands.clone() {
-        let sxlo = x_to_screen(lo, plot, xmin, xspan, xrev);
-        let sxhi = x_to_screen(hi, plot, xmin, xspan, xrev);
+        let sxlo = to_screen(lo);
+        let sxhi = to_screen(hi);
         if (px - sxlo).abs() <= BAND_EDGE_PX {
             return Some(BandHit::Edge { id, lo_edge: true });
         }
@@ -36,8 +33,8 @@ pub(crate) fn band_hit<Id: Copy>(
         }
     }
     bands.into_iter().find_map(|(id, lo, hi)| {
-        let a = x_to_screen(lo, plot, xmin, xspan, xrev);
-        let b = x_to_screen(hi, plot, xmin, xspan, xrev);
+        let a = to_screen(lo);
+        let b = to_screen(hi);
         (px >= a.min(b) && px <= a.max(b)).then_some(BandHit::Inside { id })
     })
 }
@@ -69,7 +66,7 @@ mod tests {
         let plot = PlotRect::new(0.0, 0.0, 100.0, 20.0);
         let bands = [(7_u64, 2.0, 4.0), (9, 4.0, 6.0)];
         assert_eq!(
-            band_hit(bands, plot, 0.0, 10.0, true, 60.0),
+            band_hit(bands, |v| x_to_screen(v, plot, 0.0, 10.0, true), 60.0),
             Some(BandHit::Edge {
                 id: 7,
                 lo_edge: false,

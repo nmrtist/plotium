@@ -23,6 +23,10 @@ pub struct CurveScanResult {
     pub first_intersection: Option<Rect>,
     pub first_clipped: Option<Rect>,
     pub invalid: usize,
+    /// Finite samples without a position on the axis scale (zero or negative
+    /// values on a log axis). They are deliberately not drawn, so they do not
+    /// make the scan incomplete the way `invalid` geometry does.
+    pub out_of_scale: usize,
     pub finished: bool,
     pub cancelled: bool,
 }
@@ -50,7 +54,12 @@ pub fn scan_curve(
         out.visited += 1;
         if !b.0.is_finite() || !b.1.is_finite() {
             state.incoming_start = None;
-            out.invalid += 1;
+            let [x, y] = series.points[i];
+            if x.is_finite() && y.is_finite() && !b.0.is_nan() && !b.1.is_nan() {
+                out.out_of_scale += 1;
+            } else {
+                out.invalid += 1;
+            }
             continue;
         }
         let marker = series.appearance.marker(series.kind);

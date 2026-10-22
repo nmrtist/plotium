@@ -76,6 +76,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
 | `object.axes.frame` | 图对象 | `open`（左、下两条轴）、`box`（四边框） |
+| `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
 | `object.axes.x_range / object.axes.y_range` | 图对象 | 自动或手动范围对象 |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | 图对象 | 1–72 pt |

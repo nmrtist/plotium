@@ -29,6 +29,7 @@ const PANEL_LABEL_HIT_PAD_PX: f32 = 4.0;
 const SNAP_PX: f32 = 6.0;
 
 mod authoring;
+mod axis_mapping;
 mod band_editor;
 mod board;
 mod board_caption;
@@ -67,6 +68,7 @@ mod tiling;
 mod view_fit;
 
 pub(crate) use authoring::*;
+pub(crate) use axis_mapping::*;
 pub(crate) use board::*;
 pub(crate) use board_caption::*;
 pub(crate) use board_notes::*;

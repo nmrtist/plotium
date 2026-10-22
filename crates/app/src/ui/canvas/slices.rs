@@ -60,20 +60,8 @@ pub(crate) fn handle_slice(
             return;
         };
         match kind {
-            SliceKind::Row => s.nearest_f1(screen_to_y(
-                p.y,
-                plot,
-                fig.y.min,
-                fig.y.span(),
-                fig.y.reversed,
-            )),
-            SliceKind::Column => s.nearest_f2(screen_to_x(
-                p.x,
-                plot,
-                fig.x.min,
-                fig.x.span(),
-                fig.x.reversed,
-            )),
+            SliceKind::Row => s.nearest_f1(from_screen_y(p.y, plot, &fig.y)),
+            SliceKind::Column => s.nearest_f2(from_screen_x(p.x, plot, &fig.x)),
         }
     };
     app.session.ui.slice = Some(SliceCursor {
@@ -137,15 +125,13 @@ pub(crate) fn paint_slice(
 
     if let Some(position) = slice.position {
         if along_x {
-            let py = y_to_screen(position, plot, fig.y.min, fig.y.span(), fig.y.reversed)
-                .clamp(plot.top, plot.bottom());
+            let py = to_screen_y(position, plot, &fig.y).clamp(plot.top, plot.bottom());
             painter.line_segment(
                 [Pos2::new(plot.left, py), Pos2::new(plot.right(), py)],
                 Stroke::new(1.2_f32, SLICE_COLOR),
             );
         } else {
-            let px = x_to_screen(position, plot, fig.x.min, fig.x.span(), fig.x.reversed)
-                .clamp(plot.left, plot.right());
+            let px = to_screen_x(position, plot, &fig.x).clamp(plot.left, plot.right());
             painter.line_segment(
                 [Pos2::new(px, plot.top), Pos2::new(px, plot.bottom())],
                 Stroke::new(1.2_f32, SLICE_COLOR),
@@ -192,7 +178,7 @@ fn paint_inset(
             .iter()
             .zip(&disp)
             .map(|(&coordinate, &v)| {
-                let x = x_to_screen(coordinate, plot, fig.x.min, fig.x.span(), fig.x.reversed);
+                let x = to_screen_x(coordinate, plot, &fig.x);
                 let t = ((v - lo) / span) as f32;
                 Pos2::new(x, base_y - inset_h * (0.04 + 0.92 * t))
             })
@@ -213,7 +199,7 @@ fn paint_inset(
             .iter()
             .zip(&disp)
             .map(|(&coordinate, &v)| {
-                let y = y_to_screen(coordinate, plot, fig.y.min, fig.y.span(), fig.y.reversed);
+                let y = to_screen_y(coordinate, plot, &fig.y);
                 let t = ((v - lo) / span) as f32;
                 Pos2::new(plot.left + inset_w * (0.04 + 0.92 * t), y)
             })

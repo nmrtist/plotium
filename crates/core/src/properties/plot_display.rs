@@ -333,6 +333,14 @@ impl PropertyProvider for PlotDisplayProvider {
                                 "Choose numeric visible axes to set a manual range.".into(),
                             ));
                         }
+                        let scale = if x {
+                            overrides.x_scale
+                        } else {
+                            overrides.y_scale
+                        };
+                        if scale == Some(plotium_figure::AxisScale::Log10) && range.min <= 0.0 {
+                            return Err(error(d.id, super::axis::NON_POSITIVE_LOG_RANGE));
+                        }
                         Some(range)
                     }
                 };

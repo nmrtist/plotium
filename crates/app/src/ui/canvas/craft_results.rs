@@ -61,13 +61,7 @@ pub(crate) fn handle_and_paint_craft_result(
             .iter()
             .find(|component| component.id == selected)
     {
-        let x = x_to_screen(
-            component.chemical_shift_ppm,
-            plot,
-            figure.x.min,
-            figure.x.span(),
-            figure.x.reversed,
-        );
+        let x = to_screen_x(component.chemical_shift_ppm, plot, &figure.x);
         painter.text(
             Pos2::new(x, plot.top + 6.0),
             egui::Align2::CENTER_TOP,
@@ -88,13 +82,7 @@ pub(crate) fn handle_and_paint_craft_result(
         .components
         .iter()
         .map(|component| {
-            let x = x_to_screen(
-                component.chemical_shift_ppm,
-                plot,
-                figure.x.min,
-                figure.x.span(),
-                figure.x.reversed,
-            );
+            let x = to_screen_x(component.chemical_shift_ppm, plot, &figure.x);
             (component, (x - pointer.x).abs())
         })
         .filter(|(_, distance)| *distance <= 8.0)
@@ -228,14 +216,8 @@ fn paint_range_track(
     color: egui::Color32,
 ) {
     for &(left, right) in ranges {
-        let first = x_to_screen(left, plot, figure.x.min, figure.x.span(), figure.x.reversed);
-        let second = x_to_screen(
-            right,
-            plot,
-            figure.x.min,
-            figure.x.span(),
-            figure.x.reversed,
-        );
+        let first = to_screen_x(left, plot, &figure.x);
+        let second = to_screen_x(right, plot, &figure.x);
         let rect = egui::Rect::from_min_max(
             Pos2::new(first.min(second).max(plot.left), y),
             Pos2::new(first.max(second).min(plot.right()), y + 3.0),

@@ -1,5 +1,5 @@
 use crate::{AXIS_LABEL_GAP, Margins, OUTER_PAD, Projector, Rect, TICK_LABEL_PAD};
-use plotium_figure::{Axis, AxisFrame, Figure};
+use plotium_figure::{Axis, AxisFrame, AxisScale, Figure};
 use unicode_width::UnicodeWidthChar;
 
 const MAX_X_TARGET: usize = 8;
@@ -294,6 +294,8 @@ pub struct AxisTicks {
     pub values: Vec<f64>,
     pub labels: Vec<String>,
     pub scale_exponent: Option<i32>,
+    /// Majors sit on powers of ten of a log axis.
+    pub decades: bool,
 }
 
 impl AxisTicks {
@@ -302,6 +304,7 @@ impl AxisTicks {
             values: Vec::new(),
             labels: Vec::new(),
             scale_exponent: None,
+            decades: false,
         }
     }
 
@@ -347,6 +350,11 @@ fn estimated_plain_width(text: &str, font_size: f32) -> f32 {
 
 /// Ticks for an axis honoring its ordinal mode.
 pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
+    if axis.categories.is_none()
+        && let Some(ticks) = decade_ticks_for(axis, target)
+    {
+        return ticks;
+    }
     if axis.categories.is_none() {
         if let Some(display) = &axis.display {
             let mut result = format_axis_ticks(
@@ -374,6 +382,7 @@ pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
         values,
         labels,
         scale_exponent: None,
+        decades: false,
     }
 }
 
@@ -381,6 +390,13 @@ pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
 /// including the partial intervals before the first and after the last major
 /// tick. Categorical axes and axes with fewer than two major ticks have none.
 pub fn minor_tick_values(axis: &Axis, ticks: &AxisTicks, count: u8) -> Vec<f64> {
+    if ticks.decades {
+        return if count == 0 {
+            Vec::new()
+        } else {
+            decade_minors_for(axis, ticks)
+        };
+    }
     let (Some(&first), Some(&second)) = (ticks.values.first(), ticks.values.get(1)) else {
         return Vec::new();
     };
@@ -398,6 +414,49 @@ pub fn minor_tick_values(axis: &Axis, ticks: &AxisTicks, count: u8) -> Vec<f64> 
         })
         .filter(|value| *value >= lo - eps && *value <= hi + eps)
         .collect()
+}
+
+/// Log axes label powers of ten of the displayed unit. A window with fewer
+/// than two visible powers, or a display unit that is not positive there,
+/// uses the linear ticks instead.
+fn decade_ticks_for(axis: &Axis, target: usize) -> Option<AxisTicks> {
+    if axis.effective_scale() != AxisScale::Log10 {
+        return None;
+    }
+    let Some(display) = &axis.display else {
+        return crate::log_ticks::decade_ticks(axis.min, axis.max, target);
+    };
+    let mut ticks = crate::log_ticks::decade_ticks(
+        display.to_display(axis.min),
+        display.to_display(axis.max),
+        target,
+    )?;
+    for value in &mut ticks.values {
+        *value = display.to_coordinate(*value);
+    }
+    Some(ticks)
+}
+
+fn decade_minors_for(axis: &Axis, ticks: &AxisTicks) -> Vec<f64> {
+    let Some(display) = &axis.display else {
+        return crate::log_ticks::decade_minor_values(axis.min, axis.max, ticks);
+    };
+    let majors = AxisTicks {
+        values: ticks
+            .values
+            .iter()
+            .map(|v| display.to_display(*v))
+            .collect(),
+        ..ticks.clone()
+    };
+    crate::log_ticks::decade_minor_values(
+        display.to_display(axis.min),
+        display.to_display(axis.max),
+        &majors,
+    )
+    .into_iter()
+    .map(|value| display.to_coordinate(value))
+    .collect()
 }
 
 fn visible_categories(axis: &Axis) -> impl Iterator<Item = (f64, &str)> {
@@ -462,6 +521,7 @@ fn format_axis_ticks(min: f64, max: f64, target: usize, group_thousands: bool) -
         values,
         labels,
         scale_exponent,
+        decades: false,
     }
 }
 

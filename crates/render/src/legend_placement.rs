@@ -99,15 +99,16 @@ pub(crate) fn for_each_segment(
             plot.top + (1.0 - ty) * plot.height,
         )
     };
-    let finite = |p: [f64; 2]| p[0].is_finite() && p[1].is_finite();
+    // A point is drawn only where it has a finite position; on a log axis
+    // zero and negative values have none.
+    let placed = |p: [f64; 2]| Some(project(p)).filter(|q| crate::is_finite_point(*q));
     // Dense lines are pooled into one vertical span per output unit, so the
     // cost per call stays bounded by the plot width for long spectra.
     let columns = plot.width.max(1.0).ceil() as usize;
     for series in &fig.series {
         if matches!(series.kind, SeriesKind::Line) && series.points.len() > 2 * columns {
             let mut spans: Vec<Option<(f32, f32)>> = vec![None; columns];
-            for &point in series.points.iter().filter(|p| finite(**p)) {
-                let (x, y) = project(point);
+            for (x, y) in series.points.iter().filter_map(|p| placed(*p)) {
                 let column = (x - plot.left).floor();
                 if !(0.0..columns as f32).contains(&column) {
                     continue;
@@ -125,15 +126,17 @@ pub(crate) fn for_each_segment(
         }
         let mut previous: Option<(f32, f32)> = None;
         for &point in &series.points {
-            if !finite(point) {
+            let Some(p) = placed(point) else {
                 previous = None;
                 continue;
-            }
-            let p = project(point);
+            };
             match series.kind {
                 SeriesKind::Line => add_segment(previous.unwrap_or(p), p),
                 SeriesKind::Points => add_segment(p, p),
-                SeriesKind::Stick => add_segment(project([point[0], 0.0]), p),
+                SeriesKind::Stick => {
+                    let baseline = crate::clip_to_plot(project([point[0], 0.0]), plot);
+                    add_segment(baseline.unwrap_or(p), p);
+                }
             }
             previous = Some(p);
         }
@@ -141,20 +144,17 @@ pub(crate) fn for_each_segment(
     for bar in &fig.error_bars {
         let low = [bar.center[0], bar.center[1] - bar.negative];
         let high = [bar.center[0], bar.center[1] + bar.positive];
-        if finite(low) && finite(high) {
-            add_segment(project(low), project(high));
+        if let (Some(low), Some(high)) = (crate::clip_to_plot(project(low), plot), placed(high)) {
+            add_segment(low, high);
         }
     }
-    for annotation in fig.text_annotations().filter(|a| finite(a.at)) {
-        let p = project(annotation.at);
+    for p in fig.text_annotations().filter_map(|a| placed(a.at)) {
         add_segment(p, p);
     }
-    for arrow in fig
-        .author_arrows
-        .iter()
-        .filter(|a| finite(a.from) && finite(a.to))
-    {
-        add_segment(project(arrow.from), project(arrow.to));
+    for arrow in &fig.author_arrows {
+        if let (Some(from), Some(to)) = (placed(arrow.from), placed(arrow.to)) {
+            add_segment(from, to);
+        }
     }
 }
 
