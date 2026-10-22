@@ -79,9 +79,6 @@ impl ExportPreset {
     }
 
     pub fn thresholds(self) -> ComplianceThresholds {
-        ComplianceThresholds {
-            min_font_pt: 7.0,
-            min_line_pt: 0.5,
-        }
+        ComplianceThresholds { min_line_pt: 0.5 }
     }
 }

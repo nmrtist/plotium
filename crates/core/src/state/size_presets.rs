@@ -41,6 +41,10 @@ pub struct SizePreset {
     /// Publisher's maximum figure depth. `None` for fixed rectangles or when
     /// the publisher states no explicit cap.
     pub max_height_mm: Option<f32>,
+    /// Publisher's stated minimum text size at final print size, used by the
+    /// export precheck. `None` when the publisher states none we have verified;
+    /// the precheck then applies its house default.
+    pub min_font_pt: Option<f32>,
 }
 
 const MATCH_TOLERANCE_MM: f32 = 0.01;
@@ -92,7 +96,8 @@ impl SizePreset {
 
 // Journal widths and maximum depths, from the publishers' artwork guidelines:
 // - Nature: 89 mm single, 120–136 mm column-and-a-half, 183 mm double; page
-//   depth 247 mm (nature.com "Guide to preparing final artwork").
+//   depth 247 mm; text 5–7 pt, so 5 pt is the minimum (nature.com "Guide to
+//   preparing final artwork").
 // - Science family: 55 / 120 / 183 mm for 1–3 columns; max depth 9 in ≈ 228 mm
 //   (science.org author figure preparation guide).
 // - Cell Press: 85 / 114 / 174 mm; recommended max 8 in ≈ 203 mm
@@ -112,6 +117,7 @@ pub const NATURE_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 89.0,
     default_height_mm: 60.0,
     max_height_mm: Some(247.0),
+    min_font_pt: Some(5.0),
 };
 pub const NATURE_ONE_HALF_COLUMN: SizePreset = SizePreset {
     id: "nature-1p5col",
@@ -120,6 +126,7 @@ pub const NATURE_ONE_HALF_COLUMN: SizePreset = SizePreset {
     width_mm: 136.0,
     default_height_mm: 90.0,
     max_height_mm: Some(247.0),
+    min_font_pt: Some(5.0),
 };
 pub const NATURE_DOUBLE_COLUMN: SizePreset = SizePreset {
     id: "nature-2col",
@@ -128,6 +135,7 @@ pub const NATURE_DOUBLE_COLUMN: SizePreset = SizePreset {
     width_mm: 183.0,
     default_height_mm: 120.0,
     max_height_mm: Some(247.0),
+    min_font_pt: Some(5.0),
 };
 pub const SCIENCE_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "science-1col",
@@ -136,6 +144,7 @@ pub const SCIENCE_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 55.0,
     default_height_mm: 40.0,
     max_height_mm: Some(228.0),
+    min_font_pt: None,
 };
 pub const SCIENCE_DOUBLE_COLUMN: SizePreset = SizePreset {
     id: "science-2col",
@@ -144,6 +153,7 @@ pub const SCIENCE_DOUBLE_COLUMN: SizePreset = SizePreset {
     width_mm: 120.0,
     default_height_mm: 80.0,
     max_height_mm: Some(228.0),
+    min_font_pt: None,
 };
 pub const SCIENCE_TRIPLE_COLUMN: SizePreset = SizePreset {
     id: "science-3col",
@@ -152,6 +162,7 @@ pub const SCIENCE_TRIPLE_COLUMN: SizePreset = SizePreset {
     width_mm: 183.0,
     default_height_mm: 120.0,
     max_height_mm: Some(228.0),
+    min_font_pt: None,
 };
 pub const CELL_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "cell-1col",
@@ -160,6 +171,7 @@ pub const CELL_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 85.0,
     default_height_mm: 60.0,
     max_height_mm: Some(203.0),
+    min_font_pt: None,
 };
 pub const CELL_ONE_HALF_COLUMN: SizePreset = SizePreset {
     id: "cell-1p5col",
@@ -168,6 +180,7 @@ pub const CELL_ONE_HALF_COLUMN: SizePreset = SizePreset {
     width_mm: 114.0,
     default_height_mm: 75.0,
     max_height_mm: Some(203.0),
+    min_font_pt: None,
 };
 pub const CELL_FULL_WIDTH: SizePreset = SizePreset {
     id: "cell-full",
@@ -176,6 +189,7 @@ pub const CELL_FULL_WIDTH: SizePreset = SizePreset {
     width_mm: 174.0,
     default_height_mm: 115.0,
     max_height_mm: Some(203.0),
+    min_font_pt: None,
 };
 pub const ACS_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "acs-1col",
@@ -184,6 +198,7 @@ pub const ACS_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 84.7,
     default_height_mm: 60.0,
     max_height_mm: Some(233.0),
+    min_font_pt: None,
 };
 pub const ACS_DOUBLE_COLUMN: SizePreset = SizePreset {
     id: "acs-2col",
@@ -192,6 +207,7 @@ pub const ACS_DOUBLE_COLUMN: SizePreset = SizePreset {
     width_mm: 177.8,
     default_height_mm: 120.0,
     max_height_mm: Some(233.0),
+    min_font_pt: None,
 };
 pub const ELSEVIER_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "elsevier-1col",
@@ -200,6 +216,7 @@ pub const ELSEVIER_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 90.0,
     default_height_mm: 60.0,
     max_height_mm: Some(240.0),
+    min_font_pt: None,
 };
 pub const ELSEVIER_ONE_HALF_COLUMN: SizePreset = SizePreset {
     id: "elsevier-1p5col",
@@ -208,6 +225,7 @@ pub const ELSEVIER_ONE_HALF_COLUMN: SizePreset = SizePreset {
     width_mm: 140.0,
     default_height_mm: 90.0,
     max_height_mm: Some(240.0),
+    min_font_pt: None,
 };
 pub const ELSEVIER_DOUBLE_COLUMN: SizePreset = SizePreset {
     id: "elsevier-2col",
@@ -216,6 +234,7 @@ pub const ELSEVIER_DOUBLE_COLUMN: SizePreset = SizePreset {
     width_mm: 190.0,
     default_height_mm: 125.0,
     max_height_mm: Some(240.0),
+    min_font_pt: None,
 };
 pub const PNAS_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "pnas-1col",
@@ -224,6 +243,7 @@ pub const PNAS_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 87.0,
     default_height_mm: 60.0,
     max_height_mm: Some(225.0),
+    min_font_pt: None,
 };
 pub const PNAS_DOUBLE_COLUMN: SizePreset = SizePreset {
     id: "pnas-2col",
@@ -232,6 +252,7 @@ pub const PNAS_DOUBLE_COLUMN: SizePreset = SizePreset {
     width_mm: 178.0,
     default_height_mm: 120.0,
     max_height_mm: Some(225.0),
+    min_font_pt: None,
 };
 pub const IEEE_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "ieee-1col",
@@ -240,6 +261,7 @@ pub const IEEE_SINGLE_COLUMN: SizePreset = SizePreset {
     width_mm: 88.9,
     default_height_mm: 60.0,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const IEEE_DOUBLE_COLUMN: SizePreset = SizePreset {
     id: "ieee-2col",
@@ -248,6 +270,7 @@ pub const IEEE_DOUBLE_COLUMN: SizePreset = SizePreset {
     width_mm: 182.0,
     default_height_mm: 120.0,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PAPER_A5: SizePreset = SizePreset {
     id: "paper-a5",
@@ -256,6 +279,7 @@ pub const PAPER_A5: SizePreset = SizePreset {
     width_mm: 148.0,
     default_height_mm: 210.0,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PAPER_A4: SizePreset = SizePreset {
     id: "paper-a4",
@@ -264,6 +288,7 @@ pub const PAPER_A4: SizePreset = SizePreset {
     width_mm: 210.0,
     default_height_mm: 297.0,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PAPER_A3: SizePreset = SizePreset {
     id: "paper-a3",
@@ -272,6 +297,7 @@ pub const PAPER_A3: SizePreset = SizePreset {
     width_mm: 297.0,
     default_height_mm: 420.0,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PAPER_LETTER: SizePreset = SizePreset {
     id: "paper-letter",
@@ -280,6 +306,7 @@ pub const PAPER_LETTER: SizePreset = SizePreset {
     width_mm: 215.9,
     default_height_mm: 279.4,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PAPER_LEGAL: SizePreset = SizePreset {
     id: "paper-legal",
@@ -288,6 +315,7 @@ pub const PAPER_LEGAL: SizePreset = SizePreset {
     width_mm: 215.9,
     default_height_mm: 355.6,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PRESENTATION_16X9: SizePreset = SizePreset {
     id: "pres-16x9",
@@ -296,6 +324,7 @@ pub const PRESENTATION_16X9: SizePreset = SizePreset {
     width_mm: 254.0,
     default_height_mm: 142.875,
     max_height_mm: None,
+    min_font_pt: None,
 };
 pub const PRESENTATION_4X3: SizePreset = SizePreset {
     id: "pres-4x3",
@@ -304,6 +333,7 @@ pub const PRESENTATION_4X3: SizePreset = SizePreset {
     width_mm: 254.0,
     default_height_mm: 190.5,
     max_height_mm: None,
+    min_font_pt: None,
 };
 
 /// The full catalog in display order. Order also breaks matching ties for
