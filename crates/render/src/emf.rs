@@ -317,6 +317,7 @@ fn write_figure_content(
     let xf = crate::XFurniture::of(fig, stack);
     let proj = Projector::new(fig, outer, &layout.margins);
     let plot = proj.plot;
+    let x_lane_bottom = outer.bottom() - proj.bottom_letterbox(outer, &layout.margins);
     let y_title_cy = crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0);
     let y_title_left = crate::y_title_left(fig, &layout, &proj, outer, y_title_cy, stack, 1.0);
 
@@ -424,7 +425,7 @@ fn write_figure_content(
     {
         dc.text(
             &multiplier,
-            (plot.right(), outer.top + outer.height - OUTER_PAD),
+            (plot.right(), x_lane_bottom - OUTER_PAD),
             TextStyle::new(ty.tick_pt, Color::AXIS, TA_RIGHT),
         );
     }
@@ -439,7 +440,7 @@ fn write_figure_content(
             &fig.x.label,
             (
                 (plot.left + plot.right()) / 2.0,
-                outer.top + outer.height - OUTER_PAD - multiplier_clearance,
+                x_lane_bottom - OUTER_PAD - multiplier_clearance,
             ),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER),
         );

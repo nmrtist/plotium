@@ -577,11 +577,12 @@ pub(crate) fn handle_object_interactions(
                     app.session.ui.snap_guides.clear();
                 } else {
                     let candidate = drag_frame(drag.before, drag.kind, dpx, dpy);
-                    let (mut snapped, guides) = if let ObjectDragSpace::Panel(panel) = drag.space {
-                        snap_panel_content_frame(app, ci, panel, &drag, candidate, ui)
-                    } else {
-                        snap_object_frame(app, ci, &drag, candidate, ui)
-                    };
+                    let (mut snapped, mut guides) =
+                        if let ObjectDragSpace::Panel(panel) = drag.space {
+                            snap_panel_content_frame(app, ci, panel, &drag, candidate, ui)
+                        } else {
+                            snap_object_frame(app, ci, &drag, candidate, ui)
+                        };
                     let preserve_aspect = app.doc.canvases[ci].parent_panel(drag.object).is_some()
                         || app.doc.canvases[ci]
                             .object(drag.object)
@@ -592,6 +593,18 @@ pub(crate) fn handle_object_interactions(
                             .unwrap_or(false);
                     if preserve_aspect {
                         snapped = preserve_aspect_frame(drag.before, snapped, drag.kind);
+                    }
+                    if let Some(plot) = app.doc.canvases[ci]
+                        .object(drag.object)
+                        .and_then(|item| item.plot())
+                    {
+                        let min = plot_min_size(plot.figure(), drag.before);
+                        let clamped =
+                            enforce_min_size(drag.before, snapped, drag.kind, min, preserve_aspect);
+                        if clamped != snapped {
+                            guides.clear();
+                        }
+                        snapped = clamped;
                     }
                     let applied = [snapped.x - drag.before.x, snapped.y - drag.before.y];
                     if matches!(drag.space, ObjectDragSpace::Panel(_)) {

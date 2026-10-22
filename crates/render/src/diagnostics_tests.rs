@@ -299,3 +299,61 @@ fn duplicate_vertices_keep_native_miter_only_clipping() {
         assert_eq!(result.intersections, 0);
     }
 }
+
+fn square_data_figure(lock_aspect: bool) -> Figure {
+    let mut fig = Figure::new(
+        "",
+        Axis::new("x title", 0.0, 10.0),
+        Axis::new("y", 0.0, 10.0),
+    );
+    fig.lock_aspect = lock_aspect;
+    fig.width = 120.0;
+    fig.height = 220.0;
+    fig
+}
+
+fn x_title_gap(fig: &Figure) -> f32 {
+    let boxes = figure_text_boxes(fig, [fig.width, fig.height]);
+    let ticks_bottom = boxes
+        .iter()
+        .filter(|b| b.component.starts_with("axis.x.tick:"))
+        .map(|b| b.bounds.bottom())
+        .fold(f32::MIN, f32::max);
+    let title = boxes
+        .iter()
+        .find(|b| b.component == "axis.x.label")
+        .expect("x title box");
+    title.bounds.top - ticks_bottom
+}
+
+#[test]
+fn aspect_locked_x_title_keeps_its_gap_from_the_tick_labels() {
+    let locked = square_data_figure(true);
+    let layout = axis_layout(&locked, locked.width, locked.height);
+    let outer = Rect::new(0.0, 0.0, locked.width, locked.height);
+    let proj = Projector::new(&locked, outer, &layout.margins);
+    assert!(proj.bottom_letterbox(outer, &layout.margins) > 10.0);
+
+    let free = x_title_gap(&square_data_figure(false));
+    assert!((x_title_gap(&locked) - free).abs() < 0.01);
+}
+
+#[test]
+fn aspect_locked_svg_x_title_sits_under_the_plot() {
+    let fig = square_data_figure(true);
+    let layout = axis_layout(&fig, fig.width, fig.height);
+    let outer = Rect::new(0.0, 0.0, fig.width, fig.height);
+    let proj = Projector::new(&fig, outer, &layout.margins);
+    let svg = crate::svg::export(&fig);
+    let end = svg.find(">x title</text>").expect("x title text");
+    let start = svg[..end].rfind("<text").expect("x title element");
+    let y: f32 = svg[start..end]
+        .split("y=\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .and_then(|value| value.parse().ok())
+        .expect("x title y");
+    let expected = outer.bottom() - proj.bottom_letterbox(outer, &layout.margins) - OUTER_PAD;
+    assert!((y - expected).abs() < 0.01);
+    assert!(y < outer.bottom() - 10.0);
+}

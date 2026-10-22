@@ -1,7 +1,7 @@
 use super::*;
 #[path = "geometry_aspect.rs"]
 mod aspect;
-pub(crate) use aspect::preserve_aspect_frame;
+pub(crate) use aspect::{enforce_min_size, plot_min_size, preserve_aspect_frame};
 #[path = "geometry_panels.rs"]
 mod panels;
 pub(crate) use panels::{

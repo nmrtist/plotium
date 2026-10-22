@@ -43,6 +43,7 @@ pub fn figure_text_boxes_placed(
     let outer = Rect::new(0., 0., size[0], size[1]);
     let proj = Projector::new(fig, outer, &layout.margins);
     let plot = proj.plot;
+    let x_lane_bottom = size[1] - proj.bottom_letterbox(outer, &layout.margins);
     let ty = fig.typography;
     let y_title_cy = (plot.top + plot.bottom()) * 0.5;
     let y_title_left = y_title_left(fig, &layout, &proj, outer, y_title_cy, stack, 1.);
@@ -100,7 +101,7 @@ pub fn figure_text_boxes_placed(
                 "axis.x.multiplier",
                 &m,
                 plot.right(),
-                size[1] - OUTER_PAD - ty.tick_pt,
+                x_lane_bottom - OUTER_PAD - ty.tick_pt,
                 ty.tick_pt,
                 1.,
                 false,
@@ -157,7 +158,7 @@ pub fn figure_text_boxes_placed(
                 "axis.x.label",
                 &fig.x.label,
                 (plot.left + plot.right()) * 0.5,
-                size[1] - OUTER_PAD - clearance - ty.label_pt,
+                x_lane_bottom - OUTER_PAD - clearance - ty.label_pt,
                 ty.label_pt,
                 0.5,
                 false,
