@@ -34,7 +34,10 @@ pub(crate) fn handle_panel_drag(
             current.active = active;
         }
         if active {
-            let frame = drag_frame(drag.before, drag.kind, dpx, dpy);
+            let candidate = drag_frame(drag.before, drag.kind, dpx, dpy);
+            let bypass = ctx.input(|input| input.modifiers.alt);
+            let (frame, guides) = snap_panel_frame(app, ci, &drag, candidate, bypass);
+            app.session.ui.snap_guides = guides;
             if let Some(page) = app.doc.canvases.get_mut(ci) {
                 let scale = [
                     frame.width / drag.before.width,
@@ -78,6 +81,9 @@ pub(crate) fn handle_panel_drag(
         }
     }
     detach::update(app, rect, hover, ctx);
+    if primary_released || !primary_down {
+        app.session.ui.snap_guides.clear();
+    }
     if (primary_released || !primary_down)
         && active
         && let Some(target) = swap::target(app, &drag, rect, hover)

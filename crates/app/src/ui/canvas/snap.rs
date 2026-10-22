@@ -109,16 +109,7 @@ pub(crate) fn snap_object_frame(
             targets.push_object(frame);
         }
     }
-    match drag.kind {
-        ObjectDragKind::Move => layout::snap_move(candidate, &targets, threshold),
-        ObjectDragKind::Resize(handle) => layout::snap_resize(
-            candidate,
-            movable_edges(handle),
-            &targets,
-            threshold,
-            MIN_OBJECT_SIZE_PT,
-        ),
-    }
+    snap_layout_frame(drag.kind, candidate, &targets, threshold)
 }
 
 /// Snap a Panel child in Panel-local coordinates. Guides are translated back to
@@ -154,16 +145,7 @@ pub(crate) fn snap_panel_content_frame(
             targets.push_object(frame);
         }
     }
-    let (frame, guides) = match drag.kind {
-        ObjectDragKind::Move => layout::snap_move(candidate, &targets, threshold),
-        ObjectDragKind::Resize(handle) => layout::snap_resize(
-            candidate,
-            movable_edges(handle),
-            &targets,
-            threshold,
-            MIN_OBJECT_SIZE_PT,
-        ),
-    };
+    let (frame, guides) = snap_layout_frame(drag.kind, candidate, &targets, threshold);
     let guides = guides
         .into_iter()
         .map(|mut guide| {
@@ -176,6 +158,52 @@ pub(crate) fn snap_panel_content_frame(
         })
         .collect();
     (frame, guides)
+}
+
+/// Snap a moving or resizing Panel to the page edges, centre lines and layout
+/// cells plus every other visible Panel's edges and centres. Panels moving with
+/// it as a group are not targets. Snapping is skipped when disabled or `bypass`
+/// (Alt) is held.
+pub(crate) fn snap_panel_frame(
+    app: &PlotiumApp,
+    ci: usize,
+    drag: &PanelDrag,
+    candidate: ObjectFrame,
+    bypass: bool,
+) -> (ObjectFrame, Vec<SnapGuide>) {
+    if !app.settings.general.snap_enabled || bypass {
+        return (candidate, Vec::new());
+    }
+    let Some(canvas) = app.doc.canvases.get(ci) else {
+        return (candidate, Vec::new());
+    };
+    let threshold = SNAP_PX / app.session.board.zoom.max(0.01);
+    let mut targets = SnapTargets::from_page(canvas.size_pt(), &canvas.layout);
+    for panel in &canvas.panels {
+        let moving = panel.id == drag.panel || drag.others.iter().any(|(id, _)| *id == panel.id);
+        if !moving && panel.visible {
+            targets.push_object(panel.frame);
+        }
+    }
+    snap_layout_frame(drag.kind, candidate, &targets, threshold)
+}
+
+fn snap_layout_frame(
+    kind: ObjectDragKind,
+    candidate: ObjectFrame,
+    targets: &SnapTargets,
+    threshold: f32,
+) -> (ObjectFrame, Vec<SnapGuide>) {
+    match kind {
+        ObjectDragKind::Move => layout::snap_move(candidate, targets, threshold),
+        ObjectDragKind::Resize(handle) => layout::snap_resize(
+            candidate,
+            movable_edges(handle),
+            targets,
+            threshold,
+            MIN_OBJECT_SIZE_PT,
+        ),
+    }
 }
 
 pub(crate) fn movable_edges(handle: ResizeHandle) -> MovableEdges {
@@ -272,5 +300,97 @@ mod tests {
             snap_dragged_frame(&app, FrameRef::Page(0), &moving, candidate, false),
             candidate
         );
+    }
+
+    fn app_with_panels(frames: &[ObjectFrame]) -> (PlotiumApp, Vec<PanelId>) {
+        let mut app = PlotiumApp::new();
+        let mut page = CanvasDocument::new("p".to_owned(), [600.0, 400.0]);
+        let ids = frames
+            .iter()
+            .map(|&frame| page.create_panel("panel".to_owned(), frame))
+            .collect();
+        app.doc.canvases.push(page);
+        app.session.board.zoom = 1.0;
+        (app, ids)
+    }
+
+    fn panel_drag(app: &PlotiumApp, panel: PanelId, kind: ObjectDragKind) -> PanelDrag {
+        let before = app.doc.canvases[0].panel(panel).unwrap().frame;
+        PanelDrag {
+            canvas: 0,
+            panel,
+            kind,
+            before,
+            others: Vec::new(),
+            children: Vec::new(),
+            start_pointer: [before.x, before.y],
+            start_pointer_screen: [0.0, 0.0],
+            active: true,
+            detached_since: None,
+        }
+    }
+
+    #[test]
+    fn panel_move_snaps_to_a_sibling_panel_edge() {
+        let (app, ids) = app_with_panels(&[
+            ObjectFrame::new(20.0, 20.0, 100.0, 80.0),
+            ObjectFrame::new(350.0, 250.0, 100.0, 80.0),
+        ]);
+        let drag = panel_drag(&app, ids[1], ObjectDragKind::Move);
+        let candidate = ObjectFrame::new(123.0, 250.0, 100.0, 80.0);
+
+        let (frame, guides) = snap_panel_frame(&app, 0, &drag, candidate, false);
+
+        assert_eq!(frame, ObjectFrame::new(120.0, 250.0, 100.0, 80.0));
+        assert_eq!(
+            guides,
+            vec![SnapGuide {
+                vertical: true,
+                pos: 120.0
+            }]
+        );
+    }
+
+    #[test]
+    fn panel_resize_snaps_its_moving_edge_to_the_page_edge() {
+        let (app, ids) = app_with_panels(&[ObjectFrame::new(350.0, 250.0, 100.0, 80.0)]);
+        let drag = panel_drag(
+            &app,
+            ids[0],
+            ObjectDragKind::Resize(ResizeHandle::BottomRight),
+        );
+        let page_width = app.doc.canvases[0].size_pt()[0];
+        let candidate = ObjectFrame::new(350.0, 250.0, page_width - 353.0, 80.0);
+
+        let (frame, guides) = snap_panel_frame(&app, 0, &drag, candidate, false);
+
+        assert_eq!(
+            frame,
+            ObjectFrame::new(350.0, 250.0, page_width - 350.0, 80.0)
+        );
+        assert_eq!(
+            guides,
+            vec![SnapGuide {
+                vertical: true,
+                pos: page_width
+            }]
+        );
+    }
+
+    #[test]
+    fn panel_snapping_ignores_group_members_and_alt() {
+        let (app, ids) = app_with_panels(&[
+            ObjectFrame::new(20.0, 20.0, 100.0, 80.0),
+            ObjectFrame::new(350.0, 250.0, 100.0, 80.0),
+        ]);
+        let candidate = ObjectFrame::new(123.0, 250.0, 100.0, 80.0);
+        let mut drag = panel_drag(&app, ids[1], ObjectDragKind::Move);
+
+        let (frame, guides) = snap_panel_frame(&app, 0, &drag, candidate, true);
+        assert_eq!((frame, guides.len()), (candidate, 0));
+
+        drag.others = vec![(ids[0], app.doc.canvases[0].panel(ids[0]).unwrap().frame)];
+        let (frame, guides) = snap_panel_frame(&app, 0, &drag, candidate, false);
+        assert_eq!((frame, guides.len()), (candidate, 0));
     }
 }

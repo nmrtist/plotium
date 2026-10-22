@@ -585,6 +585,9 @@ pub(super) fn handle_hierarchy_traversal(app: &mut PlotiumApp, ctx: &egui::Conte
         (at + 1) % paths.len()
     };
     let path = paths[next];
+    // Traversal walks canvas items, so later scope-dispatched keys (Delete)
+    // must act on the item, not on a page frame selected before it.
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::CanvasObjects;
     if let Some(content) = path.content {
         app.select_content(ci, content);
     } else if let Some(panel) = path.panel {
@@ -602,7 +605,13 @@ pub(super) fn handle_delete_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) 
     if !delete {
         return;
     }
+    delete_selection(app, ctx);
+}
 
+/// What Delete/Backspace removes, most specific first: page-space authoring
+/// objects, a selected panel letter, then (outside analysis tools, which own the
+/// key for their own marks) the selected panel or the selected board pages.
+fn delete_selection(app: &mut PlotiumApp, ctx: &egui::Context) {
     // Page-space authoring objects (text/shape/panel label) are deletable; plots
     // are not removed this way. Each selected authoring object is its own step.
     if let (Selection::Objects(ids), Some(ci)) =
@@ -637,6 +646,9 @@ pub(super) fn handle_delete_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) 
     }
 
     let Some((ci, object_id)) = app.panel_label_selection() else {
+        if app.session.tool.axis() != plotium_core::state::ToolAxis::Analyze {
+            delete_selected_panel_or_pages(app, ctx);
+        }
         return;
     };
     let Some(before) = app
@@ -655,6 +667,70 @@ pub(super) fn handle_delete_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) 
     app.session.ui.panel_note_inline_edit = None;
     app.session.ui.panel_note_edit = None;
     app.session.status = "Panel letter hidden.".to_owned();
+}
+
+fn delete_selected_panel_or_pages(app: &mut PlotiumApp, ctx: &egui::Context) {
+    use plotium_core::state::{FrameRef, SelectionScope};
+    match app.session.ui.selection_scope {
+        SelectionScope::CanvasObjects | SelectionScope::Layers => {
+            let panel_selected = matches!(app.session.ui.selection, Selection::None)
+                && app
+                    .session
+                    .ui
+                    .hierarchical_selection
+                    .lead()
+                    .is_some_and(|path| path.panel.is_some() && path.content.is_none());
+            if !panel_selected {
+                return;
+            }
+            // The menu command owns the lock gate and the undoable action.
+            let descriptor = commands::describe(app, commands::CommandId::DeletePanel);
+            if descriptor.enabled {
+                commands::execute_without_clipboard(commands::CommandId::DeletePanel, app, ctx);
+            } else if let Some(reason) = descriptor.disabled_reason {
+                app.session.status = reason.to_owned();
+            }
+        }
+        SelectionScope::Board | SelectionScope::CanvasList => {
+            let mut pages: Vec<usize> = app
+                .session
+                .ui
+                .frame_selection
+                .iter()
+                .filter_map(
+                    |&frame| match plotium_core::state::board_frame_ref(app, frame) {
+                        Some(FrameRef::Page(ci)) => Some(ci),
+                        _ => None,
+                    },
+                )
+                .collect();
+            if pages.is_empty() {
+                return;
+            }
+            // Highest index first so the remaining indices stay valid; each
+            // page is its own undo step, like multi-object deletion above.
+            pages.sort_unstable_by(|a, b| b.cmp(a));
+            pages.dedup();
+            let mut count = 0;
+            for ci in pages {
+                if let Some(action) = Action::delete_canvas(app, ci) {
+                    app.execute_action(action);
+                    count += 1;
+                }
+            }
+            let frames = std::mem::take(&mut app.session.ui.frame_selection);
+            app.session.ui.frame_selection = frames
+                .into_iter()
+                .filter(|&frame| plotium_core::state::board_frame_ref(app, frame).is_some())
+                .collect();
+            app.session.status = if count == 1 {
+                "Page deleted.".to_owned()
+            } else {
+                format!("Deleted {count} pages.")
+            };
+        }
+        SelectionScope::DataList => {}
+    }
 }
 
 #[cfg(test)]
