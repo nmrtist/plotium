@@ -21,6 +21,12 @@ pub enum Marker {
     Diamond,
     TriangleUp,
     TriangleDown,
+    /// Five-pointed, point up; the only concave closed marker.
+    Star,
+    /// Point up.
+    Pentagon,
+    /// Point up.
+    Hexagon,
     Plus,
     Cross,
 }

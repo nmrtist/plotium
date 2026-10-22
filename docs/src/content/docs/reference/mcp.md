@@ -79,7 +79,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.line.color` | Object + Series | `#RRGGBB` |
 | `series.line.stroke_width` | Object + Series | 0.05–10 pt |
 | `series.line.style` | Object + Series | `solid`, `dashed`, `dotted`, `dash_dot` |
-| `series.line.marker` | Object + Series | `none`, `circle`, `square`, `diamond`, `triangle_up`, `triangle_down`, `plus`, `cross` |
+| `series.line.marker` | Object + Series | `none`, `circle`, `square`, `diamond`, `triangle_up`, `triangle_down`, `star`, `pentagon`, `hexagon`, `plus`, `cross` |
 | `series.line.marker_size` | Object + Series | 0.1–20 pt diameter |
 | `series.line.marker_fill / series.line.marker_edge_color` | Object + Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline (0.5 pt while hollow) |

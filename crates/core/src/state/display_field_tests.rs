@@ -136,3 +136,25 @@ fn r6_default_mass_spectrum_rejects_markers_and_style_but_keeps_stroke_edits() {
     app.undo();
     assert_eq!(plot(&app, 0).binding.series[0], original);
 }
+#[test]
+fn star_pentagon_and_hexagon_markers_round_trip_through_their_ids() {
+    let mut app = super::super::curve_tests::fixture(false);
+    let t = target(&app, 0, 0);
+    for (id, marker) in [
+        ("star", Marker::Star),
+        ("pentagon", Marker::Pentagon),
+        ("hexagon", Marker::Hexagon),
+    ] {
+        write(
+            &mut app,
+            line_display::MARKER,
+            PropertyValue::Enum(id),
+            std::slice::from_ref(&t),
+        );
+        let rendered = &plot(&app, 0).figure().series[0];
+        assert_eq!(rendered.appearance.marker(rendered.kind), marker);
+        assert_eq!(line_display::marker_id(marker), id);
+        let value = resolved(&app, &t, line_display::MARKER).value;
+        assert_eq!(value.uniform(), Some(&PropertyValue::Enum(id)));
+    }
+}

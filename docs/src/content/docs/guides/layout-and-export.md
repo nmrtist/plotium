@@ -370,7 +370,7 @@ What you control directly:
   button beside it re-derives that default.
 - **Advanced** under **Line** holds each curve's marker colours, apart from its
   line colour. **Marker fill** sets the inside of closed markers (circle, square, diamond,
-  triangles) and **Marker edge color** their outline; both follow the curve
+  triangles, star, pentagon, hexagon) and **Marker edge color** their outline; both follow the curve
   colour until set. **Marker edge width** draws that outline, from 0 (no
   outline, the default) to 5 pt. **Hollow marker** leaves closed markers
   unfilled and keeps their outline, 0.5 pt when the edge width is 0; the

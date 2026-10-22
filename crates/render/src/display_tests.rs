@@ -77,6 +77,9 @@ fn r6_native_svg_styles_and_legend_use_the_same_appearance() {
         Marker::Diamond,
         Marker::TriangleUp,
         Marker::TriangleDown,
+        Marker::Star,
+        Marker::Pentagon,
+        Marker::Hexagon,
     ] {
         assert!(!curve_style::marker_polygon(marker, (0., 0.), 3.).is_empty());
     }
@@ -165,4 +168,39 @@ fn hollow_markers_draw_only_their_outline_in_plot_and_legend() {
     assert_eq!(paint.edge, Some((plotium_figure::Color::BLACK, 0.5)));
     figure.series[0].appearance.marker_hollow = false;
     assert!(svg::export(&figure).contains(r##"fill="#f2d797" stroke="#404040""##));
+}
+#[test]
+fn star_pentagon_and_hexagon_point_up_inside_the_shared_envelope() {
+    for (marker, vertices) in [
+        (Marker::Star, 10),
+        (Marker::Pentagon, 5),
+        (Marker::Hexagon, 6),
+    ] {
+        let polygon = curve_style::marker_polygon(marker, (10., 20.), 4.);
+        assert_eq!(polygon.len(), vertices, "{marker:?}");
+        let (x, y) = polygon[0];
+        assert!(
+            (x - 10.).abs() < 1e-5 && (y - 16.).abs() < 1e-5,
+            "{marker:?} points up"
+        );
+        for (px, py) in &polygon {
+            assert!((px - 10.).hypot(py - 20.) <= 4. + 1e-4, "{marker:?}");
+        }
+    }
+    let star = curve_style::marker_polygon(Marker::Star, (0., 0.), 1.);
+    for (k, (x, y)) in star.iter().enumerate() {
+        let expected = if k % 2 == 0 { 1. } else { 0.381_966 };
+        assert!((x.hypot(*y) - expected).abs() < 1e-5);
+    }
+    let mut figure = Figure::new("", Axis::new("x", 0., 3.), Axis::new("y", 0., 3.));
+    let mut series = Series::points("A", vec![[1., 1.]]);
+    series.appearance.marker = Some(Marker::Star);
+    figure.series.push(series);
+    let svg = svg::export(&figure);
+    let star = svg
+        .split("<polygon points=\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("a star marker exports as an SVG polygon");
+    assert_eq!(star.split(' ').count(), 10, "{svg}");
 }
