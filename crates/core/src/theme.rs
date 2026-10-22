@@ -5,7 +5,8 @@
 
 use crate::actions::Action;
 use crate::state::{
-    ObjectId, ObjectStyle, PlotiumApp, ShapeKind, ShapeObject, StyleLibrary, TextBox,
+    NATURE_COLUMNS, ObjectId, ObjectStyle, PlotiumApp, ShapeKind, ShapeObject, SizePreset,
+    StyleLibrary, TextBox,
 };
 use plotium_figure::{
     Color, FigureTypography, FontWeight, PositiveFiniteF32, TickDirection, Typeface,
@@ -48,6 +49,11 @@ pub struct Theme {
     /// Empty, or no paint at a position, keeps each curve's own marker paint.
     #[serde(default)]
     pub marker_palette: Vec<Option<MarkerPaint>>,
+    /// Journal column widths the typography is sized for. Built-in only, so a
+    /// saved style never carries it; a mismatching canvas gets a hint, never a
+    /// resize.
+    #[serde(skip)]
+    pub column_presets: &'static [SizePreset],
 }
 
 /// The closed-marker paint of one curve, as captured from a canvas.
@@ -105,6 +111,32 @@ impl Theme {
             "vibrant" => Some(Self::vibrant()),
             _ => None,
         }
+    }
+
+    /// A note for a canvas whose width matches none of the theme's column
+    /// presets, listing the preset widths. It names presets rather than the
+    /// journal's full rule because Nature also accepts 120–136 mm for 1.5 columns.
+    pub fn column_width_hint(&self, size_mm: [f32; 2]) -> Option<String> {
+        if self.column_presets.is_empty()
+            || self
+                .column_presets
+                .iter()
+                .any(|preset| preset.matches(size_mm))
+        {
+            return None;
+        }
+        let widths = self
+            .column_presets
+            .iter()
+            .map(|preset| preset.width_mm.to_string())
+            .collect::<Vec<_>>()
+            .join(" / ");
+        let width = format!("{:.1}", size_mm[0]);
+        Some(format!(
+            "The {} theme is sized for the {widths} mm column presets; this canvas is {} mm wide.",
+            self.name,
+            width.trim_end_matches(".0")
+        ))
     }
 
     fn trace_color(&self, i: usize) -> Color {
@@ -174,6 +206,7 @@ impl Theme {
             marker_size_pt: None,
             clear_marker_edges: false,
             marker_palette: Vec::new(),
+            column_presets: &[],
         }
     }
 
@@ -218,6 +251,7 @@ impl Theme {
             marker_size_pt: Some(3.0),
             clear_marker_edges: true,
             marker_palette: Vec::new(),
+            column_presets: &NATURE_COLUMNS,
         }
     }
 
@@ -250,6 +284,7 @@ impl Theme {
             marker_size_pt: None,
             clear_marker_edges: false,
             marker_palette: Vec::new(),
+            column_presets: &[],
         }
     }
 
@@ -279,6 +314,7 @@ impl Theme {
             marker_size_pt: None,
             clear_marker_edges: false,
             marker_palette: Vec::new(),
+            column_presets: &[],
         }
     }
 }
@@ -410,8 +446,16 @@ impl PlotiumApp {
         };
         let before = self.capture_theme_snapshot(ci);
         let after = self.themed_snapshot(ci, theme);
+        let hint = self
+            .doc
+            .canvases
+            .get(ci)
+            .and_then(|canvas| theme.column_width_hint(canvas.size_mm));
         self.execute_action(Action::apply_theme(ci, before, after));
         self.session.status = format!("Applied the {} theme.", theme.name);
+        if let Some(hint) = hint {
+            self.session.status = format!("{} {hint}", self.session.status);
+        }
     }
 
     /// Capture a canvas's current look as a theme named `name`: its page
@@ -479,6 +523,7 @@ impl PlotiumApp {
             marker_size_pt: marker_size,
             clear_marker_edges: false,
             marker_palette,
+            column_presets: &[],
         })
     }
 

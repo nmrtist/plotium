@@ -37,6 +37,7 @@ fn save_list_load_delete_roundtrip() {
     assert_eq!(listed[0].name, "Lab paper");
 
     let loaded = load_user_style(&dir, "Lab paper").unwrap();
+    assert!(loaded.column_presets.is_empty());
     assert_eq!(
         (loaded.id.as_str(), loaded.name.as_str()),
         ("Lab paper", "Lab paper")
@@ -45,6 +46,8 @@ fn save_list_load_delete_roundtrip() {
         Theme {
             id: style.id.clone(),
             name: style.name.clone(),
+            // Column presets belong to built-in themes and are not saved.
+            column_presets: style.column_presets,
             ..loaded
         },
         style

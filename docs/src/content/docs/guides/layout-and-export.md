@@ -381,8 +381,12 @@ What you control directly:
   example, enlarges the axis text for slides. The **Nature** theme follows the
   Nature Portfolio final-artwork guidelines: 7 pt text, 0.6 pt axes with
   outward 3 pt ticks, 0.75 pt line series, 3 pt markers without an outline and
-  the colour-blind-safe Okabe–Ito palette. The line widths and marker sizes stay
-  when you switch to a theme that does not set them.
+  the colour-blind-safe Okabe–Ito palette. Its sizes assume a Nature column
+  width, so applying it to a canvas that matches none of the Nature size presets
+  (89, 136 or 183 mm wide) adds a note to the status bar naming those widths;
+  the canvas keeps its size. The
+  line widths and marker sizes stay when you switch to a theme that does not
+  set them.
 - **Save Canvas Style…** (View ▸ Canvas Theme, or **Save Style** in the
   Figure Ribbon tab's Style group) saves the active canvas's look as a named
   style: background, text colour and size, figure typography (including the

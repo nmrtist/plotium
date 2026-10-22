@@ -1752,7 +1752,10 @@ and shape colours, and every curve's colour, marker paint, marker size and line
 width the theme defines, as one **Undo** step.
 The document's style defaults are also replaced: plot text sizes, axis strokes
 and ticks, so plots on other canvases change with them, and the default text,
-panel-label and shape styles for new objects.
+panel-label and shape styles for new objects. A theme sized for journal columns
+(today `nature`) never resizes a canvas; for each canvas whose width matches
+none of its column presets, the result's `diagnostics` adds a note listing the
+preset widths (89 / 136 / 183 mm).
 
 ## Save the current desktop project
 

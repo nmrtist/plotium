@@ -436,7 +436,16 @@ fn apply_theme_lists_themes_restyles_canvas_and_undoes_in_one_step() {
         json!([id.clone()]),
     )
     .unwrap();
-    execute(&mut session, &mut app, &p).unwrap();
+    let result = execute(&mut session, &mut app, &p).unwrap();
+    // The 120 mm canvas fits no Nature column: the result says so, and the
+    // canvas keeps its size.
+    assert!(
+        result.to_string().contains(
+            "Canvas \\\"Figure\\\": The Nature theme is sized for the 89 / 136 / 183 mm column presets; this canvas is 120 mm wide."
+        ),
+        "{result}"
+    );
+    assert_eq!(app.doc.canvases[0].size_mm, [120.0, 80.0]);
     let typography = app.doc.style_library.figure_typography;
     assert_eq!(typography.axis_line_pt, 0.6);
     assert_eq!(typography.tick_length_pt, 3.0);
