@@ -256,6 +256,7 @@ pub fn execute_tool(
 /// Audit state for a tool whose immutable computation can finish off-thread.
 /// The caller must finish on the original project, or discard on project close.
 pub struct PreparedToolRun {
+    project_context: crate::state::ProjectContextId,
     plan: ToolPlan,
     start_table_revisions: BTreeMap<String, TableRevisionRecord>,
     started_unix_ms: u128,
@@ -265,6 +266,7 @@ pub struct PreparedToolRun {
 impl PreparedToolRun {
     pub fn begin(app: &PlotiumApp, plan: &ToolPlan) -> Self {
         Self {
+            project_context: app.session.project_context,
             plan: plan.clone(),
             start_table_revisions: typed_table_revisions(app, "input"),
             started_unix_ms: unix_ms(),
@@ -278,12 +280,19 @@ impl PreparedToolRun {
         outcome: &Result<ToolResult, AutomationError>,
     ) -> Result<(), AutomationError> {
         let Self {
+            project_context,
             plan,
             start_table_revisions,
             started_unix_ms,
             start_revision,
             started,
         } = self;
+        app.record_background_tool(
+            project_context,
+            plan.request.caller,
+            &plan.request.tool_id,
+            outcome.as_ref(),
+        );
         if plan.request.caller == CallerType::Human || !persists_tool_run(&plan.request.tool_id) {
             return Ok(());
         }

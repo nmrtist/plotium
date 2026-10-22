@@ -655,6 +655,7 @@ impl PlotiumApp {
                 }
             }
         }
+        self.poll_background_activity();
         self.session.compute.is_busy()
     }
 

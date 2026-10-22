@@ -148,7 +148,7 @@ const SCENES: &[Scene] = &[
     act(2, Op::Setup),
     shot(8, "band"),
     act(2, Op::History(true)),
-    shot(8, "operation_history"),
+    shot(30, "activity_results"),
     act(2, Op::History(false)),
     act(2, Op::LineFit),
     shot(10, "fitted"),
@@ -399,12 +399,7 @@ fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), Strin
         Op::DeltaCursor => delta_cursor(app)?,
         Op::PinSymmetry => pin_symmetry(app)?,
         Op::RegionResult => region_result(app),
-        Op::History(open) => {
-            app.session.ui.diagnostics_open = open;
-            ctx.data_mut(|data| {
-                data.insert_temp(egui::Id::new("operation_history_messages_tab"), true)
-            });
-        }
+        Op::History(open) => workspace_shot::activity(app, ctx, open)?,
         Op::RegionData => {
             app.session.ui.sheet_open = Some(1);
             app.session.ui.curve_fit_task_collapsed = true;

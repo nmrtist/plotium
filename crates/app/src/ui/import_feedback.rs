@@ -261,6 +261,7 @@ pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
                 .clicked()
             {
                 commands::execute_without_clipboard(CommandId::OperationHistory, app, ctx);
+                super::activity::open_diagnostics(app, ctx);
             }
             if batch.retryable {
                 let command = CommandId::RetryImportBatch(batch.id);

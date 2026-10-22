@@ -642,6 +642,7 @@ pub struct Session {
     pub secondary_sidebar_visible: bool,
     pub status: String,
     pub operation_history: OperationHistory,
+    pub background_activity: super::BackgroundActivity,
     pub status_history: super::StatusHistory,
     /// Non-fatal resource failures collected while opening the current project.
     pub project_load_warnings: Vec<String>,
@@ -708,6 +709,7 @@ impl Session {
 
     pub fn clear_operation_history(&mut self) {
         self.operation_history.clear();
+        self.background_activity.clear();
         self.status_history.clear();
     }
 

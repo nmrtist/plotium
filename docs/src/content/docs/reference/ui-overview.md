@@ -55,10 +55,14 @@ introduces the same regions in walkthrough form.
   shortcut surface: everything on it is also in the menus or command palette.
   See [the Ribbon](/reference/ribbon/) for every tab's groups.
 - **Operation history** — the clock-arrow button in the Ribbon task row opens
-  the current status and dataset summary. **Messages** keeps the latest 200
+  the current status and dataset summary. **Results** lists objects created or
+  updated by background operations, with links to view them, and shows running
+  scientific tasks. Repeated updates stay in the same result row; deleted results
+  are marked unavailable. **Messages** keeps the latest 200
   observed status changes for this session; **Diagnostics** shows structured
-  operation reports. **Clear** clears both lists. Hover the button for the
-  current status. Errors and warnings also appear in the feedback banner.
+  operation reports. **Clear history** clears results, messages, and diagnostics; running
+  tasks continue. Hover the button for the current status and result count.
+  Errors and warnings also appear in the feedback banner.
 
 Both Side Bars can be shown or hidden at any time: click the pair of layout
 buttons at the right end of the Ribbon's task row, press

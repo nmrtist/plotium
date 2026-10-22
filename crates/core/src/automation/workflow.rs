@@ -348,11 +348,18 @@ pub fn execute_workflow(
         };
         // The inner executor: this run writes one manifest covering every node,
         // so a per-node manifest here would record the same work twice.
+        let context = app.session.project_context;
         let outcome = plan_tool(app, request).and_then(|plan| {
             let frozen = plan.frozen_targets.clone();
             super::workflow_processing::execute_node(app, plan, authority, cancellation)
                 .map(|result| (frozen, result))
         });
+        app.record_background_tool(
+            context,
+            caller,
+            &node.tool_id,
+            outcome.as_ref().map(|(_, result)| result),
+        );
         match outcome {
             Ok((frozen_targets, result)) => {
                 records.push(NodeRunRecord {
