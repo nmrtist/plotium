@@ -67,7 +67,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.line.color` | 图对象＋Series | `#RRGGBB` |
 | `series.line.stroke_width` | 图对象＋Series | 0.05–10 pt |
 | `series.line.style` | 图对象＋Series | `solid`, `dashed`, `dotted`, `dash_dot` |
-| `series.line.marker` | 图对象＋Series | `none`, `circle`, `square`, `diamond`, `triangle_up`, `triangle_down`, `plus`, `cross` |
+| `series.line.marker` | 图对象＋Series | `none`, `circle`, `square`, `diamond`, `triangle_up`, `triangle_down`, `star`, `pentagon`, `hexagon`, `plus`, `cross` |
 | `series.line.marker_size` | 图对象＋Series | 0.1–20 pt，直径 |
 | `series.line.marker_fill / series.line.marker_edge_color` | 图对象＋Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | 图对象＋Series | 0–5 pt；0 表示无边框（空心时为 0.5 pt） |

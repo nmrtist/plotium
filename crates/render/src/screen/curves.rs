@@ -88,18 +88,50 @@ pub(super) fn marker_at(
     if marker == Marker::Circle {
         painter.circle(Pos2::new(p.0, p.1), r, fill, edge);
     }
-    let polygon = marker_polygon(marker, p, r);
-    if !polygon.is_empty() {
-        painter.add(Shape::convex_polygon(
-            polygon.into_iter().map(|(x, y)| Pos2::new(x, y)).collect(),
-            fill,
-            edge,
-        ));
+    let polygon: Vec<_> = marker_polygon(marker, p, r)
+        .into_iter()
+        .map(|(x, y)| Pos2::new(x, y))
+        .collect();
+    if marker == Marker::Star {
+        concave_marker(painter, Pos2::new(p.0, p.1), polygon, fill, edge);
+    } else if !polygon.is_empty() {
+        painter.add(Shape::convex_polygon(polygon, fill, edge));
     }
     for [a, b] in marker_segments(marker, p, r) {
         painter.line_segment(
             [Pos2::new(a.0, a.1), Pos2::new(b.0, b.1)],
             Stroke::new(paint.width, col(paint.color)),
         );
+    }
+}
+/// egui fills only convex paths, so a star-shaped marker is fanned from its
+/// centre into an unfeathered mesh. Without an edge, a one-pixel outline in the
+/// fill colour restores the anti-aliased boundary the mesh lacks.
+fn concave_marker(
+    painter: &egui::Painter,
+    centre: Pos2,
+    polygon: Vec<Pos2>,
+    fill: Color32,
+    edge: Stroke,
+) {
+    if fill != Color32::TRANSPARENT {
+        let mut mesh = egui::Mesh::default();
+        mesh.colored_vertex(centre, fill);
+        for &point in &polygon {
+            mesh.colored_vertex(point, fill);
+        }
+        let n = polygon.len() as u32;
+        for k in 0..n {
+            mesh.add_triangle(0, k + 1, (k + 1) % n + 1);
+        }
+        painter.add(Shape::mesh(mesh));
+    }
+    let outline = if edge.is_empty() && fill != Color32::TRANSPARENT {
+        Stroke::new(1. / painter.pixels_per_point(), fill)
+    } else {
+        edge
+    };
+    if !outline.is_empty() {
+        painter.add(Shape::closed_line(polygon, outline));
     }
 }

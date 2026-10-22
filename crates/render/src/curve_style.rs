@@ -145,8 +145,30 @@ pub(crate) fn marker_polygon(marker: Marker, (x, y): (f32, f32), r: f32) -> Vec<
         Marker::Diamond => vec![(x, y - r), (x + r, y), (x, y + r), (x - r, y)],
         Marker::TriangleUp => vec![(x, y - r), (x + r, y + r), (x - r, y + r)],
         Marker::TriangleDown => vec![(x - r, y - r), (x + r, y - r), (x, y + r)],
+        Marker::Star => {
+            // Inner/outer radius of a regular pentagram, sin 18° / sin 54°.
+            let inner = r * 0.381_966;
+            point_up_polygon((x, y), 10, |k| if k % 2 == 0 { r } else { inner })
+        }
+        Marker::Pentagon => point_up_polygon((x, y), 5, |_| r),
+        Marker::Hexagon => point_up_polygon((x, y), 6, |_| r),
         _ => vec![],
     }
+}
+/// `n` vertices evenly spaced clockwise on screen from the top, so every
+/// vertex stays inside the radius-`r` envelope shared by all markers.
+fn point_up_polygon(
+    (x, y): (f32, f32),
+    n: usize,
+    radius: impl Fn(usize) -> f32,
+) -> Vec<(f32, f32)> {
+    (0..n)
+        .map(|k| {
+            let angle = std::f32::consts::TAU * k as f32 / n as f32;
+            let r = radius(k);
+            (x + r * angle.sin(), y - r * angle.cos())
+        })
+        .collect()
 }
 pub(crate) fn marker_segments(marker: Marker, (x, y): (f32, f32), r: f32) -> Vec<[(f32, f32); 2]> {
     match marker {

@@ -129,6 +129,22 @@ fn marker_shape_not_bounding_box_and_zero_stroke() {
     );
 }
 #[test]
+fn star_marker_hits_follow_its_concave_outline() {
+    let mut s = Series::points("star", vec![[50., 50.]]);
+    s.width = 5.;
+    s.appearance.marker = Some(Marker::Pentagon);
+    let page = Some(Rect::new(0., 0., 100., 100.));
+    // Between the top and upper-right points: inside the pentagon, outside the star.
+    let notch = Rect::new(51.8, 46.9, 0.4, 0.4);
+    assert_eq!(scan(&s, page, notch).intersections, 1);
+    s.appearance.marker = Some(Marker::Star);
+    assert_eq!(scan(&s, page, notch).intersections, 0);
+    assert_eq!(
+        scan(&s, page, Rect::new(49.9, 45.2, 0.2, 0.2)).intersections,
+        1
+    );
+}
+#[test]
 fn raster_integer_crop_rotation_and_fit_match_native_viewport() {
     let frame = Rect::new(10., 20., 100., 100.);
     let r = raster_bounds(frame, [200, 100], [0., 0., 1., 1.], 0, RasterFit::Contain).unwrap();
