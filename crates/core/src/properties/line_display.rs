@@ -14,7 +14,12 @@ pub const MARKER_FILL: PropertyId = PropertyId("series.line.marker_fill");
 pub const MARKER_EDGE_COLOR: PropertyId = PropertyId("series.line.marker_edge_color");
 pub const MARKER_EDGE_WIDTH: PropertyId = PropertyId("series.line.marker_edge_width");
 pub const MARKER_HOLLOW: PropertyId = PropertyId("series.line.marker_hollow");
+pub const BAR_WIDTH: PropertyId = PropertyId("series.bar.width");
+pub const BAR_EDGE_COLOR: PropertyId = PropertyId("series.bar.edge_color");
+pub const BAR_EDGE_WIDTH: PropertyId = PropertyId("series.bar.edge_width");
 const MARKER_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
+const BAR_WIDTH_BOUNDS: FloatBounds = FloatBounds::inclusive(0.05, 1.);
+const BAR_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
 const STYLES: &[EnumVariant] = &[
     EnumVariant::new("solid", "Solid"),
     EnumVariant::new("dashed", "Dashed"),
@@ -79,6 +84,25 @@ const DEFINITIONS: &[PropertyDefinition] = &[
         "Marker edge width",
     ),
     advanced(MARKER_HOLLOW, ValueSchema::Bool, "Hollow marker"),
+    advanced(
+        BAR_WIDTH,
+        ValueSchema::Float {
+            bounds: BAR_WIDTH_BOUNDS,
+            display: FloatDisplay::Linear(""),
+            drag_step: Some(0.05),
+        },
+        "Bar width",
+    ),
+    advanced(BAR_EDGE_COLOR, ValueSchema::Color, "Bar outline color"),
+    advanced(
+        BAR_EDGE_WIDTH,
+        ValueSchema::Float {
+            bounds: BAR_EDGE_BOUNDS,
+            display: FloatDisplay::Linear("pt"),
+            drag_step: Some(0.05),
+        },
+        "Bar outline width",
+    ),
 ];
 pub(crate) struct DisplayProvider;
 pub(crate) static PROVIDER: DisplayProvider = DisplayProvider;
@@ -186,6 +210,25 @@ impl PropertyProvider for DisplayProvider {
                 PropertyValue::Bool(false),
                 None,
             ),
+            BAR_WIDTH => (
+                PropertyValue::Float(line.bar_width()),
+                PropertyValue::Float(plotium_figure::DEFAULT_BAR_WIDTH),
+                Some(line.bar_width.is_some()),
+            ),
+            BAR_EDGE_COLOR => {
+                let fill = line.color.resolve();
+                (
+                    PropertyValue::Color(crate::state::bar_edge_color(line.bar_edge_color, fill)),
+                    // Unset, the outline is a near-black ink of the curve's hue.
+                    PropertyValue::Color(crate::state::bar_edge_color(None, fill)),
+                    Some(line.bar_edge_color.is_some()),
+                )
+            }
+            BAR_EDGE_WIDTH => (
+                PropertyValue::Float(line.bar_edge_width()),
+                PropertyValue::Float(plotium_figure::DEFAULT_BAR_EDGE_WIDTH_PT),
+                Some(line.bar_edge_width.is_some()),
+            ),
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
         let marker_property = matches!(
@@ -208,8 +251,17 @@ impl PropertyProvider for DisplayProvider {
                 Availability::Disabled(
                     "Choose a curve without semantic colors to set a single series color.",
                 )
-            } else if marker_property && kind == plotium_figure::SeriesKind::Stick {
+            } else if marker_property
+                && matches!(
+                    kind,
+                    plotium_figure::SeriesKind::Stick | plotium_figure::SeriesKind::Bar
+                )
+            {
                 Availability::Disabled("Choose a line or scatter curve to edit markers.")
+            } else if matches!(d.id, BAR_WIDTH | BAR_EDGE_COLOR | BAR_EDGE_WIDTH)
+                && kind != plotium_figure::SeriesKind::Bar
+            {
+                Availability::Disabled("Choose a bar curve to edit its bar settings.")
             } else if d.id == STYLE && kind != plotium_figure::SeriesKind::Line {
                 Availability::Disabled("Choose a line curve to edit its stroke style.")
             } else {
@@ -323,6 +375,26 @@ impl PropertyProvider for DisplayProvider {
                 };
             }
             (MARKER_HOLLOW, PropertyValue::Bool(hollow)) => line.appearance.marker_hollow = hollow,
+            (BAR_EDGE_COLOR, PropertyValue::Color(color)) => {
+                line.bar_edge_color = (!matches!(op, EditOp::Reset)).then_some(color);
+            }
+            (BAR_EDGE_WIDTH, PropertyValue::Float(v)) => {
+                BAR_EDGE_BOUNDS.check(d.id, "bar outline width", v)?;
+                // Zero is a stored "no outline", distinct from the default.
+                line.bar_edge_width = if matches!(op, EditOp::Reset) {
+                    None
+                } else {
+                    Some(plotium_figure::FiniteF64::new(v).ok_or_else(invalid)?)
+                };
+            }
+            (BAR_WIDTH, PropertyValue::Float(v)) => {
+                BAR_WIDTH_BOUNDS.check(d.id, "bar width", v)?;
+                line.bar_width = if matches!(op, EditOp::Reset) {
+                    None
+                } else {
+                    Some(plotium_figure::UnitInterval::new(v).ok_or_else(invalid)?)
+                };
+            }
             _ => return Err(invalid()),
         }
         Ok(())

@@ -31,7 +31,7 @@ pub fn plot_create_schema() -> Value {
         "canvas":{"type":"object","additionalProperties":false,"required":["name"],"oneOf":[{"required":["size_mm"]},{"required":["size_preset"]}],"description":"Only for document parent. Omit to use the plot name and native default size, frozen in preflight.","properties":{"name":name,"size_mm":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"number","minimum":10,"maximum":1000},"description":"[width,height] in mm."},"size_preset":super::figure_edit::size_preset_schema()}},
         "panel_frame_pt":{"type":"array","minItems":4,"maxItems":4,"items":{"type":"number"},"description":"New Panel [x,y,width,height] in page-relative pt, finite positive width/height. Required to add a second Panel to an existing canvas. Omit for existing empty-Panel parent and native empty-page placement."},
         "panel_name":{"type":"string","minLength":1,"maxLength":1024,"description":"Only for a newly created panel; defaults to plot name."},
-        "series":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","additionalProperties":false,"required":["kind","source"],"properties":{"kind":{"enum":["line","scatter"]},"source":source}}}
+        "series":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","additionalProperties":false,"required":["kind","source"],"properties":{"kind":{"enum":["line","scatter","bar"],"description":"bar: filled bars from 0 with optional y errors; bars sharing an x slot sit side by side; a bar alone in its slot keeps the full width. A bar x may be a Utf8 column (categories in row order); a text-x plot holds bars only."},"source":source}}}
     }})
 }
 pub(super) fn prepare(

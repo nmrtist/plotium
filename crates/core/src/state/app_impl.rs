@@ -728,46 +728,6 @@ impl PlotiumApp {
     }
 }
 
-pub fn visible_y_range(fig: &Figure, x: AxisRange) -> Option<AxisRange> {
-    if fig.y.scale == plotium_figure::AxisScale::Log10 {
-        return Some(log_auto_range(log_axes::axis_values(fig, false, Some(x))));
-    }
-    let mut lo = f64::INFINITY;
-    let mut hi = f64::NEG_INFINITY;
-
-    for series in &fig.series {
-        for &[px, py] in &series.points {
-            if x.contains(px) && py.is_finite() {
-                lo = lo.min(py);
-                hi = hi.max(py);
-            }
-        }
-    }
-
-    // Presentation edits and X navigation recompute automatic Y limits. Include
-    // visible uncertainty endpoints, not just centers, or rebuilt error bars clip.
-    for error in &fig.error_bars {
-        if x.contains(error.center[0]) {
-            let lower = error.center[1] - error.negative;
-            let upper = error.center[1] + error.positive;
-            if lower.is_finite() && upper.is_finite() {
-                lo = lo.min(lower);
-                hi = hi.max(upper);
-            }
-        }
-    }
-
-    if !lo.is_finite() || !hi.is_finite() {
-        return None;
-    }
-
-    // A flat curve needs visible padding at its coordinate scale. MIN_POSITIVE
-    // rounds away at nonzero Y and leaves a practically zero range at Y = 0.
-    let span = if hi > lo { hi - lo } else { lo.abs().max(1.0) };
-    let range = AxisRange::new(lo - 0.05 * span, hi + 0.08 * span);
-    range.is_valid().then_some(range)
-}
-
 pub fn build_render_document(document: &CanvasDocument) -> plotium_render::Document<'_> {
     let [width, height] = document.size_pt();
     plotium_render::Document {

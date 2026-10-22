@@ -354,34 +354,6 @@ fn write_figure_content(
     }
 
     let y_axis_x = proj.left_band.map(|band| band.left).unwrap_or(plot.left);
-    match fig.axis_frame {
-        AxisFrame::Open => {
-            dc.line(
-                (plot.left, plot.bottom()),
-                (plot.right(), plot.bottom()),
-                Color::AXIS,
-                ty.axis_line_pt,
-            );
-            dc.line(
-                (y_axis_x, plot.top),
-                (y_axis_x, plot.bottom()),
-                Color::AXIS,
-                ty.axis_line_pt,
-            );
-        }
-        AxisFrame::Box => {
-            dc.rect(plot, None, Some((Color::AXIS, ty.axis_line_pt)));
-            if (y_axis_x - plot.left).abs() > f32::EPSILON {
-                dc.line(
-                    (y_axis_x, plot.top),
-                    (y_axis_x, plot.bottom()),
-                    Color::AXIS,
-                    ty.axis_line_pt,
-                );
-            }
-        }
-        AxisFrame::Hidden => {}
-    }
 
     let minor = ty.minor_tick_reach();
     for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
@@ -569,6 +541,36 @@ fn write_figure_content(
             );
         }
     });
+    // Spines go over the clipped data, so a bar or trace resting on an axis
+    // cannot paint over half of its line.
+    match fig.axis_frame {
+        AxisFrame::Open => {
+            dc.line(
+                (plot.left, plot.bottom()),
+                (plot.right(), plot.bottom()),
+                Color::AXIS,
+                ty.axis_line_pt,
+            );
+            dc.line(
+                (y_axis_x, plot.top),
+                (y_axis_x, plot.bottom()),
+                Color::AXIS,
+                ty.axis_line_pt,
+            );
+        }
+        AxisFrame::Box => {
+            dc.rect(plot, None, Some((Color::AXIS, ty.axis_line_pt)));
+            if (y_axis_x - plot.left).abs() > f32::EPSILON {
+                dc.line(
+                    (y_axis_x, plot.top),
+                    (y_axis_x, plot.bottom()),
+                    Color::AXIS,
+                    ty.axis_line_pt,
+                );
+            }
+        }
+        AxisFrame::Hidden => {}
+    }
 
     if let (Some(trace), Some(band)) = (&fig.top_projection, proj.top_band) {
         write_projection(dc, fig, trace, plot, band, true);
@@ -682,7 +684,9 @@ fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect) {
                     None,
                 );
             }
-            LegendMark::Rect => dc.rect(Rect::new(lx, ly - 4.0, sw, 8.0), Some(*color), None),
+            LegendMark::Rect { edge } => {
+                dc.rect(Rect::new(lx, ly - 4.0, sw, 8.0), Some(*color), *edge)
+            }
         }
         dc.text(
             name,

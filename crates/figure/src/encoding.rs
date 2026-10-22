@@ -148,6 +148,37 @@ pub struct LineEncoding {
     /// themes leave locked curves' colours alone.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub color_locked: bool,
+    /// Bar width as a fraction of its slot; only bars read it. `None` is
+    /// [`DEFAULT_BAR_WIDTH`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bar_width: Option<UnitInterval>,
+    /// Bar outline color; only bars read it. `None` derives a near-black ink
+    /// from the fill's hue (`Color::ink_shade`), so it follows color edits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bar_edge_color: Option<Color>,
+    /// Bar outline width in points, where zero draws no outline; only bars
+    /// read it. `None` is [`DEFAULT_BAR_EDGE_WIDTH_PT`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bar_edge_width: Option<FiniteF64>,
+}
+
+/// Default bar width as a fraction of the bar's slot.
+pub const DEFAULT_BAR_WIDTH: f64 = 0.8;
+/// Default bar outline width: a thin rule that keeps pale fills visible on
+/// white paper.
+pub const DEFAULT_BAR_EDGE_WIDTH_PT: f64 = 0.5;
+
+impl LineEncoding {
+    pub fn bar_width(&self) -> f64 {
+        self.bar_width.map_or(DEFAULT_BAR_WIDTH, UnitInterval::get)
+    }
+
+    /// Outline width in points; zero (or a negative stored value) is none.
+    pub fn bar_edge_width(&self) -> f64 {
+        self.bar_edge_width
+            .map_or(DEFAULT_BAR_EDGE_WIDTH_PT, FiniteF64::get)
+            .max(0.0)
+    }
 }
 
 impl Default for LineEncoding {
@@ -161,6 +192,9 @@ impl Default for LineEncoding {
                 .expect("literal width is valid"),
             x_shift: FiniteF64::default(),
             color_locked: false,
+            bar_width: None,
+            bar_edge_color: None,
+            bar_edge_width: None,
         }
     }
 }

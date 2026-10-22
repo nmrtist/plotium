@@ -184,8 +184,19 @@ impl FigureDiagnosticScan {
                             .series
                             .iter()
                             .map(|s| {
-                                let source = super::super::document::source::binding_status(app, s)
-                                    .to_owned();
+                                let mut source =
+                                    super::super::document::source::binding_status(app, s);
+                                // Bars are lowered to filled rectangles, not curve runs.
+                                let bar = match &s.encoding {
+                                    plotium_figure::SeriesEncoding::Line(line) => {
+                                        line.kind == plotium_figure::SeriesKind::Bar
+                                    }
+                                    _ => false,
+                                };
+                                if source == "resolved" && bar {
+                                    source = "bar_encoding";
+                                }
+                                let source = source.to_owned();
                                 (s.id, s.visible, source)
                             })
                             .collect(),

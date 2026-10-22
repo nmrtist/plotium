@@ -100,7 +100,18 @@ pub(crate) fn error_bar_segments(
         return None;
     }
     let low = clip_to_plot(low_raw, proj.plot)?;
-    let half_cap = error_bar.cap_width * output_scale * 0.5;
+    // A data-space cap is measured on the projected axis so it keeps its share
+    // of the mark it belongs to.
+    let half_cap = error_bar
+        .cap_data_width
+        .filter(|w| w.is_finite() && *w > 0.0)
+        .map(|w| {
+            let left = proj.project([x - 0.5 * w, high_y]).0;
+            let right = proj.project([x + 0.5 * w, high_y]).0;
+            0.5 * (right - left).abs()
+        })
+        .filter(|half| half.is_finite())
+        .unwrap_or(error_bar.cap_width * output_scale * 0.5);
     let cap = |(x, y): (f32, f32)| [(x - half_cap, y), (x + half_cap, y)];
     let mut segments = ErrorBarSegments {
         segments: [[low, high_raw], cap(high_raw), cap(low)],
@@ -179,6 +190,7 @@ mod tests {
             width: 1.0,
             cap_width: 4.0,
             draw_over_data: false,
+            cap_data_width: None,
         };
         let segments = error_bar_segments(&proj, &bar(10.0, 20.0), 1.0).expect("visible top");
         assert_eq!(segments.as_slice().len(), 2, "stem and upper cap only");
@@ -186,6 +198,21 @@ mod tests {
         let segments = error_bar_segments(&proj, &bar(10.0, 5.0), 1.0).expect("inside");
         assert_eq!(segments.as_slice().len(), 3);
         assert!(error_bar_segments(&proj, &bar(-10.0, 1.0), 1.0).is_none());
+    }
+
+    #[test]
+    fn a_data_width_cap_spans_its_projected_share_of_the_x_axis() {
+        let fig = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+        let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 200.0, 100.0), &Margins::default());
+        let unit = proj.project([1.0, 5.0]).0 - proj.project([0.0, 5.0]).0;
+        let bar = ErrorBar::symmetric([5.0, 5.0], 1.0).with_cap_data_width(0.5);
+        let segments = error_bar_segments(&proj, &bar, 3.0).expect("visible");
+        let [(x0, _), (x1, _)] = segments.as_slice()[1];
+        // Half a data unit wide whatever the output scale; a point cap ignores the axis.
+        assert!(((x1 - x0) - 0.5 * unit).abs() < 1e-3);
+        let fixed = error_bar_segments(&proj, &ErrorBar::symmetric([5.0, 5.0], 1.0), 1.0).unwrap();
+        let [(x0, _), (x1, _)] = fixed.as_slice()[1];
+        assert!(((x1 - x0) - 8.0).abs() < 1e-3);
     }
 
     #[test]

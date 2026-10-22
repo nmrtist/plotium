@@ -84,6 +84,9 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.line.marker_fill / series.line.marker_edge_color` | Object + Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline (0.5 pt while hollow) |
 | `series.line.marker_hollow` | Object + Series | boolean |
+| `series.bar.width` | Object + Series | 0.05–1, fraction of the bar's slot (bar curves; default 0.8) |
+| `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
+| `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt) |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -669,7 +672,8 @@ For MCP, omit top-level `ids`/`targets` and provide the exact whole plot target:
 
 Copy targets, FieldId and all table/column IDs from discovery; labels are not
 identity. The target must already have explicit coordinates. A batch adds
-1–200 selected line/scatter curves, with at most 200 total curves in that plot.
+1–200 selected line/scatter/bar curves, with at most 200 total curves in that plot.
+Existing bars regroup to share their slots with appended bars.
 The shared binding validator checks every source revision, complete curve data,
 errors and units before one atomic commit. Compatible source units convert to
 the plot's existing coordinate units; incompatible batches fail without adding
@@ -802,8 +806,16 @@ top-level `ids` or `targets`:
 ```
 
 Replace every identity, including the example FieldId, with the actual returned
-identity. `kind` is `line` or `scatter`; explicitly set `y_error_column_id` to a
-ColumnId or `null`. Multiple entries create independent native Series in this
+identity. `kind` is `line`, `scatter` or `bar`; explicitly set `y_error_column_id` to a
+ColumnId or `null`. A `bar` curve draws filled bars from zero with optional
+error whiskers, filled in the curve color with a thin outline. Whiskers use the
+outline's color and width, and their caps span 45% of the bar. Its x column may be numeric or a
+Utf8 text column; text values become categories in table row order, and equal
+texts share one slot. Bar curves that share a slot sit side by side within it; a
+bar alone in its slot keeps the full width, so one bar curve per category gives
+centred bars in their own colors.
+A plot with a text x holds bar curves only; bars mix with line and scatter
+curves on a numeric x. Bar plots have no logarithmic axes. Multiple entries create independent native Series in this
 one plot, not separate plots. Source extraction and all numeric, missing-value,
 error and unit rules are the same as explicit curve binding above. Table-wide
 X/Y defaults and other plots are untouched; no source table is copied.
@@ -1528,7 +1540,8 @@ an override, native point curves retain their existing width-based radius; the
 existing stroke-width API retains this behavior. Reset restores the native
 marker/size, and an explicit empty legend label omits that legend entry. Stroke
 style applies to line curves; scatter curves are skipped for that property.
-Markers apply to line/scatter curves, not sticks. Marker fill and edge color
+Markers apply to line/scatter curves, not sticks or bars. Bar width applies to
+bar curves only, as do the bar outline color and width. Marker fill and edge color
 apply to closed markers and follow the curve color until set; reset returns
 them to it. A hollow marker draws no fill and keeps an outline, 0.5 pt when
 no edge width is set. A chart that owns semantic colors rejects a single series

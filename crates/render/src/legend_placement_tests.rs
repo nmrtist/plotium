@@ -107,6 +107,7 @@ fn stems_and_error_bars_occupy_space() {
         width: 1.0,
         cap_width: 4.0,
         draw_over_data: false,
+        cap_data_width: None,
     });
     let r = legend_rect(&f, PLOT, 1.0).unwrap();
     assert!(
@@ -168,6 +169,7 @@ fn gaps_and_non_finite_samples_do_not_bridge_or_block() {
         width: 1.0,
         cap_width: 4.0,
         draw_over_data: false,
+        cap_data_width: None,
     });
     let r = legend_rect(&f, PLOT, 1.0).unwrap();
     assert_eq!(r.right(), PLOT.right() - 8.0);

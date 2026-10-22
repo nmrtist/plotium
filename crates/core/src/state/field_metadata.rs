@@ -27,6 +27,7 @@ impl FieldDescriptor {
         match self.metadata.0.get("curve_kind").map(String::as_str) {
             Some("points") => plotium_figure::SeriesKind::Points,
             Some("stick") => plotium_figure::SeriesKind::Stick,
+            Some("bar") => plotium_figure::SeriesKind::Bar,
             _ => plotium_figure::SeriesKind::Line,
         }
     }
@@ -38,6 +39,7 @@ impl FieldDescriptor {
                 plotium_figure::SeriesKind::Line => "line",
                 plotium_figure::SeriesKind::Points => "points",
                 plotium_figure::SeriesKind::Stick => "stick",
+                plotium_figure::SeriesKind::Bar => "bar",
             }
             .into(),
         );

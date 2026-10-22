@@ -89,10 +89,13 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
                     col = color.to_hex(),
                 );
             }
-            LegendMark::Rect => {
+            LegendMark::Rect { edge } => {
+                let stroke = edge.map_or(String::new(), |(edge, width)| {
+                    format!(r#" stroke="{}" stroke-width="{width}""#, edge.to_hex())
+                });
                 let _ = write!(
                     s,
-                    r#"<rect x="{lx:.2}" y="{y:.2}" width="{sw:.2}" height="8" rx="1" fill="{col}"/>"#,
+                    r#"<rect x="{lx:.2}" y="{y:.2}" width="{sw:.2}" height="8" rx="1" fill="{col}"{stroke}/>"#,
                     y = ly - 4.0,
                     col = color.to_hex(),
                 );

@@ -22,7 +22,10 @@ impl CurveDiagnostics {
 }
 
 pub struct ExtractedTableCurve {
+    /// For a text x column, x values are indices into `categories`.
     pub runs: Vec<Vec<[f64; 2]>>,
+    /// Distinct x texts in first-occurrence row order; `None` for numeric x.
+    pub categories: Option<Vec<String>>,
     pub errors: Vec<ErrorBar>,
     pub x_label: String,
     pub y_label: String,
@@ -60,17 +63,27 @@ pub fn extract_table_curve(
     projection.extend(columns.y_error_column_id);
     projection.sort();
     projection.dedup();
+    let text_x = schema
+        .column(columns.x_column_id)
+        .is_some_and(|c| c.logical_type == LogicalType::Utf8);
     for id in &projection {
         let c = schema
             .column(*id)
             .ok_or_else(|| format!("Curve column {id} is absent."))?;
-        if !matches!(c.logical_type, LogicalType::Int64 | LogicalType::Float64) {
-            return Err(format!("Curve column {id} must be Int64 or Float64."));
+        let numeric = matches!(c.logical_type, LogicalType::Int64 | LogicalType::Float64);
+        if !numeric && !(text_x && *id == columns.x_column_id) {
+            return Err(format!(
+                "Curve column {id} must be Int64 or Float64 (a bar x may also be Utf8 text)."
+            ));
         }
     }
     let source_units = table_curve_coordinates(table, columns)?;
-    let x_conversion =
-        super::curve_binding::CurveUnitConversion::new(&source_units.x, &coordinates.x, false)?;
+    // Category slots have no unit to convert.
+    let x_conversion = (!text_x)
+        .then(|| {
+            super::curve_binding::CurveUnitConversion::new(&source_units.x, &coordinates.x, false)
+        })
+        .transpose()?;
     let y_conversion =
         super::curve_binding::CurveUnitConversion::new(&source_units.y, &coordinates.y, false)?;
     let error_unit = columns
@@ -91,6 +104,7 @@ pub fn extract_table_curve(
     };
     let mut out = ExtractedTableCurve {
         runs: Vec::new(),
+        categories: text_x.then(Vec::new),
         errors: Vec::new(),
         x_label: label(columns.x_column_id, &coordinates.x),
         y_label: label(columns.y_column_id, &coordinates.y),
@@ -114,10 +128,21 @@ pub fn extract_table_curve(
         return Err("Curve columns are not row-aligned.".into());
     }
     out.diagnostics.total_rows = rows.row_ids.len();
+    let mut slots = std::collections::HashMap::new();
     let mut run = Vec::new();
     for (i, row) in rows.row_ids.iter().copied().enumerate() {
         let at = |e: String| format!("Row {row}: {e}");
-        let px = number(&x[i]).map_err(at)?;
+        let px = match (&mut out.categories, &x[i]) {
+            (None, value) => number(value).map_err(at)?,
+            (Some(_), ScalarValue::Null) => None,
+            (Some(categories), ScalarValue::Utf8(text)) => {
+                Some(*slots.entry(text.clone()).or_insert_with(|| {
+                    categories.push(text.clone());
+                    categories.len() - 1
+                }) as f64)
+            }
+            (Some(_), _) => return Err(at("Category x values must be text.".into())),
+        };
         let py = number(&y[i]).map_err(at)?;
         let sigma = error
             .map(|v| number(&v[i]))
@@ -144,8 +169,12 @@ pub fn extract_table_curve(
             }
             continue;
         }
+        let px = px.expect("finite pair");
         let point = [
-            x_conversion.apply(px.expect("finite pair")).map_err(at)?,
+            match &x_conversion {
+                Some(conversion) => conversion.apply(px).map_err(at)?,
+                None => px,
+            },
             y_conversion.apply(py.expect("finite pair")).map_err(at)?,
         ];
         if let Some(sigma) = sigma {
@@ -188,19 +217,36 @@ impl PlotiumApp {
         let mut prepared = Vec::new();
         let mut global_peak = 0.0_f64;
         let mut first_span = None;
+        // Whether the plot's x is text categories, fixed by its first curve.
+        let mut categorical = None;
+        let mut categories = super::curve_bars::CategorySlots::default();
         for (series_index, sb) in binding.series.iter().enumerate() {
             let SeriesEncoding::Line(line) = &sb.encoding else {
                 return Err("Column bindings require a line/point encoding.".into());
             };
             if matches!(line.kind, SeriesKind::Stick) {
-                return Err("Explicit column curves support line and points only.".into());
+                return Err("Explicit column curves support line, points and bars only.".into());
             }
             if !line.scale.is_finite() {
                 return Err("Curve scale must be finite.".into());
             }
+            let bar = line.kind == SeriesKind::Bar;
+            let bar_style = bar.then(|| super::curve_bars::BarStyle::of(line));
             let (table, selections) = self.table_curve_sources(sb.source)?;
             for (index, columns) in selections.iter().copied().enumerate() {
-                let extracted = extract_table_curve(table, columns, coordinates)?;
+                let mut extracted = extract_table_curve(table, columns, coordinates)?;
+                let text_x = extracted.categories.is_some();
+                if text_x && !bar {
+                    return Err("A text x column needs bar series; every series of a category plot must be a bar.".into());
+                }
+                if *categorical.get_or_insert(text_x) != text_x {
+                    return Err(
+                        "All series in one plot must share a text or a numeric x column.".into(),
+                    );
+                }
+                if let Some(local) = &extracted.categories {
+                    categories.remap(local, &mut extracted.runs, &mut extracted.errors);
+                }
                 if !label_set {
                     figure.x.label = extracted.x_label;
                     figure.y.label = extracted.y_label;
@@ -224,7 +270,7 @@ impl PlotiumApp {
                 });
                 for points in extracted.runs {
                     let mut curve = Series::line(name.clone(), points);
-                    curve.kind = if sb.source.columns().is_some() {
+                    curve.kind = if bar || sb.source.columns().is_some() {
                         line.kind
                     } else {
                         SeriesKind::Points
@@ -274,12 +320,14 @@ impl PlotiumApp {
                         first_span = Some((hi - lo).max(f64::MIN_POSITIVE));
                     }
                 }
-                prepared.push((series_index, part));
+                prepared.push((series_index, part, bar_style));
             }
         }
-        for (index, mut part) in prepared {
+        let mut bars = Vec::new();
+        for (index, mut part, bar_style) in prepared {
             let offset = matches!(stack.mode, StackMode::Offset);
-            let xoff = if offset {
+            // Bars stay on their slots; shear would skew the slot width.
+            let xoff = if offset && bar_style.is_none() {
                 index as f64 * stack.shear_x * first_span.unwrap_or(1.0)
             } else {
                 0.0
@@ -320,17 +368,44 @@ impl PlotiumApp {
                 ymin = ymin.min(e.center[1] - e.negative);
                 ymax = ymax.max(e.center[1] + e.positive);
             }
-            figure.series.extend(part.series);
-            figure.error_bars.extend(part.error_bars);
+            if let Some(style) = bar_style {
+                bars.push(super::curve_bars::PreparedBars {
+                    series: part.series,
+                    errors: part.error_bars,
+                    style,
+                    baseline: yoff,
+                });
+            } else {
+                figure.series.extend(part.series);
+                figure.error_bars.extend(part.error_bars);
+            }
         }
-        if xmin.is_finite() {
+        let categorical = categorical == Some(true);
+        let has_bars = !bars.is_empty();
+        if let Some([x0, x1, y0, y1]) =
+            super::curve_bars::lower_bars(&mut figure, bars, categorical)?
+        {
+            xmin = xmin.min(x0);
+            xmax = xmax.max(x1);
+            ymin = ymin.min(y0);
+            ymax = ymax.max(y1);
+        }
+        if categorical {
+            let label = std::mem::take(&mut figure.x.label);
+            figure.x = Axis::categorical(label, categories.into_names());
+        } else if xmin.is_finite() {
             let pad = ((xmax - xmin) * 0.02).max(1e-12);
             figure.x.min = xmin - pad;
             figure.x.max = xmax + pad;
         }
         if ymin.is_finite() {
             let pad = ((ymax - ymin) * 0.05).max(1e-12);
-            figure.y.min = ymin - pad;
+            // Bars rest on a zero baseline, which stays the axis floor.
+            figure.y.min = if has_bars && ymin == 0.0 {
+                0.0
+            } else {
+                ymin - pad
+            };
             figure.y.max = ymax + pad;
         }
         if ![figure.x.min, figure.x.max, figure.y.min, figure.y.max]
