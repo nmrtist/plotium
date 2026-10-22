@@ -351,6 +351,7 @@ impl FigureDiagnosticScan {
                     || !figure.integral_curves.is_empty()
                     || figure.text_annotations().next().is_some()
                     || !figure.reference_lines.is_empty()
+                    || !figure.author_arrows.is_empty()
                     || !figure.range_annotations.is_empty()
                     || figure.top_projection.is_some()
                     || figure.left_projection.is_some()

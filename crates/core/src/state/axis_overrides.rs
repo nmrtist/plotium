@@ -249,6 +249,7 @@ impl AxisOverrides {
         figure.legend_position = self.legend_position;
         figure.author_annotations = self.annotations.lower();
         figure.reference_lines = self.annotations.lower_reference_lines();
+        figure.author_arrows = self.annotations.lower_arrows();
     }
 
     /// A dragged or explicitly positioned legend is always an inside guide.

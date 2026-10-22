@@ -170,3 +170,32 @@ fn exports_error_bar_stem_and_caps_inside_the_plot_clip() {
     assert_eq!(output.matches("class=\"error-bar\"").count(), 1);
     assert!(output.contains("clip-path=\"url(#plot)\""));
 }
+
+#[test]
+fn exports_author_arrows_inside_the_plot_clip() {
+    use plotium_figure::{ArrowAnnotation, ArrowHead};
+    let mut figure = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+    for (head, from) in [(ArrowHead::Filled, 2.0), (ArrowHead::Open, 4.0)] {
+        figure.author_arrows.push(ArrowAnnotation {
+            from: [from, 2.0],
+            // Beyond the visible range: the plot clip trims it.
+            to: [from, 12.0],
+            color: Color::rgb(0x12, 0x34, 0x56),
+            width: 1.5,
+            head,
+        });
+    }
+    let output = export(&figure);
+    let clip = output
+        .split_once(r#"<g clip-path="url(#plot)">"#)
+        .expect("plot clip group")
+        .1;
+    let arrows: Vec<_> = clip
+        .match_indices(r#"<g class="annotation-arrow""#)
+        .collect();
+    assert_eq!(arrows.len(), 2);
+    assert!(clip.contains(r##"stroke="#123456" fill="#123456" stroke-width="1.5""##));
+    // The filled head is a closed triangle; the open head is an unfilled V.
+    assert!(clip.contains(r#"Z" stroke="none"/>"#));
+    assert!(clip.matches(r#"" fill="none"/>"#).count() >= 3);
+}

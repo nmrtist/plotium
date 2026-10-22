@@ -168,3 +168,6 @@ fn annotations_round_trip_through_the_project_file_with_their_allocator() {
         AnnotationId::new(2)
     );
 }
+
+#[path = "figure_edit_arrow_tests.rs"]
+mod arrow_tests;

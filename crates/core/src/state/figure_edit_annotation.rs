@@ -32,6 +32,13 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
         .ok_or("Plot target disappeared.")?;
     let mut annotations = plot.axis_overrides.annotations.clone();
     let missing = || "Discover an exact annotation id on this plot.".to_owned();
+    if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit)? {
+        let reading = annotations
+            .arrow(id)
+            .map(super::figure_edit_arrow::arrow_reading);
+        plot.set_annotations(annotations);
+        return Ok(json!({"target":target,"op":op,"annotation_id":id,"annotation":reading}));
+    }
     if let Some(id) = super::figure_edit_reference_line::apply(&mut annotations, edit)? {
         let reading = annotations
             .reference_line(id)

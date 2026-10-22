@@ -1,6 +1,6 @@
 use super::dto::RangeDto;
 use crate::state::{
-    AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations, PlotReferenceLine,
+    AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations, PlotArrow, PlotReferenceLine,
 };
 use plotium_figure::{
     AxisFrame, GuideLayout, GuidePlacement, GuideVisibility, LineStyle, ReferenceOrientation,
@@ -59,6 +59,19 @@ struct PlotAnnotationsDto {
     items: Vec<PlotAnnotationDto>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     reference_lines: Vec<PlotReferenceLineDto>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    arrows: Vec<PlotArrowDto>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PlotArrowDto {
+    id: AnnotationId,
+    /// Tail and head `[x, y]` in the plot's axis units.
+    at: [f64; 2],
+    to: [f64; 2],
+    head: plotium_figure::ArrowHead,
+    line_width: f32,
+    color: [u8; 3],
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -134,6 +147,18 @@ impl PlotAnnotationsDto {
                 .iter()
                 .map(PlotReferenceLineDto::from_line)
                 .collect(),
+            arrows: annotations
+                .arrows
+                .iter()
+                .map(|a| PlotArrowDto {
+                    id: a.id,
+                    at: a.at,
+                    to: a.to,
+                    head: a.head,
+                    line_width: a.line_width,
+                    color: [a.color.r, a.color.g, a.color.b],
+                })
+                .collect(),
         })
     }
 
@@ -155,6 +180,18 @@ impl PlotAnnotationsDto {
                 .reference_lines
                 .iter()
                 .map(PlotReferenceLineDto::to_line)
+                .collect(),
+            arrows: self
+                .arrows
+                .iter()
+                .map(|a| PlotArrow {
+                    id: a.id,
+                    at: a.at,
+                    to: a.to,
+                    head: a.head,
+                    line_width: a.line_width,
+                    color: plotium_figure::Color::rgb(a.color[0], a.color[1], a.color[2]),
+                })
                 .collect(),
         }
     }

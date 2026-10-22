@@ -2,6 +2,7 @@
 //! an SVG document ([`svg`]), or a Windows metafile ([`emf`]). All back-ends
 //! share [`Projector`] and [`ticks`].
 
+mod arrow_geometry;
 pub mod contour;
 mod curve_style;
 pub mod diagnostics;

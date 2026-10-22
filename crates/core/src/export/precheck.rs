@@ -122,6 +122,9 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
                 for contour in &plot.figure().contours {
                     lines.push(contour.width);
                 }
+                for arrow in &plot.figure().author_arrows {
+                    lines.push(arrow.width);
+                }
             }
         }
     }

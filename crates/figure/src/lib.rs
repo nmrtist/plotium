@@ -376,6 +376,32 @@ pub struct Annotation {
     pub size: f32,
 }
 
+/// Arrowhead placement and fill for an [`ArrowAnnotation`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArrowHead {
+    /// A plain line segment.
+    None,
+    /// An unfilled V at the head point.
+    Open,
+    /// A filled triangle at the head point.
+    Filled,
+    /// Filled triangles at both ends.
+    Double,
+}
+
+/// A straight arrow between two data-coordinate points, drawn inside the plot
+/// area like text annotations.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ArrowAnnotation {
+    pub from: [f64; 2],
+    pub to: [f64; 2],
+    pub color: Color,
+    /// Shaft stroke width in pt; heads widen for thick shafts.
+    pub width: f32,
+    pub head: ArrowHead,
+}
+
 /// A semantic x-range that spans the data area. Unlike editor selection chrome,
 /// range annotations are figure content and are exported by every renderer.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -554,6 +580,9 @@ pub struct Figure {
     /// exactly like `author_annotations`.
     #[serde(default)]
     pub reference_lines: Vec<ReferenceLine>,
+    /// Author-placed arrows, owned by plot overrides like `author_annotations`.
+    #[serde(default)]
+    pub author_arrows: Vec<ArrowAnnotation>,
     pub range_annotations: Vec<RangeAnnotation>,
     /// Zero, one, or many contour overlays painted on the shared axes (e.g. one
     /// per dataset in a 2D color-overlay stack), each with its own colour/width.
@@ -617,6 +646,7 @@ impl Figure {
             annotations: Vec::new(),
             author_annotations: Vec::new(),
             reference_lines: Vec::new(),
+            author_arrows: Vec::new(),
             range_annotations: Vec::new(),
             contours: Vec::new(),
             top_projection: None,

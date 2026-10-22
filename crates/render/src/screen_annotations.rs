@@ -96,3 +96,35 @@ pub(crate) fn paint_reference_lines(
         }
     }
 }
+
+/// Author arrows, mirroring [`crate::svg`]'s arrow output.
+pub(crate) fn paint_arrows(
+    painter: &egui::Painter,
+    figure: &Figure,
+    projector: &Projector,
+    scale: f32,
+) {
+    let pos = |(x, y): (f32, f32)| Pos2::new(x, y);
+    for arrow in &figure.author_arrows {
+        let Some(shape) = crate::arrow_geometry::arrow_shape(
+            projector.project(arrow.from),
+            projector.project(arrow.to),
+            arrow.width,
+            scale,
+            arrow.head,
+        ) else {
+            continue;
+        };
+        let color = Color32::from_rgb(arrow.color.r, arrow.color.g, arrow.color.b);
+        let stroke = Stroke::new(arrow.width * scale, color);
+        painter.line_segment(shape.shaft.map(pos), stroke);
+        for tip in shape.tips {
+            let points = tip.points.map(pos).to_vec();
+            painter.add(if tip.filled {
+                egui::Shape::convex_polygon(points, color, Stroke::NONE)
+            } else {
+                egui::Shape::line(points, stroke)
+            });
+        }
+    }
+}

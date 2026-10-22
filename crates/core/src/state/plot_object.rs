@@ -312,6 +312,7 @@ impl PlotObject {
     pub(crate) fn set_annotations(&mut self, annotations: super::PlotAnnotations) {
         self.figure.author_annotations = annotations.lower();
         self.figure.reference_lines = annotations.lower_reference_lines();
+        self.figure.author_arrows = annotations.lower_arrows();
         self.axis_overrides.annotations = annotations;
         self.apply_viewport();
     }

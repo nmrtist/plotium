@@ -195,6 +195,13 @@ impl Node<'_> {
                                         .iter()
                                         .map(crate::state::reference_line_reading)
                                 )
+                                .chain(
+                                    p.axis_overrides
+                                        .annotations
+                                        .arrows
+                                        .iter()
+                                        .map(crate::state::arrow_reading)
+                                )
                                 .collect::<Vec<_>>()
                         );
                     }

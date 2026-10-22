@@ -603,6 +603,7 @@ pub fn view_to_canvas(
                 // snapshot's baked copy is a lifecycle copy, not a second state.
                 figure.author_annotations = axis_overrides.annotations.lower();
                 figure.reference_lines = axis_overrides.annotations.lower_reference_lines();
+                figure.author_arrows = axis_overrides.annotations.lower_arrows();
                 let mut viewport = view_object
                     .viewport
                     .as_ref()

@@ -30,6 +30,11 @@ pub fn figure_edit_schema() -> Value {
         "width_pt":{"type":"number","minimum":crate::state::reference_line_width_bound(crate::state::MIN_REFERENCE_LINE_WIDTH_PT),"maximum":crate::state::reference_line_width_bound(crate::state::MAX_REFERENCE_LINE_WIDTH_PT)},
         "style":{"enum":["solid","dashed","dotted","dash_dot"]}},
         "description":"Line stroke; omitted fields keep the current value (new lines default to #272727, 0.75 pt, dashed)."});
+    let arrow_head = json!({"enum":["none","open","filled","double"],"description":"Arrowhead: none (plain line), open V or filled triangle at `to`, or double (filled at both ends). Default filled."});
+    let arrow_width = json!({"type":"number","minimum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.start()),"maximum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.end()),"description":"Shaft stroke width in pt; default 1."});
+    let arrow_color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
+    let arrow_tail = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow tail point in the plot's source data coordinates (the units in its coordinate_units). The arrow follows axis range, zoom and pan and is clipped to the plot area."});
+    let arrow_to = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow head point in the same source data coordinates as `at` (the tail); must differ from `at`."});
     let variant = |op: &str, required: Vec<&str>, mut properties: Value| {
         properties["op"] = json!({"const":op});
         let required = std::iter::once("op").chain(required).collect::<Vec<_>>();
@@ -101,11 +106,16 @@ pub fn figure_edit_schema() -> Value {
             vec!["target", "kind", "orientation", "value"],
             json!({"target":target,"kind":{"const":"reference_line"},"orientation":orientation,"value":line_value,"label":line_label,"font_pt":font,"line":line_style}),
         ),
+        variant(
+            "annotation_create",
+            vec!["target", "kind", "at", "to"],
+            json!({"target":target,"kind":{"const":"arrow"},"at":arrow_tail,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":arrow_color}),
+        ),
         {
             let mut set = variant(
                 "annotation_set",
                 vec!["target", "annotation_id"],
-                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style}),
+                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":arrow_color}),
             );
             set["anyOf"] = json!(
                 [
@@ -115,12 +125,16 @@ pub fn figure_edit_schema() -> Value {
                     "orientation",
                     "value",
                     "label",
-                    "line"
+                    "line",
+                    "to",
+                    "head",
+                    "line_width_pt",
+                    "color"
                 ]
                 .map(|field| json!({"required":[field]}))
             );
             set["description"] = json!(
-                "text and at apply to text annotations; orientation, value, label and line to reference lines; font_pt to both."
+                "text and at apply to text annotations; orientation, value, label and line to reference lines; font_pt to both; at, to, head, line_width_pt and color to arrows (at is the tail)."
             );
             set
         },
@@ -138,7 +152,7 @@ pub fn figure_edit_schema() -> Value {
         ),
     ];
     variants[0]["not"] = json!({"required":["size_mm","size_preset"]});
-    json!({"type":"object","additionalProperties":false,"required":["canvas","edits"],"properties":{"canvas":target,"edits":{"type":"array","minItems":1,"maxItems":200,"items":{"oneOf":variants}}},"description":"Atomic native authoring on one exact canvas. Panel frames [x,y,w,h] are page pt, resize scales child-local frames. New content frames are parent-local pt. Page size/margins/gutter use mm; margins [top,right,bottom,left]. Grid uses native Frame-basis cells in supplied Panel order, existing page margins/gutter; no page-layout preference change or non-target reflow. Align uses bounding edges/centres, distribution equal centre spacing with endpoints fixed. Panel layout ops require unlocked free-layout Panels. content_frame requires the item and parent unlocked, a free-layout parent and Auto height off; image_replace requires the item and parent unlocked, not a layout mode change. Deletion-only batches accept distinct content_delete, originally empty panel_delete and explicit-column series_delete targets on this canvas. Reject overlaps, last-Series removal, defaults/dynamic displays and mixing deletion with other ops. Preserve empty parents, datasets and assets; preflight lists exact deletions and relationship changes. Hidden exact targets remain addressable. Annotation ops target an exact unlocked plot in an unlocked parent, anchor text or reference lines (kind reference_line) in source data coordinates, allow at most 256 of any kind per plot and are allowed with Auto height. No top-level ids/targets."})
+    json!({"type":"object","additionalProperties":false,"required":["canvas","edits"],"properties":{"canvas":target,"edits":{"type":"array","minItems":1,"maxItems":200,"items":{"oneOf":variants}}},"description":"Atomic native authoring on one exact canvas. Panel frames [x,y,w,h] are page pt, resize scales child-local frames. New content frames are parent-local pt. Page size/margins/gutter use mm; margins [top,right,bottom,left]. Grid uses native Frame-basis cells in supplied Panel order, existing page margins/gutter; no page-layout preference change or non-target reflow. Align uses bounding edges/centres, distribution equal centre spacing with endpoints fixed. Panel layout ops require unlocked free-layout Panels. content_frame requires the item and parent unlocked, a free-layout parent and Auto height off; image_replace requires the item and parent unlocked, not a layout mode change. Deletion-only batches accept distinct content_delete, originally empty panel_delete and explicit-column series_delete targets on this canvas. Reject overlaps, last-Series removal, defaults/dynamic displays and mixing deletion with other ops. Preserve empty parents, datasets and assets; preflight lists exact deletions and relationship changes. Hidden exact targets remain addressable. Annotation ops target an exact unlocked plot in an unlocked parent, anchor text, reference lines (kind reference_line) or arrows (kind arrow: tail `at`, head `to`) in source data coordinates, allow at most 256 of any kind per plot and are allowed with Auto height. No top-level ids/targets."})
 }
 /// Built-in page size presets by id, shared by page edits and new canvases.
 pub(super) fn size_preset_schema() -> Value {

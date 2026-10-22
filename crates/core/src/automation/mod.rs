@@ -65,6 +65,7 @@ pub use document::{
     DocumentInspectParams, DocumentView, KIND_PANEL, document_inspect_schema, document_root_target,
     panel_resource,
 };
+pub(crate) use properties::parse_color;
 pub use properties::{TOOL_INSPECT, TOOL_RESET, TOOL_SET, property_definition_description};
 pub use property_batch::{MAX_WRITES as PROPERTY_BATCH_MAX_WRITES, TOOL_SET_MANY};
 pub use registry::ToolRegistry;

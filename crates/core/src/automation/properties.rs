@@ -471,7 +471,7 @@ pub(super) fn decode_value(
     }
 }
 
-fn parse_color(text: &str) -> Option<plotium_figure::Color> {
+pub(crate) fn parse_color(text: &str) -> Option<plotium_figure::Color> {
     let digits = text.strip_prefix('#')?;
     if digits.len() != 6 || !digits.chars().all(|ch| ch.is_ascii_hexdigit()) {
         return None;
