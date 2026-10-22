@@ -779,7 +779,7 @@ Auto height。
 y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它跟随轴范围、缩放和平移，
 `value` 不在可见范围内时不显示。`line` 设置 `color`（`#rrggbb`）、`width_pt`
 （0.1–20）和 `style`（`solid`、`dashed`、`dotted` 或 `dash_dot`）；新参考线默认
-`#272727`、0.75 pt、虚线，`annotation_set` 中省略的 `line` 字段保持原值。可选
+`#000000`、0.75 pt、虚线，`annotation_set` 中省略的 `line` 字段保持原值。可选
 `label` 以线条颜色显示在竖线顶部附近或横线右端；未设置 `font_pt` 时使用刻度标签
 字号，一旦用 `font_pt` 设定字号便保持该值直至再次修改；`label` 为空字符串时移除
 标签。参考线与文字标注共用同一 id 序列和

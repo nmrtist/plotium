@@ -930,7 +930,7 @@ line at x = `value` or a horizontal line at y = `value`, in the same source
 units as `at`, that spans the whole plot area. It follows the axis ranges, zoom
 and pan, and disappears when `value` lies outside the visible range. `line`
 sets `color` (`#rrggbb`), `width_pt` (0.1–20) and `style` (`solid`, `dashed`,
-`dotted` or `dash_dot`); a new line defaults to `#272727`, 0.75 pt, dashed, and
+`dotted` or `dash_dot`); a new line defaults to `#000000`, 0.75 pt, dashed, and
 omitted `line` fields keep their value on `annotation_set`. The optional
 `label` is drawn in the line colour near the top of a vertical line or the right
 end of a horizontal one. It uses the tick label size until `font_pt` sets an

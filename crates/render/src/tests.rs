@@ -129,7 +129,7 @@ fn svg_hidden_axis_text_omits_labels_and_multiplier_but_keeps_ticks() {
     let out = crate::svg::export(&fig);
     assert!(!out.contains("UNIQUE_X_TITLE") && !out.contains("UNIQUE_Y_TITLE"));
     assert!(!out.contains("×10"));
-    assert!(out.matches("stroke=\"#272727\"").count() > 1);
+    assert!(out.matches("stroke=\"#000000\"").count() > 1);
 }
 
 #[test]

@@ -29,7 +29,7 @@ pub fn figure_edit_schema() -> Value {
         "color":{"type":"string","pattern":"^#[0-9a-fA-F]{6}$"},
         "width_pt":{"type":"number","minimum":crate::state::reference_line_width_bound(crate::state::MIN_REFERENCE_LINE_WIDTH_PT),"maximum":crate::state::reference_line_width_bound(crate::state::MAX_REFERENCE_LINE_WIDTH_PT)},
         "style":{"enum":["solid","dashed","dotted","dash_dot"]}},
-        "description":"Line stroke; omitted fields keep the current value (new lines default to #272727, 0.75 pt, dashed)."});
+        "description":"Line stroke; omitted fields keep the current value (new lines default to #000000, 0.75 pt, dashed)."});
     let arrow_head = json!({"enum":["none","open","filled","double"],"description":"Arrowhead: none (plain line), open V or filled triangle at `to`, or double (filled at both ends). Default filled."});
     let arrow_width = json!({"type":"number","minimum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.start()),"maximum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.end()),"description":"Shaft stroke width in pt; default 1."});
     let arrow_color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
