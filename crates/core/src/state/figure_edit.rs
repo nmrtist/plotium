@@ -91,6 +91,11 @@ pub enum FigureEdit {
         value: Option<f64>,
         label: Option<String>,
         line: Option<ReferenceLineStyleEdit>,
+        /// Arrow head point; `at` is the tail.
+        to: Option<[f64; 2]>,
+        head: Option<plotium_figure::ArrowHead>,
+        line_width_pt: Option<f32>,
+        color: Option<String>,
     },
     AnnotationSet {
         target: TargetRef,
@@ -102,6 +107,11 @@ pub enum FigureEdit {
         value: Option<f64>,
         label: Option<String>,
         line: Option<ReferenceLineStyleEdit>,
+        /// Arrow head point; `at` is the tail.
+        to: Option<[f64; 2]>,
+        head: Option<plotium_figure::ArrowHead>,
+        line_width_pt: Option<f32>,
+        color: Option<String>,
     },
     AnnotationDelete {
         target: TargetRef,

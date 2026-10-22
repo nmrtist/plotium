@@ -244,21 +244,27 @@ fn schema_separates_the_kinds_and_states_exact_width_bounds() {
         .iter()
         .filter(|v| v["properties"]["op"]["const"] == "annotation_create")
         .collect();
-    assert_eq!(creates.len(), 2);
+    assert_eq!(creates.len(), 3);
     let kinds: Vec<_> = creates
         .iter()
         .map(|v| v["properties"]["kind"]["const"].clone())
         .collect();
-    assert_eq!(kinds, [json!("text"), json!("reference_line")]);
-    // Only the reference-line variant requires kind, so legacy text payloads
+    assert_eq!(
+        kinds,
+        [json!("text"), json!("reference_line"), json!("arrow")]
+    );
+    // Only the reference-line and arrow variants require kind, so legacy text payloads
     // without it still match exactly one variant.
     let requires_kind = |v: &Value| {
         v["required"]
             .as_array()
             .is_some_and(|r| r.contains(&json!("kind")))
     };
-    assert!(!requires_kind(creates[0]) && requires_kind(creates[1]));
+    assert!(!requires_kind(creates[0]) && requires_kind(creates[1]) && requires_kind(creates[2]));
     let width = &creates[1]["properties"]["line"]["properties"]["width_pt"];
+    assert_eq!(width["minimum"], json!(0.1));
+    assert_eq!(width["maximum"], json!(20.0));
+    let width = &creates[2]["properties"]["line_width_pt"];
     assert_eq!(width["minimum"], json!(0.1));
     assert_eq!(width["maximum"], json!(20.0));
 }

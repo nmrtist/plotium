@@ -880,9 +880,10 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `text_create` | `parent: EXACT_CANVAS_OR_PANEL_TARGET`, `name`, `frame_pt`, `text`, `font_pt` |
 | `text_set` | `target: EXACT_TEXT_TARGET`, `text`; optional `font_pt` |
 | `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG or JPEG) |
-| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt` |
+| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"` |
 | `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
-| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt` (text) or `orientation`, `value`, `label`, `font_pt`, `line` (reference line) |
+| `annotation_create` (arrow) | `target: EXACT_PLOT_TARGET`, `kind: "arrow"`, tail `at: [x,y]`, head `to: [x,y]`; optional `head: none\|open\|filled\|double`, `line_width_pt`, `color: "#rrggbb"` |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt` (text), `orientation`, `value`, `label`, `font_pt`, `line` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow) |
 | `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
@@ -940,6 +941,16 @@ Fields of the other kind are rejected rather than ignored.
  "orientation":"horizontal","value":0,"label":"baseline",
  "line":{"color":"#7f7f7f","width_pt":0.5,"style":"dotted"}}
 ```
+
+An arrow annotation (`kind: "arrow"`) draws a straight line from its tail `at` to
+its head `to`, both in the same data coordinates, so it follows the axes and is
+clipped to the plot area like a label. `head` defaults to `filled` (`double`
+fills both ends, `none` draws a plain line); `line_width_pt` defaults to 1 pt
+(0.1–20 pt) and `color` to black. The two ends must differ. An arrow carries no
+text: label it with a separate text annotation, for example at its tail. Arrows
+share the `annotation_id` sequence and 256-per-plot budget with the other kinds,
+are listed under `annotations` with `kind: "arrow"`, and reject fields of the
+other kinds.
 
 Align uses the selected bounding edges/centres. Distribution equalizes centres
 between fixed endpoints, not edge gaps. Grid composes the existing native cell

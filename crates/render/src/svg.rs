@@ -11,6 +11,7 @@ pub(crate) mod color_scale;
 pub(crate) mod document;
 #[cfg(all(windows, feature = "emf"))]
 pub(crate) use document::prepared_raster;
+mod arrows;
 mod curves;
 mod legend;
 mod sticks;
@@ -493,6 +494,7 @@ fn write_figure(
             text = svg_content(&curve.label.text, curve.label.font_size),
         );
     }
+    arrows::write(s, &proj, fig);
     for a in fig.text_annotations() {
         let (px, py) = proj.project(a.at);
         let _ = write!(

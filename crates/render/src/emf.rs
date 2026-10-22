@@ -19,6 +19,7 @@ use windows_sys::Win32::Graphics::Gdi::{
     TRANSPARENT, VERTRES, VERTSIZE,
 };
 
+mod arrows;
 mod curves;
 mod dc;
 mod reference_lines;
@@ -511,6 +512,7 @@ fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) 
                     .rotated(),
             );
         }
+        arrows::write(dc, &proj, fig);
         for a in fig.text_annotations() {
             let (px, py) = proj.project(a.at);
             dc.text(

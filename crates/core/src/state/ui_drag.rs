@@ -45,7 +45,7 @@ pub struct FurnitureDrag {
 #[derive(Clone, Debug)]
 pub enum FurnitureTarget {
     Legend {
-        before: AxisOverrides,
+        before: Box<AxisOverrides>,
         grab_offset: [f32; 2],
     },
     RegionLabel {

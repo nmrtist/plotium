@@ -108,7 +108,7 @@ pub(crate) fn handle_furniture_interactions(
                 .map(|plot| plot.axis_overrides.clone())
                 .unwrap_or_default();
             FurnitureTarget::Legend {
-                before,
+                before: Box::new(before),
                 grab_offset: [pointer.x - rect.left, pointer.y - rect.top],
             }
         }
@@ -321,7 +321,7 @@ fn finish_furniture_drag(app: &mut PlotiumApp) {
             app.execute_action(Action::set_axis_overrides(
                 drag.canvas,
                 drag.object,
-                before,
+                *before,
                 after,
             ));
             app.session.status =

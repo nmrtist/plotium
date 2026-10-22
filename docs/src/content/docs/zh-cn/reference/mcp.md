@@ -734,9 +734,10 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 | `text_create` | `parent: 完整画布或面板目标`、`name`、`frame_pt`、`text`、`font_pt` |
 | `text_set` | `target: 完整文字目标`、`text`；可选 `font_pt` |
 | `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG 或 JPEG） |
-| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt` |
+| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"` |
 | `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
-| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line` 之一 |
+| `annotation_create`（箭头） | `target: 完整图目标`、`kind: "arrow"`、箭尾 `at: [x,y]`、箭头 `to: [x,y]`；可选 `head: none\|open\|filled\|double`、`line_width_pt`、`color: "#rrggbb"` |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一 |
 | `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
@@ -787,6 +788,13 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
  "orientation":"horizontal","value":0,"label":"baseline",
  "line":{"color":"#7f7f7f","width_pt":0.5,"style":"dotted"}}
 ```
+
+箭头标注（`kind: "arrow"`）是从箭尾 `at` 到箭头 `to` 的直线，两端使用同一数据
+坐标，因此与文字标注一样跟随坐标轴移动并裁切在绘图区内。`head` 默认为 `filled`
+（`double` 两端均为实心箭头，`none` 为无箭头直线）；`line_width_pt` 默认 1 pt
+（0.1–20 pt），`color` 默认黑色；两端不得重合。箭头不带文字，需要说明时另建一个
+文字标注（例如放在箭尾）。箭头与其他标注共用该图的 `annotation_id` 序列和每张图 256 个
+的上限，在 `annotations` 中以 `kind: "arrow"` 列出；提供其他类标注的字段会被拒绝。
 
 Align 依据所选边界／中心；Distribute 在固定两端中心间等分中心位置，不等分边缘
 间隙。Grid 将已有原生格子算法与 authoring 尺寸 setter 组合用于明确子集，不表示

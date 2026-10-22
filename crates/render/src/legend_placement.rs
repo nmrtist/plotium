@@ -149,6 +149,13 @@ pub(crate) fn for_each_segment(
         let p = project(annotation.at);
         add_segment(p, p);
     }
+    for arrow in fig
+        .author_arrows
+        .iter()
+        .filter(|a| finite(a.from) && finite(a.to))
+    {
+        add_segment(project(arrow.from), project(arrow.to));
+    }
 }
 
 /// Whether segment `a`–`b` (a point when they coincide) touches `zone`.

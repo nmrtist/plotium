@@ -393,6 +393,7 @@ fn paint_with_detail_and_stats_impl(
         clipped.add(label);
     }
 
+    crate::screen_annotations::paint_arrows(&clipped, fig, &proj, scale);
     for a in fig.text_annotations() {
         let (px, py) = proj.project(a.at);
         crate::rich_text::paint(

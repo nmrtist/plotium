@@ -52,16 +52,17 @@ pub struct PlotAnnotations {
     pub next_id: AnnotationId,
     pub items: Vec<PlotAnnotation>,
     pub reference_lines: Vec<super::PlotReferenceLine>,
+    pub arrows: Vec<super::PlotArrow>,
 }
 
 impl PlotAnnotations {
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty() && self.reference_lines.is_empty()
+        self.items.is_empty() && self.reference_lines.is_empty() && self.arrows.is_empty()
     }
 
     /// Annotations of every kind, which share one per-plot budget.
     pub fn len(&self) -> usize {
-        self.items.len() + self.reference_lines.len()
+        self.items.len() + self.reference_lines.len() + self.arrows.len()
     }
 
     pub fn get(&self, id: AnnotationId) -> Option<&PlotAnnotation> {
@@ -119,8 +120,14 @@ impl PlotAnnotations {
         for line in &self.reference_lines {
             line.validate()?;
         }
+        for arrow in &self.arrows {
+            arrow.validate()?;
+        }
         let ids = self.items.iter().map(|a| a.id);
-        for id in ids.chain(self.reference_lines.iter().map(|l| l.id)) {
+        for id in ids
+            .chain(self.reference_lines.iter().map(|l| l.id))
+            .chain(self.arrows.iter().map(|a| a.id))
+        {
             if id >= self.next_id || !seen.insert(id) {
                 return Err(format!(
                     "annotation {id} is duplicated or not below the allocator"

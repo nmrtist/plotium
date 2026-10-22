@@ -12,6 +12,7 @@ pub enum AnnotationKind {
     #[default]
     Text,
     ReferenceLine,
+    Arrow,
 }
 
 /// Stroke of a reference line; omitted fields keep their current value.
