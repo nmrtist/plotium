@@ -56,6 +56,8 @@ pub(super) fn restore_preview(app: &mut PlotiumApp, rect: EguiRect, pointer: Opt
         return;
     }
     let (canvas, panel, before) = (drag.canvas, drag.panel, drag.before);
+    // The panel sits back in its own slot, so guides from the snapped move are stale.
+    app.session.ui.snap_guides.clear();
     // Both highlighted slots remain readable while the pending exchange is shown.
     if let Some(panel) = app
         .doc
