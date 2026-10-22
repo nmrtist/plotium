@@ -2,7 +2,7 @@ use egui::{Id, Response, Ui};
 use plotium_core::state::{BoardFrameId, ObjectId, PlotiumApp};
 
 #[derive(Clone, Copy, Default)]
-pub(super) struct SelectModifiers {
+pub(crate) struct SelectModifiers {
     pub shift: bool,
     pub command: bool,
 }
@@ -50,6 +50,22 @@ pub(super) fn select_canvas_range(app: &mut PlotiumApp, clicked: usize, additive
     app.activate_canvas(clicked);
     app.session.ui.selection_anchors.canvas_lead = Some(app.doc.canvases[clicked].resource_id);
     plotium_core::state::sync_frame_selection_to_data(app);
+}
+
+pub(crate) fn select_canvas(app: &mut PlotiumApp, ui: &Ui, canvas: usize) {
+    use plotium_core::state::{FrameRef, SelectionScope};
+
+    let id = app.doc.canvases[canvas].resource_id;
+    app.session.ui.selection_scope = SelectionScope::CanvasList;
+    app.activate_canvas(canvas);
+    app.session.ui.panel_note_inline_edit = None;
+    app.session.ui.panel_note_edit = None;
+    if let Some(frame) = plotium_core::state::board_frame_id(app, FrameRef::Page(canvas)) {
+        app.session.ui.frame_selection = vec![frame];
+    }
+    app.session.ui.selection_anchors.canvas = Some(id);
+    app.session.ui.selection_anchors.canvas_lead = Some(id);
+    crate::ui::canvas::request_board_fit(app, ui.ctx(), FrameRef::Page(canvas));
 }
 
 pub(super) fn select_dataset_range(
@@ -102,7 +118,7 @@ pub(super) fn select_dataset_range(
     app.session.ui.selection_anchors.dataset_lead = Some(clicked_id);
 }
 
-pub(super) fn select_dataset(
+pub(crate) fn select_dataset(
     app: &mut PlotiumApp,
     ui: &Ui,
     visible: &[usize],

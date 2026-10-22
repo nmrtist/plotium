@@ -10,6 +10,12 @@ introduces the same regions in walkthrough form.
 
 ## Window regions
 
+- **Workspace overview** — when no canvas is selected, the central area lists
+  the project's dataset and canvas counts. Click a canvas to open it, **View
+  table** to open a table sheet, or **Select dataset** to select data in the
+  Primary Side Bar. While data imports run, an importing indicator appears
+  alongside existing content; new arrivals do not change your selection or open
+  a Side Bar. An empty project instead offers data and project opening actions.
 - **Primary Side Bar** — the left panel. Its **Canvas** mode lists plots,
   pages, and saved board views; its **Data** mode shows every dataset and the
   results derived from it. Each canvas row includes a live page thumbnail;

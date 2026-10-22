@@ -66,6 +66,7 @@ mod snap;
 mod symmetry;
 mod tiling;
 mod view_fit;
+mod workspace;
 
 pub(crate) use authoring::*;
 pub(crate) use axis_mapping::*;
@@ -129,7 +130,7 @@ pub(crate) enum CanvasInteractionClearScope {
 
 pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     let Some(ci) = app.session.active_canvas else {
-        welcome_page(app, ui);
+        workspace::render(app, ui);
         return;
     };
     canvas_breadcrumb(app, ci, ui);
@@ -407,124 +408,6 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     paint_slice(app, ci, object_id, di, plot, &painter);
     paint_analysis_selection(app, ci, object_id, plot, &painter, chrome);
     paint_selection_drag(app, ci, object_id, plot, &painter, chrome);
-}
-
-fn welcome_page(app: &mut PlotiumApp, ui: &mut Ui) {
-    ui.add_space(28.0);
-    let width = ui.available_width().min(500.0);
-    ui.vertical_centered(|ui| {
-        ui.allocate_ui_with_layout(
-            Vec2::new(width, ui.available_height()),
-            egui::Layout::top_down(egui::Align::Min),
-            |ui| {
-                ui.label(
-                    crate::typography::large_title("Plotium")
-                        .color(ui.visuals().strong_text_color()),
-                );
-                ui.label(
-                    egui::RichText::new("Scientific data analysis and figure preparation")
-                        .color(ui.visuals().text_color()),
-                );
-                ui.add_space(22.0);
-                welcome_start(app, ui);
-            },
-        );
-    });
-}
-
-fn welcome_start(app: &mut PlotiumApp, ui: &mut Ui) {
-    use egui_phosphor::regular as icon;
-
-    welcome_heading(ui, "Start");
-    if welcome_action(ui, icon::FILE, "Open data…") {
-        crate::ui::file_dialogs::open_file(app);
-    }
-    if welcome_action(ui, icon::FOLDER, "Open data folder…") {
-        crate::ui::file_dialogs::open_folder(app);
-    }
-    if welcome_action(ui, icon::FOLDER_OPEN, "Open project…") {
-        crate::ui::file_dialogs::open_project(app);
-    }
-    if welcome_action(ui, icon::TABLE, "Import table…") {
-        crate::ui::file_dialogs::import_delimited_table(app);
-    }
-    if welcome_action(ui, icon::FILE_PLUS, "New empty data table") {
-        app.new_table_dataset();
-    }
-
-    welcome_recent(app, ui);
-
-    ui.add_space(20.0);
-    welcome_heading(ui, "Tip");
-    ui.label(
-        egui::RichText::new("Drop data anywhere in the workspace to open it.")
-            .color(ui.visuals().weak_text_color()),
-    );
-}
-
-/// The most recent openable paths, straight back into work. Icons come from
-/// the path shape alone (no filesystem probing in the paint loop); a missing
-/// file surfaces through the loader's normal failure report on click.
-fn welcome_recent(app: &mut PlotiumApp, ui: &mut Ui) {
-    use egui_phosphor::regular as icon;
-    const WELCOME_RECENT_LIMIT: usize = 5;
-
-    if app.session.recent_files.is_empty() {
-        return;
-    }
-    ui.add_space(20.0);
-    welcome_heading(ui, "Recent");
-    let mut open: Option<std::path::PathBuf> = None;
-    for path in app.session.recent_files.iter().take(WELCOME_RECENT_LIMIT) {
-        let name = path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| path.display().to_string());
-        let glyph = match path.extension() {
-            Some(extension) if extension.eq_ignore_ascii_case("plotium") => icon::FOLDER_OPEN,
-            Some(_) => icon::FILE,
-            // Bruker acquisitions (`fid`/`ser`) are extensionless *files*;
-            // other extensionless paths are folder gestures.
-            None if path.file_name().is_some_and(|name| {
-                name.eq_ignore_ascii_case("fid") || name.eq_ignore_ascii_case("ser")
-            }) =>
-            {
-                icon::FILE
-            }
-            None => icon::FOLDER,
-        };
-        let clicked = ui
-            .add(
-                egui::Button::new(
-                    egui::RichText::new(format!("{glyph}  {name}"))
-                        .color(ui.visuals().hyperlink_color),
-                )
-                .frame(false),
-            )
-            .on_hover_text(path.display().to_string())
-            .clicked();
-        if clicked {
-            open = Some(path.clone());
-        }
-    }
-    if let Some(path) = open {
-        crate::ui::file_dialogs::open_recent_path(app, &path);
-    }
-}
-
-fn welcome_heading(ui: &mut Ui, text: &str) {
-    ui.label(crate::typography::title_3(text).color(ui.visuals().strong_text_color()));
-    ui.add_space(4.0);
-}
-
-fn welcome_action(ui: &mut Ui, glyph: &str, label: &str) -> bool {
-    ui.add(
-        egui::Button::new(
-            egui::RichText::new(format!("{glyph}  {label}")).color(ui.visuals().hyperlink_color),
-        )
-        .frame(false),
-    )
-    .clicked()
 }
 
 fn canvas_cursor(app: &PlotiumApp, ci: usize, rect: egui::Rect, ui: &Ui) {
