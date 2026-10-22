@@ -77,6 +77,7 @@ impl PlotiumApp {
                 secondary_sidebar_visible: true,
                 status: "Open data or a project to begin.".into(),
                 operation_history: OperationHistory::default(),
+                background_activity: Default::default(),
                 status_history: super::StatusHistory::default(),
                 project_load_warnings: Vec::new(),
                 recent_files: {

@@ -58,3 +58,43 @@ pub(super) fn imports(app: &mut PlotiumApp) {
     app.session.ui.data_selection.clear();
     app.request_completed_import_open(batch);
 }
+
+pub(super) fn activity(
+    app: &mut PlotiumApp,
+    ctx: &egui::Context,
+    open: bool,
+) -> Result<(), String> {
+    use plotium_core::automation::{
+        CallerType, DocumentRevision, ExecutionAuthority, TargetSelector, ToolRequest,
+        execute_tool, plan_tool,
+    };
+    if !open {
+        app.session.ui.diagnostics_open = false;
+        return Ok(());
+    }
+    let dataset = app.doc.datasets[0].resource_id().to_string();
+    let canvas = app.doc.canvases[0].resource_id.to_string();
+    for (id, name) in [
+        (dataset.clone(), "Sample signal"),
+        (canvas, "Comparison figure"),
+        (dataset, "Updated sample signal"),
+    ] {
+        let request = ToolRequest {
+            tool_id: "resource.rename".into(),
+            tool_version: 1,
+            parameters: serde_json::json!({"name": name}),
+            targets: TargetSelector::Explicit { ids: vec![id] },
+            expected_revision: DocumentRevision(app.doc.automation_revision),
+            caller: CallerType::Agent,
+        };
+        let plan = plan_tool(app, request).map_err(|error| error.to_string())?;
+        execute_tool(app, plan, ExecutionAuthority::ReversibleModify)
+            .map_err(|error| error.to_string())?;
+    }
+    crate::ui::commands::execute_without_clipboard(
+        crate::ui::commands::CommandId::OperationHistory,
+        app,
+        ctx,
+    );
+    Ok(())
+}

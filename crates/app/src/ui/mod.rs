@@ -1,4 +1,5 @@
 mod activity;
+mod activity_results;
 pub(crate) mod affordance;
 mod ai_connection;
 pub(crate) mod align;
@@ -316,15 +317,22 @@ fn pending_feedback(
 }
 
 fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
-    let import = import_feedback::notice(app, ui.ctx());
     let operation = pending_feedback(app);
+    let mut activity_id = None;
     let (completion_order, outcome, summary, earlier, batch) =
         if let Some((_, order, outcome, summary, earlier)) = operation {
             (Some(order), outcome, summary, earlier, None)
-        } else if let Some(import) = import {
-            (None, import.outcome, import.summary, 0, Some(import.batch))
         } else {
-            return;
+            match activity_results::banner_notice(app, ui.ctx()) {
+                Some(activity_results::BannerNotice::Import(import)) => {
+                    (None, import.outcome, import.summary, 0, Some(import.batch))
+                }
+                Some(activity_results::BannerNotice::Activity(activity)) => {
+                    activity_id = Some(activity.id);
+                    (None, activity.outcome, activity.summary, 0, None)
+                }
+                None => return,
+            }
         };
     let (icon, color) = match outcome {
         OperationOutcome::Failure => (
@@ -378,6 +386,8 @@ fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
                         if dismiss.clicked() {
                             if let Some(batch) = batch {
                                 import_feedback::dismiss_notice(app, ui.ctx(), batch);
+                            } else if let Some(id) = activity_id {
+                                activity_results::dismiss_notice(app, ui.ctx(), id);
                             } else {
                                 app.session.ui.dismissed_feedback_order = completion_order;
                             }
@@ -390,6 +400,8 @@ fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
                                     ui.ctx(),
                                 );
                                 import_feedback::open_results(app, ui.ctx(), Some(batch));
+                            } else if activity_id.is_some() {
+                                activity::open_results(app, ui.ctx());
                             } else {
                                 activity::open_diagnostics(app, ui.ctx());
                             }

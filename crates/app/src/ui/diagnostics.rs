@@ -8,8 +8,7 @@ pub(super) fn diagnostic_history_window(app: &mut PlotiumApp, ctx: &egui::Contex
 
     let mut open = true;
     let mut clear = false;
-    let tab_id = super::activity::messages_tab_id();
-    let mut messages_tab = ctx.data(|data| data.get_temp::<bool>(tab_id).unwrap_or(false));
+    let mut tab = super::activity::history_tab(ctx);
     let copied_text = app.session.sanitized_diagnostics_text();
     let window = egui::Window::new("Operation history")
         .default_width(620.0)
@@ -26,12 +25,13 @@ pub(super) fn diagnostic_history_window(app: &mut PlotiumApp, ctx: &egui::Contex
     window.show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label(format!(
-                "{} operations, {} diagnostics",
+                "{} operation reports, {} diagnostics, {} results",
                 app.session.operation_history.operation_count(),
-                app.session.operation_history.diagnostic_count()
+                app.session.operation_history.diagnostic_count(),
+                app.session.background_activity.results().len()
             ));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Clear").clicked() {
+                if ui.button("Clear history").on_hover_text("Clears recorded messages, diagnostics, and results. Running tasks continue.").clicked() {
                     clear = true;
                 }
                 if ui
@@ -49,14 +49,19 @@ pub(super) fn diagnostic_history_window(app: &mut PlotiumApp, ctx: &egui::Contex
             ui.weak(app.doc.datasets[di].summary());
         }
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut messages_tab, true, "Messages");
-            ui.selectable_value(&mut messages_tab, false, "Diagnostics");
+            ui.selectable_value(&mut tab, super::activity::HistoryTab::Results, "Results");
+            ui.selectable_value(&mut tab, super::activity::HistoryTab::Messages, "Messages");
+            ui.selectable_value(&mut tab, super::activity::HistoryTab::Diagnostics, "Diagnostics");
         });
         ui.separator();
         egui::ScrollArea::vertical()
-            .id_salt(("history", messages_tab))
+            .id_salt(("history", format!("{tab:?}")))
             .show(ui, |ui| {
-                if messages_tab {
+                if tab == super::activity::HistoryTab::Results {
+                    super::activity_results::results(app, ui);
+                    return;
+                }
+                if tab == super::activity::HistoryTab::Messages {
                     super::activity::messages(app, ui);
                     return;
                 }
@@ -97,7 +102,7 @@ pub(super) fn diagnostic_history_window(app: &mut PlotiumApp, ctx: &egui::Contex
                 }
             });
     });
-    ctx.data_mut(|data| data.insert_temp(tab_id, messages_tab));
+    super::activity::set_history_tab(ctx, tab);
 
     if clear {
         app.session.clear_operation_history();
