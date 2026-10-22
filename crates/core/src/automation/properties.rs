@@ -18,7 +18,8 @@ use super::*;
 use crate::properties::{
     AggregateValue, Availability, EnumVariant, FloatBounds, FloatDisplay, PropertyAccess,
     PropertyAddress, PropertyDefinition, PropertyError, PropertySkip, PropertyValue,
-    ResolvedProperty, ResolvedSchema, ValueSchema, definition_by_key, variant_list,
+    ResolvedProperty, ResolvedSchema, SkipReason, ValueSchema, definition_by_key, hand_set_message,
+    variant_list,
 };
 use crate::state::PlotiumApp;
 use serde::{Deserialize, Serialize};
@@ -48,6 +49,18 @@ pub(super) struct PropertyKeyParams {
 pub(super) struct PropertyWriteParams {
     pub key: String,
     pub value: serde_json::Value,
+    /// The user asked for this change, so properties they set by hand are
+    /// written too, and stay recorded as theirs.
+    #[serde(default)]
+    pub override_hand_edits: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PropertyResetParams {
+    pub key: String,
+    #[serde(default)]
+    pub override_hand_edits: bool,
 }
 
 /// Expand a planned resource list into the components a property addresses.
@@ -123,6 +136,18 @@ pub(super) fn refine_plan(
             });
         }
     }
+    if request.tool_id != TOOL_INSPECT
+        && !overrides_hand_edits(&request.tool_id, &request.parameters)?
+    {
+        for planned in &mut expanded {
+            if planned.status == TargetCompatibility::Compatible
+                && app.is_hand_set(&planned.target, definition.id)
+            {
+                planned.status = TargetCompatibility::Skipped;
+                planned.reason = hand_set_message(definition.id);
+            }
+        }
+    }
     let compatible: Vec<_> = expanded
         .iter()
         .filter(|t| t.status == TargetCompatibility::Compatible)
@@ -134,6 +159,9 @@ pub(super) fn refine_plan(
         let commit = app
             .plan_property_write(definition.id, &compatible, &value)
             .map_err(|e| property_error(&request.tool_id, e))?;
+        if !params.override_hand_edits {
+            refuse_hand_set_fan_out(app, &request.tool_id, &commit)?;
+        }
         for skipped in commit
             .skipped
             .iter()
@@ -163,6 +191,7 @@ pub(super) fn execute(
                 app,
                 plan,
                 commit,
+                overrides_hand_edits(&tool_id, &plan.request.parameters)?,
                 if tool_id == TOOL_SET {
                     "set"
                 } else {
@@ -188,7 +217,37 @@ pub(super) fn prepare_commit(
     } else {
         app.plan_property_reset(definition.id, targets)
     };
-    commit.map_err(|e| property_error(tool, e))
+    let commit = commit.map_err(|e| property_error(tool, e))?;
+    if !overrides_hand_edits(tool, &plan.request.parameters)? {
+        refuse_hand_set_fan_out(app, tool, &commit)?;
+    }
+    Ok(commit)
+}
+
+/// Refuse an automation commit that would change a value the user set by
+/// hand. Addressed targets are withheld before planning, so this catches only
+/// what an edit carries along, such as a range on a plot sharing the x axis.
+pub(super) fn refuse_hand_set_fan_out(
+    app: &PlotiumApp,
+    tool_id: &str,
+    commit: &crate::properties::PropertyCommit,
+) -> Result<(), AutomationError> {
+    match commit
+        .applied
+        .iter()
+        .find(|address| app.is_hand_set(&address.target, address.definition))
+    {
+        Some(address) => Err(AutomationError::InvalidParameters {
+            tool_id: tool_id.to_owned(),
+            message: format!(
+                "this edit also changes {} on {}, a linked target: {}",
+                address.definition,
+                address.target.describe(),
+                hand_set_message(address.definition)
+            ),
+        }),
+        None => Ok(()),
+    }
 }
 
 fn inspect(
@@ -206,7 +265,7 @@ fn inspect(
             .map_err(|error| AutomationError::Execution(error.to_string()))?;
         readings.push(reading(app, &resolved)?);
     }
-    let mut targets = skipped_from_plan(plan);
+    let mut targets = skipped_from_plan(plan, definition);
     targets.extend(set.applicable_targets.iter().map(|address| TargetResult {
         target: address.target.clone(),
         outcome: TargetOutcome::Succeeded,
@@ -246,17 +305,21 @@ fn commit_and_report(
     app: &mut PlotiumApp,
     plan: &ToolPlan,
     commit: crate::properties::PropertyCommit,
+    on_users_behalf: bool,
     verb: &str,
 ) -> Result<ToolResult, AutomationError> {
     let applied = commit.applied.clone();
     let skipped = commit.skipped.clone();
     let changes_document = commit.has_document_action();
     let before = DocumentRevision(app.doc.automation_revision);
-    if !applied.is_empty() {
+    if !applied.is_empty() && on_users_behalf {
         app.commit_property(commit);
+    } else if !applied.is_empty() {
+        app.commit_automation_property(commit);
     }
     let after = DocumentRevision(app.doc.automation_revision);
-    let mut targets = skipped_from_plan(plan);
+    let definition = requested_definition(&plan.request.tool_id, &plan.request.parameters)?;
+    let mut targets = skipped_from_plan(plan, definition);
     targets.extend(applied.iter().map(|address| TargetResult {
         target: address.target.clone(),
         outcome: TargetOutcome::Succeeded,
@@ -300,7 +363,8 @@ fn commit_and_report(
 
 /// The targets the shared gate rejected, carried into the result so a skip is
 /// reported rather than dropped between planning and execution.
-fn skipped_from_plan(plan: &ToolPlan) -> Vec<TargetResult> {
+fn skipped_from_plan(plan: &ToolPlan, definition: &PropertyDefinition) -> Vec<TargetResult> {
+    let hand_set = hand_set_message(definition.id);
     plan.targets
         .iter()
         .filter(|target| target.status != TargetCompatibility::Compatible)
@@ -312,8 +376,10 @@ fn skipped_from_plan(plan: &ToolPlan) -> Vec<TargetResult> {
             // kind/capability gate, which runs before the catalog sees the
             // target at all; the rest are `refine_plan`'s own applicability
             // answer. Neither is ever a same-value no-op, so the absence of a
-            // reason here is itself the distinction a caller needs.
-            skip_reason: None,
+            // reason here is itself the distinction a caller needs. A value the
+            // user set by hand is the exception: the caller can override it.
+            skip_reason: (target.reason == hand_set)
+                .then(|| SkipReason::HandSet.as_str().to_owned()),
             fingerprints: Vec::new(),
         })
         .collect()
@@ -344,14 +410,29 @@ pub(super) fn skipped_results(skipped: &[PropertySkip]) -> Vec<TargetResult> {
         .collect()
 }
 
+/// Whether a write or reset carries the user's request to change values
+/// they set by hand.
+fn overrides_hand_edits(
+    tool_id: &str,
+    parameters: &serde_json::Value,
+) -> Result<bool, AutomationError> {
+    Ok(match tool_id {
+        TOOL_SET => parse::<PropertyWriteParams>(tool_id, parameters.clone())?.override_hand_edits,
+        TOOL_RESET => {
+            parse::<PropertyResetParams>(tool_id, parameters.clone())?.override_hand_edits
+        }
+        _ => false,
+    })
+}
+
 fn requested_definition(
     tool_id: &str,
     parameters: &serde_json::Value,
 ) -> Result<&'static PropertyDefinition, AutomationError> {
-    let key = if tool_id == TOOL_SET {
-        parse::<PropertyWriteParams>(tool_id, parameters.clone())?.key
-    } else {
-        parse::<PropertyKeyParams>(tool_id, parameters.clone())?.key
+    let key = match tool_id {
+        TOOL_SET => parse::<PropertyWriteParams>(tool_id, parameters.clone())?.key,
+        TOOL_RESET => parse::<PropertyResetParams>(tool_id, parameters.clone())?.key,
+        _ => parse::<PropertyKeyParams>(tool_id, parameters.clone())?.key,
     };
     // An unknown key is refused outright. Skipping it would report a clean
     // success for a call that addressed nothing, which is the worst possible
@@ -510,245 +591,10 @@ pub(super) fn property_error(tool_id: &str, error: PropertyError) -> AutomationE
     }
 }
 
-// ---------------------------------------------------------------------------
-// Wire shapes
-//
-// The catalog model deliberately carries no `serde` derives: it is the
-// language-neutral semantic layer, and giving it a wire format would make the
-// serialized shape part of its public contract — every future field rename or
-// variant split would become a compatibility question for JSON callers. The
-// transport shapes live here instead, where changing one is a change to this
-// adapter alone.
-// ---------------------------------------------------------------------------
-
-#[derive(Serialize)]
-struct InspectValue {
-    property: &'static str,
-    canonical_label: &'static str,
-    tier: &'static str,
-    aggregate: AggregateValueDto,
-    readings: Vec<ReadingDto>,
-}
-
-#[derive(Serialize)]
-struct ReadingDto {
-    target: TargetRef,
-    value: AggregateValueDto,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default_value: Option<PropertyValueDto>,
-    availability: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    disabled_reason: Option<&'static str>,
-    modified: bool,
-    schema: ResolvedSchemaDto,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    guide_geometry: Option<serde_json::Value>,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "state", rename_all = "snake_case")]
-enum AggregateValueDto {
-    Uniform { value: PropertyValueDto },
-    Mixed,
-    Unavailable,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "type", content = "value", rename_all = "snake_case")]
-enum PropertyValueDto {
-    NormalizedPosition(Option<[f64; 2]>),
-    AxisRange(range::AxisRangeDto),
-    Bool(bool),
-    Text(String),
-    Int(i64),
-    /// Domain value, even when the resolved UI schema displays degrees or a
-    /// logarithm. Phase values therefore remain radians on the wire.
-    Float(f64),
-    Enum(&'static str),
-    Color(String),
-}
-
-#[derive(Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ResolvedSchemaDto {
-    NormalizedPosition {
-        input_schema: serde_json::Value,
-    },
-    AxisRange {
-        unit: Option<String>,
-        view: [f64; 2],
-        manual_allowed: bool,
-        input_schema: serde_json::Value,
-    },
-    UnitCode {
-        codes: Vec<String>,
-    },
-    Bool,
-    Text,
-    Int {
-        min: i64,
-        max: i64,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        drag_step: Option<f64>,
-        #[serde(skip_serializing_if = "str::is_empty")]
-        unit: &'static str,
-    },
-    SteppedInt {
-        min: i64,
-        max: i64,
-        step: i64,
-        drag_step: f64,
-        #[serde(skip_serializing_if = "str::is_empty")]
-        unit: &'static str,
-    },
-    Float {
-        // Bounds validate the domain value carried by `PropertyValueDto::Float`.
-        // `display` and `unit` describe only a UI projection of that value.
-        min: f64,
-        max: f64,
-        exclusive_min: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        excluded: Option<f64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        excluded_magnitude: Option<f64>,
-        log: bool,
-        unit: &'static str,
-        display: &'static str,
-    },
-    Enum {
-        variants: Vec<EnumVariantDto>,
-    },
-    Color {
-        format: &'static str,
-    },
-}
-
-#[derive(Serialize)]
-struct EnumVariantDto {
-    id: &'static str,
-    canonical_label: &'static str,
-}
-
-fn reading(app: &PlotiumApp, resolved: &ResolvedProperty) -> Result<ReadingDto, AutomationError> {
-    Ok(ReadingDto {
-        target: resolved.address.target.clone(),
-        value: aggregate_dto(&resolved.value),
-        default_value: resolved.default_value.as_ref().map(value_dto),
-        availability: match resolved.availability {
-            Availability::Editable => "editable",
-            Availability::Disabled(_) => "disabled",
-            Availability::ReadOnly => "read_only",
-        },
-        disabled_reason: match resolved.availability {
-            Availability::Disabled(reason) => Some(reason),
-            Availability::Editable | Availability::ReadOnly => None,
-        },
-        modified: resolved.is_modified(),
-        schema: schema_dto(&resolved.schema),
-        guide_geometry: guides::geometry(app, &resolved.address)?,
-    })
-}
-
-fn aggregate_dto(value: &AggregateValue<PropertyValue>) -> AggregateValueDto {
-    match value {
-        AggregateValue::Uniform(value) => AggregateValueDto::Uniform {
-            value: value_dto(value),
-        },
-        AggregateValue::Mixed => AggregateValueDto::Mixed,
-        AggregateValue::Unavailable => AggregateValueDto::Unavailable,
-    }
-}
-
-fn value_dto(value: &PropertyValue) -> PropertyValueDto {
-    match value {
-        PropertyValue::NormalizedPosition(value) => PropertyValueDto::NormalizedPosition(*value),
-        PropertyValue::AxisRange(value) => PropertyValueDto::AxisRange(value.into()),
-        PropertyValue::Bool(value) => PropertyValueDto::Bool(*value),
-        PropertyValue::Text(value) => PropertyValueDto::Text(value.clone()),
-        PropertyValue::Int(value) => PropertyValueDto::Int(*value),
-        PropertyValue::Float(value) => PropertyValueDto::Float(*value),
-        PropertyValue::Enum(value) => PropertyValueDto::Enum(value),
-        PropertyValue::Color(value) => PropertyValueDto::Color(value.to_hex()),
-    }
-}
-
-fn schema_dto(schema: &ResolvedSchema) -> ResolvedSchemaDto {
-    match schema {
-        ResolvedSchema::NormalizedPosition => ResolvedSchemaDto::NormalizedPosition {
-            input_schema: guides::input_schema(),
-        },
-        ResolvedSchema::AxisRange {
-            unit,
-            view,
-            manual_allowed,
-        } => ResolvedSchemaDto::AxisRange {
-            unit: unit.clone(),
-            view: *view,
-            manual_allowed: *manual_allowed,
-            input_schema: range::input_schema(),
-        },
-        ResolvedSchema::UnitCode { codes } => ResolvedSchemaDto::UnitCode {
-            codes: codes.clone(),
-        },
-        ResolvedSchema::Bool => ResolvedSchemaDto::Bool,
-        ResolvedSchema::Text => ResolvedSchemaDto::Text,
-        ResolvedSchema::Int { min, max, unit } => ResolvedSchemaDto::Int {
-            min: *min,
-            max: *max,
-            drag_step: None,
-            unit,
-        },
-        ResolvedSchema::IntWithDrag {
-            min,
-            max,
-            drag_step,
-            unit,
-        } => ResolvedSchemaDto::Int {
-            min: *min,
-            max: *max,
-            drag_step: Some(*drag_step),
-            unit,
-        },
-        ResolvedSchema::SteppedInt {
-            min,
-            max,
-            step,
-            drag_step,
-            unit,
-        } => ResolvedSchemaDto::SteppedInt {
-            min: *min,
-            max: *max,
-            step: *step,
-            drag_step: *drag_step,
-            unit,
-        },
-        ResolvedSchema::Float { bounds, display } => float_schema_dto(*bounds, *display),
-        ResolvedSchema::Enum { variants } => ResolvedSchemaDto::Enum {
-            variants: variants.iter().copied().map(variant_dto).collect(),
-        },
-        ResolvedSchema::Color => ResolvedSchemaDto::Color { format: "#rrggbb" },
-    }
-}
-
-fn float_schema_dto(bounds: FloatBounds, display: FloatDisplay) -> ResolvedSchemaDto {
-    ResolvedSchemaDto::Float {
-        min: bounds.min,
-        max: bounds.max,
-        exclusive_min: bounds.exclusive_min,
-        excluded: bounds.excluded,
-        excluded_magnitude: bounds.excluded_magnitude,
-        log: matches!(display, FloatDisplay::Log10(_)),
-        unit: display.unit(),
-        display: display.as_str(),
-    }
-}
-
-fn variant_dto(variant: &'static EnumVariant) -> EnumVariantDto {
-    EnumVariantDto {
-        id: variant.id,
-        canonical_label: variant.canonical_label,
-    }
-}
+#[path = "property_dto.rs"]
+mod dto;
+pub use dto::hand_edit_readings;
+use dto::{InspectValue, aggregate_dto, reading, schema_dto};
 
 #[cfg(test)]
 #[path = "properties_audit_tests.rs"]

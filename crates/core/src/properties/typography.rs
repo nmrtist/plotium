@@ -9,7 +9,7 @@ use super::{
     ValueSchema, definition, static_schema,
 };
 use crate::state::PlotiumApp;
-use plotium_figure::{Color, FontWeight, TickDirection, Typeface};
+use plotium_figure::{Color, FigureTypography, FontWeight, TickDirection, Typeface};
 
 pub const TICK_PT: PropertyId = PropertyId("document.figure.typography.tick_pt");
 pub const LABEL_PT: PropertyId = PropertyId("document.figure.typography.label_pt");
@@ -22,6 +22,39 @@ pub const TICK_DIRECTION: PropertyId = PropertyId("document.figure.typography.ti
 pub const MINOR_TICKS: PropertyId = PropertyId("document.figure.typography.minor_ticks");
 pub const TYPEFACE: PropertyId = PropertyId("document.figure.typography.typeface");
 pub const FONT_WEIGHT: PropertyId = PropertyId("document.figure.typography.font_weight");
+
+/// Every document typography property, in catalog order.
+pub const IDS: [PropertyId; 11] = [
+    TICK_PT,
+    LABEL_PT,
+    TITLE_PT,
+    LEGEND_PT,
+    LEGEND_COLOR,
+    AXIS_LINE_PT,
+    TICK_LENGTH_PT,
+    TICK_DIRECTION,
+    MINOR_TICKS,
+    TYPEFACE,
+    FONT_WEIGHT,
+];
+
+/// Copy the field `property` addresses from one typography to another.
+pub(crate) fn copy(property: PropertyId, from: &FigureTypography, to: &mut FigureTypography) {
+    match property {
+        TICK_PT => to.tick_pt = from.tick_pt,
+        LABEL_PT => to.label_pt = from.label_pt,
+        TITLE_PT => to.title_pt = from.title_pt,
+        LEGEND_PT => to.legend_pt = from.legend_pt,
+        LEGEND_COLOR => to.legend_color = from.legend_color,
+        AXIS_LINE_PT => to.axis_line_pt = from.axis_line_pt,
+        TICK_LENGTH_PT => to.tick_length_pt = from.tick_length_pt,
+        TICK_DIRECTION => to.tick_direction = from.tick_direction,
+        MINOR_TICKS => to.minor_ticks = from.minor_ticks,
+        TYPEFACE => to.typeface = from.typeface,
+        FONT_WEIGHT => to.font_weight = from.font_weight,
+        _ => {}
+    }
+}
 
 pub const OUT: &str = "out";
 pub const IN: &str = "in";

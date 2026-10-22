@@ -468,6 +468,7 @@ fn save_project_impl(
         board: Some(workspace_state.board),
         board_views: workspace_state.board_views.clone(),
         figure_typography: Some(workspace_state.figure_typography),
+        hand_edits: doc.hand_edits.clone(),
     };
     write_json(&mut zip, options, "workspace.json", &workspace)?;
     write_json(&mut zip, options, "manifest.json", &manifest)?;
@@ -534,6 +535,7 @@ pub fn load_project(path: &Path) -> Result<PlotiumApp> {
     if let Some(typography) = workspace.figure_typography {
         app.doc.style_library.figure_typography = typography;
     }
+    app.doc.hand_edits = workspace.hand_edits.clone();
 
     let mut recipe_to_dataset = HashMap::new();
     let mut data_to_dataset = HashMap::new();

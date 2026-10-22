@@ -630,6 +630,12 @@ pub struct Workspace {
     /// Document-level axis text sizes; absent in older files → defaults.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub figure_typography: Option<plotium_figure::FigureTypography>,
+    /// Figure properties the user set by hand.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::properties::HandEdits::is_empty"
+    )]
+    pub hand_edits: crate::properties::HandEdits,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]

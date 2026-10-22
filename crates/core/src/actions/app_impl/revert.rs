@@ -386,6 +386,9 @@ impl PlotiumApp {
             Action::ApplyTheme { canvas, before, .. } => {
                 self.apply_theme_snapshot(*canvas, before);
             }
+            Action::SetHandEdits { before, .. } => {
+                self.doc.hand_edits = before.as_ref().clone();
+            }
             Action::SetFigureTypography { before, .. } => {
                 self.set_figure_typography_value(*before);
             }

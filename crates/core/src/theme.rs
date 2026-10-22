@@ -181,13 +181,6 @@ impl Theme {
         }
     }
 
-    fn restyle_object(&self, style: &mut ObjectStyle) {
-        match style {
-            ObjectStyle::Text(t) => t.color = self.text_color,
-            ObjectStyle::Shape(s) => s.stroke = self.text_color,
-        }
-    }
-
     fn publication() -> Theme {
         Theme {
             id: "publication".to_owned(),
@@ -365,8 +358,21 @@ impl PlotiumApp {
         }
     }
 
-    fn themed_snapshot(&self, ci: usize, theme: &Theme) -> ThemeSnapshot {
+    /// The canvas as `theme` would leave it, and how many values the user set
+    /// by hand were kept instead of themed.
+    fn themed_snapshot(&self, ci: usize, theme: &Theme) -> (ThemeSnapshot, KeptHandEdits) {
+        use crate::automation::TargetRef;
+        use crate::properties::{contour, line, line_display, object, typography};
         let mut snap = self.capture_theme_snapshot(ci);
+        let held = |target: Option<&TargetRef>, id| {
+            target.is_some_and(|target| self.is_hand_set(target, id))
+        };
+        // A hand-set value is kept, and counted when the theme would change it.
+        let mut kept = 0;
+        let mut keep = |held: bool, differs: bool| {
+            kept += usize::from(held && differs);
+            held
+        };
         snap.background = theme.background;
         // Choosing a journal theme for a page already at one of its column
         // widths is choosing that journal: the page then follows the
@@ -381,17 +387,63 @@ impl PlotiumApp {
         {
             snap.size_preset_id = Some(preset.id.to_owned());
         }
+        let current = self.doc.style_library.figure_typography;
         snap.style_library = theme.style_library();
-        for (_, style) in &mut snap.object_styles {
-            theme.restyle_object(style);
+        let document = self.document_target();
+        let mut kept_document = 0;
+        for id in typography::IDS {
+            let themed = &mut snap.style_library.figure_typography;
+            let mut kept_value = *themed;
+            typography::copy(id, &current, &mut kept_value);
+            if held(Some(&document), id) {
+                kept_document += usize::from(kept_value != *themed);
+                *themed = kept_value;
+            }
         }
-        for (_, encodings) in &mut snap.series_encodings {
+        for (object, style) in &mut snap.object_styles {
+            let target = self.object_target(ci, *object);
+            match style {
+                ObjectStyle::Text(text) => {
+                    let differs = text.color != theme.text_color;
+                    if !keep(held(target.as_ref(), object::TEXT_COLOR), differs) {
+                        text.color = theme.text_color;
+                    }
+                }
+                ObjectStyle::Shape(shape) => {
+                    let differs = shape.stroke != theme.text_color;
+                    if !keep(held(target.as_ref(), object::SHAPE_STROKE), differs) {
+                        shape.stroke = theme.text_color;
+                    }
+                }
+            }
+        }
+        let canvas = &self.doc.canvases[ci];
+        for (object, encodings) in &mut snap.series_encodings {
+            let series_ids: Vec<_> = canvas
+                .object(*object)
+                .and_then(|object| object.plot())
+                .map(|plot| plot.binding.series.iter().map(|series| series.id).collect())
+                .unwrap_or_default();
             for (i, encoding) in encodings.iter_mut().enumerate() {
+                let target = series_ids
+                    .get(i)
+                    .and_then(|&series| self.series_target(ci, *object, series));
+                let target = target.as_ref();
                 match encoding {
                     plotium_figure::SeriesEncoding::Line(line) => {
-                        if !line.color_locked {
-                            line.color =
-                                plotium_figure::ColorSource::Explicit(theme.trace_color(i));
+                        let color = plotium_figure::ColorSource::Explicit(theme.trace_color(i));
+                        // One hand-chosen colour keeps the curve's whole paint,
+                        // as `color_locked` does, so line and markers still match.
+                        let hand_colored = [
+                            line_display::COLOR,
+                            line_display::MARKER_FILL,
+                            line_display::MARKER_EDGE_COLOR,
+                        ]
+                        .into_iter()
+                        .any(|id| held(target, id));
+                        let locked = keep(hand_colored, line.color != color) || line.color_locked;
+                        if !locked {
+                            line.color = color;
                         }
                         // Sizing a curve without markers would only surprise
                         // the user when they later turn markers on.
@@ -400,14 +452,30 @@ impl PlotiumApp {
                                 .marker_size_pt
                                 .and_then(plotium_figure::PositiveFiniteF32::new)
                         {
-                            line.appearance.marker_size = Some(size);
+                            let differs = line.appearance.marker_size != Some(size);
+                            if !keep(held(target, line_display::MARKER_SIZE), differs) {
+                                line.appearance.marker_size = Some(size);
+                            }
                         }
                         if theme.clear_marker_edges {
-                            line.appearance.marker_edge_width = None;
+                            let differs = line.appearance.marker_edge_width.is_some();
+                            if !keep(held(target, line_display::MARKER_EDGE_WIDTH), differs) {
+                                line.appearance.marker_edge_width = None;
+                            }
                         }
-                        if !line.color_locked {
+                        if !locked {
                             if let Some(paint) = theme.marker_paint(i) {
+                                let outline = line.appearance.marker_edge_width;
+                                let hollow = line.appearance.marker_hollow;
                                 paint.paint(&mut line.appearance);
+                                let differs = line.appearance.marker_edge_width != outline;
+                                if keep(held(target, line_display::MARKER_EDGE_WIDTH), differs) {
+                                    line.appearance.marker_edge_width = outline;
+                                }
+                                let differs = line.appearance.marker_hollow != hollow;
+                                if keep(held(target, line_display::MARKER_HOLLOW), differs) {
+                                    line.appearance.marker_hollow = hollow;
+                                }
                             } else {
                                 // Leftover marker colours would clash with the
                                 // new line colour; markers follow it instead.
@@ -416,26 +484,41 @@ impl PlotiumApp {
                             }
                         }
                         if line.kind == plotium_figure::SeriesKind::Line
-                            && !line.width_locked
                             && let Some(width) = theme
                                 .line_width_pt
                                 .and_then(plotium_figure::PositiveFiniteF32::new)
                         {
-                            line.width = width;
+                            let differs = line.width != width;
+                            if !keep(held(target, line::STROKE_WIDTH), differs)
+                                && !line.width_locked
+                            {
+                                line.width = width;
+                            }
                         }
                     }
                     plotium_figure::SeriesEncoding::Contour(contour) => {
-                        contour.style.positive_color =
-                            plotium_figure::ColorSource::Explicit(theme.trace_color(i));
-                        contour.style.negative_color =
+                        let positive = plotium_figure::ColorSource::Explicit(theme.trace_color(i));
+                        let differs = contour.style.positive_color != positive;
+                        if !keep(held(target, contour::POSITIVE_COLOR), differs) {
+                            contour.style.positive_color = positive;
+                        }
+                        let negative =
                             plotium_figure::ColorSource::Explicit(theme.negative_contour_color(i));
+                        let differs = contour.style.negative_color != negative;
+                        if !keep(held(target, contour::NEGATIVE_COLOR), differs) {
+                            contour.style.negative_color = negative;
+                        }
                     }
                     plotium_figure::SeriesEncoding::Heatmap(_)
                     | plotium_figure::SeriesEncoding::Image(_) => {}
                 }
             }
         }
-        snap
+        let kept = KeptHandEdits {
+            canvas: kept,
+            document: kept_document,
+        };
+        (snap, kept)
     }
 
     pub fn apply_theme_snapshot(&mut self, canvas: usize, snap: &ThemeSnapshot) {
@@ -479,7 +562,7 @@ impl PlotiumApp {
             return;
         };
         let before = self.capture_theme_snapshot(ci);
-        let after = self.themed_snapshot(ci, theme);
+        let (after, kept) = self.themed_snapshot(ci, theme);
         let hint = self
             .doc
             .canvases
@@ -487,6 +570,9 @@ impl PlotiumApp {
             .and_then(|canvas| theme.column_width_hint(canvas.size_mm));
         self.execute_action(Action::apply_theme(ci, before, after));
         self.session.status = format!("Applied the {} theme.", theme.name);
+        if let Some(kept) = kept_hand_edits_note(kept.canvas + kept.document) {
+            self.session.status = format!("{} {kept}", self.session.status);
+        }
         if let Some(hint) = hint {
             self.session.status = format!("{} {hint}", self.session.status);
         }
@@ -561,15 +647,35 @@ impl PlotiumApp {
         })
     }
 
-    /// Prepare the semantic theme edit without committing it. Automation uses
-    /// this to combine several canvases into one validated undo transaction.
-    pub fn theme_action(&self, canvas: usize, theme: &Theme) -> Option<Action> {
+    /// Prepare the semantic theme edit without committing it, with the number
+    /// of hand-set values it keeps. Automation uses this to combine several
+    /// canvases into one validated undo transaction.
+    pub fn theme_action(&self, canvas: usize, theme: &Theme) -> Option<(Action, KeptHandEdits)> {
         self.doc.canvases.get(canvas)?;
-        Some(Action::apply_theme(
-            canvas,
-            self.capture_theme_snapshot(canvas),
-            self.themed_snapshot(canvas, theme),
+        let (after, kept) = self.themed_snapshot(canvas, theme);
+        Some((
+            Action::apply_theme(canvas, self.capture_theme_snapshot(canvas), after),
+            kept,
         ))
+    }
+}
+
+/// Values a theme apply kept because the user set them by hand: on the canvas,
+/// and in the document typography every canvas shares.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KeptHandEdits {
+    pub canvas: usize,
+    pub document: usize,
+}
+
+/// How a theme apply reports the values it kept because the user set them.
+pub fn kept_hand_edits_note(kept: usize) -> Option<String> {
+    match kept {
+        0 => None,
+        1 => Some("Kept 1 value set by hand; reset it to follow the theme.".to_owned()),
+        n => Some(format!(
+            "Kept {n} values set by hand; reset them to follow the theme."
+        )),
     }
 }
 

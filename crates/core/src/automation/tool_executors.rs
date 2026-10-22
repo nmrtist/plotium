@@ -165,12 +165,23 @@ pub(super) fn execute_theme(
             Some(format!("Canvas \"{}\": {hint}", canvas.name))
         })
         .collect();
-    let actions = canvases
-        .into_iter()
-        .filter_map(|canvas| app.theme_action(canvas, &theme))
-        .collect();
+    let mut actions = Vec::new();
+    let mut kept = 0;
+    let mut kept_document = 0;
+    for canvas in canvases {
+        let Some((action, held)) = app.theme_action(canvas, &theme) else {
+            continue;
+        };
+        actions.push(action);
+        kept += held.canvas;
+        // Every canvas keeps the same shared typography; count it once.
+        kept_document = held.document;
+    }
     let mut result = commit_actions(app, plan, actions, "theme applied")?;
     result.diagnostics = hints;
+    result
+        .diagnostics
+        .extend(crate::theme::kept_hand_edits_note(kept + kept_document));
     Ok(result)
 }
 

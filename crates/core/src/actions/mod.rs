@@ -514,6 +514,11 @@ pub enum Action {
         before: plotium_figure::FigureTypography,
         after: plotium_figure::FigureTypography,
     },
+    /// Update the record of figure properties the user set by hand.
+    SetHandEdits {
+        before: Box<crate::properties::HandEdits>,
+        after: Box<crate::properties::HandEdits>,
+    },
     InsertObject {
         canvas: usize,
         object: Box<CanvasObject>,
@@ -718,6 +723,7 @@ impl Action {
             Self::SetObjectStyle { before, after, .. } => before == after,
             Self::ApplyTheme { before, after, .. } => before == after,
             Self::SetFigureTypography { before, after } => before == after,
+            Self::SetHandEdits { before, after } => before == after,
             Self::DeleteCanvas { .. }
             | Self::InsertCanvas { .. }
             | Self::InstallScientificState { .. }

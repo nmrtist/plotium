@@ -9,7 +9,9 @@
 use super::properties::{decode_value, property_error, skipped_results};
 use super::registry::parse;
 use super::*;
-use crate::properties::{PropertyAccess, PropertyId, PropertyValue, SkipReason, definition_by_key};
+use crate::properties::{
+    PropertyAccess, PropertyId, PropertySkip, PropertyValue, SkipReason, definition_by_key,
+};
 use crate::state::PlotiumApp;
 use serde::Deserialize;
 
@@ -20,6 +22,8 @@ pub const MAX_WRITES: usize = 200;
 #[serde(deny_unknown_fields)]
 pub(super) struct PropertyBatchParams {
     pub writes: Vec<PropertyBatchWrite>,
+    #[serde(default)]
+    pub override_hand_edits: bool,
 }
 
 #[derive(Deserialize)]
@@ -49,6 +53,7 @@ pub(super) fn schema() -> serde_json::Value {
                     "additionalProperties": false,
                 },
             },
+            "override_hand_edits": {"type": "boolean", "description": super::registry::OVERRIDE_HAND_EDITS},
         },
         "required": ["writes"],
         "additionalProperties": false,
@@ -56,6 +61,11 @@ pub(super) fn schema() -> serde_json::Value {
 }
 
 type Write = (TargetRef, PropertyId, PropertyValue);
+
+/// Whether the batch carries the user's request to change hand-set values.
+fn overrides_hand_edits(parameters: &serde_json::Value) -> Result<bool, AutomationError> {
+    Ok(parse::<PropertyBatchParams>(TOOL_SET_MANY, parameters.clone())?.override_hand_edits)
+}
 
 /// Decode every write, refusing the batch on the first malformed one.
 pub(super) fn decode(parameters: &serde_json::Value) -> Result<Vec<Write>, AutomationError> {
@@ -150,16 +160,23 @@ pub(super) fn refine_plan(
         ))
         .map_err(|error| invalid(format!("writes[{index}] ({property}): {error}")))?;
     }
-    let outcomes = outcomes(&writes, &plan(app, &writes)?)?;
+    let planned = self::plan(app, &writes, overrides_hand_edits(&request.parameters)?)?;
+    let outcomes = outcomes(&writes, &planned)?;
     Ok(writes
         .iter()
         .zip(outcomes)
         .map(|((target, property, _), outcome)| PlannedTarget {
             target: target.clone(),
-            status: TargetCompatibility::Compatible,
+            status: if matches!(outcome, Outcome::HandSet(_)) {
+                TargetCompatibility::Skipped
+            } else {
+                TargetCompatibility::Compatible
+            },
             reason: match outcome {
                 Outcome::Applied => format!("{property} will be set"),
-                Outcome::Unchanged(message) => format!("{property}: {message}"),
+                Outcome::Unchanged(message) | Outcome::HandSet(message) => {
+                    format!("{property}: {message}")
+                }
             },
         })
         .collect())
@@ -170,14 +187,18 @@ pub(super) fn execute(
     plan: &ToolPlan,
 ) -> Result<ToolResult, AutomationError> {
     let writes = decode(&plan.request.parameters)?;
-    let commit = self::plan(app, &writes)?;
-    let outcomes = outcomes(&writes, &commit)?;
+    let on_users_behalf = overrides_hand_edits(&plan.request.parameters)?;
+    let planned = self::plan(app, &writes, on_users_behalf)?;
+    let outcomes = outcomes(&writes, &planned)?;
+    let Planned { commit, held } = planned;
     let changes_document = commit.has_document_action();
     let nothing_applied = commit.applied.is_empty();
     let mut skipped = skipped_results(&commit.skipped).into_iter();
     let before = DocumentRevision(app.doc.automation_revision);
-    if !nothing_applied {
+    if !nothing_applied && on_users_behalf {
         app.commit_property(commit);
+    } else if !nothing_applied {
+        app.commit_automation_property(commit);
     }
     let after = DocumentRevision(app.doc.automation_revision);
     let mut targets = Vec::with_capacity(writes.len());
@@ -196,6 +217,8 @@ pub(super) fn execute(
                 skip_reason: None,
                 fingerprints: Vec::new(),
             });
+        } else if let Some(skip) = &held[index] {
+            targets.extend(skipped_results(std::slice::from_ref(skip)));
         } else if let Some(result) = skipped.next() {
             targets.push(result);
         }
@@ -217,7 +240,7 @@ pub(super) fn execute(
             check: "revision_advanced".to_owned(),
             passed: nothing_applied || !changes_document || after > before,
             message: if nothing_applied {
-                "every target already held its value; nothing was committed".to_owned()
+                "nothing was committed; see each target's reason".to_owned()
             } else {
                 "atomic document commit completed".to_owned()
             },
@@ -226,32 +249,62 @@ pub(super) fn execute(
     })
 }
 
+/// A batch's commit, and for each write the skip that kept it off a value the
+/// user set by hand.
+struct Planned {
+    commit: crate::properties::PropertyCommit,
+    held: Vec<Option<PropertySkip>>,
+}
+
 fn plan(
     app: &PlotiumApp,
     writes: &[Write],
-) -> Result<crate::properties::PropertyCommit, AutomationError> {
-    app.plan_property_writes(writes)
-        .map_err(|error| property_error(TOOL_SET_MANY, error))
+    on_users_behalf: bool,
+) -> Result<Planned, AutomationError> {
+    let held: Vec<_> = writes
+        .iter()
+        .map(|(target, property, _)| {
+            if on_users_behalf {
+                return None;
+            }
+            let (_, mut skips) = app.withhold_hand_edits(*property, std::slice::from_ref(target));
+            skips.pop()
+        })
+        .collect();
+    let free: Vec<_> = writes
+        .iter()
+        .zip(&held)
+        .filter(|(_, held)| held.is_none())
+        .map(|(write, _)| write.clone())
+        .collect();
+    let commit = app
+        .plan_property_writes(&free)
+        .map_err(|error| property_error(TOOL_SET_MANY, error))?;
+    if !on_users_behalf {
+        super::properties::refuse_hand_set_fan_out(app, TOOL_SET_MANY, &commit)?;
+    }
+    Ok(Planned { commit, held })
 }
 
 enum Outcome {
     Applied,
     Unchanged(String),
+    HandSet(String),
 }
 
 /// Pair each write with its outcome. The planner pushes every write onto
 /// exactly one of `applied` or `skipped`, in write order, so walking both
 /// lists in step recovers the pairing without keying skips by property.
-fn outcomes(
-    writes: &[Write],
-    commit: &crate::properties::PropertyCommit,
-) -> Result<Vec<Outcome>, AutomationError> {
-    let mut applied = commit.applied.iter().peekable();
-    let mut skipped = commit.skipped.iter();
+fn outcomes(writes: &[Write], planned: &Planned) -> Result<Vec<Outcome>, AutomationError> {
+    let mut applied = planned.commit.applied.iter().peekable();
+    let mut skipped = planned.commit.skipped.iter();
     writes
         .iter()
         .enumerate()
         .map(|(index, (target, property, _))| {
+            if let Some(skip) = &planned.held[index] {
+                return Ok(Outcome::HandSet(skip.message.clone()));
+            }
             if applied
                 .peek()
                 .is_some_and(|a| a.target == *target && a.definition == *property)

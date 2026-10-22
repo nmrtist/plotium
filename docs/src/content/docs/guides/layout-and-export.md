@@ -469,16 +469,23 @@ What you control directly:
   Nature Portfolio final-artwork guidelines: 7 pt text with strokes scaled to
   it — 0.3 pt axes, ticks, bar outlines and new reference lines and arrows,
   0.5 pt line series — outward 3 pt ticks, 3 pt markers without an outline and
-  the colour-blind-safe Okabe–Ito palette. Line widths and colours you set by
-  hand are kept when the theme is applied again. Its sizes assume a Nature column
+  the colour-blind-safe Okabe–Ito palette. Marker outlines you drew by hand
+  stay. Its sizes assume a Nature column
   width, so applying it to a canvas that matches none of the Nature size presets
   (89, 136 or 183 mm wide) adds a note to the status bar naming those widths;
   the canvas keeps its size. A canvas already at one of those widths without a
   size preset takes on that Nature preset, so the export precheck applies
   Nature's minimums (5 pt text, 0.25 pt lines). The
   line widths and marker sizes stay when you switch to a theme that does not
-  set them. Curve and marker colours you set by hand are kept when a theme is
-  re-applied; resetting a curve's colour returns it to theme colours.
+  set them. Any theme keeps the values you set by hand: curve and marker
+  colours, line widths, marker sizes and outlines, text and shape colours and
+  the figure typography. The status bar says how many it kept; resetting a
+  value hands it back to the theme.
+- **Values you set by hand** — in the property panels, by scrolling over a
+  control or by dragging a legend — are kept for you. Themes leave them alone,
+  and an AI agent connected through MCP skips them unless you ask it to change
+  them. Resetting a value (or double-clicking a dragged legend) releases it.
+  Values an agent sets are not counted as yours.
 - **Save Canvas Style…** (View ▸ Canvas Theme, or **Save Style** in the
   Figure Ribbon tab's Style group) saves the active canvas's look as a named
   style: background, text colour and size, figure typography (including the

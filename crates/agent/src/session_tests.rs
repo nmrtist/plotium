@@ -480,3 +480,42 @@ fn apply_theme_lists_themes_restyles_canvas_and_undoes_in_one_step() {
         "invalid_parameters"
     );
 }
+#[test]
+fn hand_set_values_are_listed_and_skipped_unless_overridden() {
+    let mut app = app();
+    let mut session = Session::default();
+    session.allow_modify = true;
+    let document = app.document_target();
+    let commit = app
+        .plan_property_write(
+            plotium_core::properties::typography::TICK_PT,
+            std::slice::from_ref(&document),
+            &plotium_core::properties::PropertyValue::Float(6.5),
+        )
+        .unwrap();
+    app.commit_property(commit);
+
+    let state = session
+        .call(&mut app, "plotium_get_state", json!({}))
+        .unwrap();
+    assert_eq!(state["hand_edits"]["total"], 1);
+    let item = &state["hand_edits"]["items"][0];
+    assert_eq!(item["key"], "document.figure.typography.tick_pt");
+    assert_eq!(item["value"]["value"]["value"], 6.5);
+
+    let p = typography(&mut session, &mut app, 8.0);
+    let result = execute(&mut session, &mut app, &p).unwrap();
+    assert_eq!(result["targets"][0]["skip_reason"], "hand_set");
+    assert_eq!(app.doc.style_library.figure_typography.tick_pt, 6.5);
+
+    let p = plan(
+        &mut session,
+        &mut app,
+        "properties.set",
+        json!({"key": "document.figure.typography.tick_pt", "value": 8.0, "override_hand_edits": true}),
+        json!(["document"]),
+    )
+    .unwrap();
+    execute(&mut session, &mut app, &p).unwrap();
+    assert_eq!(app.doc.style_library.figure_typography.tick_pt, 8.0);
+}
