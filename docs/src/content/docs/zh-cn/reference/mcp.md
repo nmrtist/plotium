@@ -73,7 +73,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.line.marker_edge_width` | 图对象＋Series | 0–5 pt；0 表示无边框（空心时为 0.5 pt） |
 | `series.line.marker_hollow` | 图对象＋Series | 布尔值 |
 | `series.bar.width` | 图对象＋Series | 0.05–1，占所在槽位宽度的比例（仅柱状曲线；默认 0.8） |
-| `series.bar.edge_color` | 图对象＋Series | `#RRGGBB`，柱描边颜色（仅柱状曲线；默认黑色） |
+| `series.bar.edge_color` | 图对象＋Series | `#RRGGBB`，柱描边颜色（仅柱状曲线；未设置时为带填充色色相的近黑色，并随曲线颜色变化） |
 | `series.bar.edge_width` | 图对象＋Series | 0–5 pt，柱描边宽度；0 表示无描边（仅柱状曲线；默认 0.5 pt） |
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |

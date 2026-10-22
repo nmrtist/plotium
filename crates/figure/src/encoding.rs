@@ -148,7 +148,8 @@ pub struct LineEncoding {
     /// [`DEFAULT_BAR_WIDTH`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_width: Option<UnitInterval>,
-    /// Bar outline color; only bars read it. `None` is [`DEFAULT_BAR_EDGE_COLOR`].
+    /// Bar outline color; only bars read it. `None` derives a near-black ink
+    /// from the fill's hue (`Color::ink_shade`), so it follows color edits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_edge_color: Option<Color>,
     /// Bar outline width in points, where zero draws no outline; only bars
@@ -159,18 +160,13 @@ pub struct LineEncoding {
 
 /// Default bar width as a fraction of the bar's slot.
 pub const DEFAULT_BAR_WIDTH: f64 = 0.8;
-/// Default bar outline: a thin black rule, as journal bar charts draw it, so
-/// pale fills keep a visible edge on white paper.
-pub const DEFAULT_BAR_EDGE_COLOR: Color = Color::BLACK;
+/// Default bar outline width: a thin rule that keeps pale fills visible on
+/// white paper.
 pub const DEFAULT_BAR_EDGE_WIDTH_PT: f64 = 0.5;
 
 impl LineEncoding {
     pub fn bar_width(&self) -> f64 {
         self.bar_width.map_or(DEFAULT_BAR_WIDTH, UnitInterval::get)
-    }
-
-    pub fn bar_edge_color(&self) -> Color {
-        self.bar_edge_color.unwrap_or(DEFAULT_BAR_EDGE_COLOR)
     }
 
     /// Outline width in points; zero (or a negative stored value) is none.

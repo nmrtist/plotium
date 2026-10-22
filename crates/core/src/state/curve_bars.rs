@@ -5,14 +5,21 @@ use std::collections::HashMap;
 
 /// Caps span this fraction of their bar, the usual journal proportion.
 const CAP_FRACTION: f64 = 0.45;
+/// The outline a bar draws around `fill`: the explicit color, else a
+/// near-black ink tinted toward the fill's hue, so outlines and whiskers stay
+/// clearly darker than any fill while still belonging to it.
+pub(crate) fn bar_edge_color(explicit: Option<Color>, fill: Color) -> Color {
+    explicit.unwrap_or_else(|| fill.ink_shade())
+}
 
 /// Bar presentation read from a bar curve's line encoding.
 #[derive(Clone, Copy)]
 pub(super) struct BarStyle {
     /// Bar width as a fraction of this curve's share of a slot.
     pub width: f64,
-    /// Outline color and width in points; `None` draws no outline.
-    pub edge: Option<(Color, f32)>,
+    /// Outline color (`None` derives it from each bar's fill) and width in
+    /// points; `None` draws no outline.
+    pub edge: Option<(Option<Color>, f32)>,
 }
 
 impl BarStyle {
@@ -20,8 +27,14 @@ impl BarStyle {
         let edge = line.bar_edge_width() as f32;
         Self {
             width: line.bar_width(),
-            edge: (edge > 0.0).then(|| (line.bar_edge_color(), edge)),
+            edge: (edge > 0.0).then_some((line.bar_edge_color, edge)),
         }
+    }
+
+    /// The resolved outline around a bar filled with `fill`.
+    fn edge_for(self, fill: Color) -> Option<(Color, f32)> {
+        self.edge
+            .map(|(color, width)| (bar_edge_color(color, fill), width))
     }
 }
 
@@ -133,10 +146,12 @@ pub(super) fn lower_bars(
                 extents[3] = extents[3].max(y.max(bar.baseline));
                 let rect =
                     Polygon::rect(series.name.clone(), x0, x1, bar.baseline, y, series.color);
-                figure.polygons.push(match bar.style.edge {
-                    Some((color, width)) => rect.with_stroke(color, width),
-                    None => rect,
-                });
+                figure
+                    .polygons
+                    .push(match bar.style.edge_for(series.color) {
+                        Some((color, width)) => rect.with_stroke(color, width),
+                        None => rect,
+                    });
             }
         }
         for error in &bar.errors {
@@ -147,8 +162,9 @@ pub(super) fn lower_bars(
             // Caps scale with the bar rather than a fixed point width, which
             // on a narrow grouped bar reads as a flat bracket.
             error.cap_data_width = Some(CAP_FRACTION * bar.style.width * share);
-            // An outlined bar draws its whiskers in the outline's ink.
-            if let Some((color, width)) = bar.style.edge {
+            // An outlined bar draws its whiskers in the outline's ink; styling
+            // has already given each whisker its bar's fill.
+            if let Some((color, width)) = bar.style.edge_for(error.color) {
                 error.color = color;
                 error.width = width;
             }

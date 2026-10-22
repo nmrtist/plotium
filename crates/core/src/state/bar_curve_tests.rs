@@ -142,12 +142,12 @@ fn numeric_bar_with_errors_lowers_to_rectangles_and_whiskers() {
     assert_eq!(fig.y.min, 0.0, "the baseline is the automatic floor");
     assert!(fig.y.max > 5.4);
     assert!(fig.x.categories.is_none());
-    // Default journal look: a 0.5 pt black outline, whiskers in the same ink,
-    // caps spanning 45% of the bar.
-    let black = plotium_figure::Color::BLACK;
-    assert!(fig.polygons.iter().all(|p| p.stroke == Some((black, 0.5))));
+    // Default journal look: a 0.5 pt near-black outline tinted toward the
+    // fill, whiskers in the same ink, caps spanning 45% of the bar.
+    let shade = fig.polygons[0].fill.ink_shade();
+    assert!(fig.polygons.iter().all(|p| p.stroke == Some((shade, 0.5))));
     for error in &fig.error_bars {
-        assert_eq!((error.color, error.width), (black, 0.5));
+        assert_eq!((error.color, error.width), (shade, 0.5));
         assert!((error.cap_data_width.unwrap() - 0.45 * 0.8).abs() < 1e-9);
     }
 }
@@ -316,7 +316,22 @@ fn bar_width_and_color_are_series_properties() {
     }
     set(&mut app, &target, "series.bar.width", json!(0.5));
     set(&mut app, &target, "series.line.color", json!("#0072B2"));
+    // Unset, the outline follows the new fill: a near-black ink of its hue.
+    let derived = plotium_figure::Color::rgb(0, 0x72, 0xb2).ink_shade();
+    assert_eq!(derived, plotium_figure::Color::rgb(0x22, 0x32, 0x3f));
+    assert_eq!(figure(&app).polygons[0].stroke, Some((derived, 0.5)));
+    let edge = read(&app, line_display::BAR_EDGE_COLOR);
+    assert_eq!(
+        edge.value,
+        AggregateValue::Uniform(PropertyValue::Color(derived))
+    );
+    assert_eq!(edge.default_value, Some(PropertyValue::Color(derived)));
+    assert_eq!(edge.modified, Some(false));
     set(&mut app, &target, "series.bar.edge_color", json!("#404040"));
+    assert_eq!(
+        read(&app, line_display::BAR_EDGE_COLOR).modified,
+        Some(true)
+    );
     let grey = plotium_figure::Color::rgb(0x40, 0x40, 0x40);
     assert_eq!(figure(&app).polygons[0].stroke, Some((grey, 0.5)));
     set(&mut app, &target, "series.bar.edge_width", json!(0.0));

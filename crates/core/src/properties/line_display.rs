@@ -215,11 +215,15 @@ impl PropertyProvider for DisplayProvider {
                 PropertyValue::Float(plotium_figure::DEFAULT_BAR_WIDTH),
                 Some(line.bar_width.is_some()),
             ),
-            BAR_EDGE_COLOR => (
-                PropertyValue::Color(line.bar_edge_color()),
-                PropertyValue::Color(plotium_figure::DEFAULT_BAR_EDGE_COLOR),
-                Some(line.bar_edge_color.is_some()),
-            ),
+            BAR_EDGE_COLOR => {
+                let fill = line.color.resolve();
+                (
+                    PropertyValue::Color(crate::state::bar_edge_color(line.bar_edge_color, fill)),
+                    // Unset, the outline is a near-black ink of the curve's hue.
+                    PropertyValue::Color(crate::state::bar_edge_color(None, fill)),
+                    Some(line.bar_edge_color.is_some()),
+                )
+            }
             BAR_EDGE_WIDTH => (
                 PropertyValue::Float(line.bar_edge_width()),
                 PropertyValue::Float(plotium_figure::DEFAULT_BAR_EDGE_WIDTH_PT),

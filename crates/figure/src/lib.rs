@@ -2,6 +2,7 @@
 //! coordinates. Both renderers (egui screen, SVG export) consume this model.
 
 mod axis_scale;
+mod color_shade;
 mod colormap;
 mod display;
 pub use axis_scale::AxisScale;
@@ -17,9 +18,9 @@ pub use typeface::{FontWeight, Typeface};
 pub use colormap::ColormapId;
 pub use encoding::{
     ColorSource, ContourBasePolicy, ContourLevelSpec, ContourSpec, ContourStyle,
-    DEFAULT_BAR_EDGE_COLOR, DEFAULT_BAR_EDGE_WIDTH_PT, DEFAULT_BAR_WIDTH,
-    DEFAULT_DATA_LINE_WIDTH_PT, EstimatorSelection, FiniteF64, HeatmapSpec, ImageInterpolation,
-    ImageSpec, LineEncoding, PositiveFiniteF32, PositiveFiniteF64, SeriesEncoding, UnitInterval,
+    DEFAULT_BAR_EDGE_WIDTH_PT, DEFAULT_BAR_WIDTH, DEFAULT_DATA_LINE_WIDTH_PT, EstimatorSelection,
+    FiniteF64, HeatmapSpec, ImageInterpolation, ImageSpec, LineEncoding, PositiveFiniteF32,
+    PositiveFiniteF64, SeriesEncoding, UnitInterval,
 };
 
 /// An RGB color, 0–255 per channel.

@@ -85,7 +85,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline (0.5 pt while hollow) |
 | `series.line.marker_hollow` | Object + Series | boolean |
 | `series.bar.width` | Object + Series | 0.05–1, fraction of the bar's slot (bar curves; default 0.8) |
-| `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; default black) |
+| `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
 | `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt) |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |

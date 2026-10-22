@@ -61,6 +61,7 @@ mod data_import;
 mod dataset_identity;
 pub use data_import::DataImports;
 mod curve_bars;
+pub(crate) use curve_bars::bar_edge_color;
 mod curve_binding;
 mod curve_candidate;
 mod curve_extract;
