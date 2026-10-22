@@ -17,7 +17,13 @@ pub fn decode_proxy_rgba8(bytes: &[u8], max_edge: u32) -> Result<ProxyImage, Ima
     let decoded =
         image::load_from_memory(bytes).map_err(|error| ImageError::Decode(error.to_string()))?;
     let edge = max_edge.max(1);
-    let proxy = decoded.thumbnail(edge, edge).into_rgba8();
+    // `thumbnail` also enlarges, which would turn a small image into an
+    // edge-sized proxy.
+    let proxy = if decoded.width() <= edge && decoded.height() <= edge {
+        decoded.into_rgba8()
+    } else {
+        decoded.thumbnail(edge, edge).into_rgba8()
+    };
     let pixel_size = [proxy.width(), proxy.height()];
     let rgba8 = proxy.into_raw();
     let expected = usize::try_from(u64::from(pixel_size[0]) * u64::from(pixel_size[1]) * 4)

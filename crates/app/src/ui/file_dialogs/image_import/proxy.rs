@@ -154,9 +154,13 @@ pub(super) fn rebuild_preview(
     let source =
         image::RgbaImage::from_raw(decoded.probe.width, decoded.probe.height, decoded.rgba8)
             .ok_or(plotium_io::image::ImageError::InvalidDecodedSize)?;
-    let preview = image::DynamicImage::ImageRgba8(source)
-        .thumbnail(4096, 4096)
-        .into_rgba8();
+    let preview = if source.width() <= 4096 && source.height() <= 4096 {
+        source
+    } else {
+        image::DynamicImage::ImageRgba8(source)
+            .thumbnail(4096, 4096)
+            .into_rgba8()
+    };
     Ok(plotium_io::image::ProxyImage {
         pixel_size: [preview.width(), preview.height()],
         rgba8: preview.into_raw(),
