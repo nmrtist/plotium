@@ -60,6 +60,7 @@ mod cursors;
 mod data_import;
 mod dataset_identity;
 pub use data_import::DataImports;
+mod curve_bars;
 mod curve_binding;
 mod curve_candidate;
 mod curve_extract;
@@ -314,6 +315,9 @@ mod curve_tests;
 
 #[cfg(test)]
 mod plot_creation_tests;
+
+#[cfg(test)]
+mod bar_curve_tests;
 
 #[cfg(test)]
 mod display_tests;

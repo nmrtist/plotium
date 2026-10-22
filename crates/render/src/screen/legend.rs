@@ -84,15 +84,20 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
                 );
                 painter.circle_filled(Pos2::new(lx + sw * 0.5, ly), 3.0 * scale, col(*color));
             }
-            LegendMark::Rect => {
-                painter.rect_filled(
-                    egui::Rect::from_min_size(
-                        Pos2::new(lx, ly - 4.0 * scale),
-                        Vec2::new(sw, 8.0 * scale),
-                    ),
-                    1.0 * scale,
-                    col(*color),
+            LegendMark::Rect { edge } => {
+                let swatch = egui::Rect::from_min_size(
+                    Pos2::new(lx, ly - 4.0 * scale),
+                    Vec2::new(sw, 8.0 * scale),
                 );
+                painter.rect_filled(swatch, 1.0 * scale, col(*color));
+                if let Some((edge, width)) = edge {
+                    painter.rect_stroke(
+                        swatch,
+                        1.0 * scale,
+                        Stroke::new(width * scale, col(*edge)),
+                        egui::StrokeKind::Middle,
+                    );
+                }
             }
         }
         crate::rich_text::paint(

@@ -34,7 +34,7 @@ pub fn curve_append_schema() -> Value {
         .remove("component");
     plot["properties"]["resource"]["properties"]["kind"] = json!({"const":KIND_CANVAS_OBJECT});
     let series = plot_create_schema()["properties"]["series"].clone();
-    json!({"type":"object","additionalProperties":false,"required":["plot","series"],"properties":{"plot":plot,"series":series},"description":"Append selected explicit curves to one existing explicit-coordinate plot (200 total max). New Series IDs are frozen in binding_plan.appended. Existing curves/styles/coordinates/ranges/frames remain unchanged; one Undo removes only the appended curves. Omit top-level ids/targets."})
+    json!({"type":"object","additionalProperties":false,"required":["plot","series"],"properties":{"plot":plot,"series":series},"description":"Append selected explicit curves to one existing explicit-coordinate plot (200 total max). New Series IDs are frozen in binding_plan.appended. Existing curves/styles/coordinates/ranges/frames remain unchanged, except that existing bars regroup to share their slots with appended bars; one Undo removes only the appended curves. Omit top-level ids/targets."})
 }
 pub fn curve_binding_schema(materialize: bool) -> Value {
     let uuid = json!({"type":"string","format":"uuid"});

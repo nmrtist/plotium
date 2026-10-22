@@ -6,6 +6,8 @@ mod colormap;
 mod display;
 pub use axis_scale::AxisScale;
 mod encoding;
+mod error_bar;
+pub use error_bar::ErrorBar;
 mod reference_line;
 mod typeface;
 pub use display::*;
@@ -15,6 +17,7 @@ pub use typeface::{FontWeight, Typeface};
 pub use colormap::ColormapId;
 pub use encoding::{
     ColorSource, ContourBasePolicy, ContourLevelSpec, ContourSpec, ContourStyle,
+    DEFAULT_BAR_EDGE_COLOR, DEFAULT_BAR_EDGE_WIDTH_PT, DEFAULT_BAR_WIDTH,
     DEFAULT_DATA_LINE_WIDTH_PT, EstimatorSelection, FiniteF64, HeatmapSpec, ImageInterpolation,
     ImageSpec, LineEncoding, PositiveFiniteF32, PositiveFiniteF64, SeriesEncoding, UnitInterval,
 };
@@ -326,49 +329,6 @@ pub struct IntegralCurve {
     pub source_series: usize,
 }
 
-/// A vertical uncertainty whisker in data-space coordinates. `center` is the
-/// plotted observation and `negative`/`positive` are non-negative distances
-/// below and above it. Cap width is expressed in output-space logical units so
-/// it stays legible independently of the x-axis scale.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ErrorBar {
-    pub center: [f64; 2],
-    pub negative: f64,
-    pub positive: f64,
-    pub color: Color,
-    pub width: f32,
-    pub cap_width: f32,
-    /// Paint after the corresponding data series. Bars use this so their wide
-    /// stroke cannot obscure the lower whisker; point markers leave it false so
-    /// they remain visually on top of the whisker center.
-    #[serde(default)]
-    pub draw_over_data: bool,
-}
-
-impl ErrorBar {
-    pub fn symmetric(center: [f64; 2], error: f64) -> Self {
-        Self {
-            center,
-            negative: error,
-            positive: error,
-            color: Color::TRACE,
-            width: 1.0,
-            cap_width: 8.0,
-            draw_over_data: false,
-        }
-    }
-
-    pub fn colored(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-
-    pub fn over_data(mut self) -> Self {
-        self.draw_over_data = true;
-        self
-    }
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SeriesKind {
     #[default]
@@ -376,6 +336,10 @@ pub enum SeriesKind {
     Points,
     /// Independent vertical stems from the zero baseline to each point.
     Stick,
+    /// Filled bars from the zero baseline. An encoding kind only: plot builders
+    /// lower bars into [`Polygon`] rectangles and [`ErrorBar`] whiskers, so a
+    /// rendered figure never carries a `Bar` series.
+    Bar,
 }
 
 impl Series {

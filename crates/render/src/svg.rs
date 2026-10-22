@@ -228,42 +228,6 @@ fn write_figure(
 
     let axis = plotium_figure::Color::AXIS.to_hex();
     let y_axis_x = proj.left_band.map(|band| band.left).unwrap_or(plot.left);
-    match fig.axis_frame {
-        AxisFrame::Open => {
-            let _ = write!(
-                s,
-                r#"<path d="M{l:.2} {b:.2}H{r:.2}M{yl:.2} {t:.2}V{b:.2}" fill="none" stroke="{axis}" stroke-width="{width}"/>"#,
-                l = plot.left,
-                r = plot.right(),
-                yl = y_axis_x,
-                t = plot.top,
-                b = plot.bottom(),
-                width = ty.axis_line_pt,
-            );
-        }
-        AxisFrame::Box => {
-            let _ = write!(
-                s,
-                r#"<rect x="{l:.2}" y="{t:.2}" width="{w:.2}" height="{h:.2}" fill="none" stroke="{axis}" stroke-width="{width}"/>"#,
-                l = plot.left,
-                t = plot.top,
-                w = plot.width,
-                h = plot.height,
-                width = ty.axis_line_pt,
-            );
-            if (y_axis_x - plot.left).abs() > f32::EPSILON {
-                let _ = write!(
-                    s,
-                    r#"<path d="M{yl:.2} {t:.2}V{b:.2}" stroke="{axis}" stroke-width="{width}"/>"#,
-                    yl = y_axis_x,
-                    t = plot.top,
-                    b = plot.bottom(),
-                    width = ty.axis_line_pt,
-                );
-            }
-        }
-        AxisFrame::Hidden => {}
-    }
 
     let minor = ty.minor_tick_reach();
     let mut minor_path = String::new();
@@ -521,6 +485,44 @@ fn write_figure(
         );
     }
     let _ = write!(s, r#"</g>"#);
+    // Spines go over the clipped data, so a bar or trace resting on an axis
+    // cannot paint over half of its line.
+    match fig.axis_frame {
+        AxisFrame::Open => {
+            let _ = write!(
+                s,
+                r#"<path d="M{l:.2} {b:.2}H{r:.2}M{yl:.2} {t:.2}V{b:.2}" fill="none" stroke="{axis}" stroke-width="{width}"/>"#,
+                l = plot.left,
+                r = plot.right(),
+                yl = y_axis_x,
+                t = plot.top,
+                b = plot.bottom(),
+                width = ty.axis_line_pt,
+            );
+        }
+        AxisFrame::Box => {
+            let _ = write!(
+                s,
+                r#"<rect x="{l:.2}" y="{t:.2}" width="{w:.2}" height="{h:.2}" fill="none" stroke="{axis}" stroke-width="{width}"/>"#,
+                l = plot.left,
+                t = plot.top,
+                w = plot.width,
+                h = plot.height,
+                width = ty.axis_line_pt,
+            );
+            if (y_axis_x - plot.left).abs() > f32::EPSILON {
+                let _ = write!(
+                    s,
+                    r#"<path d="M{yl:.2} {t:.2}V{b:.2}" stroke="{axis}" stroke-width="{width}"/>"#,
+                    yl = y_axis_x,
+                    t = plot.top,
+                    b = plot.bottom(),
+                    width = ty.axis_line_pt,
+                );
+            }
+        }
+        AxisFrame::Hidden => {}
+    }
 
     if let (Some(trace), Some(band)) = (&fig.top_projection, proj.top_band) {
         write_projection(s, fig, trace, plot, band, true, clip_id);

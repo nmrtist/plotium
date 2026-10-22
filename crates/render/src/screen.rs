@@ -150,39 +150,6 @@ fn paint_with_detail_and_stats_impl(
 
     let axis_stroke = Stroke::new(ty.axis_line_pt * scale, col(Color::AXIS));
     let y_axis_x = proj.left_band.map(|band| band.left).unwrap_or(plot.left);
-    match fig.axis_frame {
-        AxisFrame::Open => {
-            painter.line_segment(
-                [
-                    to_pos(plot.left, plot.bottom()),
-                    to_pos(plot.right(), plot.bottom()),
-                ],
-                axis_stroke,
-            );
-            painter.line_segment(
-                [to_pos(y_axis_x, plot.top), to_pos(y_axis_x, plot.bottom())],
-                axis_stroke,
-            );
-        }
-        AxisFrame::Box => {
-            painter.rect_stroke(
-                egui::Rect::from_min_size(
-                    Pos2::new(plot.left, plot.top),
-                    Vec2::new(plot.width, plot.height),
-                ),
-                0.0,
-                axis_stroke,
-                StrokeKind::Inside,
-            );
-            if (y_axis_x - plot.left).abs() > f32::EPSILON {
-                painter.line_segment(
-                    [to_pos(y_axis_x, plot.top), to_pos(y_axis_x, plot.bottom())],
-                    axis_stroke,
-                );
-            }
-        }
-        AxisFrame::Hidden => {}
-    }
 
     let minor = ty.minor_tick_reach() * scale;
     for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
@@ -407,6 +374,42 @@ fn paint_with_detail_and_stats_impl(
             crate::rich_text::plot_font(a.size * scale, &ty),
             col(a.color),
         );
+    }
+
+    // Spines go over the clipped data, so a bar or trace resting on an axis
+    // cannot paint over half of its line.
+    match fig.axis_frame {
+        AxisFrame::Open => {
+            painter.line_segment(
+                [
+                    to_pos(plot.left, plot.bottom()),
+                    to_pos(plot.right(), plot.bottom()),
+                ],
+                axis_stroke,
+            );
+            painter.line_segment(
+                [to_pos(y_axis_x, plot.top), to_pos(y_axis_x, plot.bottom())],
+                axis_stroke,
+            );
+        }
+        AxisFrame::Box => {
+            painter.rect_stroke(
+                egui::Rect::from_min_size(
+                    Pos2::new(plot.left, plot.top),
+                    Vec2::new(plot.width, plot.height),
+                ),
+                0.0,
+                axis_stroke,
+                StrokeKind::Inside,
+            );
+            if (y_axis_x - plot.left).abs() > f32::EPSILON {
+                painter.line_segment(
+                    [to_pos(y_axis_x, plot.top), to_pos(y_axis_x, plot.bottom())],
+                    axis_stroke,
+                );
+            }
+        }
+        AxisFrame::Hidden => {}
     }
 
     if let (Some(trace), Some(band)) = (&fig.top_projection, proj.top_band) {

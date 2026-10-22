@@ -11,7 +11,10 @@ pub(crate) enum LegendMark {
     Line,
     Points,
     LinePoints,
-    Rect,
+    /// A filled swatch, outlined like the shape it stands for.
+    Rect {
+        edge: Option<(Color, f32)>,
+    },
 }
 
 impl LegendMark {
@@ -37,8 +40,10 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
         if series.points.is_empty() || series.name.is_empty() {
             continue;
         }
-        let mark = if series.kind != plotium_figure::SeriesKind::Stick
-            && series.appearance != plotium_figure::CurveAppearance::default()
+        let mark = if !matches!(
+            series.kind,
+            plotium_figure::SeriesKind::Stick | plotium_figure::SeriesKind::Bar
+        ) && series.appearance != plotium_figure::CurveAppearance::default()
         {
             LegendMark::Curve {
                 kind: series.kind,
@@ -50,6 +55,7 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
                 plotium_figure::SeriesKind::Line => LegendMark::Line,
                 plotium_figure::SeriesKind::Points => LegendMark::Points,
                 plotium_figure::SeriesKind::Stick => LegendMark::Line,
+                plotium_figure::SeriesKind::Bar => LegendMark::Rect { edge: None },
             }
         };
         if let Some((_, _, existing)) = entries.iter_mut().find(|(name, color, existing)| {
@@ -65,10 +71,19 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
         }
     }
     for poly in &fig.polygons {
-        if poly.name.is_empty() || entries.iter().any(|(n, _, _)| *n == poly.name) {
+        if poly.name.is_empty()
+            || entries
+                .iter()
+                .any(|(n, color, _)| *n == poly.name && *color == poly.fill)
+        {
             continue;
         }
-        entries.push((poly.name.as_str(), poly.fill, LegendMark::Rect));
+        // A background-colored stroke only separates stacked segments; on the
+        // swatch it would be invisible or a stray rim.
+        let edge = poly
+            .stroke
+            .filter(|(color, width)| *color != fig.background && *width > 0.0);
+        entries.push((poly.name.as_str(), poly.fill, LegendMark::Rect { edge }));
     }
     entries
 }

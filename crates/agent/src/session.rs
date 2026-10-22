@@ -6,7 +6,9 @@ pub(crate) use candidate::CandidateTicket;
 mod guides;
 #[cfg(test)]
 mod plan_budget_tests;
+mod property_allowlist;
 mod property_batch;
+pub use property_allowlist::PROPERTIES;
 mod recovery;
 pub(crate) mod save;
 mod science;
@@ -15,54 +17,9 @@ mod table;
 mod transform;
 
 use crate::capabilities::check_property;
-use plotium_core::{
-    automation::*,
-    properties::{self, PropertyId},
-    state::PlotiumApp,
-};
+use plotium_core::{automation::*, properties, state::PlotiumApp};
 use serde::Deserialize;
 use serde_json::{Value, json};
-
-pub const PROPERTIES: &[PropertyId] = &[
-    properties::line::STROKE_WIDTH,
-    properties::contour::LINE_WIDTH,
-    properties::contour::COUNT,
-    properties::typography::TICK_PT,
-    properties::typography::LABEL_PT,
-    properties::typography::AXIS_LINE_PT,
-    properties::typography::TICK_LENGTH_PT,
-    properties::typography::TICK_DIRECTION,
-    properties::typography::MINOR_TICKS,
-    properties::typography::TYPEFACE,
-    properties::typography::FONT_WEIGHT,
-    properties::line_display::COLOR,
-    properties::line_display::LABEL,
-    properties::line_display::STYLE,
-    properties::line_display::MARKER,
-    properties::line_display::MARKER_SIZE,
-    properties::line_display::MARKER_FILL,
-    properties::line_display::MARKER_EDGE_COLOR,
-    properties::line_display::MARKER_EDGE_WIDTH,
-    properties::line_display::MARKER_HOLLOW,
-    properties::object::SERIES_VISIBLE,
-    properties::axis::X_LABEL,
-    properties::axis::Y_LABEL,
-    properties::axis::FRAME,
-    properties::axis::X_SCALE,
-    properties::axis::Y_SCALE,
-    properties::plot_display::X_UNIT,
-    properties::plot_display::Y_UNIT,
-    properties::plot_display::X_RANGE,
-    properties::plot_display::Y_RANGE,
-    properties::plot_display::TICK_PT,
-    properties::plot_display::LABEL_PT,
-    properties::plot_display::LEGEND_PT,
-    properties::guide::VISIBILITY,
-    properties::guide::PLACEMENT,
-    properties::guide::LAYOUT,
-    properties::guide::TITLE,
-    properties::guide::POSITION,
-];
 
 pub use recovery::Failure;
 

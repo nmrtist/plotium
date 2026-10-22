@@ -35,7 +35,9 @@ mod tests {
         .with_series(Series::sticks("scan", vec![[12.0, 2.0], [25.0, 4.0]]));
         let output = crate::svg::export(&figure);
         assert!(output.contains("class=\"stick-series\""));
-        let path = output.split("class=\"stick-series\"").nth(1).unwrap();
+        let rest = output.split("class=\"stick-series\"").nth(1).unwrap();
+        // Only this element: the axis frame is written after the data.
+        let path = rest.split("/>").next().unwrap();
         assert_eq!(path.matches('M').count(), 2);
         assert_eq!(path.matches('V').count(), 2);
     }

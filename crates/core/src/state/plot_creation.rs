@@ -12,12 +12,14 @@ use serde::{Deserialize, Serialize};
 pub enum CurveKind {
     Line,
     Scatter,
+    Bar,
 }
 impl CurveKind {
-    fn native(self) -> SeriesKind {
+    pub(crate) fn native(self) -> SeriesKind {
         match self {
             Self::Line => SeriesKind::Line,
             Self::Scatter => SeriesKind::Points,
+            Self::Bar => SeriesKind::Bar,
         }
     }
 }

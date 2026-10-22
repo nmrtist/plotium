@@ -436,7 +436,57 @@ fn legend_merges_series_and_named_polygons_once() {
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0].0, "trace");
     assert_eq!(entries[1].0, "bars");
-    assert!(matches!(entries[1].2, LegendMark::Rect));
+    assert!(matches!(entries[1].2, LegendMark::Rect { .. }));
+}
+
+#[test]
+fn bar_swatches_carry_the_bar_outline() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 2.0), Axis::new("y", 0.0, 2.0));
+    let fill = Color::rgb(0xf5, 0xd7, 0x8e);
+    let rect = |name: &str, x: f64| plotium_figure::Polygon::rect(name, x, x + 0.5, 0.0, 1.0, fill);
+    fig.polygons
+        .push(rect("outlined", 0.0).with_stroke(Color::BLACK, 0.5));
+    fig.polygons.push(rect("plain", 0.5));
+    // Stacked segments are separated in the background color, not outlined.
+    fig.polygons
+        .push(rect("stacked", 1.0).with_stroke(fig.background, 0.5));
+    let edges: Vec<_> = legend_entries(&fig)
+        .iter()
+        .map(|(_, _, mark)| match mark {
+            LegendMark::Rect { edge } => *edge,
+            _ => panic!("polygons legend as rectangles"),
+        })
+        .collect();
+    assert_eq!(edges, vec![Some((Color::BLACK, 0.5)), None, None]);
+    let svg = svg::export(&fig);
+    assert_eq!(
+        svg.matches(r##"rx="1" fill="#f5d78e" stroke="#000000" stroke-width="0.5""##)
+            .count(),
+        1
+    );
+    assert_eq!(svg.matches(r##"rx="1" fill="#f5d78e"/>"##).count(), 2);
+}
+
+#[test]
+fn axis_spines_are_drawn_over_data_resting_on_them() {
+    let mut fig = Figure::new("", Axis::new("x", -0.5, 1.5), Axis::new("y", 0.0, 2.0));
+    fig.polygons.push(
+        plotium_figure::Polygon::rect("bar", 0.0, 1.0, 0.0, 1.0, Color::TRACE)
+            .with_stroke(Color::BLACK, 0.5),
+    );
+    let svg = svg::export(&fig);
+    let bar = svg.find("<polygon").expect("bar");
+    // The open frame is the one path with absolute H and V segments; ticks
+    // use relative h/v.
+    let frame = svg
+        .match_indices(r#"<path d="M"#)
+        .map(|(i, _)| i)
+        .find(|&i| {
+            let element = &svg[i..i + svg[i..].find("/>").unwrap_or(0)];
+            element.contains('H') && element.contains('V')
+        })
+        .expect("open axis frame");
+    assert!(bar < frame, "spines must paint after the bar");
 }
 
 #[test]

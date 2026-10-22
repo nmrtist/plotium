@@ -34,9 +34,19 @@ pub(super) fn validate_columns(datasets: &[Dataset], binding: &DataBinding) -> R
                     })
                     .collect()
             };
+            let bar = matches!(
+                &series.encoding,
+                plotium_figure::SeriesEncoding::Line(line)
+                    if line.kind == plotium_figure::SeriesKind::Bar
+            );
             for columns in columns {
-                crate::state::extract_table_curve(table, columns, coordinates)
+                let extracted = crate::state::extract_table_curve(table, columns, coordinates)
                     .map_err(ProjectError::Invalid)?;
+                if extracted.categories.is_some() && !bar {
+                    return Err(ProjectError::Invalid(
+                        "Only bar curves may use a text x column.".into(),
+                    ));
+                }
             }
         }
     }

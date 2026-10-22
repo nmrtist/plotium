@@ -389,6 +389,13 @@ impl FigureDiagnosticScan {
                     };
                     if !*visible {
                         self.coverage(&st, "curve_primitives", if rendered_origins.contains(id){"unavailable"}else{"not_applicable"}, if rendered_origins.contains(id){"hidden_binding_has_native_fallback_rendering; not included in Series occlusion coverage"}else{"hidden_series"});
+                    } else if source == "bar_encoding" {
+                        self.coverage(
+                            &st,
+                            "curve_primitives",
+                            "unsupported",
+                            "Bar encoding is drawn as filled rectangles, not an ordinary line/scatter curve.",
+                        );
                     } else if source != "resolved" && source != "incompatible_encoding" {
                         self.coverage(&st,"curve_primitives","unavailable",&format!("{source}: native source is unavailable. Cached rendered geometry, if present, is reported separately."));
                     } else if source == "incompatible_encoding" {

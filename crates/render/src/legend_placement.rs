@@ -132,7 +132,8 @@ pub(crate) fn for_each_segment(
             };
             match series.kind {
                 SeriesKind::Line => add_segment(previous.unwrap_or(p), p),
-                SeriesKind::Points => add_segment(p, p),
+                // Builders lower bars to polygons; treat a stray one as points.
+                SeriesKind::Points | SeriesKind::Bar => add_segment(p, p),
                 SeriesKind::Stick => {
                     let baseline = crate::clip_to_plot(project([point[0], 0.0]), plot);
                     add_segment(baseline.unwrap_or(p), p);

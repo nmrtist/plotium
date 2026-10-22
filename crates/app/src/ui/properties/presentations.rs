@@ -18,6 +18,9 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(line_display::MARKER_SIZE, "Marker diameter", LINE_HOME),
     object_entry(line_display::MARKER_FILL, "Marker fill", LINE_HOME),
     object_entry(line_display::MARKER_HOLLOW, "Hollow marker", LINE_HOME),
+    object_entry(line_display::BAR_WIDTH, "Bar width", LINE_HOME),
+    object_entry(line_display::BAR_EDGE_COLOR, "Bar outline color", LINE_HOME),
+    object_entry(line_display::BAR_EDGE_WIDTH, "Bar outline width", LINE_HOME),
     object_entry(
         line_display::MARKER_EDGE_COLOR,
         "Marker edge color",

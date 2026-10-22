@@ -1,6 +1,6 @@
 //! Append explicit curves without replacing existing plot or Series identities.
 use super::*;
-use plotium_figure::{LineEncoding, SeriesEncoding, SeriesKind};
+use plotium_figure::{LineEncoding, SeriesEncoding};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -63,10 +63,7 @@ impl PlotiumApp {
             let mut series = SeriesBinding::with_source(curve.source.source());
             series.id = id;
             series.encoding = SeriesEncoding::Line(LineEncoding {
-                kind: match curve.kind {
-                    CurveKind::Line => SeriesKind::Line,
-                    CurveKind::Scatter => SeriesKind::Points,
-                },
+                kind: curve.kind.native(),
                 color: plotium_figure::ColorSource::Explicit(
                     self.next_stack_color(&change.after.binding),
                 ),

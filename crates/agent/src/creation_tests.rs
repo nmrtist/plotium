@@ -381,3 +381,44 @@ fn returned_creation_targets_can_be_styled_together_with_one_undo() {
         before
     );
 }
+
+#[test]
+fn bar_plots_are_created_and_resized_through_the_agent() {
+    let mut app = fixture();
+    let mut session = crate::Session::default();
+    session.allow_modify = true;
+    let mut create = args(&app);
+    create["parameters"]["series"][0]["kind"] = json!("bar");
+    let plan = session.call(&mut app, "plotium_plan", create).unwrap();
+    let result = session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    let defaults = &result["value"]["creation"]["series_defaults"][0];
+    assert_eq!(defaults["kind"], "bar");
+    let (bars, whiskers, width) = bar_summary(&app);
+    assert_eq!((bars, whiskers), (3, 3));
+    assert!((width - 0.8).abs() < 1e-9);
+    let set = json!({"expected_project_context":app.session.project_context,
+        "expected_revision":result["after_revision"],"tool_id":"properties.set",
+        "targets":[defaults["target"]],"parameters":{"key":"series.bar.width","value":0.4}});
+    let plan = session.call(&mut app, "plotium_plan", set).unwrap();
+    session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    assert!((bar_summary(&app).2 - 0.4).abs() < 1e-9);
+}
+/// Bar rectangles, whiskers and the first bar's data-space width.
+fn bar_summary(app: &PlotiumApp) -> (usize, usize, f64) {
+    let figure = app.doc.canvases[0].objects[0].plot().unwrap().figure();
+    let xs = figure.polygons[0].points.iter().map(|p| p[0]);
+    let width = xs.clone().fold(f64::NEG_INFINITY, f64::max) - xs.fold(f64::INFINITY, f64::min);
+    (figure.polygons.len(), figure.error_bars.len(), width)
+}
