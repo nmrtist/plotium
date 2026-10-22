@@ -1,5 +1,5 @@
 use super::*;
-use crate::theme::Theme;
+use crate::theme::{MarkerPaint, Theme};
 use plotium_figure::{
     Color, ColorSource, PositiveFiniteF32, SeriesEncoding, SeriesKind, TickDirection,
 };
@@ -130,4 +130,64 @@ fn nature_theme_hints_at_column_widths_without_resizing() {
     app.doc.canvases[0].size_mm = [120.0, 80.0];
     app.apply_theme(&Theme::by_id("publication").unwrap());
     assert_eq!(app.session.status, "Applied the Publication theme.");
+}
+
+#[test]
+fn rethemed_curves_drop_leftover_marker_colours_undoably() {
+    let mut app = sample_app();
+    {
+        let line = first_line_mut(&mut app);
+        line.kind = SeriesKind::Points;
+        line.color = ColorSource::Explicit(Color::rgb(0xe6, 0x9f, 0x00));
+        line.appearance.marker_fill = Some(Color::rgb(0xf2, 0xd7, 0x97));
+        line.appearance.marker_edge_color = Some(Color::rgb(0x40, 0x40, 0x40));
+    }
+    let before = first_line(&app).clone();
+    let publication = Theme::by_id("publication").unwrap();
+
+    app.apply_theme(&publication);
+
+    let line = first_line(&app);
+    assert_eq!(
+        line.color,
+        ColorSource::Explicit(publication.trace_palette[0])
+    );
+    assert_eq!(line.appearance.marker_fill, None);
+    assert_eq!(line.appearance.marker_edge_color, None);
+    app.undo();
+    assert_eq!(first_line(&app), &before);
+}
+
+#[test]
+fn locked_curves_keep_their_colours_and_marker_paint() {
+    let mut app = sample_app();
+    let chosen = Color::rgb(0xe6, 0x9f, 0x00);
+    let fill = Color::rgb(0xf2, 0xd7, 0x97);
+    let edge = Color::rgb(0x40, 0x40, 0x40);
+    {
+        let line = first_line_mut(&mut app);
+        line.kind = SeriesKind::Points;
+        line.color = ColorSource::Explicit(chosen);
+        line.appearance.marker_fill = Some(fill);
+        line.appearance.marker_edge_color = Some(edge);
+        line.appearance.marker_hollow = true;
+        line.color_locked = true;
+    }
+    let mut captured = app.theme_from_canvas(0, "Lab").unwrap();
+    captured.trace_palette = vec![Color::rgb(0, 0, 0)];
+    captured.marker_palette = vec![Some(MarkerPaint::default())];
+
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    // Sizing still follows the theme; the colours do not.
+    let line = first_line(&app);
+    assert_eq!(line.appearance.marker_size.map(|s| s.get()), Some(3.0));
+    assert_eq!(line.color, ColorSource::Explicit(chosen));
+    // A style with its own marker paint does not repaint a locked curve either.
+    app.apply_theme(&captured);
+
+    let line = first_line(&app);
+    assert_eq!(line.color, ColorSource::Explicit(chosen));
+    assert_eq!(line.appearance.marker_fill, Some(fill));
+    assert_eq!(line.appearance.marker_edge_color, Some(edge));
+    assert!(line.appearance.marker_hollow);
 }

@@ -144,6 +144,10 @@ pub struct LineEncoding {
     pub width: PositiveFiniteF32,
     /// Plot-owned translation in the x-axis coordinate system.
     pub x_shift: FiniteF64,
+    /// Set when the user chooses this curve's line or marker colour by hand;
+    /// themes leave locked curves' colours alone.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub color_locked: bool,
 }
 
 impl Default for LineEncoding {
@@ -156,6 +160,7 @@ impl Default for LineEncoding {
             width: PositiveFiniteF32::new(DEFAULT_DATA_LINE_WIDTH_PT)
                 .expect("literal width is valid"),
             x_shift: FiniteF64::default(),
+            color_locked: false,
         }
     }
 }
@@ -377,6 +382,26 @@ mod tests {
                 r#"{"base":{"policy":"absolute","value":1.0},"count":3,"ratio":1.35}"#,
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn unlocked_line_colour_is_omitted_and_optional_when_loading() {
+        let unlocked = serde_json::to_value(LineEncoding::default()).unwrap();
+        assert!(unlocked.get("color_locked").is_none());
+        assert_eq!(
+            serde_json::from_value::<LineEncoding>(unlocked).unwrap(),
+            LineEncoding::default()
+        );
+        let locked = LineEncoding {
+            color_locked: true,
+            ..LineEncoding::default()
+        };
+        let value = serde_json::to_value(&locked).unwrap();
+        assert_eq!(value["color_locked"], true);
+        assert_eq!(
+            serde_json::from_value::<LineEncoding>(value).unwrap(),
+            locked
         );
     }
 

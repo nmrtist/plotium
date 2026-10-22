@@ -1777,7 +1777,9 @@ Preflight rejects an unknown `theme_id`, Series `targets`, and ids that include
 no canvas; other ids that are not canvases are skipped. A saved style is read
 again when the plan executes. Execution changes each canvas's background, text
 and shape colours, and every curve's colour, marker paint, marker size and line
-width the theme defines, as one **Undo** step.
+width the theme defines, as one **Undo** step. Curve and marker colours set by
+hand are kept when a theme is re-applied; resetting a curve's colour returns it
+to theme colours.
 The document's style defaults are also replaced: plot text sizes, axis strokes
 and ticks, so plots on other canvases change with them, and the default text,
 panel-label and shape styles for new objects. A theme sized for journal columns
