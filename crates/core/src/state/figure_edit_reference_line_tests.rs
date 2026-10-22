@@ -51,7 +51,7 @@ fn created_reference_line_uses_defaults_and_renders() {
     assert_eq!(edit["annotation"]["orientation"], "vertical");
     assert_eq!(
         edit["annotation"]["line"],
-        json!({"color":"#272727","width_pt":0.75,"style":"dashed"})
+        json!({"color":"#000000","width_pt":0.75,"style":"dashed"})
     );
     assert_eq!(edit["annotation"]["font_pt"], Value::Null);
     let thin = commit(

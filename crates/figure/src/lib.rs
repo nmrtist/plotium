@@ -33,7 +33,7 @@ impl Color {
     }
 
     pub const BLACK: Color = Color::rgb(0, 0, 0);
-    pub const AXIS: Color = Color::rgb(0x27, 0x27, 0x27);
+    pub const AXIS: Color = Color::BLACK;
     pub const TRACE: Color = Color::rgb(0x0f, 0x4d, 0x92);
     pub const GRID: Color = Color::rgb(220, 222, 228);
 

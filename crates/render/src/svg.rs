@@ -702,7 +702,7 @@ mod tests {
                 .with_axis_frame(AxisFrame::Box),
         );
         assert_eq!(boxed.matches("<rect ").count(), open_rects + 1);
-        assert!(boxed.contains("fill=\"none\" stroke=\"#272727\""));
+        assert!(boxed.contains("fill=\"none\" stroke=\"#000000\""));
     }
 
     #[test]
@@ -715,7 +715,7 @@ mod tests {
         assert!(layout.x_ticks.labels.is_empty() && layout.y_ticks.labels.is_empty());
         let plot = Projector::new(&fig, outer, &layout.margins).plot;
         let axis_path = format!(
-            r##"<path d="M{l:.2} {b:.2}H{r:.2}M{l:.2} {t:.2}V{b:.2}" fill="none" stroke="#272727""##,
+            r##"<path d="M{l:.2} {b:.2}H{r:.2}M{l:.2} {t:.2}V{b:.2}" fill="none" stroke="#000000""##,
             l = plot.left,
             r = plot.right(),
             t = plot.top,
@@ -726,7 +726,7 @@ mod tests {
             svg.contains(&axis_path),
             "missing open-axis path: {axis_path}"
         );
-        assert_eq!(svg.matches("stroke=\"#272727\"").count(), 1);
+        assert_eq!(svg.matches("stroke=\"#000000\"").count(), 1);
     }
 }
 
