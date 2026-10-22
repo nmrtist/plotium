@@ -48,6 +48,7 @@ impl PlotiumApp {
                 canvases: Vec::new(),
                 assets: std::collections::BTreeMap::new(),
                 style_library: StyleLibrary::default(),
+                hand_edits: crate::properties::HandEdits::default(),
                 project_path: None,
                 project_revision: None,
                 automation_revision: 0,

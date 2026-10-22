@@ -7,6 +7,10 @@ struct StateQuery {
     selection_offset: usize,
     #[serde(default = "default_selection_limit")]
     selection_limit: usize,
+    #[serde(default)]
+    hand_edits_offset: usize,
+    #[serde(default = "default_selection_limit")]
+    hand_edits_limit: usize,
 }
 
 fn default_selection_limit() -> usize {
@@ -28,6 +32,12 @@ impl Session {
                 "selection_limit must be 1..=50",
             ));
         }
+        if !(1..=50).contains(&query.hand_edits_limit) {
+            return Err(Failure::new(
+                "invalid_parameters",
+                "hand_edits_limit must be 1..=50",
+            ));
+        }
         let busy = if blocked {
             Some(Failure::new(
                 "busy",
@@ -41,8 +51,8 @@ impl Session {
             (!self.allow_modify)
                 .then(|| Failure::new("permission_denied", "Switch to Read and modify"))
         });
-        let (project, selection) = if busy.is_some() {
-            (Value::Null, Value::Null)
+        let (project, selection, hand_edits) = if busy.is_some() {
+            (Value::Null, Value::Null, Value::Null)
         } else {
             let selected = ProjectResourceProvider::new(app).current_selection();
             let items: Vec<_> = selected
@@ -55,13 +65,18 @@ impl Session {
             (
                 json!({"dataset_count":app.doc.datasets.len(),"canvas_count":app.doc.canvases.len()}),
                 json!({"items":items,"total":selected.len(),"next_offset":next_offset}),
+                plotium_core::automation::hand_edit_readings(
+                    app,
+                    query.hand_edits_offset,
+                    query.hand_edits_limit,
+                ),
             )
         };
         let availability = |reason: Option<Failure>| json!({"available":reason.is_none(),"reason":reason.map(|e|json!({"code":e.code,"message":e.message}))});
         Ok(
             json!({"project_context":app.session.project_context,"revision":app.doc.automation_revision,
             "availability":{"project_read":availability(read_reason),"project_modify":availability(modify_reason.clone()),"native_import":availability(modify_reason)},
-            "project":project,"selection":selection,"capability_fingerprint":crate::capabilities::fingerprint(),
+            "project":project,"selection":selection,"hand_edits":hand_edits,"capability_fingerprint":crate::capabilities::fingerprint(),
             "permissions":{"allow_reversible_modify":self.allow_modify,"save":"per_request_desktop_authorization","export":"per_request_desktop_authorization"},
             "save_state":{"current_path":app.doc.project_path,"persisted_revision":app.doc.project_revision,"dirty":app.doc.dirty,"edit_generation":app.doc.edit_generation,
                 "receipt_ids":app.session.external_saves.receipts().map(|r| &r.save_id).collect::<Vec<_>>()}}),

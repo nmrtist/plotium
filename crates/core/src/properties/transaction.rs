@@ -589,6 +589,8 @@ impl PropertyTransaction {
             app_preferences,
             applied,
             skipped,
+            reset: false,
+            released: Vec::new(),
         }
     }
 }

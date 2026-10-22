@@ -570,6 +570,8 @@ pub struct Document {
     pub assets: std::collections::BTreeMap<AssetId, AssetRecord>,
     /// Per-kind default styles fed to the authoring create-tools.
     pub style_library: StyleLibrary,
+    /// Figure properties the user set by hand, which themes and automation keep.
+    pub hand_edits: crate::properties::HandEdits,
     pub project_path: Option<std::path::PathBuf>,
     /// Revision recorded by the last loaded or successful project save. Recovery
     /// snapshots bind to this value so a later manual save makes them stale.

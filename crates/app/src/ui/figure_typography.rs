@@ -4,6 +4,7 @@
 //! coalesces into one undo step, the same contract as the canvas-size fields.
 
 use super::*;
+use plotium_core::properties::{PropertyAddress, typography};
 use plotium_figure::FigureTypography;
 
 pub(super) fn figure_typography_window(app: &mut PlotiumApp, ctx: &egui::Context) {
@@ -30,10 +31,10 @@ pub(super) fn figure_typography_window(app: &mut PlotiumApp, ctx: &egui::Context
             ui.add_space(8.0);
             if ui.button("Reset to defaults").clicked() {
                 let before = app.doc.style_library.figure_typography;
-                app.execute_action(Action::set_figure_typography(
-                    before,
-                    FigureTypography::default(),
-                ));
+                let action = Action::set_figure_typography(before, FigureTypography::default());
+                let document = app.document_target();
+                let reset = typography::IDS.map(|id| PropertyAddress::new(document.clone(), id));
+                app.execute_hand_edit(action, &reset, false);
             }
         });
     if !open {

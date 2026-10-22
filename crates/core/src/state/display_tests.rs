@@ -672,5 +672,7 @@ fn r6_rebind_reorder_remove_keep_display_units_manual_ranges_and_authored_style(
 
 #[path = "display_field_tests.rs"]
 mod field;
+#[path = "display_hand_edit_tests.rs"]
+mod hand_edit;
 #[path = "display_marker_tests.rs"]
 mod marker;

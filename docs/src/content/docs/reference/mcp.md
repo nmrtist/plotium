@@ -177,9 +177,16 @@ at most 16 stable resource references. Pass `selection_offset` (default 0) and
 
 Every call reads the current selection; pages are not a frozen snapshot. GUI
 selection can change without changing the document revision. Do not combine pages
-as an atomic selection or use selection as execution authority. While busy,
-`project` and `selection` are `null`; availability, permissions, the capability
-fingerprint and save receipt IDs remain readable.
+as an atomic selection or use selection as execution authority.
+
+`hand_edits` lists the figure values the user set by hand in Plotium, as
+`{items,total,next_offset}`. Each item has the `target`, the property `key`, its
+`label` and current `value`. Pass `hand_edits_offset` and `hand_edits_limit`
+(1–50, default 16) for further pages. Keep these values when you continue
+editing; see [Values the user set by hand](#values-the-user-set-by-hand).
+
+While busy, `project`, `selection` and `hand_edits` are `null`; availability,
+permissions, the capability fingerprint and save receipt IDs remain readable.
 
 Call `plotium_capabilities_get {}` to obtain
 `{capability_fingerprint,connection_capabilities}`. The fingerprint is SHA-256 of
@@ -1801,6 +1808,23 @@ reported as skipped while the others apply. `plotium_execute` commits every
 write as one **Undo** step; `value.writes` reports each write's index, key and
 outcome.
 
+## Values the user set by hand
+
+When the user changes a figure value in Plotium — in the property panels, by
+scrolling over a control or by dragging a legend — Plotium records it as set by
+hand. `plotium_get_state` lists these values in `hand_edits`, and
+`properties.inspect` marks each one with `"hand_set": true`.
+
+`properties.set`, `properties.set_many` and `properties.reset` leave hand-set
+values alone: the target is reported as skipped with `skip_reason: "hand_set"`,
+in preflight and in the result, and the other targets still apply. A legend's
+placement and its dragged position count as one value. Pass
+`"override_hand_edits": true` in `parameters` only when the user asked for that
+change; the new value then counts as the user's.
+
+Values you write without the override are not recorded, so a later theme or
+write may replace them. Themes keep hand-set values; see the next section.
+
 ## Apply a theme or saved style to a canvas
 
 `figure.apply_theme` restyles whole canvases with one of Plotium's built-in
@@ -1832,7 +1856,8 @@ hand are kept when a theme is re-applied; resetting a curve's colour returns it
 to theme colours.
 The document's style defaults are also replaced: plot text sizes, axis strokes
 and ticks, so plots on other canvases change with them, and the default text,
-panel-label and shape styles for new objects. A theme sized for journal columns
+panel-label and shape styles for new objects. Values the user set by hand are
+kept, including figure typography; `diagnostics` adds a note saying how many. A theme sized for journal columns
 (today `nature`) never resizes a canvas; for each canvas whose width matches
 none of its column presets, the result's `diagnostics` adds a note listing the
 preset widths (89 / 136 / 183 mm).

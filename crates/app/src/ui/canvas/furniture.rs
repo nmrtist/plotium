@@ -1,4 +1,5 @@
 use super::*;
+use plotium_core::properties::{PropertyAddress, guide};
 
 enum FurnitureHit {
     Legend {
@@ -305,12 +306,13 @@ fn finish_furniture_drag(app: &mut PlotiumApp) {
             else {
                 return;
             };
-            app.execute_action(Action::set_axis_overrides(
-                drag.canvas,
-                drag.object,
-                *before,
-                after,
-            ));
+            // A click without a drag moves nothing and decides nothing.
+            if after == *before {
+                return;
+            }
+            let action = Action::set_axis_overrides(drag.canvas, drag.object, *before, after);
+            let placed = legend_placement(app, drag.canvas, drag.object);
+            app.execute_hand_edit(action, &placed, true);
             app.session.status =
                 "Moved legend. Double-click it to restore automatic placement.".into();
         }
@@ -343,7 +345,9 @@ fn reset_furniture_position(app: &mut PlotiumApp, ci: usize, hit: FurnitureHit) 
             };
             let mut after = before.clone();
             after.reset_guide_placement();
-            app.execute_action(Action::set_axis_overrides(ci, object, before, after));
+            let action = Action::set_axis_overrides(ci, object, before, after);
+            let placed = legend_placement(app, ci, object);
+            app.execute_hand_edit(action, &placed, false);
             app.session.status = "Restored automatic legend placement.".into();
         }
         FurnitureHit::ColorScale { object, .. } => {
@@ -377,6 +381,14 @@ fn reset_furniture_position(app: &mut PlotiumApp, ci: usize, hit: FurnitureHit) 
             app.session.status = "Restored automatic region-label placement.".into();
         }
     }
+}
+
+/// The legend position a drag sets by hand; resetting it also forgets a
+/// hand-picked placement, which stores the same decision.
+fn legend_placement(app: &PlotiumApp, ci: usize, object: ObjectId) -> Vec<PropertyAddress> {
+    app.object_target(ci, object)
+        .map(|target| vec![PropertyAddress::new(target, guide::POSITION)])
+        .unwrap_or_default()
 }
 
 fn rect_contains(rect: PlotRect, pointer: Pos2, padding: f32) -> bool {

@@ -150,8 +150,15 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 ```
 
 每次调用都读取当前选择，分页不是冻结快照；GUI 选择变化不一定改变文档 revision。
-不能将多页视作原子选择或把选择当作执行授权。忙碌时 `project` 与 `selection` 为 `null`；
-仍可读取可用性、权限、能力指纹和保存回执 ID。
+不能将多页视作原子选择或把选择当作执行授权。
+
+`hand_edits` 以 `{items,total,next_offset}` 列出用户在 Plotium 中手动设置的图形值，
+每项包含 `target`、属性 `key`、`label` 和当前 `value`。传入 `hand_edits_offset` 和
+`hand_edits_limit`（1–50，默认 16）读取后续页。继续编辑时请保留这些值，见
+[用户手动设置的值](#用户手动设置的值)。
+
+忙碌时 `project`、`selection` 与 `hand_edits` 为 `null`；仍可读取可用性、权限、能力指纹
+和保存回执 ID。
 
 调用 `plotium_capabilities_get {}` 获取
 `{capability_fingerprint,connection_capabilities}`。指纹是完整静态发现契约按规范 JSON
@@ -1463,6 +1470,20 @@ const request = {
 写入会报告为跳过，其余写入照常生效。`plotium_execute` 把全部写入作为一个**撤销**
 步骤提交；`value.writes` 报告每项写入的序号、key 和结果。
 
+## 用户手动设置的值
+
+用户在 Plotium 中修改图形值（在属性面板中设置、在控件上滚动调整或拖动图例）时，
+Plotium 会把它记为手动设置。`plotium_get_state` 在 `hand_edits` 中列出这些值，
+`properties.inspect` 为每个这样的读数标注 `"hand_set": true`。
+
+`properties.set`、`properties.set_many` 和 `properties.reset` 不会改动手动设置的值：
+该目标在预检和结果中都报告为跳过，`skip_reason` 为 `"hand_set"`，其余目标照常生效。
+图例的位置选项和拖动后的位置算作同一个值。只有用户要求修改时，才在 `parameters` 中
+传入 `"override_hand_edits": true`；修改后的新值仍算作用户的设置。
+
+不带该参数写入的值不会被记录，之后的主题或写入可能会替换它们。主题会保留手动设置的值，
+见下一节。
+
 ## 为画布套用主题或已保存的风格
 
 `figure.apply_theme` 用 Plotium 的内置主题（例如 `nature`）或在 Plotium 中保存的画布
@@ -1488,7 +1509,8 @@ const request = {
 颜色、符号填充与描边、符号大小和线宽作为一个**撤销**步骤一起修改。手动设置的曲线和符号颜色在
 重新套用主题时会保留；重置曲线颜色后，曲线重新使用主题颜色。文档的样式默认值也会被替换：图的文字字号、坐标轴线和
 刻度是整个文档共用的，所以其他画布上的图也会随之改变；新建文字、面板字母和形状的
-默认样式同样改用主题的设置。按期刊栏宽设计的主题（目前为 `nature`）不会改变画布尺寸；
+默认样式同样改用主题的设置。用户手动设置的值（包括图形排版）会保留，`diagnostics` 会附一条
+说明保留了几处。按期刊栏宽设计的主题（目前为 `nature`）不会改变画布尺寸；
 画布宽度不符合任一栏宽预设时，结果的 `diagnostics` 会为该画布附一条提示，列出预设宽度
 （89 / 136 / 183 mm）。
 

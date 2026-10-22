@@ -237,6 +237,7 @@ impl PlotiumApp {
         let mut transaction = PropertyTransaction::default();
         let mut skipped = Vec::new();
         let mut applied = Vec::new();
+        let mut released = Vec::new();
         for &property in properties {
             let definition = self.definition_for(property)?;
             if definition.access == PropertyAccess::ReadOnly {
@@ -249,11 +250,14 @@ impl PlotiumApp {
                 transaction.begin_target();
                 match provider.edit(self, &mut transaction, &address, &EditOp::Reset) {
                     Ok(()) if transaction.target_changed() => applied.push(address),
-                    Ok(()) => skipped.push(PropertySkip::new(
-                        target.clone(),
-                        SkipReason::AlreadyAtValue,
-                        format!("{} already has that value", definition.canonical_label),
-                    )),
+                    Ok(()) => {
+                        released.push(address);
+                        skipped.push(PropertySkip::new(
+                            target.clone(),
+                            SkipReason::AlreadyAtValue,
+                            format!("{} already has that value", definition.canonical_label),
+                        ));
+                    }
                     Err(error) if skipped_target(&error) => {
                         transaction.rollback_target();
                         skipped.push(PropertySkip::from_error(target.clone(), &error));
@@ -264,7 +268,10 @@ impl PlotiumApp {
         }
         transaction.ensure_single_storage()?;
         transaction.fan_out_shared_x(self, &mut applied)?;
-        Ok(transaction.into_commit(self, applied, skipped))
+        let mut commit = transaction.into_commit(self, applied, skipped);
+        commit.reset = true;
+        commit.released = released;
+        Ok(commit)
     }
 
     /// Reset a complete encoding through its existing default factory.
@@ -356,26 +363,47 @@ impl PlotiumApp {
         }
         transaction.ensure_single_storage()?;
         transaction.fan_out_shared_x(self, &mut applied)?;
-        Ok(transaction.into_commit(self, applied, skipped))
+        let mut commit = transaction.into_commit(self, applied, skipped);
+        commit.reset = true;
+        Ok(commit)
     }
 
-    /// Execute a validated commit and report the number of targets that were
-    /// actually changed.
+    /// Execute a validated commit the user made by hand and report the number
+    /// of targets that were actually changed. The figure properties it sets
+    /// are recorded as hand-set in the same undo step; a reset forgets them.
     pub fn commit_property(&mut self, commit: PropertyCommit) -> usize {
-        self.commit_property_with_persistence(commit, |app| app.persist_settings())
+        self.commit_property_with_persistence(commit, true, |app| app.persist_settings())
+    }
+
+    /// Execute a validated commit for automation. Unlike
+    /// [`Self::commit_property`], it records nothing as hand-set, so themes and
+    /// later automation may still replace what it wrote.
+    pub fn commit_automation_property(&mut self, commit: PropertyCommit) -> usize {
+        self.commit_property_with_persistence(commit, false, |app| app.persist_settings())
     }
 
     fn commit_property_with_persistence(
         &mut self,
-        commit: PropertyCommit,
+        mut commit: PropertyCommit,
+        by_hand: bool,
         persist: impl FnOnce(&mut PlotiumApp) -> bool,
     ) -> usize {
+        if by_hand {
+            self.record_hand_edits(&mut commit);
+        }
         let applied = commit.applied.len();
         // A same-value write changes nothing, so its composite is empty and
         // `try_execute_action` would drop it anyway. Stopping here is about the
         // *report*: the caller is told the target was skipped and why, instead
         // of being told an update succeeded that it cannot tell apart from one
         // that moved a value.
+        if applied == 0
+            && let Some(action) = commit.document_action.take()
+        {
+            // Only a reset that releases a value already at its default gets
+            // here: nothing moved, but the value is no longer the user's.
+            self.execute_action(action);
+        }
         if applied != 0 {
             if let Some(action) = commit.document_action {
                 self.execute_property_action(action);
@@ -412,7 +440,26 @@ impl PlotiumApp {
         commit: PropertyCommit,
         writer: impl FnOnce(&crate::settings::Settings) -> std::io::Result<()>,
     ) -> usize {
-        self.commit_property_with_persistence(commit, |app| app.persist_settings_with(writer))
+        self.commit_property_with_persistence(commit, true, |app| app.persist_settings_with(writer))
+    }
+
+    /// Fold the hand-edit record update into a commit made by hand. A reset
+    /// also releases targets that were already at their default. Inside a
+    /// gesture every frame carries the record, so the gesture's last frame
+    /// replays the whole record on redo.
+    fn record_hand_edits(&self, commit: &mut PropertyCommit) {
+        if commit.document_action.is_none() && commit.released.is_empty() {
+            return;
+        }
+        let mut addresses = commit.applied.clone();
+        addresses.extend(commit.released.iter().cloned());
+        let gesture = self.session.ui.property_gesture.is_some();
+        let record = self.hand_edit_action(&addresses, !commit.reset, gesture);
+        commit.document_action = match (commit.document_action.take(), record) {
+            (Some(action), Some(record)) => Some(Action::Composite(vec![action, record])),
+            (action, None) => action,
+            (None, record) => record,
+        };
     }
 
     /// Open a continuous gesture on one catalog control.
@@ -529,16 +576,22 @@ impl PlotiumApp {
         let mut transaction = PropertyTransaction::default();
         let mut skipped = Vec::new();
         let mut applied = Vec::new();
+        let mut released = Vec::new();
         for target in targets {
             let address = PropertyAddress::new(target.clone(), property);
             transaction.begin_target();
             match provider.edit(self, &mut transaction, &address, operation) {
                 Ok(()) if transaction.target_changed() => applied.push(address),
-                Ok(()) => skipped.push(PropertySkip::new(
-                    target.clone(),
-                    SkipReason::AlreadyAtValue,
-                    format!("{} already has that value", definition.canonical_label),
-                )),
+                Ok(()) => {
+                    if matches!(operation, EditOp::Reset) {
+                        released.push(address);
+                    }
+                    skipped.push(PropertySkip::new(
+                        target.clone(),
+                        SkipReason::AlreadyAtValue,
+                        format!("{} already has that value", definition.canonical_label),
+                    ));
+                }
                 Err(error) if skipped_target(&error) => {
                     transaction.rollback_target();
                     skipped.push(PropertySkip::from_error(target.clone(), &error));
@@ -551,7 +604,10 @@ impl PlotiumApp {
         }
         transaction.ensure_single_storage()?;
         transaction.fan_out_shared_x(self, &mut applied)?;
-        Ok(transaction.into_commit(self, applied, skipped))
+        let mut commit = transaction.into_commit(self, applied, skipped);
+        commit.reset = matches!(operation, EditOp::Reset);
+        commit.released = released;
+        Ok(commit)
     }
 
     fn definition_for(

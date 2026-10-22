@@ -19,6 +19,7 @@ pub mod contour;
 pub mod export_dpi;
 pub mod group_delay;
 pub mod guide;
+mod hand_edits;
 pub mod heatmap;
 pub mod ilt;
 pub mod line;
@@ -41,6 +42,7 @@ mod transaction;
 pub mod typography;
 pub mod zero_fill;
 
+pub use hand_edits::{HandEdit, HandEdits, hand_set_message};
 pub use model::*;
 pub use readout::{ContourAnchor, ContourBaseReadout, PropertyReadout, ZeroFillTargetReadout};
 

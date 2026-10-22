@@ -280,6 +280,8 @@ pub enum SkipReason {
     NotApplicable,
     /// The address no longer names anything in the document.
     TargetMissing,
+    /// The user set this property by hand and the caller did not override it.
+    HandSet,
 }
 
 impl SkipReason {
@@ -288,6 +290,7 @@ impl SkipReason {
             Self::AlreadyAtValue => "already_at_value",
             Self::NotApplicable => "not_applicable",
             Self::TargetMissing => "target_missing",
+            Self::HandSet => "hand_set",
         }
     }
 
@@ -342,6 +345,11 @@ pub struct PropertyCommit {
     pub(crate) app_preferences: Option<crate::settings::Settings>,
     pub applied: Vec<PropertyAddress>,
     pub skipped: Vec<PropertySkip>,
+    /// The commit resets its properties rather than setting them.
+    pub(crate) reset: bool,
+    /// Reset targets already at their default; a reset by hand still releases
+    /// them from the hand-edit record.
+    pub(crate) released: Vec<PropertyAddress>,
 }
 
 impl PropertyCommit {

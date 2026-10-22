@@ -87,8 +87,11 @@ pub(super) fn validate_parameters(
         "data.transform" if is_table_transform(&value) => parse_table_transform(value).map(drop),
         "data.transform" => parse::<TransformParams>(tool, value).map(drop),
         "figure.export" => parse::<ExportParams>(tool, value).map(drop),
-        "properties.inspect" | "properties.reset" => {
+        "properties.inspect" => {
             parse::<super::properties::PropertyKeyParams>(tool, value).map(drop)
+        }
+        "properties.reset" => {
+            parse::<super::properties::PropertyResetParams>(tool, value).map(drop)
         }
         "properties.set" => parse::<super::properties::PropertyWriteParams>(tool, value).map(drop),
         super::property_batch::TOOL_SET_MANY => super::property_batch::decode(&value).map(drop),
@@ -229,7 +232,16 @@ impl V1Schema for TransformParams {
     }
 }
 schema!(ExportParams, ["directory" => "string", "format" => "string"], ["dpi" => "integer", "overwrite" => "boolean"]);
+/// The opt-in automation passes to change properties the user set by hand.
+pub(super) const OVERRIDE_HAND_EDITS: &str = "Also change targets whose value the user set by hand (skipped as hand_set otherwise). Pass true only when the user asked for this change.";
 schema!(super::properties::PropertyKeyParams, ["key" => "string"], []);
+impl V1Schema for super::properties::PropertyResetParams {
+    fn schema() -> serde_json::Value {
+        let mut schema = object_schema(&[("key", "string")], &[("override_hand_edits", "boolean")]);
+        schema["properties"]["override_hand_edits"]["description"] = OVERRIDE_HAND_EDITS.into();
+        schema
+    }
+}
 // `value` has no single JSON type: which one is admissible is declared by the
 // addressed property's own `ValueSchema` and is therefore decided per call, not
 // per tool. Announcing one type here would be wrong for every other property.
@@ -240,6 +252,7 @@ impl V1Schema for super::properties::PropertyWriteParams {
             "properties": {
                 "key": {"type": "string"},
                 "value": {"description": "typed per the addressed property's value schema"},
+                "override_hand_edits": {"type": "boolean", "description": OVERRIDE_HAND_EDITS},
             },
             "required": ["key", "value"],
             "additionalProperties": false,
@@ -556,7 +569,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
             "properties.reset",
             "Reset a property",
             "Re-derive one catalog property from its default policy in each target's context",
-            super::properties::PropertyKeyParams,
+            super::properties::PropertyResetParams,
             [
                 KIND_APP,
                 KIND_DOCUMENT,
