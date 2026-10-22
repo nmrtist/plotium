@@ -109,3 +109,25 @@ fn canvas_without_plots_captures_the_publication_palette() {
     assert!(captured.marker_palette.is_empty());
     assert!(app.theme_from_canvas(5, "Missing").is_none());
 }
+
+#[test]
+fn nature_theme_hints_at_column_widths_without_resizing() {
+    let mut app = sample_app();
+    app.doc.canvases[0].size_mm = [100.04, 80.0];
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    assert_eq!(
+        app.session.status,
+        "Applied the Nature theme. The Nature theme is sized for the 89 / 136 / 183 mm \
+         column presets; this canvas is 100 mm wide."
+    );
+    assert_eq!(app.doc.canvases[0].size_mm, [100.04, 80.0]);
+
+    // Journal presets match on width alone.
+    app.doc.canvases[0].size_mm = [136.0, 200.0];
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    assert_eq!(app.session.status, "Applied the Nature theme.");
+
+    app.doc.canvases[0].size_mm = [120.0, 80.0];
+    app.apply_theme(&Theme::by_id("publication").unwrap());
+    assert_eq!(app.session.status, "Applied the Publication theme.");
+}

@@ -93,7 +93,7 @@ fn theme_constraint() -> Value {
         "targets":"top-level ids including at least one CanvasId; other resources are skipped",
         "builtin_themes":plotium_core::theme::Theme::all().iter().map(|theme|json!({"id":theme.id,"name":theme.name})).collect::<Vec<_>>(),
         "saved_styles":"Not listed here. An unknown theme_id fails preflight with error.details.themes listing every built-in theme and saved style currently available. A saved style is read again when the plan executes.",
-        "result_contract":"One Undo step restyles each canvas: page background, text and shape colours, and every curve's colour, marker paint, marker size and line width the theme defines. The document's style defaults are replaced too: plot text sizes, axis strokes and ticks (so plots on every canvas change) and the default text, panel-label and shape styles for new objects."})
+        "result_contract":"One Undo step restyles each canvas: page background, text and shape colours, and every curve's colour, marker paint, marker size and line width the theme defines. The document's style defaults are replaced too: plot text sizes, axis strokes and ticks (so plots on every canvas change) and the default text, panel-label and shape styles for new objects. Canvases are never resized; ToolResult.diagnostics notes each canvas whose width matches none of a journal theme's column presets (nature: 89 / 136 / 183 mm)."})
 }
 
 pub(crate) fn check_property(parameters: &Value) -> Result<(), crate::session::Failure> {

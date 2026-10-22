@@ -153,11 +153,25 @@ pub(super) fn execute_theme(
             message: error.to_string(),
         }
     })?;
-    let actions = compatible_targets(plan)
+    let canvases: Vec<_> = compatible_targets(plan)
         .filter_map(|target| canvas_index(app, &target.id))
+        .collect();
+    // Hints describe the canvases as found; applying a theme never resizes.
+    let hints: Vec<_> = canvases
+        .iter()
+        .filter_map(|&canvas| {
+            let canvas = &app.doc.canvases[canvas];
+            let hint = theme.column_width_hint(canvas.size_mm)?;
+            Some(format!("Canvas \"{}\": {hint}", canvas.name))
+        })
+        .collect();
+    let actions = canvases
+        .into_iter()
         .filter_map(|canvas| app.theme_action(canvas, &theme))
         .collect();
-    commit_actions(app, plan, actions, "theme applied")
+    let mut result = commit_actions(app, plan, actions, "theme applied")?;
+    result.diagnostics = hints;
+    Ok(result)
 }
 
 pub(super) fn execute_scheme(

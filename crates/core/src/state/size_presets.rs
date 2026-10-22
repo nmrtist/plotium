@@ -137,6 +137,12 @@ pub const NATURE_DOUBLE_COLUMN: SizePreset = SizePreset {
     max_height_mm: Some(247.0),
     min_font_pt: Some(5.0),
 };
+/// The Nature column widths, which the built-in Nature theme is sized for.
+pub const NATURE_COLUMNS: [SizePreset; 3] = [
+    NATURE_SINGLE_COLUMN,
+    NATURE_ONE_HALF_COLUMN,
+    NATURE_DOUBLE_COLUMN,
+];
 pub const SCIENCE_SINGLE_COLUMN: SizePreset = SizePreset {
     id: "science-1col",
     group: SizePresetGroup::Journal,
