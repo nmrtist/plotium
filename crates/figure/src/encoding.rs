@@ -165,6 +165,13 @@ pub struct LineEncoding {
     /// [`DEFAULT_BAR_EDGE_WIDTH_PT`] (see [`LineEncoding::bar_edge_width`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_edge_width: Option<FiniteF64>,
+    /// Horizontal spread of replicate points that share an x slot, as a
+    /// fraction of the mark they overlay; `None` stacks them on one line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spread: Option<UnitInterval>,
+    /// Write each bar's or point's value next to it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub value_labels: bool,
 }
 
 /// Default bar width as a fraction of the bar's slot.
@@ -206,6 +213,8 @@ impl Default for LineEncoding {
             bar_width: None,
             bar_edge_color: None,
             bar_edge_width: None,
+            spread: None,
+            value_labels: false,
         }
     }
 }

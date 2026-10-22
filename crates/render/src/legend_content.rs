@@ -42,7 +42,10 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
         }
         let mark = if !matches!(
             series.kind,
-            plotium_figure::SeriesKind::Stick | plotium_figure::SeriesKind::Bar
+            plotium_figure::SeriesKind::Stick
+                | plotium_figure::SeriesKind::Bar
+                | plotium_figure::SeriesKind::Box
+                | plotium_figure::SeriesKind::Violin
         ) && series.appearance != plotium_figure::CurveAppearance::default()
         {
             LegendMark::Curve {
@@ -55,7 +58,9 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
                 plotium_figure::SeriesKind::Line => LegendMark::Line,
                 plotium_figure::SeriesKind::Points => LegendMark::Points,
                 plotium_figure::SeriesKind::Stick => LegendMark::Line,
-                plotium_figure::SeriesKind::Bar => LegendMark::Rect { edge: None },
+                plotium_figure::SeriesKind::Bar
+                | plotium_figure::SeriesKind::Box
+                | plotium_figure::SeriesKind::Violin => LegendMark::Rect { edge: None },
             }
         };
         if let Some((_, _, existing)) = entries.iter_mut().find(|(name, color, existing)| {

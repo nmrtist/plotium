@@ -1,4 +1,5 @@
 //! Strict, row-aligned extraction shared by binding validation and native rendering.
+use super::curve_layout::{LabelStyle, MarkKind, Occupant, Overlay, Role};
 use super::*;
 use plotium_data::{LogicalType, RowId, ScalarValue};
 use plotium_figure::{ErrorBar, Figure, Series, SeriesEncoding, SeriesKind};
@@ -73,7 +74,7 @@ pub fn extract_table_curve(
         let numeric = matches!(c.logical_type, LogicalType::Int64 | LogicalType::Float64);
         if !numeric && !(text_x && *id == columns.x_column_id) {
             return Err(format!(
-                "Curve column {id} must be Int64 or Float64 (a bar x may also be Utf8 text)."
+                "Curve column {id} must be Int64 or Float64 (an x may also be Utf8 text)."
             ));
         }
     }
@@ -229,18 +230,30 @@ impl PlotiumApp {
                 return Err("Column bindings require a line/point encoding.".into());
             };
             if matches!(line.kind, SeriesKind::Stick) {
-                return Err("Explicit column curves support line, points and bars only.".into());
+                return Err(
+                    "Explicit column curves support line, points, bars, boxes and violins.".into(),
+                );
             }
             if !line.scale.is_finite() {
                 return Err("Curve scale must be finite.".into());
             }
-            let bar = line.kind == SeriesKind::Bar;
             let aux_line_pt = self.doc.style_library.figure_typography.aux_line_pt;
             let right = line.appearance.y_axis.is_right();
             if right && !super::right_axis_supports(line.kind) {
                 return Err(super::right_axis::RIGHT_AXIS_KINDS.into());
             }
-            let bar_style = bar.then(|| super::curve_bars::BarStyle::of(line, aux_line_pt));
+            if right && coordinates.transposed {
+                return Err(super::right_axis::HORIZONTAL_ONE_VALUE_AXIS.into());
+            }
+            let role = match line.kind {
+                SeriesKind::Bar => Role::Occupant(MarkKind::Bar),
+                SeriesKind::Box => Role::Occupant(MarkKind::Box),
+                SeriesKind::Violin => Role::Occupant(MarkKind::Violin),
+                _ => Role::Overlay(line.spread.map_or(0.0, |s| s.get())),
+            };
+            let style = super::curve_bars::BarStyle::of(line, aux_line_pt);
+            let occupant = matches!(role, Role::Occupant(_));
+            let distribution = matches!(role, Role::Occupant(MarkKind::Box | MarkKind::Violin));
             let (table, selections) = self.table_curve_sources(sb.source)?;
             for (index, columns) in selections.iter().copied().enumerate() {
                 let target = if right {
@@ -250,8 +263,11 @@ impl PlotiumApp {
                 };
                 let mut extracted = extract_table_curve(table, columns, target)?;
                 let text_x = extracted.categories.is_some();
-                if text_x && !bar {
-                    return Err("A text x column needs bar series; every series of a category plot must be a bar.".into());
+                if distribution && columns.y_error_column_id.is_some() {
+                    return Err(
+                        "Box and violin series summarise raw samples; give them no y error column."
+                            .into(),
+                    );
                 }
                 if *categorical.get_or_insert(text_x) != text_x {
                     return Err(
@@ -289,7 +305,7 @@ impl PlotiumApp {
                 });
                 for points in extracted.runs {
                     let mut curve = Series::line(name.clone(), points);
-                    curve.kind = if bar || sb.source.columns().is_some() {
+                    curve.kind = if occupant || sb.source.columns().is_some() {
                         line.kind
                     } else {
                         SeriesKind::Points
@@ -339,14 +355,15 @@ impl PlotiumApp {
                         first_span = Some((hi - lo).max(f64::MIN_POSITIVE));
                     }
                 }
-                prepared.push((series_index, part, bar_style));
+                prepared.push((series_index, part, role, line.value_labels, style));
             }
         }
-        let mut bars = Vec::new();
-        for (index, mut part, bar_style) in prepared {
+        let (mut occupants, mut overlays) = (Vec::new(), Vec::new());
+        let labels = prepared.iter().any(|p| p.3);
+        for (index, mut part, role, value_labels, style) in prepared {
             let offset = matches!(stack.mode, StackMode::Offset);
             // Bars stay on their slots; shear would skew the slot width.
-            let xoff = if offset && bar_style.is_none() {
+            let xoff = if offset && matches!(role, Role::Overlay(_)) {
                 index as f64 * stack.shear_x * first_span.unwrap_or(1.0)
             } else {
                 0.0
@@ -387,22 +404,33 @@ impl PlotiumApp {
                 ymin = ymin.min(e.center[1] - e.negative);
                 ymax = ymax.max(e.center[1] + e.positive);
             }
-            if let Some(style) = bar_style {
-                bars.push(super::curve_bars::PreparedBars {
+            match role {
+                Role::Occupant(kind) => occupants.push(Occupant {
+                    kind,
                     series: part.series,
                     errors: part.error_bars,
                     style,
                     baseline: yoff,
-                });
-            } else {
-                figure.series.extend(part.series);
-                figure.error_bars.extend(part.error_bars);
+                    labels: value_labels,
+                }),
+                Role::Overlay(spread) => overlays.push(Overlay {
+                    series: part.series,
+                    errors: part.error_bars,
+                    spread,
+                    labels: value_labels,
+                    baseline: yoff,
+                }),
             }
         }
         let categorical = categorical == Some(true);
-        let has_bars = !bars.is_empty();
+        let has_bars = occupants.iter().any(|o| o.kind == MarkKind::Bar);
+        let typography = self.doc.style_library.figure_typography;
+        let label_style = LabelStyle {
+            size: typography.tick_pt,
+            color: typography.legend_color,
+        };
         if let Some([x0, x1, y0, y1]) =
-            super::curve_bars::lower_bars(&mut figure, bars, categorical)?
+            super::curve_layout::lower(&mut figure, occupants, overlays, categorical, label_style)?
         {
             xmin = xmin.min(x0);
             xmax = xmax.max(x1);
@@ -419,13 +447,27 @@ impl PlotiumApp {
         }
         if ymin.is_finite() {
             let pad = ((ymax - ymin) * 0.05).max(1e-12);
+            // Value labels need room past the marks' ends, on their side.
+            let labelled = |anchor| figure.annotations.iter().any(|a| a.anchor == anchor);
+            // On its side a label's length, not its height, runs along values.
+            let label_room = if coordinates.transposed { 4.0 } else { 2.4 };
+            let room = |side| {
+                if labels && labelled(side) {
+                    label_room * pad
+                } else {
+                    pad
+                }
+            };
             // Bars rest on a zero baseline, which stays the axis floor.
             figure.y.min = if has_bars && ymin == 0.0 {
                 0.0
             } else {
-                ymin - pad
+                ymin - room(plotium_figure::TextAnchor::Below)
             };
-            figure.y.max = ymax + pad;
+            figure.y.max = ymax + room(plotium_figure::TextAnchor::Above);
+        }
+        if coordinates.transposed {
+            super::curve_layout::transpose(&mut figure);
         }
         if ![figure.x.min, figure.x.max, figure.y.min, figure.y.max]
             .into_iter()

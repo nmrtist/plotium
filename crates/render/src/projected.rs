@@ -89,14 +89,28 @@ pub(crate) fn error_bar_segments(
     {
         return None;
     }
-    let x = error_bar.center[0];
-    let low_y = error_bar.center[1] - error_bar.negative;
-    let high_y = error_bar.center[1] + error_bar.positive;
-    if !low_y.is_finite() || !high_y.is_finite() {
+    // A horizontal whisker runs along x; `along` is its measured axis and
+    // `across` the one its caps span.
+    let horizontal = error_bar.horizontal;
+    let (along, across) = if horizontal {
+        (error_bar.center[0], error_bar.center[1])
+    } else {
+        (error_bar.center[1], error_bar.center[0])
+    };
+    let at = |along: f64, across: f64| {
+        if horizontal {
+            [along, across]
+        } else {
+            [across, along]
+        }
+    };
+    let low_value = along - error_bar.negative;
+    let high_value = along + error_bar.positive;
+    if !low_value.is_finite() || !high_value.is_finite() {
         return None;
     }
-    let low_raw = proj.project([x, low_y]);
-    let high_raw = proj.project([x, high_y]);
+    let low_raw = proj.project(at(low_value, across));
+    let high_raw = proj.project(at(high_value, across));
     if !is_finite_point(high_raw) {
         return None;
     }
@@ -107,13 +121,19 @@ pub(crate) fn error_bar_segments(
         .cap_data_width
         .filter(|w| w.is_finite() && *w > 0.0)
         .map(|w| {
-            let left = proj.project([x - 0.5 * w, high_y]).0;
-            let right = proj.project([x + 0.5 * w, high_y]).0;
-            0.5 * (right - left).abs()
+            let a = proj.project(at(high_value, across - 0.5 * w));
+            let b = proj.project(at(high_value, across + 0.5 * w));
+            0.5 * if horizontal { b.1 - a.1 } else { b.0 - a.0 }.abs()
         })
         .filter(|half| half.is_finite())
         .unwrap_or(error_bar.cap_width * output_scale * 0.5);
-    let cap = |(x, y): (f32, f32)| [(x - half_cap, y), (x + half_cap, y)];
+    let cap = |(x, y): (f32, f32)| {
+        if horizontal {
+            [(x, y - half_cap), (x, y + half_cap)]
+        } else {
+            [(x - half_cap, y), (x + half_cap, y)]
+        }
+    };
     let mut segments = ErrorBarSegments {
         segments: [[low, high_raw], cap(high_raw), cap(low)],
         len: 2,
@@ -193,6 +213,7 @@ mod tests {
             draw_over_data: false,
             cap_data_width: None,
             y_axis: plotium_figure::YAxisSide::Left,
+            horizontal: false,
         };
         let segments = error_bar_segments(&proj, &bar(10.0, 20.0), 1.0).expect("visible top");
         assert_eq!(segments.as_slice().len(), 2, "stem and upper cap only");
@@ -200,6 +221,25 @@ mod tests {
         let segments = error_bar_segments(&proj, &bar(10.0, 5.0), 1.0).expect("inside");
         assert_eq!(segments.as_slice().len(), 3);
         assert!(error_bar_segments(&proj, &bar(-10.0, 1.0), 1.0).is_none());
+    }
+
+    #[test]
+    fn a_horizontal_whisker_runs_along_x_with_upright_caps() {
+        let fig = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+        let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 200.0, 100.0), &Margins::default());
+        let mut bar = ErrorBar::symmetric([5.0, 5.0], 1.0).with_cap_data_width(0.5);
+        bar.horizontal = true;
+        let segments = error_bar_segments(&proj, &bar, 1.0).expect("visible");
+        let [stem, cap, _] = [
+            segments.as_slice()[0],
+            segments.as_slice()[1],
+            segments.as_slice()[2],
+        ];
+        assert!((stem[0].1 - stem[1].1).abs() < 1e-3, "stem is horizontal");
+        assert!((proj.project([6.0, 5.0]).0 - stem[1].0).abs() < 1e-3);
+        assert!((cap[0].0 - cap[1].0).abs() < 1e-3, "cap is upright");
+        let unit = (proj.project([5.0, 0.0]).1 - proj.project([5.0, 1.0]).1).abs();
+        assert!(((cap[1].1 - cap[0].1).abs() - 0.5 * unit).abs() < 1e-3);
     }
 
     #[test]

@@ -109,6 +109,7 @@ fn stems_and_error_bars_occupy_space() {
         draw_over_data: false,
         cap_data_width: None,
         y_axis: plotium_figure::YAxisSide::Left,
+        horizontal: false,
     });
     let r = legend_rect(&f, PLOT, 1.0).unwrap();
     assert!(
@@ -172,6 +173,7 @@ fn gaps_and_non_finite_samples_do_not_bridge_or_block() {
         draw_over_data: false,
         cap_data_width: None,
         y_axis: plotium_figure::YAxisSide::Left,
+        horizontal: false,
     });
     let r = legend_rect(&f, PLOT, 1.0).unwrap();
     assert_eq!(r.right(), PLOT.right() - 8.0);

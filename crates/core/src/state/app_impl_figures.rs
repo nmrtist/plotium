@@ -729,6 +729,7 @@ fn unsupported_series_figure(series: &SeriesBinding) -> Figure {
         at: [0.5, 0.5],
         color: plotium_figure::Color::rgb(0xd1, 0x24, 0x2a),
         size: 12.0,
+        anchor: plotium_figure::TextAnchor::Point,
     });
     figure
 }

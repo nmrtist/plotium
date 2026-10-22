@@ -28,6 +28,8 @@ impl FieldDescriptor {
             Some("points") => plotium_figure::SeriesKind::Points,
             Some("stick") => plotium_figure::SeriesKind::Stick,
             Some("bar") => plotium_figure::SeriesKind::Bar,
+            Some("box") => plotium_figure::SeriesKind::Box,
+            Some("violin") => plotium_figure::SeriesKind::Violin,
             _ => plotium_figure::SeriesKind::Line,
         }
     }
@@ -40,6 +42,8 @@ impl FieldDescriptor {
                 plotium_figure::SeriesKind::Points => "points",
                 plotium_figure::SeriesKind::Stick => "stick",
                 plotium_figure::SeriesKind::Bar => "bar",
+                plotium_figure::SeriesKind::Box => "box",
+                plotium_figure::SeriesKind::Violin => "violin",
             }
             .into(),
         );

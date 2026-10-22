@@ -83,6 +83,7 @@ pub(crate) fn pie_figure(dataset: &TableDataset, ctx: &ChartContext) -> Figure {
                 at: [ax, ay],
                 color: WHITE,
                 size: 8.0,
+                anchor: plotium_figure::TextAnchor::Point,
             });
         }
         start += sweep;

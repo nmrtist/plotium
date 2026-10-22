@@ -238,6 +238,40 @@ pub struct AxisOverrides {
 }
 
 impl AxisOverrides {
+    /// Rebind every per-axis override to the other axis, for a plot turned on
+    /// its side: titles, ranges, units and scales follow the data they
+    /// describe, and annotations keep pointing at the same data.
+    pub fn swap_axes(&mut self) {
+        std::mem::swap(&mut self.x_display_unit, &mut self.y_display_unit);
+        std::mem::swap(&mut self.x_label, &mut self.y_label);
+        std::mem::swap(&mut self.x_range, &mut self.y_range);
+        std::mem::swap(&mut self.x_scale, &mut self.y_scale);
+        std::mem::swap(&mut self.x_show_tick_labels, &mut self.y_show_tick_labels);
+        std::mem::swap(&mut self.x_show_label, &mut self.y_show_label);
+        std::mem::swap(
+            &mut self.x_thousands_separator,
+            &mut self.y_thousands_separator,
+        );
+        let annotations = &mut self.annotations;
+        for item in &mut annotations.items {
+            item.at.swap(0, 1);
+        }
+        for arrow in &mut annotations.arrows {
+            arrow.at.swap(0, 1);
+            arrow.to.swap(0, 1);
+        }
+        for line in &mut annotations.reference_lines {
+            line.orientation = match line.orientation {
+                plotium_figure::ReferenceOrientation::Vertical => {
+                    plotium_figure::ReferenceOrientation::Horizontal
+                }
+                plotium_figure::ReferenceOrientation::Horizontal => {
+                    plotium_figure::ReferenceOrientation::Vertical
+                }
+            };
+        }
+    }
+
     pub fn apply_to(&self, figure: &mut Figure) {
         self.typography.apply_to(&mut figure.typography);
         if let Some(label) = &self.x_label {
@@ -366,9 +400,24 @@ pub fn visible_y_range_on(fig: &Figure, x: AxisRange, side: YAxisSide) -> Option
     // Presentation edits and X navigation recompute automatic Y limits. Include
     // visible uncertainty endpoints, not just centers, or rebuilt error bars clip.
     for error in fig.error_bars.iter().filter(|e| e.y_axis == side) {
-        if x.contains(error.center[0]) {
-            let lower = error.center[1] - error.negative;
-            let upper = error.center[1] + error.positive;
+        // A horizontal whisker spans x; only its centre has a y extent.
+        let (left, right) = if error.horizontal {
+            (
+                error.center[0] - error.negative,
+                error.center[0] + error.positive,
+            )
+        } else {
+            (error.center[0], error.center[0])
+        };
+        if right >= x.min && left <= x.max {
+            let (lower, upper) = if error.horizontal {
+                (error.center[1], error.center[1])
+            } else {
+                (
+                    error.center[1] - error.negative,
+                    error.center[1] + error.positive,
+                )
+            };
             if lower.is_finite() && upper.is_finite() {
                 lo = lo.min(lower);
                 hi = hi.max(upper);

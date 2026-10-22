@@ -90,3 +90,18 @@ fn grouped_axis_falls_back_to_the_multiplier_beyond_exact_f64_integers() {
     assert_eq!(huge.scale_exponent, Some(24));
     assert!(huge.labels.iter().all(|label| label.len() < 8));
 }
+
+#[test]
+fn a_category_y_axis_names_every_slot_that_fits() {
+    let names: Vec<String> = ["50", "100", "200", "300", "400", "500"]
+        .map(String::from)
+        .to_vec();
+    let mut fig = Figure::new(
+        "",
+        Axis::new("x", 0.0, 12.0),
+        Axis::categorical("", names.clone()),
+    );
+    fig.y.reversed = true;
+    let layout = axis_layout(&fig, 252.0, 170.0);
+    assert_eq!(layout.y_ticks.labels, names);
+}

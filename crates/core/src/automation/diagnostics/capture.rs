@@ -189,7 +189,12 @@ impl FigureDiagnosticScan {
                                 // Bars are lowered to filled rectangles, not curve runs.
                                 let bar = match &s.encoding {
                                     plotium_figure::SeriesEncoding::Line(line) => {
-                                        line.kind == plotium_figure::SeriesKind::Bar
+                                        matches!(
+                                            line.kind,
+                                            plotium_figure::SeriesKind::Bar
+                                                | plotium_figure::SeriesKind::Box
+                                                | plotium_figure::SeriesKind::Violin
+                                        )
                                     }
                                     _ => false,
                                 };

@@ -257,7 +257,11 @@ impl CanvasDocument {
                 let figure = plot.figure();
                 (figure.x.categories.is_none() && figure.axis_frame != AxisFrame::Hidden).then(
                     || {
-                        let unit = plot.binding.coordinates.as_ref().and_then(|c| c.x.clone());
+                        let unit = plot
+                            .binding
+                            .coordinates
+                            .as_ref()
+                            .and_then(|c| c.horizontal().cloned());
                         (id, unit, plot.viewport.full_x, plot.axis_overrides.x_scale)
                     },
                 )

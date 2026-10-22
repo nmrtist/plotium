@@ -11,14 +11,14 @@ pub(super) fn apply_display(
     let axes_to_project = [
         (
             Some(&mut figure.x),
-            coordinates.and_then(|c| c.x.as_ref()),
+            coordinates.and_then(CurveCoordinates::horizontal),
             overrides.x_display_unit.as_deref(),
             &axes.x_label,
             overrides.x_label.as_ref(),
         ),
         (
             Some(&mut figure.y),
-            coordinates.and_then(|c| c.y.as_ref()),
+            coordinates.and_then(CurveCoordinates::vertical),
             overrides.y_display_unit.as_deref(),
             &axes.y_label,
             overrides.y_label.as_ref(),
@@ -69,13 +69,13 @@ pub(crate) fn validate_display(
 ) -> Result<(), String> {
     for (source, target, axis, range) in [
         (
-            coordinates.and_then(|c| c.x.as_ref()),
+            coordinates.and_then(CurveCoordinates::horizontal),
             overrides.x_display_unit.as_deref(),
             Some(&figure.x),
             overrides.x_range,
         ),
         (
-            coordinates.and_then(|c| c.y.as_ref()),
+            coordinates.and_then(CurveCoordinates::vertical),
             overrides.y_display_unit.as_deref(),
             Some(&figure.y),
             overrides.y_range,

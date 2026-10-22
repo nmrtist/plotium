@@ -8,7 +8,9 @@ mod display;
 pub use axis_scale::AxisScale;
 mod encoding;
 mod error_bar;
+mod text_anchor;
 pub use error_bar::ErrorBar;
+pub use text_anchor::TextAnchor;
 mod reference_line;
 mod typeface;
 pub use display::*;
@@ -350,6 +352,10 @@ pub enum SeriesKind {
     /// lower bars into [`Polygon`] rectangles and [`ErrorBar`] whiskers, so a
     /// rendered figure never carries a `Bar` series.
     Bar,
+    /// Box-and-whisker summaries of raw samples per x slot; lowered like `Bar`.
+    Box,
+    /// Kernel-density violins of raw samples per x slot; lowered like `Bar`.
+    Violin,
 }
 
 impl Series {
@@ -401,6 +407,8 @@ pub struct Annotation {
     pub at: [f64; 2],
     pub color: Color,
     pub size: f32,
+    #[serde(default, skip_serializing_if = "TextAnchor::is_point")]
+    pub anchor: TextAnchor,
 }
 
 /// Arrowhead placement and fill for an [`ArrowAnnotation`].

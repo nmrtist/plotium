@@ -45,6 +45,9 @@ pub struct PlotObject {
     stack_x_reversed: Option<bool>,
     /// The x direction of the latest built figure, restored on leaving a stack.
     natural_x_reversed: bool,
+    /// Whether the latest built figure was turned on its side; a change swaps
+    /// the axes, so the old view no longer applies. Runtime only.
+    built_transposed: bool,
 }
 
 impl PlotObject {
@@ -76,8 +79,14 @@ impl PlotObject {
             viewport,
             stack_x_reversed: None,
             natural_x_reversed,
+            built_transposed: false,
         };
         plot.viewport.auto_y2 = !plot.has_manual_y2_range();
+        plot.built_transposed = plot
+            .binding
+            .coordinates
+            .as_ref()
+            .is_some_and(|c| c.transposed);
         plot.make_legend_room();
         plot
     }
@@ -112,7 +121,13 @@ impl PlotObject {
             viewport,
             stack_x_reversed: None,
             natural_x_reversed,
+            built_transposed: false,
         };
+        plot.built_transposed = plot
+            .binding
+            .coordinates
+            .as_ref()
+            .is_some_and(|c| c.transposed);
         super::axis_display::apply_display(
             &mut plot.figure,
             plot.binding.coordinates.as_ref(),
@@ -162,7 +177,7 @@ impl PlotObject {
             } else {
                 &self.derived_axes.y_label
             },
-            coordinates.and_then(|c| if x { c.x.as_ref() } else { c.y.as_ref() }),
+            coordinates.and_then(|c| if x { c.horizontal() } else { c.vertical() }),
             if x {
                 self.axis_overrides.x_display_unit.as_deref()
             } else {
@@ -226,6 +241,11 @@ impl PlotObject {
     ) {
         self.derived_axes = DerivedAxes::from_figure(&figure);
         self.natural_x_reversed = figure.x.reversed;
+        self.built_transposed = self
+            .binding
+            .coordinates
+            .as_ref()
+            .is_some_and(|c| c.transposed);
         super::axis_display::apply_display(
             &mut figure,
             self.binding.coordinates.as_ref(),
@@ -258,6 +278,15 @@ impl PlotObject {
     /// Rebuild → overrides → viewport sync/apply. Effective range overrides
     /// replace the full data bounds; zoom and pan remain constrained within them.
     pub(crate) fn preserve_viewport_on_rebuild(&mut self, figure: Figure) {
+        let transposed = self
+            .binding
+            .coordinates
+            .as_ref()
+            .is_some_and(|c| c.transposed);
+        if transposed != self.built_transposed {
+            self.built_transposed = transposed;
+            return self.reset_viewport_on_rebuild(figure);
+        }
         self.commit_rebuilt_figure(figure, |plot, figure| {
             plot.axis_overrides.apply_to(figure);
             if plot.has_manual_y_range(figure) {

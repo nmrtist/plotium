@@ -13,6 +13,8 @@ pub enum CurveKind {
     Line,
     Scatter,
     Bar,
+    Box,
+    Violin,
 }
 impl CurveKind {
     pub(crate) fn native(self) -> SeriesKind {
@@ -20,6 +22,8 @@ impl CurveKind {
             Self::Line => SeriesKind::Line,
             Self::Scatter => SeriesKind::Points,
             Self::Bar => SeriesKind::Bar,
+            Self::Box => SeriesKind::Box,
+            Self::Violin => SeriesKind::Violin,
         }
     }
 }

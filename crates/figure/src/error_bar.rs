@@ -26,6 +26,11 @@ pub struct ErrorBar {
     /// The vertical axis of the curve this whisker belongs to.
     #[serde(default, skip_serializing_if = "crate::is_left")]
     pub y_axis: crate::YAxisSide,
+    /// Spread along x instead of y (horizontal bars): `center[0]` is then the
+    /// observation, `negative`/`positive` x distances and `cap_data_width` a
+    /// y-axis length.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub horizontal: bool,
 }
 
 impl ErrorBar {
@@ -40,6 +45,7 @@ impl ErrorBar {
             draw_over_data: false,
             cap_data_width: None,
             y_axis: crate::YAxisSide::Left,
+            horizontal: false,
         }
     }
 

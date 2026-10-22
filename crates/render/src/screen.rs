@@ -405,10 +405,17 @@ fn paint_with_detail_and_stats_impl(
         if !crate::is_finite_point((px, py)) {
             continue;
         }
+        let at = crate::text_place::place(a.anchor, (px, py), a.size, scale);
+        let align = match (at.align, at.middle) {
+            (crate::text_place::TextAlign::Center, false) => Align2::CENTER_BOTTOM,
+            (crate::text_place::TextAlign::Center, true) => Align2::CENTER_CENTER,
+            (crate::text_place::TextAlign::Start, _) => Align2::LEFT_CENTER,
+            (crate::text_place::TextAlign::End, _) => Align2::RIGHT_CENTER,
+        };
         crate::rich_text::paint(
             &clipped,
-            Pos2::new(px, py),
-            Align2::CENTER_BOTTOM,
+            Pos2::new(at.x, at.y),
+            align,
             &a.text,
             crate::rich_text::plot_font(a.size * scale, &ty),
             col(a.color),

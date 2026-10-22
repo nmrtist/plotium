@@ -6,6 +6,7 @@
 
 mod bars;
 mod dist;
+pub(crate) mod marks;
 mod matrix;
 mod pie;
 

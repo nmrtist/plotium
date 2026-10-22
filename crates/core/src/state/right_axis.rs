@@ -5,8 +5,10 @@ use super::{AxisOverrides, AxisRange, CanvasViewport, visible_y_range_on};
 use plotium_figure::{Axis, AxisFrame, Figure, SeriesKind, YAxisSide};
 
 pub(crate) const NO_RIGHT_AXIS: &str = "Put a line or scatter curve on the right y axis first.";
-pub(crate) const RIGHT_AXIS_KINDS: &str =
-    "Only line and scatter curves can use the right y axis; bars and sticks stay on the left.";
+pub(crate) const RIGHT_AXIS_KINDS: &str = "Only line and scatter curves can use the right y axis; bars, boxes, violins and sticks stay on the left.";
+/// A horizontal plot measures every curve along its one horizontal value axis.
+pub(crate) const HORIZONTAL_ONE_VALUE_AXIS: &str =
+    "A horizontal plot has one value axis; move right-axis curves to the left first.";
 
 /// Whether curves of `kind` may be measured on the right axis. Grouped bars
 /// share slot offsets with every bar of the plot, so they stay on the left.

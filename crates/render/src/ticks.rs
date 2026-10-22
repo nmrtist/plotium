@@ -134,7 +134,13 @@ pub(crate) fn adaptive_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> A
         return AxisTicks::empty();
     }
 
-    let target = ((plot_height / spacing).floor() as usize).clamp(2, MAX_Y_TARGET);
+    // A category axis names every slot that fits; the numeric cap only keeps
+    // value ticks sparse.
+    let cap = match &axis.categories {
+        Some(_) => visible_categories(axis).count().max(2),
+        None => MAX_Y_TARGET,
+    };
+    let target = ((plot_height / spacing).floor() as usize).clamp(2, cap);
     for candidate in (2..=target).rev() {
         let ticks = axis_ticks_for(axis, candidate);
         if vertical_labels_fit(axis, &ticks, plot_height, tick_pt) {

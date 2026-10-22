@@ -84,7 +84,10 @@ impl PropertyTransaction {
 }
 
 fn x_unit(plot: &PlotObject) -> Option<plotium_data::UnitSpec> {
-    plot.binding.coordinates.as_ref().and_then(|c| c.x.clone())
+    plot.binding
+        .coordinates
+        .as_ref()
+        .and_then(|c| c.horizontal().cloned())
 }
 
 fn peer_error(name: Option<&str>, error: PropertyError) -> PropertyError {
