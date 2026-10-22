@@ -83,9 +83,17 @@ fn invalid(message: impl Into<String>) -> AutomationError {
         message: message.into(),
     }
 }
+pub(super) fn too_many_files(given: usize) -> String {
+    format!(
+        "{given} paths were given; each data.import call takes at most {TABLE_IMPORT_FILES}. Import the rest in further calls."
+    )
+}
 impl TableImportParams {
     pub fn validate(&self) -> Result<(), AutomationError> {
-        if self.paths.is_empty() || self.paths.len() > TABLE_IMPORT_FILES {
+        if self.paths.len() > TABLE_IMPORT_FILES {
+            return Err(invalid(too_many_files(self.paths.len())));
+        }
+        if self.paths.is_empty() {
             return Err(invalid("Import requires 1–16 explicit files."));
         }
         if self.schema.is_some() && self.schema_path.is_some() {
@@ -372,4 +380,28 @@ fn prepare_file(
     retained.name = path.file_name().map(|s| s.to_string_lossy().into_owned());
     table.import_sources.push(retained);
     Ok(Dataset::Table(Box::new(table)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn too_many_paths_say_how_many_and_to_import_in_batches() {
+        let paths: Vec<_> = (0..17)
+            .map(|i| PathBuf::from(format!("/data/{i}.csv")))
+            .collect();
+        let table: TableImportParams =
+            serde_json::from_value(json!({"mode": "table_data_only", "paths": paths})).unwrap();
+        let native = NativeImportParams {
+            paths,
+            sampling_declaration: None,
+        };
+        for error in [table.validate(), native.validate()] {
+            let message = error.unwrap_err().to_string();
+            assert!(message.contains("17 paths"), "{message}");
+            assert!(message.contains("at most 16"), "{message}");
+            assert!(message.contains("further calls"), "{message}");
+        }
+    }
 }

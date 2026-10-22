@@ -1,6 +1,7 @@
 //! Desktop-thread capability boundary. No project state crosses the bridge.
 use std::collections::HashMap;
 mod candidate;
+mod compact;
 mod export;
 pub(crate) use candidate::CandidateTicket;
 mod guides;
@@ -300,6 +301,9 @@ impl Session {
                     .scientific_tasks
                     .bind_permission(&id, self.scientific_permission.clone());
             }
+            if compact::is_property_write(&result.tool_id) {
+                return Ok(compact::execute_response(result));
+            }
             return Ok(json!(result));
         }
         if name == "plotium_capabilities_get" {
@@ -532,7 +536,11 @@ impl Session {
                 ));
             }
             let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
-            let result = json!({"plan_id": id, "preflight": plan});
+            let result = if compact::is_property_write(&plan.request.tool_id) {
+                compact::plan_response(&id, &plan)
+            } else {
+                json!({"plan_id": id, "preflight": plan})
+            };
             guides::check_response(&result, &plan.request.parameters)?;
             self.plans.insert(id, plan);
             return Ok(result);

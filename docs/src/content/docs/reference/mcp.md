@@ -94,6 +94,9 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
+| `object.axes.x_show_label / object.axes.y_show_label` | Object | boolean; shows the axis title |
+| `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | Object | boolean |
+| `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | Object | boolean; groups digits in tick labels |
 | `object.axes.frame` | Object | `open` (left and bottom), `box` (all four sides) |
 | `object.axes.x_scale / object.axes.y_scale` | Object | `linear`, `log` (line, scatter and stick plots; a manual range must stay above zero) |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | Object | compatible code from property inspection |
@@ -254,8 +257,9 @@ are checked again at submission. Plans are single-use even when execution is ref
 Native import allows 16 inputs per batch, one preflight in flight and four retained
 prepared imports, shared with table import. Conservative native frozen-payload
 reservations total at most 512 MiB across retained plans and the active preflight;
-oversized batches fail with `import_budget_exceeded`. Preflight responses are
-limited to 256 KiB. Scientific processing and DOSY use the separate shared scientific operations.
+oversized batches fail with `import_budget_exceeded`. A call with more than 16
+paths fails with a message that gives the number received; import the rest in
+further calls. Preflight responses are limited to 256 KiB. Scientific processing and DOSY use the separate shared scientific operations.
 CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and limits.
 
 ## Discover structure without relying on names
@@ -1235,7 +1239,7 @@ After discovering the canvas, call `plotium_figure_diagnose` directly (no edit p
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
   "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
-  "view": "both",
+  "detail": "full",
   "limit": 100
 }
 ```
@@ -1244,8 +1248,14 @@ Copy complete content or Series targets into optional `targets` to narrow the sc
 A Series target also includes its owning plot frame and guides as context.
 Omission scans the canvas; it never uses GUI selection. `content_overlap` additionally
 requires explicit whole-content `overlap_targets` (at least two). It compares visible,
-page-clipped frames, not opaque pixels. `view` accepts `layout`, `issues` or `both`;
-coverage rows are always returned.
+page-clipped frames, not opaque pixels. `view` accepts `issues` (default) for
+findings, `layout` for measured geometry rows instead, or `both`. `detail` is
+`compact` (default) or `full`. Compact issue rows keep `target`, `component`,
+`code`, `severity`, `message`, `measurement_basis` and any `suggestions`; their
+`evidence` keeps only `other_target`, `other_component`, `point_range` and
+`interpretation`, and coverage rows of checks that completed are left out.
+`full` returns all evidence geometry and every coverage row. Coverage rows that
+report a limit are always returned.
 
 `output.size_mm` must be positive and preserve the canvas aspect ratio (0.001 mm
 height tolerance). Like native export, it uniformly scales the existing page without
@@ -1256,10 +1266,12 @@ converted through the native page-frame service. Plot data uses the actual plot
 clip; a panel border is **not** a general content clip. Native raster frame and
 `clip_children` clipping are reported separately.
 
-`ToolResult.value` contains `project_context`, `basis_revision`, `canvas`, `output`,
-`items`, `coverage`, `budget`, `truncated` and `continuation`. Each issue has a full
-native `target`, an owner-relative `component`, `code`, `severity`, explanation and
-bounds/clip/intersection evidence. Pass `target` to `plotium_document_inspect`
+`ToolResult.value` contains `project_context`, `basis_revision`, `canvas`, `summary`,
+`output`, `items`, `coverage`, `budget`, `truncated` and `continuation`. `summary`
+counts the issues on this page (`issues`, `by_code`, `by_severity`); add the
+counts of every page of a continued scan. Each issue has a full native `target`,
+an owner-relative `component`, `code`, `severity` and explanation; with
+`detail: "full"` its evidence also carries bounds, clip and intersection geometry. Pass `target` to `plotium_document_inspect`
 with `view: "self"`; names do not identify objects. `guide.legend` belongs to its
 plot, not a new resource. A curve conflict points to the existing Series and its
 owning plot's legend through `evidence.other_target` / `other_component`.
@@ -1824,13 +1836,22 @@ in `error.details.write_index` (zero based) and `key`. Query
 `plotium_properties_list` and correct the whole batch before planning again.
 
 A batch holds 1–200 writes and accepts the display properties listed above.
-`preflight.targets` has one row per write, in order. Planning refuses the whole
+Planning refuses the whole
 batch, and nothing is committed, when any write's target is missing, its
 property does not apply to that target, its value is invalid, or the same key is
 written twice to one target. A write whose target already holds the value is
 reported as skipped while the others apply. `plotium_execute` commits every
-write as one **Undo** step; `value.writes` reports each write's index, key and
-outcome.
+write as one **Undo** step; `value.writes` lists each write that was skipped,
+with its index, key, outcome and `skip_reason`.
+
+Property-write responses are short. The preflight of `properties.set`,
+`properties.set_many` and `properties.reset` returns `required_authority`,
+`estimated_changes`, `summary` (`compatible`, `skipped`, `failed`) and, in
+`targets`, only the targets that will not be written. The execute result adds
+`summary` (`succeeded`, `skipped`, `failed`, and `by_reason` counts of
+`skip_reason`); `targets` and a batch's `value.writes` list only what did not
+succeed. When every write applies, both lists are empty.
+`plotium_preview_plan` still renders the complete plan.
 
 ## Values the user set by hand
 

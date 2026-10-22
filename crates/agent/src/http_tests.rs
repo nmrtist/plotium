@@ -197,7 +197,7 @@ fn external_client_finds_inspects_plans_and_modifies_a_line_with_undo() {
             let result = client.call_tool(CallToolRequestParams::new("plotium_execute").with_arguments(
                 json!({"plan_id":plan_id}).as_object().unwrap().clone()
             )).await.unwrap();
-            assert_eq!(result.structured_content.unwrap()["targets"][0]["outcome"], "succeeded");
+            assert_eq!(result.structured_content.unwrap()["summary"]["succeeded"], 1);
             let stale = client.call_tool(CallToolRequestParams::new("plotium_document_inspect").with_arguments(
                 json!({"expected_project_context":context,"expected_revision":revision,"target":target,"view":"self"}).as_object().unwrap().clone()
             )).await.unwrap();

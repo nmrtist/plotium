@@ -61,7 +61,7 @@ impl Session {
             ),
         )?;
         let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
-        let result = json!({"plan_id": id, "preflight": plan});
+        let result = compact::plan_response(&id, &plan);
         if serde_json::to_vec(&result)
             .map_err(|e| Failure::new("execution_failed", e.to_string()))?
             .len()

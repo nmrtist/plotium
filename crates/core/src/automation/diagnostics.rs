@@ -11,6 +11,12 @@ use schema::{budget, invalid};
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, VecDeque};
 
+const COMPACT_EVIDENCE: &[&str] = &[
+    "other_target",
+    "other_component",
+    "point_range",
+    "interpretation",
+];
 struct SnapshotItem {
     target: TargetRef,
     frame: Rect,
@@ -105,7 +111,31 @@ impl FigureDiagnosticScan {
         let r = geometry::scale(r, self.scale);
         json!({"x":r.left,"y":r.top,"width":r.width,"height":r.height})
     }
-    fn emit(&mut self, row: Value) {
+    fn emit(&mut self, mut row: Value) {
+        let compact = self.params.detail == DiagnosticDetail::Compact;
+        // Compact pages keep only coverage that limits what the scan can claim.
+        if compact && row["kind"] == "coverage" && row["status"] == "complete" {
+            return;
+        }
+        // Compact issues keep the evidence that says what they refer to and
+        // drop only the geometry.
+        if compact && row["kind"] == "issue" {
+            let evidence = row["evidence"].as_object().map(|evidence| {
+                evidence
+                    .iter()
+                    .filter(|(key, _)| COMPACT_EVIDENCE.contains(&key.as_str()))
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect::<serde_json::Map<_, _>>()
+            });
+            match evidence {
+                Some(evidence) if !evidence.is_empty() => row["evidence"] = Value::Object(evidence),
+                _ => {
+                    if let Some(row) = row.as_object_mut() {
+                        row.remove("evidence");
+                    }
+                }
+            }
+        }
         let kind = row["kind"].as_str().unwrap_or("");
         if kind == "coverage"
             || self.params.view == DiagnosticView::Both

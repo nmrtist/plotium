@@ -367,13 +367,8 @@ fn returned_creation_targets_can_be_styled_together_with_one_undo() {
             json!({"plan_id":plan["plan_id"]}),
         )
         .unwrap();
-    assert!(
-        result["value"]["writes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|w| w["outcome"] == "succeeded")
-    );
+    assert_eq!(result["summary"]["succeeded"], 3, "{result}");
+    assert_eq!(result["value"]["writes"], json!([]));
     assert_eq!(app.session.undo_stack.len(), undo + 1);
     app.undo();
     assert_eq!(

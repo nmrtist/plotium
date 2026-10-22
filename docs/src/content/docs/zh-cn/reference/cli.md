@@ -199,6 +199,7 @@ plotium-cli export <project.plotium> --output-dir <dir> [--format pdf|svg|png|ti
 
 ```sh
 plotium-cli tool list
+plotium-cli tool properties
 plotium-cli tool describe analysis.dosy.build
 plotium-cli tool run data.jdf --request operation.json --output result.plotium
 ```
@@ -210,7 +211,9 @@ plotium-cli tool run data.jdf --request operation.json --output result.plotium
 ```
 
 来源必须暴露相应字段能力。原生输入的 `field_key` 只在加载时解析；项目输入
-必须提供显式稳定 `targets`。数据集操作可省略原生输入目标。`tool run` 使用
+必须提供显式稳定 `targets`；在 `parameters` 中自带目标的操作（`properties.set_many`、
+`figure.edit`、`plot.create`、`plot.series.bind`、`plot.series.append`、
+`plot.series.materialize_default` 和 `data.import`）可以省略。数据集操作可省略原生输入目标。`tool run` 使用
 共享预检、计算与提交，等待任务终态，stdout 输出 JSON，stderr 报告进度。
 失败终态返回非零退出码；可选 `--output` 保存原生项目。`process` 同样通过
 共享处理方案服务执行后导出绘图。
@@ -218,6 +221,8 @@ plotium-cli tool run data.jdf --request operation.json --output result.plotium
 支持 `processing.inspect`、`processing.edit`、`processing.apply_scheme`、
 `diffusion.inspect`、`diffusion.set_input`、`analysis.regions.extract`、
 `analysis.diffusion.fit`、`analysis.dosy.build` 和 `analysis.results.inspect`。
-以 `tool describe` 为参数和结果 schema 的来源。区域提取只生成原生表格。
+以 `tool describe` 为参数和结果 schema 的来源。`tool properties` 以 JSON 数组
+输出全部图形属性，每项字段与 MCP 属性清单相同：`id`、`label`、`scope`、含可选值的
+`schema`、`unit`、`access` 和 `applicability`，也包括 MCP 连接未开放的属性。区域提取只生成原生表格。
 同步 DAG 保留 `processing.apply_scheme`，并在原子提交后才执行后续节点。
 其他后台科学操作需使用独立单步请求并等待终态；异步 DAG 调度尚未开放。

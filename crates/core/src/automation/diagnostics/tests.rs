@@ -32,6 +32,7 @@ fn fixture() -> (PlotiumApp, FigureDiagnosticParams) {
         targets: None,
         overlap_targets: vec![],
         view: DiagnosticView::Both,
+        detail: DiagnosticDetail::Full,
         limit: 200,
     };
     a.doc.canvases.push(c);

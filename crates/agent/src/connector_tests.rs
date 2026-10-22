@@ -225,7 +225,7 @@ fn native_stdio_facade_keeps_diagnostic_pages_until_stdio_cleanup() {
         let server=tokio::spawn(connector.serve(server_io));
         let client=().serve(client_io).await.unwrap();
         let service=server.await.unwrap().unwrap();
-        let mut args=json!({"expected_project_context":app.session.project_context,"expected_revision":app.doc.automation_revision,"canvas":plotium_core::automation::TargetRef::resource(app.doc.canvases[0].resource_id.into()),"output":{"size_mm":app.doc.canvases[0].size_mm},"limit":20});
+        let mut args=json!({"expected_project_context":app.session.project_context,"expected_revision":app.doc.automation_revision,"canvas":plotium_core::automation::TargetRef::resource(app.doc.canvases[0].resource_id.into()),"output":{"size_mm":app.doc.canvases[0].size_mm},"view":"both","limit":20});
         let initial=args.clone();
         let mut pages=0;
         loop {

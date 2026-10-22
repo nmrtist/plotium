@@ -21,6 +21,7 @@ USAGE:
   plotium-cli craft <input> --output <result.json> [--region <start:end>]... [--expected-ratio <value>]...
   plotium-cli process <input> --scheme <file> --output <path> [--format svg|pdf|png|tiff|jpeg] [--sampling-declaration <file.json>]
   plotium-cli tool list
+  plotium-cli tool properties
   plotium-cli tool describe <tool_id>
   plotium-cli tool run <input> --request <operation.json> [--output <project.plotium>]
   plotium-cli batch --workflow <workflow.json> --manifest <manifest.json>
@@ -42,6 +43,8 @@ OUTPUT:
   process writes one plotium.process.v1 JSON result to stdout.
   batch writes the same plotium.run-manifest.v1 JSON saved at --manifest.
   export writes the figure.export tool result JSON to stdout.
+  tool properties writes every figure property's id, label, scope, schema,
+  unit, access and applicability as a JSON array.
   Operational diagnostics and errors are written only to stderr.
 
 STABLE EXIT CODES:

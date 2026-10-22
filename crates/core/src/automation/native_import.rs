@@ -25,10 +25,12 @@ fn invalid(message: impl Into<String>) -> AutomationError {
 }
 impl NativeImportParams {
     pub fn validate(&self) -> Result<(), AutomationError> {
-        if self.paths.is_empty()
-            || self.paths.len() > 16
-            || self.paths.iter().any(|p| !p.is_absolute())
-        {
+        if self.paths.len() > super::TABLE_IMPORT_FILES {
+            return Err(invalid(super::table_import::too_many_files(
+                self.paths.len(),
+            )));
+        }
+        if self.paths.is_empty() || self.paths.iter().any(|p| !p.is_absolute()) {
             return Err(invalid(
                 "Native import requires 1–16 absolute explicit data files or atomic acquisition directories.",
             ));

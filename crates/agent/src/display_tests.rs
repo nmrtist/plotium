@@ -120,7 +120,7 @@ fn line_and_contour_properties_roundtrip_through_shared_catalog() {
             "properties.set",
             json!({"key":key,"value":value}),
         );
-        assert_eq!(result["targets"][0]["outcome"], "succeeded");
+        assert_eq!(result["summary"]["succeeded"], 1, "{result}");
         let rev = revision(&mut app);
         let inspect = session
             .call(
@@ -201,5 +201,66 @@ fn inapplicable_targets_are_skipped_and_deleted_targets_cannot_execute() {
             .unwrap_err()
             .code,
         "stale_revision"
+    );
+}
+
+#[test]
+fn axis_visibility_and_separator_properties_are_listed_and_writable() {
+    let keys = [
+        "object.axes.x_show_label",
+        "object.axes.y_show_label",
+        "object.axes.x_show_tick_labels",
+        "object.axes.y_show_tick_labels",
+        "object.axes.x_thousands_separator",
+        "object.axes.y_thousands_separator",
+    ];
+    let catalog = crate::session::property_catalog();
+    for key in keys {
+        assert!(
+            catalog["properties"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|p| p["id"] == key),
+            "{key} is listed"
+        );
+    }
+    let (mut app, id) = fixture(false);
+    let context = app.session.project_context;
+    let mut session = Session::default();
+    session.allow_modify = true;
+    let mut expected = Vec::new();
+    for key in keys {
+        let rev = revision(&mut app);
+        let inspect = session
+            .call(
+                &mut app,
+                "plotium_properties_inspect",
+                json!({"ids":[id],"key":key,"expected_project_context":context,"expected_revision":rev}),
+            )
+            .unwrap();
+        let reading = &inspect["value"]["readings"][0]["value"]["value"]["value"];
+        let flipped = !reading.as_bool().expect("boolean reading");
+        expected.push(flipped);
+        let result = invoke(
+            &mut session,
+            &mut app,
+            &id,
+            "properties.set",
+            json!({"key":key,"value":flipped}),
+        );
+        assert_eq!(result["summary"]["succeeded"], 1, "{key}: {result}");
+    }
+    let figure = app.doc.canvases[0].objects[0].plot().unwrap().figure();
+    assert_eq!(
+        vec![
+            figure.x.show_label,
+            figure.y.show_label,
+            figure.x.show_tick_labels,
+            figure.y.show_tick_labels,
+            figure.x.thousands_separator,
+            figure.y.thousands_separator,
+        ],
+        expected
     );
 }

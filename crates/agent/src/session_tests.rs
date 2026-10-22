@@ -505,7 +505,9 @@ fn hand_set_values_are_listed_and_skipped_unless_overridden() {
 
     let p = typography(&mut session, &mut app, 8.0);
     let result = execute(&mut session, &mut app, &p).unwrap();
+    assert_eq!(p["preflight"]["summary"]["skipped"], 1, "{p}");
     assert_eq!(result["targets"][0]["skip_reason"], "hand_set");
+    assert_eq!(result["summary"]["by_reason"]["hand_set"], 1, "{result}");
     assert_eq!(app.doc.style_library.figure_typography.tick_pt, 6.5);
 
     let p = plan(

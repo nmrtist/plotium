@@ -149,7 +149,7 @@ impl FigureDiagnosticScan {
     }
     fn page_value(&self, rows: &[Value], objects: usize, points: usize) -> Value {
         let complete = self.is_complete();
-        json!({"project_context":self.project_context,"basis_revision":self.revision,"canvas":self.params.canvas,
+        json!({"project_context":self.project_context,"basis_revision":self.revision,"canvas":self.params.canvas,"summary":page_summary(rows),
             "output":{"size_mm":self.params.output.size_mm,"native_size_pt":[self.page.width,self.page.height],"size_pt":[self.page.width*self.scale,self.page.height*self.scale],"scale":self.scale,"coordinate_space":"output_page_pt","origin":"top_left","x_direction":"right","y_direction":"down","points_per_inch":72,"scaling":"uniform_native_page_no_reflow","renderer":"native_svg_png_layout","font_status":self.font_status},
             "items":rows,"coverage":{"requested_checks":self.params.checks,"supported_checks":all_checks(),"unsupported_checks":["non_line_scatter_internal_geometry","error_bar_clipping_occlusion","image_alpha_pixel_occlusion","scientific_derived_annotation_detail","exact_cross_backend_glyph_bounds"],"status":if !complete{"partial"}else if self.unavailable>0||self.unsupported>0{"limited"}else{"complete"},"scan_complete":complete,"scanned_objects":self.scanned_objects,"scanned_points":self.scanned_points,"scanned_overlap_pairs":self.scanned_pairs,"unavailable_items":self.unavailable,"unsupported_items":self.unsupported,"sampling":false},
             "budget":{"limits":figure_diagnostic_limits(),"snapshot_bytes":self.snapshot_bytes,"batch_objects":objects,"batch_points":points},"truncated":!complete,"continuation_required":!complete,
@@ -523,4 +523,24 @@ impl FigureDiagnosticScan {
             self.coverage(target,"text","complete","Native width/line-spacing estimates; glyph coverage and exact cross-backend ink bounds are unverified.");
         }
     }
+}
+
+/// Issue counts for the rows on this page only; a continued scan reports the
+/// rest on later pages.
+fn page_summary(rows: &[Value]) -> Value {
+    let mut by_code = serde_json::Map::new();
+    let mut by_severity = serde_json::Map::new();
+    let mut issues = 0u64;
+    for row in rows.iter().filter(|row| row["kind"] == "issue") {
+        issues += 1;
+        for (counts, key) in [
+            (&mut by_code, &row["code"]),
+            (&mut by_severity, &row["severity"]),
+        ] {
+            let key = key.as_str().unwrap_or("unknown").to_owned();
+            let count = counts.entry(key).or_insert(json!(0));
+            *count = json!(count.as_u64().unwrap_or(0) + 1);
+        }
+    }
+    json!({"issues":issues,"by_code":by_code,"by_severity":by_severity})
 }

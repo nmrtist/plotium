@@ -86,6 +86,7 @@ fn hints(app: &PlotiumApp) -> Vec<Value> {
         targets: None,
         overlap_targets: vec![],
         view: DiagnosticView::Issues,
+        detail: DiagnosticDetail::Full,
         limit: 200,
     };
     let mut scan =
@@ -370,6 +371,7 @@ fn scan_of(app: &PlotiumApp) -> FigureDiagnosticScan {
         targets: None,
         overlap_targets: vec![],
         view: DiagnosticView::Issues,
+        detail: DiagnosticDetail::Full,
         limit: 200,
     };
     let mut scan =

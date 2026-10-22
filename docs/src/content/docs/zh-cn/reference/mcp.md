@@ -82,6 +82,9 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
+| `object.axes.x_show_label / object.axes.y_show_label` | 图对象 | 布尔值；显示轴标题 |
+| `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | 图对象 | 布尔值 |
+| `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | 图对象 | 布尔值；刻度数字按千分位分组 |
 | `object.axes.frame` | 图对象 | `open`（左、下两条轴）、`box`（四边框） |
 | `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
@@ -211,7 +214,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 
 每批最多 16 个输入、1 个预检在途、最多 4 个保留的 prepared import（与表格导入共享）。
 所有保留计划及在途预检的原生冻结负载保守预留合计最多 512 MiB；超限返回
-`import_budget_exceeded`。预检响应最多 256 KiB。科学处理与 DOSY 使用独立的共享科学操作。
+`import_budget_exceeded`。超过 16 个路径时调用失败，报错写明收到的数量；其余文件请分批
+导入。预检响应最多 256 KiB。科学处理与 DOSY 使用独立的共享科学操作。
 CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限制。
 
 ## 不依赖名称发现结构
@@ -1005,14 +1009,18 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
   "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
-  "view": "both",
+  "detail": "full",
   "limit": 100
 }
 ```
 
 可用 `targets` 限定完整的 content 或 Series target；Series target 还包含所属 plot 的 frame 和 guide 上下文。省略即扫描画布，绝不使用 GUI
 选区。`content_overlap` 另需至少两个完整内容的 `overlap_targets`，比较可见且经过
-页面裁剪的 frame，不判断不透明像素。`view` 可取 `layout`、`issues`、`both`；覆盖行始终返回。
+页面裁剪的 frame，不判断不透明像素。`view` 可取 `issues`（默认，返回问题）、`layout`（改为返回测得的几何行）或 `both`。
+`detail` 可取 `compact`（默认）或 `full`：精简的问题行保留 `target`、`component`、
+`code`、`severity`、`message`、`measurement_basis` 和 `suggestions`，`evidence` 只留
+`other_target`、`other_component`、`point_range` 和 `interpretation`，也不列已完成
+检查的覆盖行；`full` 返回全部证据几何和所有覆盖行。报告局限的覆盖行始终返回。
 
 `output.size_mm` 须为正数并保持画布宽高比（高度容差 0.001 mm）。与原生导出一致，
 它等比缩放既有页面，不重排布局；每个初始查询重新计算几何。结果使用
@@ -1021,9 +1029,11 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 数据使用实际 plot 裁剪区；panel 边框**不是**所有内容的裁剪区。原生 raster frame
 和 `clip_children` 的裁剪另行列明。
 
-`ToolResult.value` 包含 `project_context`、`basis_revision`、`canvas`、`output`、
-`items`、`coverage`、`budget`、`truncated` 和 `continuation`。每个问题带完整原生
-`target`、所属对象内的 `component`、`code`、`severity`、说明及 bounds/clip/交集证据。
+`ToolResult.value` 包含 `project_context`、`basis_revision`、`canvas`、`summary`、
+`output`、`items`、`coverage`、`budget`、`truncated` 和 `continuation`。`summary`
+统计本页的问题（`issues`、`by_code`、`by_severity`）；分页扫描时把各页计数相加。
+每个问题带完整原生 `target`、所属对象内的 `component`、`code`、`severity` 和说明；
+`detail: "full"` 时证据另带 bounds、clip 和交集几何。
 将 `target` 直接用于 `plotium_document_inspect` 的 `view: "self"`；重名不影响定位。
 `guide.legend` 属于 plot，并非新资源。曲线冲突指向现有 Series，并通过
 `evidence.other_target` / `other_component` 关联所属 plot 的图例。
@@ -1484,11 +1494,17 @@ const request = {
 `unsupported_property` 在 `error.details.write_index`（从零开始）和 `key` 指出不支持
 的属性。查询 `plotium_properties_list`，修正整个批次后再预检。
 
-一个批次包含 1–200 项写入，可使用上文列出的显示属性。`preflight.targets`
-按顺序为每项写入列出一行。只要有一项写入的目标不存在、属性不适用于该目标、值无效，
+一个批次包含 1–200 项写入，可使用上文列出的显示属性。只要有一项写入的目标不存在、属性不适用于该目标、值无效，
 或同一目标的同一 key 写了两次，预检就拒绝整个批次，不提交任何修改。目标已是该值的
 写入会报告为跳过，其余写入照常生效。`plotium_execute` 把全部写入作为一个**撤销**
-步骤提交；`value.writes` 报告每项写入的序号、key 和结果。
+步骤提交；`value.writes` 列出被跳过的写入，含序号、key、结果和 `skip_reason`。
+
+写属性的返回很短。`properties.set`、`properties.set_many` 和 `properties.reset`
+的预检返回 `required_authority`、`estimated_changes`、`summary`（`compatible`、
+`skipped`、`failed`），`targets` 只列出不会写入的目标。执行结果加上 `summary`
+（`succeeded`、`skipped`、`failed`，以及按 `skip_reason` 计数的 `by_reason`）；
+`targets` 和批次的 `value.writes` 只列没有成功的项。全部生效时两者都为空。
+`plotium_preview_plan` 仍按完整计划渲染。
 
 ## 用户手动设置的值
 

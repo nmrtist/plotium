@@ -227,6 +227,7 @@ sheet's column and **Combine** menus; set `plan` to the transform to apply,
 
 ```sh
 plotium-cli tool list
+plotium-cli tool properties
 plotium-cli tool describe analysis.dosy.build
 plotium-cli tool run data.jdf --request operation.json --output result.plotium
 ```
@@ -238,8 +239,11 @@ Example `operation.json`:
 ```
 
 The source must expose the required field capability. Native-input `field_key`
-resolves only while loading; project inputs require explicit stable `targets`.
-Dataset operations may omit the target for a single native input. `tool run`
+resolves only while loading; project inputs require explicit stable `targets`,
+except for operations that name their targets in `parameters`
+(`properties.set_many`, `figure.edit`, `plot.create`, `plot.series.bind`,
+`plot.series.append`, `plot.series.materialize_default` and `data.import`),
+which may omit them. Dataset operations may omit the target for a single native input. `tool run`
 uses shared preflight, computation and commit, waits for a terminal receipt,
 writes JSON to stdout and progress to stderr. Failed terminal states return a
 nonzero exit code. Optional `--output` saves the native project. `process` also
@@ -249,6 +253,10 @@ Supported operations include `processing.inspect`, `processing.edit`,
 `processing.apply_scheme`, `diffusion.inspect`, `diffusion.set_input`,
 `analysis.regions.extract`, `analysis.diffusion.fit`, `analysis.dosy.build` and
 `analysis.results.inspect`. Use `tool describe` for parameter and result schemas.
+`tool properties` prints every figure property as a JSON array with the same
+fields as each MCP property-list entry: `id`, `label`, `scope`, value `schema`
+with its choices, `unit`, `access` and `applicability`. It includes properties
+the MCP connection does not expose.
 Region extraction creates a native table only. Synchronous DAGs retain
 `processing.apply_scheme` and wait for its atomic commit before dependent nodes
 run. Other background scientific operations require separate single-step calls
