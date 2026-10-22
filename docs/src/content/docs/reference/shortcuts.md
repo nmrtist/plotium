@@ -74,6 +74,11 @@ scroll wheel does nothing rather than guessing which you meant; change the
 layer you want from the Object inspector. After a trackpad gesture the hint
 describes swiping and pinching instead, and asks you to select the plot first.
 
+When axis range zoom is available, hovering an axis strip shows a crosshair
+and a “Drag to zoom X axis” or “Drag to zoom Y axis” hint. The crosshair and
+selection band stay with the zoom gesture when the pointer leaves the strip.
+Holding `Space` or dragging with the middle button uses the pan cursor instead.
+
 ## Selection and editing
 
 | Input | Action |
