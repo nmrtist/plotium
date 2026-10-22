@@ -14,11 +14,12 @@ on:
 permissions:
   contents: read
 
-# Superseded runs are cancelled on main too. A cancelled push is not lost:
-# the next push classifies its changes against the last successful main run.
+# A running main run is never cancelled, only a superseded pending one: main
+# runs alone save caches, and a cold Windows build outlasts the gap between
+# merges.
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Incremental compilation only bloats the CI caches.
