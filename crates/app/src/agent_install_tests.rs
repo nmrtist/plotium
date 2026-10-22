@@ -138,9 +138,23 @@ fn failed_connector_publication_restores_the_installed_copy() {
 }
 #[cfg(unix)]
 fn executable(path: &Path, script: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    fs::write(path, script).unwrap();
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+    use std::io::Write;
+    // Written by a child process: a write handle held here could be inherited
+    // by another test's concurrent fork, and running the script would then
+    // fail with ETXTBSY ("Text file busy").
+    let mut writer = Command::new("/bin/sh")
+        .args(["-c", "cat > \"$1\" && chmod 700 \"$1\"", "sh"])
+        .arg(path)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    writer
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    assert!(writer.wait().unwrap().success());
 }
 #[cfg(unix)]
 fn quote(value: &str) -> String {
