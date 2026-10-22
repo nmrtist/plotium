@@ -90,8 +90,8 @@ pub(super) type BarExtents = [f64; 4];
 /// Draws bar curves side by side: each slot is split evenly between the bar
 /// curves that have a bar in it, and each bar fills its own width fraction of
 /// its share. A curve alone in a slot keeps the whole slot, so one-bar-per-curve
-/// charts stay centred. Category slots are one unit wide; numeric slots are the
-/// smallest gap between distinct bar x positions, so uneven rulers never overlap.
+/// charts stay centred. Category slots are one unit wide; numeric slots come
+/// from [`slot_widths`], so uneven rulers never overlap.
 pub(super) fn lower_bars(
     figure: &mut Figure,
     bars: Vec<PreparedBars>,
@@ -100,10 +100,10 @@ pub(super) fn lower_bars(
     if bars.is_empty() {
         return Ok(None);
     }
-    let slot = if categorical {
-        1.0
+    let slots = if categorical {
+        HashMap::new()
     } else {
-        numeric_slot(&bars)
+        numeric_slots(&bars)
     };
     // Curves present at each x position, in curve order. Adding zero folds
     // -0.0 into 0.0 so both land in one slot.
@@ -119,6 +119,7 @@ pub(super) fn lower_bars(
     }
     // Offset from the slot centre and the share of the slot for one curve at x.
     let dodge = |index: usize, x: f64| {
+        let slot = slots.get(&key(x)).copied().unwrap_or(1.0);
         let curves = occupants.get(&key(x)).map_or(&[][..], Vec::as_slice);
         let count = curves.len().max(1);
         let rank = curves.iter().position(|c| *c == index).unwrap_or(0);
@@ -175,7 +176,8 @@ pub(super) fn lower_bars(
     Ok(extents[0].is_finite().then_some(extents))
 }
 
-fn numeric_slot(bars: &[PreparedBars]) -> f64 {
+/// Slot width at each numeric bar position, keyed like the occupants map.
+fn numeric_slots(bars: &[PreparedBars]) -> HashMap<u64, f64> {
     let mut xs: Vec<f64> = bars
         .iter()
         .flat_map(|bar| &bar.series)
@@ -183,10 +185,39 @@ fn numeric_slot(bars: &[PreparedBars]) -> f64 {
         .collect();
     xs.sort_by(f64::total_cmp);
     xs.dedup();
-    let gap = xs
-        .windows(2)
-        .map(|pair| pair[1] - pair[0])
-        .fold(f64::INFINITY, f64::min);
-    // A single position has no neighbour to collide with.
-    if gap.is_finite() { gap } else { 1.0 }
+    let widths = slot_widths(&xs);
+    xs.iter()
+        .zip(widths)
+        .map(|(x, width)| ((x + 0.0).to_bits(), width))
+        .collect()
+}
+
+/// Slot width at each of the sorted, distinct finite `positions`: the median
+/// gap between neighbours, narrowed only where a position's own neighbours
+/// sit closer. One close pair then narrows its own bars instead of every bar,
+/// and evenly spaced positions keep their full gap. A lone position has no
+/// neighbour to collide with and gets one unit.
+pub(crate) fn slot_widths(positions: &[f64]) -> Vec<f64> {
+    let mut gaps: Vec<f64> = positions.windows(2).map(|p| p[1] - p[0]).collect();
+    if gaps.is_empty() {
+        return vec![1.0; positions.len()];
+    }
+    let local: Vec<f64> = (0..positions.len())
+        .map(|i| {
+            let left = i.checked_sub(1).map_or(f64::INFINITY, |j| gaps[j]);
+            let right = gaps.get(i).copied().unwrap_or(f64::INFINITY);
+            left.min(right)
+        })
+        .collect();
+    gaps.sort_by(f64::total_cmp);
+    let median = gaps[gaps.len() / 2];
+    // Gaps between extreme positions can overflow; fall back to one unit.
+    local
+        .into_iter()
+        .map(|gap| {
+            Some(gap.min(median))
+                .filter(|w| w.is_finite())
+                .unwrap_or(1.0)
+        })
+        .collect()
 }

@@ -370,3 +370,13 @@ fn bar_settings_are_not_offered_for_lines() {
         assert!(matches!(resolved.availability, Availability::Disabled(_)));
     }
 }
+
+#[test]
+fn numeric_bar_slots_follow_the_typical_gap_not_the_closest_pair() {
+    let slots = super::curve_bars::slot_widths(&[0.0, 1.0, 2.0, 2.1, 3.1, 4.1]);
+    let expect = [1.0, 1.0, 0.1, 0.1, 1.0, 1.0];
+    for (slot, expected) in slots.iter().zip(expect) {
+        assert!((slot - expected).abs() < 1e-9, "{slots:?}");
+    }
+    assert_eq!(super::curve_bars::slot_widths(&[5.0]), vec![1.0]);
+}

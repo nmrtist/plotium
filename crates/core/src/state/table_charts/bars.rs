@@ -56,11 +56,12 @@ impl TableDataset {
         let mut fig = Figure::new(title_of(self), x, y);
         if let Some(col) = col {
             let color = series_color(column);
-            let half = 0.5 * bar_width(&plot.x, xr);
+            let widths = bar_widths(&plot.x, xr);
             for (row, (&px, &py)) in plot.x.iter().zip(&col.y).enumerate() {
                 if !px.is_finite() || !py.is_finite() {
                     continue;
                 }
+                let half = 0.5 * widths[row];
                 if let Some(sigma) = plot_sigma(col, row) {
                     fig = fig.with_error_bar(
                         ErrorBar::symmetric([px, py], sigma)
@@ -82,22 +83,28 @@ impl TableDataset {
     }
 }
 
-/// Data-space bar width: 80% of the smallest gap between adjacent finite x
-/// positions, so unevenly spaced rulers never overlap bars.
-fn bar_width(x: &[f64], x_range: f64) -> f64 {
-    let mut xs: Vec<f64> = x.iter().copied().filter(|v| v.is_finite()).collect();
+/// Data-space bar width per row: 80% of its slot on the x ruler (see
+/// [`slot_widths`]), so a close pair of rows no longer thins every bar.
+fn bar_widths(x: &[f64], x_range: f64) -> Vec<f64> {
+    // Adding zero folds -0.0 into 0.0, so both find the same slot.
+    let mut xs: Vec<f64> = x
+        .iter()
+        .filter(|v| v.is_finite())
+        .map(|v| v + 0.0)
+        .collect();
     xs.sort_by(f64::total_cmp);
     xs.dedup();
-    let min_gap = xs
-        .windows(2)
-        .map(|pair| pair[1] - pair[0])
-        .fold(f64::INFINITY, f64::min);
-    if min_gap.is_finite() {
-        0.8 * min_gap
-    } else {
+    if xs.len() < 2 {
         // A single bar has no neighbours to collide with.
-        0.5 * x_range.max(1.0)
+        return vec![0.5 * x_range.max(1.0); x.len()];
     }
+    let slots = super::super::curve_bars::slot_widths(&xs);
+    x.iter()
+        .map(|v| {
+            xs.binary_search_by(|probe| probe.total_cmp(&(v + 0.0)))
+                .map_or(0.0, |i| 0.8 * slots[i])
+        })
+        .collect()
 }
 
 /// Multi-column bars over categorical row slots: grouped side-by-side, or
@@ -248,6 +255,20 @@ mod tests {
         assert_eq!(fig.error_bars.len(), 3);
         assert!(fig.error_bars.iter().all(|e| e.draw_over_data));
         assert!(fig.y.min < 0.0 && fig.y.max > 2.0);
+    }
+
+    #[test]
+    fn one_close_pair_of_rows_narrows_only_its_own_bars() {
+        // Even 1-unit spacing with one extra row 0.1 to the right of x = 2.
+        let widths = super::bar_widths(&[0.0, 1.0, 2.0, 2.1, 3.1, 4.1], 4.1);
+        let expect = [0.8, 0.8, 0.08, 0.08, 0.8, 0.8];
+        for (width, expected) in widths.iter().zip(expect) {
+            assert!((width - expected).abs() < 1e-9, "{widths:?}");
+        }
+        // Evenly spaced rows keep 80% of the gap, as before.
+        assert_eq!(super::bar_widths(&[0.0, 2.0, 4.0], 4.0), vec![1.6; 3]);
+        // -0.0 and 0.0 are one position.
+        assert_eq!(super::bar_widths(&[-0.0, 0.0, 1.0], 1.0), vec![0.8; 3]);
     }
 
     #[test]

@@ -809,7 +809,11 @@ Replace every identity, including the example FieldId, with the actual returned
 identity. `kind` is `line`, `scatter` or `bar`; explicitly set `y_error_column_id` to a
 ColumnId or `null`. A `bar` curve draws filled bars from zero with optional
 error whiskers, filled in the curve color with a thin outline. Whiskers use the
-outline's color and width, and their caps span 45% of the bar. Its x column may be numeric or a
+outline's color and width, and their caps span 45% of the bar. A bar too small
+for its outline on paper (narrower than 4 or shorter than 2 outline widths, such
+as a near-zero value) is drawn as a plain fill, keeping its whiskers. On a numeric
+x, a slot is the typical spacing between positions, narrowed only where
+neighbours sit closer. Its x column may be numeric or a
 Utf8 text column; text values become categories in table row order, and equal
 texts share one slot. Bar curves that share a slot sit side by side within it; a
 bar alone in its slot keeps the full width, so one bar curve per category gives
