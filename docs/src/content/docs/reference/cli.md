@@ -149,13 +149,30 @@ Safety properties worth knowing:
   default) stops the run, while `continue_compatible` skips the failed step
   and carries on.
 
+## Export a project's figures
+
+```sh
+plotium-cli export <project.plotium> --output-dir <dir> [--format pdf|svg|png|tiff|jpeg] [--canvas <name or id>]... [--dpi <n>] [--overwrite]
+```
+
+`export` renders the canvases of a saved project into `--output-dir`, one file
+per canvas named after the canvas. The format defaults to `pdf`, and `--dpi`
+applies to bitmap formats. Without `--canvas`, every canvas is exported; repeat
+`--canvas` to choose some by exact name or by canvas id. An unknown or shared
+name is rejected before anything is written, as is any selection, including
+the default, in which two canvases would produce the same file name; rename one
+of them first. A project without canvases exits with `3`. Existing files are
+left untouched unless `--overwrite` is given, and the project file itself is
+never modified. The result, including each canvas's outcome and written paths,
+is printed as JSON on standard output.
+
 ## Exit codes
 
 For scripting, success is `0`; invalid usage or workflows use `2`, unreadable
-workflow or input files use `3`, processing failures use `4`, figure
-construction failures use `5`, output-write failures use `6`, and completed
-runs that contained failures use `7`. Any other nonzero code indicates an
-internal error worth reporting.
+workflow, project or input files use `3`, processing failures use `4`, figure
+construction failures use `5`, output-write failures (including any canvas that
+`export` could not write) use `6`, and completed runs that contained failures
+use `7`. Any other nonzero code indicates an internal error worth reporting.
 
 ## Workflow file anatomy
 
