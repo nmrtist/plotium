@@ -429,3 +429,26 @@ fn mcp_panel_stack_merges_plot_panels_in_page_order() {
     app.undo();
     assert_eq!(app.doc.canvases[0].panels.len(), 2);
 }
+
+#[test]
+fn stacked_plots_keep_their_shared_left_edge_under_a_panel_letter() {
+    let (mut app, panel, [top, _]) = stacked();
+    let page = &mut app.doc.canvases[0];
+    page.panel_mut(panel).expect("panel").label.mode = crate::state::PanelLabelMode::Manual {
+        value: "a".to_owned(),
+    };
+    let page = &app.doc.canvases[0];
+    let clearance = page.y_title_clearance(top);
+    // The title may still move down, but never the plot sideways.
+    assert!(clearance.below > 0.0, "{clearance:?}");
+    assert_eq!(clearance.beside, 0.0);
+    let rendered = document_items(page)
+        .into_iter()
+        .find_map(|item| match item {
+            plotium_render::DocumentItem::Plot(plot) if plot.stack.is_some() => {
+                Some(plot.y_title_clearance)
+            }
+            _ => None,
+        });
+    assert_eq!(rendered.map(|c| c.beside), Some(0.0));
+}
