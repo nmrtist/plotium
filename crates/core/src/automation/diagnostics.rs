@@ -138,6 +138,10 @@ impl FigureDiagnosticScan {
                 "warning",
                 "Estimated text bounds exceed the authored container; the native text renderer does not wrap to fit.",
             ),
+            "points_hidden_by_axis_break" => (
+                "info",
+                "Data points fall inside an axis break and are not drawn; check that the break hides only empty range.",
+            ),
             "legend_occlusion_potential" => (
                 "warning",
                 "Visible curve primitives intersect the legend layout box. Its translucent background may obscure data; this is a potential visual conflict.",

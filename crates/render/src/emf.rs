@@ -584,6 +584,13 @@ fn write_figure_content(
         }
         AxisFrame::Hidden => {}
     }
+    let gap = crate::axis_break::overlay(fig, plot, y_axis_x, 1.0);
+    for &r in &gap.erase {
+        dc.rect(r, Some(fig.background), None);
+    }
+    for &[a, b] in &gap.marks {
+        dc.line(a, b, Color::AXIS, gap.mark_width);
+    }
 
     if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack, 1.0) {
         right_axis::write(dc, fig, &right, plot);

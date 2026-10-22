@@ -135,6 +135,27 @@ fn copy_into(
             .transpose()?;
         changed.push(plot_display::X_RANGE);
     }
+    if before.x_break != after.x_break {
+        target.x_break = after
+            .x_break
+            .map(|brk| {
+                let convert = |value| {
+                    crate::state::shared_x_value(value, source_unit, &unit).map_err(|message| {
+                        PropertyError::InvalidValue {
+                            property: plot_display::X_BREAK,
+                            message,
+                        }
+                    })
+                };
+                Ok::<_, PropertyError>(plotium_figure::AxisBreak {
+                    from: convert(brk.from)?,
+                    to: convert(brk.to)?,
+                    ..brk
+                })
+            })
+            .transpose()?;
+        changed.push(plot_display::X_BREAK);
+    }
     if before.x_scale != after.x_scale {
         if after.x_scale == Some(AxisScale::Log10)
             && let Some(reason) = axis::scale_unavailable(app, axis::X_SCALE, plot)

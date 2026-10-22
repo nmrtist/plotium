@@ -353,14 +353,8 @@ fn margins_for_ticks_with_widths(
     }
 }
 
-/// Up to `target` "nice" tick values covering `[min, max]`, using 1/2/5×10ⁿ
-/// rounding so ticks land on human-friendly numbers.
-pub fn ticks(min: f64, max: f64, target: usize) -> Vec<f64> {
-    let (lo, hi) = if min <= max { (min, max) } else { (max, min) };
-    let span = hi - lo;
-    if !span.is_finite() || span <= 0.0 || target == 0 {
-        return vec![lo];
-    }
+/// The 1/2/5×10ⁿ spacing [`ticks`] uses for `target` ticks over `span`.
+pub(crate) fn nice_step(span: f64, target: usize) -> f64 {
     let raw_step = span / target as f64;
     let mag = 10f64.powf(raw_step.log10().floor());
     let norm = raw_step / mag;
@@ -373,7 +367,18 @@ pub fn ticks(min: f64, max: f64, target: usize) -> Vec<f64> {
     } else {
         10.0
     };
-    let step = nice * mag;
+    nice * mag
+}
+
+/// Up to `target` "nice" tick values covering `[min, max]`, using 1/2/5×10ⁿ
+/// rounding so ticks land on human-friendly numbers.
+pub fn ticks(min: f64, max: f64, target: usize) -> Vec<f64> {
+    let (lo, hi) = if min <= max { (min, max) } else { (max, min) };
+    let span = hi - lo;
+    if !span.is_finite() || span <= 0.0 || target == 0 {
+        return vec![lo];
+    }
+    let step = nice_step(span, target);
 
     let eps = step * 1e-9;
     let first = ((lo - eps) / step).ceil() * step;
@@ -459,6 +464,11 @@ pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
     {
         return ticks;
     }
+    if axis.categories.is_none()
+        && let Some(pieces) = axis.break_pieces()
+    {
+        return crate::axis_break::ticks(axis, pieces, target);
+    }
     if axis.categories.is_none() {
         if let Some(display) = &axis.display {
             let mut result = format_axis_ticks(
@@ -500,6 +510,9 @@ pub fn minor_tick_values(axis: &Axis, ticks: &AxisTicks, count: u8) -> Vec<f64> 
         } else {
             decade_minors_for(axis, ticks)
         };
+    }
+    if let Some(pieces) = axis.break_pieces() {
+        return crate::axis_break::minor_ticks(axis, pieces, ticks, count);
     }
     let (Some(&first), Some(&second)) = (ticks.values.first(), ticks.values.get(1)) else {
         return Vec::new();
@@ -580,7 +593,22 @@ pub fn axis_ticks(min: f64, max: f64, target: usize) -> AxisTicks {
 
 fn format_axis_ticks(min: f64, max: f64, target: usize, group_thousands: bool) -> AxisTicks {
     let values = ticks(min, max, target);
-    let max_abs = min.abs().max(max.abs());
+    let step = values
+        .windows(2)
+        .map(|pair| (pair[1] - pair[0]).abs())
+        .find(|step| step.is_finite() && *step > 0.0)
+        .unwrap_or(f64::NAN);
+    label_tick_values(values, step, min.abs().max(max.abs()), group_thousands)
+}
+
+/// Label `values` as one system: a shared ×10ⁿ multiplier chosen from
+/// `max_abs` and a precision that resolves `step`.
+pub(crate) fn label_tick_values(
+    values: Vec<f64>,
+    step: f64,
+    max_abs: f64,
+    group_thousands: bool,
+) -> AxisTicks {
     let exponent = if max_abs.is_finite() && max_abs > 0.0 {
         max_abs.log10().floor() as i32
     } else {
@@ -596,10 +624,8 @@ fn format_axis_ticks(min: f64, max: f64, target: usize, group_thousands: bool) -
     };
     let scale_exponent = (exponent >= large_exponent || exponent <= -4).then_some(exponent);
     let scale = scale_exponent.map_or(1.0, |value| 10f64.powi(value));
-    let scaled_step = values
-        .windows(2)
-        .map(|pair| ((pair[1] - pair[0]) / scale).abs())
-        .find(|step| step.is_finite() && *step > 0.0)
+    let scaled_step = Some(step / scale)
+        .filter(|step| step.is_finite() && *step > 0.0)
         .unwrap_or(1.0);
     let precision = decimal_places(scaled_step);
     let zero_threshold = 0.5 * 10f64.powi(-(precision as i32));

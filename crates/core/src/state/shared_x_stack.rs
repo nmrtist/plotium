@@ -262,12 +262,18 @@ impl CanvasDocument {
                             .coordinates
                             .as_ref()
                             .and_then(|c| c.horizontal().cloned());
-                        (id, unit, plot.viewport.full_x, plot.axis_overrides.x_scale)
+                        (
+                            id,
+                            unit,
+                            plot.viewport.full_x,
+                            plot.axis_overrides.x_scale,
+                            plot.axis_overrides.x_break,
+                        )
                     },
                 )
             })
             .collect();
-        let [(_, reference, _, scale), ..] = members.as_slice() else {
+        let [(_, reference, _, scale, reference_break), ..] = members.as_slice() else {
             return Ok(());
         };
         if members.len() < 2 {
@@ -278,7 +284,7 @@ impl CanvasDocument {
         };
         if members
             .iter()
-            .any(|(_, _, _, other)| linear(other) != linear(scale))
+            .any(|(_, _, _, other, _)| linear(other) != linear(scale))
         {
             return Err(
                 "Give the plots the same x scale (linear or logarithmic) before stacking them on a shared x axis."
@@ -288,7 +294,7 @@ impl CanvasDocument {
         let incompatible =
             |error: String| format!("Plots in a shared-x stack need compatible x units: {error}");
         let mut union: Option<AxisRange> = None;
-        for (_, unit, full, _) in &members {
+        for (_, unit, full, _, _) in &members {
             let min = shared_x_value(full.min, unit, reference).map_err(incompatible)?;
             let max = shared_x_value(full.max, unit, reference).map_err(incompatible)?;
             let range = AxisRange::new(min, max);
@@ -306,7 +312,8 @@ impl CanvasDocument {
             );
         }
         let reference = reference.clone();
-        for (id, unit, _, _) in members {
+        let reference_break = *reference_break;
+        for (id, unit, _, _, _) in members {
             let min = shared_x_value(union.min, &reference, &unit).map_err(incompatible)?;
             let max = shared_x_value(union.max, &reference, &unit).map_err(incompatible)?;
             if let Some(plot) = self.object_mut(id).and_then(|item| item.plot_mut()) {
@@ -316,6 +323,19 @@ impl CanvasDocument {
                 // start every member from the whole shared window.
                 plot.viewport.full_x = range;
                 plot.viewport.view_x = range;
+            }
+            // Members share one x mapping, so they take the first plot's break.
+            let x_break = reference_break
+                .map(|brk| {
+                    Ok::<_, String>(plotium_figure::AxisBreak {
+                        from: shared_x_value(brk.from, &reference, &unit).map_err(incompatible)?,
+                        to: shared_x_value(brk.to, &reference, &unit).map_err(incompatible)?,
+                        ..brk
+                    })
+                })
+                .transpose()?;
+            if let Some(plot) = self.object_mut(id).and_then(|item| item.plot_mut()) {
+                plot.axis_overrides.x_break = x_break;
             }
         }
         Ok(())
@@ -327,6 +347,7 @@ impl AxisOverrides {
     pub fn shared_x_differs(&self, other: &Self) -> bool {
         self.x_range != other.x_range
             || self.x_scale != other.x_scale
+            || self.x_break != other.x_break
             || self.x_display_unit != other.x_display_unit
             || self.x_thousands_separator != other.x_thousands_separator
     }

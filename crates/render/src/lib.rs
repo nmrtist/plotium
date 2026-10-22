@@ -3,6 +3,7 @@
 //! share [`Projector`] and [`ticks`].
 
 mod arrow_geometry;
+mod axis_break;
 pub mod contour;
 mod curve_style;
 pub mod diagnostics;

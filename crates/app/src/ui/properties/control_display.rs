@@ -1,6 +1,6 @@
 //! Controls for atomic range intent; no direct axis state writes.
 use super::*;
-use plotium_core::properties::AxisRangeValue;
+use plotium_core::properties::{AxisRangeValue, plot_display};
 
 pub(super) fn range(
     row: &Row,
@@ -18,9 +18,18 @@ pub(super) fn range(
         unreachable!("range control requires range schema")
     };
     let manual_allowed = *manual_allowed;
+    // An axis break has no automatic value: Auto there means no break.
+    let auto_name = if matches!(
+        row.presentation.id,
+        plot_display::X_BREAK | plot_display::Y_BREAK
+    ) {
+        "None"
+    } else {
+        "Auto"
+    };
     if row.mixed() {
         for (name, value) in [
-            ("Auto", AxisRangeValue::Auto),
+            (auto_name, AxisRangeValue::Auto),
             (
                 "Manual",
                 AxisRangeValue::Manual {
@@ -32,7 +41,7 @@ pub(super) fn range(
         ] {
             if ui
                 .add_enabled(
-                    manual_allowed || name == "Auto",
+                    manual_allowed || name == auto_name,
                     egui::Button::selectable(false, name),
                 )
                 .clicked()
@@ -50,7 +59,7 @@ pub(super) fn range(
     if ui
         .add_enabled(
             manual_allowed || !auto,
-            egui::Checkbox::new(&mut auto, "Auto"),
+            egui::Checkbox::new(&mut auto, auto_name),
         )
         .changed()
     {

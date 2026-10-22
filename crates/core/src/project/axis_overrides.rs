@@ -3,7 +3,7 @@ use crate::state::{
     AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations, PlotArrow, PlotReferenceLine,
 };
 use plotium_figure::{
-    AxisFrame, AxisScale, GuideLayout, GuidePlacement, GuideVisibility, LineStyle,
+    AxisBreak, AxisFrame, AxisScale, GuideLayout, GuidePlacement, GuideVisibility, LineStyle,
     ReferenceOrientation,
 };
 use serde::{Deserialize, Serialize};
@@ -32,6 +32,10 @@ pub struct AxisOverridesDto {
     x_scale: Option<AxisScale>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     y_scale: Option<AxisScale>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    x_break: Option<AxisBreak>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y_break: Option<AxisBreak>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     x_show_tick_labels: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -228,6 +232,8 @@ impl AxisOverridesDto {
             axis_frame: overrides.axis_frame,
             x_scale: overrides.x_scale,
             y_scale: overrides.y_scale,
+            x_break: overrides.x_break,
+            y_break: overrides.y_break,
             x_show_tick_labels: overrides.x_show_tick_labels,
             x_show_label: overrides.x_show_label,
             y_show_tick_labels: overrides.y_show_tick_labels,
@@ -262,6 +268,8 @@ impl AxisOverridesDto {
             axis_frame: self.axis_frame,
             x_scale: self.x_scale,
             y_scale: self.y_scale,
+            x_break: self.x_break,
+            y_break: self.y_break,
             x_show_tick_labels: self.x_show_tick_labels,
             x_show_label: self.x_show_label,
             y_show_tick_labels: self.y_show_tick_labels,
@@ -365,6 +373,24 @@ mod tests {
         let dto = AxisOverridesDto::from_overrides(&overrides).expect("scale override is stored");
         let json = serde_json::to_string(&dto).expect("serializes");
         assert!(json.contains(r#""y_scale":"log10""#));
+        let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
+        assert_eq!(restored.to_overrides(), overrides);
+    }
+
+    #[test]
+    fn break_overrides_round_trip_through_the_project_format() {
+        let overrides = AxisOverrides {
+            y_break: Some(AxisBreak {
+                from: 10.0,
+                to: 90.0,
+                lower_fraction: Some(0.3),
+            }),
+            ..AxisOverrides::default()
+        };
+        let dto = AxisOverridesDto::from_overrides(&overrides).expect("break is stored");
+        let json = serde_json::to_string(&dto).expect("serializes");
+        assert!(json.contains(r#""y_break":{"from":10.0,"to":90.0,"lower_fraction":0.3}"#));
+        assert!(!json.contains("x_break"));
         let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(restored.to_overrides(), overrides);
     }

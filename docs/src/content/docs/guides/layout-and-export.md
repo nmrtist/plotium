@@ -364,6 +364,23 @@ What you control directly:
   placed in left-axis coordinates. In a table plot each y axis keeps the unit
   of its first curve; a curve whose unit cannot convert to it cannot join that
   axis.
+- **X break** and **Y break**, under the more options of the **Axes** section,
+  break a linear numeric axis: the values between the two endpoints are left
+  out, and the axis line opens with a pair of slanted marks. Untick **None** to
+  start from the middle third of the current range, then edit the endpoints;
+  both must lie inside the axis range. By default the two pieces keep the same
+  scale; **X lower share** or **Y lower share** sets how much of
+  the axis length the lower values get instead. Each piece gets its own ticks, and a tick right next to
+  the break is left out so the labels do not collide. Lines that cross the
+  break leave at one side of the gap and continue on the other; a bar that
+  spans a y break is drawn cut. Logarithmic, categorical and equal-scale axes,
+  2D maps and NMR spectra cannot be broken, nor can the y axis of a plot with a
+  right y axis. In a shared x stack, an x break applies to every plot.
+  Agents set it through `object.axes.x_break` and `object.axes.y_break`
+  (`{"mode":"manual","min":…,"max":…,"unit":…}`, or `{"mode":"auto"}` for no
+  break) and
+  `object.axes.x_break_lower_fraction`/`object.axes.y_break_lower_fraction`;
+  figure diagnosis reports data points that a break hides.
 - Use **Legend & scales** in the Object inspector for any plot. With
   **Visibility** on **Auto**, Plotium shows a categorical legend when the plot
   has two or more named entries and shows a continuous colour scale for a

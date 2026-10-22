@@ -1,7 +1,9 @@
 //! Figure model: a pure-data description of what to draw, in data-space
 //! coordinates. Both renderers (egui screen, SVG export) consume this model.
 
+mod axis_break;
 mod axis_scale;
+pub use axis_break::{AXIS_BREAK_GAP, AxisBreak};
 mod color_shade;
 mod colormap;
 mod display;
@@ -213,6 +215,10 @@ pub struct Axis {
     pub categories: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "AxisScale::is_linear")]
     pub scale: AxisScale,
+    /// Values hidden by a broken axis; ignored unless the axis is linear,
+    /// numeric and its window contains the whole break.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub axis_break: Option<AxisBreak>,
 }
 
 impl Axis {
@@ -228,6 +234,7 @@ impl Axis {
             reversed: false,
             categories: None,
             scale: AxisScale::Linear,
+            axis_break: None,
         }
     }
 
@@ -246,6 +253,7 @@ impl Axis {
             reversed: false,
             categories: Some(names),
             scale: AxisScale::Linear,
+            axis_break: None,
         }
     }
 
@@ -271,12 +279,12 @@ impl Axis {
         }
     }
 
-    /// Map a value to a normalized `[0,1]` position, honoring `reversed` and
-    /// the axis scale. Values without a position on a log axis come back
-    /// non-finite.
+    /// Map a value to a normalized `[0,1]` position, honoring `reversed`, the
+    /// axis scale and an active break. Values without a position on a log axis
+    /// come back non-finite.
     pub fn normalize(&self, v: f64) -> f64 {
         let t = match self.effective_scale() {
-            AxisScale::Linear => (v - self.min) / self.span(),
+            AxisScale::Linear => self.broken((v - self.min) / self.span()),
             scale => {
                 let (lo, span) = self.transformed_window(scale);
                 (scale.forward(v) - lo) / span
@@ -289,7 +297,7 @@ impl Axis {
     pub fn value_at(&self, n: f64) -> f64 {
         let t = if self.reversed { 1.0 - n } else { n };
         match self.effective_scale() {
-            AxisScale::Linear => self.min + t * self.span(),
+            AxisScale::Linear => self.min + self.unbroken(t) * self.span(),
             scale => {
                 let (lo, span) = self.transformed_window(scale);
                 scale.inverse(lo + t * span)

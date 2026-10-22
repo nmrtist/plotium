@@ -5,8 +5,8 @@ use super::routes::*;
 use super::types::*;
 use plotium_core::properties::{
     apodization, app_preferences, axis, baseline, bin, canvas, chart_layout, contour, export_dpi,
-    group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase, reference,
-    right_axis, smooth, step_enabled, typography, zero_fill,
+    group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase, plot_display,
+    reference, right_axis, smooth, step_enabled, typography, zero_fill,
 };
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
@@ -49,41 +49,17 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         "Marker edge width",
         LINE_HOME,
     ),
-    object_entry(
-        plotium_core::properties::plot_display::X_UNIT,
-        "X display unit",
-        AXIS_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::plot_display::Y_UNIT,
-        "Y display unit",
-        AXIS_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::plot_display::X_RANGE,
-        "X range",
-        AXIS_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::plot_display::Y_RANGE,
-        "Y range",
-        AXIS_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::plot_display::TICK_PT,
-        "Tick size",
-        AXIS_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::plot_display::LABEL_PT,
-        "Axis-title size",
-        AXIS_HOME,
-    ),
-    object_entry(
-        plotium_core::properties::plot_display::LEGEND_PT,
-        "Legend size",
-        GUIDE_HOME,
-    ),
+    object_entry(plot_display::X_UNIT, "X display unit", AXIS_HOME),
+    object_entry(plot_display::Y_UNIT, "Y display unit", AXIS_HOME),
+    object_entry(plot_display::X_RANGE, "X range", AXIS_HOME),
+    object_entry(plot_display::Y_RANGE, "Y range", AXIS_HOME),
+    object_entry(plot_display::X_BREAK, "X break", AXIS_HOME),
+    object_entry(plot_display::Y_BREAK, "Y break", AXIS_HOME),
+    object_entry(plot_display::X_BREAK_FRACTION, "X lower share", AXIS_HOME),
+    object_entry(plot_display::Y_BREAK_FRACTION, "Y lower share", AXIS_HOME),
+    object_entry(plot_display::TICK_PT, "Tick size", AXIS_HOME),
+    object_entry(plot_display::LABEL_PT, "Axis-title size", AXIS_HOME),
+    object_entry(plot_display::LEGEND_PT, "Legend size", GUIDE_HOME),
     object_entry(object::STACK_MODE, "Mode", STACK_HOME),
     object_entry(object::STACK_SPACING_Y, "Vertical spacing", STACK_HOME),
     object_entry(object::STACK_SHEAR_X, "3D shear", STACK_HOME),
