@@ -523,7 +523,51 @@ fn set_scale_content_default(app: &mut PlotiumApp, scale_content: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use plotium_core::state::{CanvasDocument, NATURE_SINGLE_COLUMN, PAPER_A4};
+    use plotium_core::actions::PanelState;
+    use plotium_core::state::{CanvasDocument, NATURE_SINGLE_COLUMN, ObjectFrame, PAPER_A4};
+
+    #[test]
+    fn scale_to_fit_includes_visible_content_outside_its_panel_and_is_reversible() {
+        let (mut app, ids) = super::super::properties::fixture::contour_page(2);
+        let page = &mut app.doc.canvases[0];
+        page.size_mm = [89.0, 60.0];
+        let panel = page.create_panel("Panel".into(), ObjectFrame::new(30.0, 20.0, 300.0, 200.0));
+        page.panel_mut(panel).unwrap().item_order = ids.clone();
+        page.object_mut(ids[0]).unwrap().frame = ObjectFrame::new(180.0, -60.0, 200.0, 140.0);
+        page.object_mut(ids[1]).unwrap().frame = ObjectFrame::new(-100.0, 150.0, 80.0, 120.0);
+        let before = PanelState::of(page);
+        scale_content_to_fit(&mut app, 0);
+        let page = &app.doc.canvases[0];
+        let size = page.size_pt();
+        for id in &ids {
+            let f = page.content_page_frame(*id).unwrap();
+            assert!(
+                f.x >= -0.001
+                    && f.y >= -0.001
+                    && f.x + f.width <= size[0] + 0.001
+                    && f.y + f.height <= size[1] + 0.001,
+                "{f:?}"
+            );
+        }
+        assert!(!content_overflows(page));
+        let after = PanelState::of(page);
+        scale_content_to_fit(&mut app, 0);
+        let repeated = PanelState::of(&app.doc.canvases[0]);
+        for (a, b) in after.objects.iter().zip(&repeated.objects) {
+            assert!(
+                (a.frame.x - b.frame.x).abs() < 0.001
+                    && (a.frame.width - b.frame.width).abs() < 0.001
+            );
+        }
+        app.undo();
+        app.undo();
+        for (a, b) in before.objects.iter().zip(&app.doc.canvases[0].objects) {
+            assert!(
+                (a.frame.x - b.frame.x).abs() < 0.001
+                    && (a.frame.width - b.frame.width).abs() < 0.001
+            );
+        }
+    }
 
     fn app_with_canvas(size_mm: [f32; 2], margin_mm: [f32; 4]) -> PlotiumApp {
         let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());

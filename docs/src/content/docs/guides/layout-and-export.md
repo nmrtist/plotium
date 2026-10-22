@@ -88,6 +88,11 @@ You can also `Ctrl`/`Cmd`-click an object to select it without entering first.
 A resize stops before any plot inside the Panel would lose the room for its
 data to its axes, ticks and colour scale.
 
+With **Clip contents to panel** off, content can extend beyond its Panel and
+the page; drag the visible content to bring it back. With clipping on, dragging
+or resizing content keeps it reachable inside the Panel. Where objects overlap,
+the topmost visible object receives the drag.
+
 To exchange two Panels on the same canvas, drag one over the other and release
 when both slots are highlighted. The Panels exchange positions and sizes; their
 contents scale with the destination slot. This is one undoable step. Hidden or

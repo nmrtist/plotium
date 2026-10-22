@@ -17,19 +17,28 @@ const AUTO_HEIGHT_MAX_MM: f32 = 1000.0;
 /// wobble from unit round-trips.
 const OVERFLOW_SLACK_PT: f32 = 0.5;
 
-/// Union of the visible objects' frames in page pt as `[min_x, min_y, max_x,
-/// max_y]`, or `None` for a page with no visible content.
+/// Union of visible content and its layout containers in page pt as
+/// `[min_x, min_y, max_x, max_y]`, or `None` for a page with no visible content.
 pub fn content_bounds_pt(canvas: &CanvasDocument) -> Option<[f32; 4]> {
     let mut bounds: Option<[f32; 4]> = None;
     for object in canvas.objects.iter().filter(|o| o.visible) {
-        let Some(f) = canvas.layout_frame(object.id) else {
+        let panel = canvas
+            .parent_panel(object.id)
+            .and_then(|id| canvas.panel(id));
+        if panel.is_some_and(|panel| !panel.visible) {
             continue;
-        };
-        let b = bounds.get_or_insert([f.x, f.y, f.x + f.width, f.y + f.height]);
-        b[0] = b[0].min(f.x);
-        b[1] = b[1].min(f.y);
-        b[2] = b[2].max(f.x + f.width);
-        b[3] = b[3].max(f.y + f.height);
+        }
+        let content = panel
+            .is_none_or(|panel| !panel.clip_children)
+            .then(|| canvas.content_page_frame(object.id))
+            .flatten();
+        for f in canvas.layout_frame(object.id).into_iter().chain(content) {
+            let b = bounds.get_or_insert([f.x, f.y, f.x + f.width, f.y + f.height]);
+            b[0] = b[0].min(f.x);
+            b[1] = b[1].min(f.y);
+            b[2] = b[2].max(f.x + f.width);
+            b[3] = b[3].max(f.y + f.height);
+        }
     }
     bounds
 }
@@ -191,6 +200,23 @@ mod tests {
         assert_eq!(content_bounds_pt(&canvas), None);
         assert!(!content_overflows(&canvas));
         assert_eq!(auto_height_mm(&canvas), None);
+    }
+
+    #[test]
+    fn panel_bounds_include_unclipped_overflow_but_ignore_hidden_content() {
+        let mut page = page_with_text([89.0, 60.0], ObjectFrame::new(-40.0, 100.0, 80.0, 90.0));
+        let panel = page.create_panel("Panel".into(), ObjectFrame::new(20.0, 10.0, 100.0, 60.0));
+        page.panel_mut(panel)
+            .unwrap()
+            .item_order
+            .push(ObjectId::new(1));
+        assert_eq!(content_bounds_pt(&page), Some([-20.0, 10.0, 120.0, 200.0]));
+        assert!(content_overflows(&page));
+        page.panel_mut(panel).unwrap().clip_children = true;
+        assert_eq!(content_bounds_pt(&page), Some([20.0, 10.0, 120.0, 70.0]));
+        assert!(!content_overflows(&page));
+        page.panel_mut(panel).unwrap().visible = false;
+        assert_eq!(content_bounds_pt(&page), None);
     }
 
     #[test]

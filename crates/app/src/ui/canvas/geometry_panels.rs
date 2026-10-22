@@ -1,5 +1,9 @@
 use super::*;
 
+#[cfg(test)]
+#[path = "hit_order_tests.rs"]
+mod tests;
+
 #[derive(Clone, Copy)]
 pub(crate) struct ObjectHit {
     pub(crate) object: ObjectId,
@@ -17,7 +21,7 @@ pub(crate) fn hit_object(canvas: &CanvasDocument, p: Pos2, zoom: f32) -> Option<
 }
 
 pub(crate) fn hit_objects(canvas: &CanvasDocument, p: Pos2, zoom: f32) -> Vec<ObjectHit> {
-    hit_frames(canvas, p, zoom, |canvas, id| canvas.layout_frame(id))
+    hit_frames(canvas, p, zoom, |canvas, id| canvas.content_page_frame(id))
 }
 
 /// Child hit-testing uses page-space content frames. In page scope callers hit
@@ -61,6 +65,14 @@ fn hit_frames(
             if !object.visible {
                 return None;
             }
+            if let Some(panel) = canvas
+                .parent_panel(object.id)
+                .and_then(|id| canvas.panel(id))
+                && (!panel.visible
+                    || (panel.clip_children && !plot_contains(panel.frame.rect(), p)))
+            {
+                return None;
+            }
             let frame = frame(canvas, object.id)?;
             let r = egui::Rect::from_min_size(
                 Pos2::new(frame.x, frame.y),
@@ -90,41 +102,49 @@ fn hit_frames(
         .collect()
 }
 
-/// Hit-test the semantic Panel frame, including empty Panels and resize
-/// handles. The topmost visible Panel wins on overlap.
+/// Visible content follows the document's object paint order. Only after
+/// choosing that object do we resolve its semantic Panel; empty Panel frames
+/// must never intercept a graph drawn above them.
 pub(crate) fn hit_panel(canvas: &CanvasDocument, p: Pos2, zoom: f32) -> Option<PanelHit> {
-    let handle_radius = (HANDLE_SIZE_PX / zoom.max(0.01)).max(3.0);
+    if let Some(hit) = hit_object(canvas, p, zoom) {
+        let panel = canvas
+            .parent_panel(hit.object)
+            .and_then(|id| canvas.panel(id))?;
+        return Some(PanelHit {
+            panel: panel.id,
+            kind: panel_frame_hit(panel.frame, p, zoom).unwrap_or(ObjectDragKind::Move),
+        });
+    }
     canvas
         .panels
         .iter()
         .rev()
         .filter(|panel| panel.visible)
         .find_map(|panel| {
-            let r = egui::Rect::from_min_size(
-                Pos2::new(panel.frame.x, panel.frame.y),
-                egui::vec2(panel.frame.width, panel.frame.height),
-            );
-            let handles = [
-                (r.left_top(), ResizeHandle::TopLeft),
-                (r.right_top(), ResizeHandle::TopRight),
-                (r.left_bottom(), ResizeHandle::BottomLeft),
-                (r.right_bottom(), ResizeHandle::BottomRight),
-            ];
-            handles
-                .into_iter()
-                .find_map(|(pos, handle)| {
-                    (pos.distance(p) <= handle_radius).then_some(PanelHit {
-                        panel: panel.id,
-                        kind: ObjectDragKind::Resize(handle),
-                    })
-                })
-                .or_else(|| {
-                    r.contains(p).then_some(PanelHit {
-                        panel: panel.id,
-                        kind: ObjectDragKind::Move,
-                    })
-                })
+            panel_frame_hit(panel.frame, p, zoom).map(|kind| PanelHit {
+                panel: panel.id,
+                kind,
+            })
         })
+}
+
+fn panel_frame_hit(frame: ObjectFrame, p: Pos2, zoom: f32) -> Option<ObjectDragKind> {
+    let handle_radius = (HANDLE_SIZE_PX / zoom.max(0.01)).max(3.0);
+    let r = egui::Rect::from_min_size(
+        Pos2::new(frame.x, frame.y),
+        egui::vec2(frame.width, frame.height),
+    );
+    [
+        (r.left_top(), ResizeHandle::TopLeft),
+        (r.right_top(), ResizeHandle::TopRight),
+        (r.left_bottom(), ResizeHandle::BottomLeft),
+        (r.right_bottom(), ResizeHandle::BottomRight),
+    ]
+    .into_iter()
+    .find_map(|(pos, handle)| {
+        (pos.distance(p) <= handle_radius).then_some(ObjectDragKind::Resize(handle))
+    })
+    .or_else(|| r.contains(p).then_some(ObjectDragKind::Move))
 }
 
 pub(crate) fn content_screen_rect(

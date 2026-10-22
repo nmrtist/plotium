@@ -560,14 +560,16 @@ fn canvas_cursor(app: &PlotiumApp, ci: usize, rect: egui::Rect, ui: &Ui) {
             .map(|(_, panel)| panel);
         match screen_to_page_unbounded(app.session.board, &app.doc.canvases[ci], rect, p).and_then(
             |page| {
-                if let Some(panel) = editing_panel {
-                    return hit_content_object(
+                if let Some(panel) = editing_panel
+                    && let Some(hit) = hit_content_object(
                         &app.doc.canvases[ci],
                         page,
                         app.session.board.zoom,
-                        Some(panel),
+                        None,
                     )
-                    .map(|hit| hit.kind);
+                    .filter(|hit| app.doc.canvases[ci].parent_panel(hit.object) == Some(panel))
+                {
+                    return Some(hit.kind);
                 }
                 hit_panel(&app.doc.canvases[ci], page, app.session.board.zoom)
                     .map(|hit| hit.kind)
