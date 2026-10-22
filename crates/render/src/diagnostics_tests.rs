@@ -10,6 +10,7 @@ fn scan(s: &Series, clip: Option<Rect>, legend: Rect) -> CurveScanResult {
         plot: Rect::new(0., 0., 100., 100.),
         top_band: None,
         left_band: None,
+        y_side: plotium_figure::YAxisSide::Left,
     };
     scan_curve(
         s,
@@ -83,6 +84,7 @@ fn dash_gaps_and_continuation_keep_native_phase() {
         plot: clip,
         top_band: None,
         left_band: None,
+        y_side: plotium_figure::YAxisSide::Left,
     };
     let mut cursor = CurveScan::default();
     let a = scan_curve(&s, &p, Some(clip), Some(legend), &mut cursor, 2, &|| false);
@@ -256,6 +258,7 @@ fn duplicate_vertices_retain_tangent_across_batches_and_cancellation() {
         plot: clip,
         top_band: None,
         left_band: None,
+        y_side: plotium_figure::YAxisSide::Left,
     };
     let legend = Some(Rect::new(49.8, 15.9, 0.4, 0.5));
     for budget in [1, 2, 3] {

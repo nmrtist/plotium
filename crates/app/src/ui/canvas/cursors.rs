@@ -99,6 +99,12 @@ pub(crate) fn paint_cursor_tool(
                     chrome,
                     ui.visuals().dark_mode,
                 );
+            } else if let Some(text) = ui
+                .input(|input| input.pointer.hover_pos())
+                .filter(|pointer| plot_contains(plot, *pointer))
+                .and_then(|pointer| dual_axis_text(app, canvas, object, plot, pointer))
+            {
+                paint_readout(text, plot, painter, chrome, ui.visuals().dark_mode);
             }
         }
         Tool::DeltaCursor => {
@@ -331,6 +337,30 @@ fn paint_delta(
             stroke.color,
         );
     }
+}
+
+/// The pointer position on x and on both y axes of a plot with a right axis.
+fn dual_axis_text(
+    app: &PlotiumApp,
+    canvas: usize,
+    object: ObjectId,
+    plot: PlotRect,
+    pointer: Pos2,
+) -> Option<String> {
+    let figure = app
+        .doc
+        .canvases
+        .get(canvas)?
+        .object(object)?
+        .plot()?
+        .figure();
+    let right = figure.y2.as_ref()?;
+    Some(format!(
+        "x {} · left y {} · right y {}",
+        fmt_number(from_screen_x(pointer.x, plot, &figure.x)),
+        fmt_number(from_screen_y(pointer.y, plot, &figure.y)),
+        fmt_number(from_screen_y(pointer.y, plot, right)),
+    ))
 }
 
 fn inspect_text(app: &PlotiumApp, dataset: usize, point: CursorPoint) -> String {

@@ -136,6 +136,14 @@ impl SeriesBinding {
         }
     }
 
+    /// The vertical axis this series is measured against.
+    pub fn y_axis(&self) -> plotium_figure::YAxisSide {
+        match &self.encoding {
+            plotium_figure::SeriesEncoding::Line(line) => line.appearance.y_axis,
+            _ => plotium_figure::YAxisSide::Left,
+        }
+    }
+
     pub fn line_x_shift(&self) -> Option<f64> {
         match &self.encoding {
             plotium_figure::SeriesEncoding::Line(line) => Some(line.x_shift.get()),

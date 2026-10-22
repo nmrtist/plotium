@@ -28,6 +28,35 @@ impl CurveKind {
 pub struct NewCurve {
     pub kind: CurveKind,
     pub source: TableCurveSource,
+    /// Line and scatter curves may be measured on the right y axis.
+    #[serde(default)]
+    pub y_axis: plotium_figure::YAxisSide,
+}
+impl NewCurve {
+    pub(crate) fn encoding(&self) -> Result<LineEncoding, String> {
+        if self.y_axis.is_right() && !right_axis_supports(self.kind.native()) {
+            return Err(super::right_axis::RIGHT_AXIS_KINDS.into());
+        }
+        let mut line = LineEncoding {
+            kind: self.kind.native(),
+            ..LineEncoding::default()
+        };
+        line.appearance.y_axis = self.y_axis;
+        Ok(line)
+    }
+}
+/// Unit the first of `curves` brings to the right axis, when one goes there.
+pub(crate) fn first_right_axis_unit(
+    app: &PlotiumApp,
+    curves: &[NewCurve],
+) -> Result<Option<Option<plotium_data::UnitSpec>>, String> {
+    let Some(curve) = curves.iter().find(|c| c.y_axis.is_right()) else {
+        return Ok(None);
+    };
+    let sb = SeriesBinding::with_source(curve.source.source());
+    let (table, selections) = app.table_curve_sources(sb.source)?;
+    let columns = selections.first().ok_or("The curve selects no columns.")?;
+    Ok(Some(table_curve_coordinates(table, *columns)?.y))
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -142,19 +171,27 @@ impl PlotiumApp {
             self.check_table_curve_revision(&curve.source)?;
             let mut sb = SeriesBinding::with_source(curve.source.source());
             sb.id = SeriesId::new(index as u64);
-            sb.encoding = SeriesEncoding::Line(LineEncoding {
-                kind: curve.kind.native(),
-                ..LineEncoding::default()
-            });
+            sb.encoding = SeriesEncoding::Line(curve.encoding()?);
             binding.series.push(sb);
         }
         self.check_curve_row_budget([&binding])?;
-        let (table, _) = self.table_curve_sources(binding.series[0].source)?;
-        let columns = binding.series[0]
-            .source
-            .columns()
-            .expect("all newly created curves are explicit");
-        let coordinates = table_curve_coordinates(table, columns)?;
+        // The first curve fixes x; the first curve on each y axis fixes that axis.
+        let left = params
+            .series
+            .iter()
+            .position(|curve| !curve.y_axis.is_right())
+            .unwrap_or(0);
+        let coordinate_units = |index: usize| {
+            let (table, _) = self.table_curve_sources(binding.series[index].source)?;
+            let columns = binding.series[index]
+                .source
+                .columns()
+                .expect("all newly created curves are explicit");
+            table_curve_coordinates(table, columns)
+        };
+        let mut coordinates = coordinate_units(0)?;
+        coordinates.y = coordinate_units(left)?.y;
+        coordinates.y2 = first_right_axis_unit(self, &params.series)?.flatten();
         binding.coordinates = Some(coordinates.clone());
         let stack = StackSpec::default();
         // The same full-row extraction, unit conversions and renderer used by R4.

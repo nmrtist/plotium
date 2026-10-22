@@ -17,6 +17,7 @@ fn placement(joined_above: bool, joined_below: bool) -> StackPlacement {
         left: 40.0,
         right: 12.0,
         y_tick_clearance: 0.0,
+        y2_tick_clearance: 0.0,
         joined_above,
         joined_below,
     }

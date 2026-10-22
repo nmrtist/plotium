@@ -23,6 +23,7 @@ mod arrows;
 mod curves;
 mod dc;
 mod reference_lines;
+mod right_axis;
 
 use dc::{Dc, TextStyle, blend, l};
 
@@ -341,7 +342,7 @@ fn write_figure_content(
     }
 
     let hidden_frame = fig.axis_frame == AxisFrame::Hidden;
-    let (x_ticks, y_ticks) = (layout.x_ticks, layout.y_ticks);
+    let (x_ticks, y_ticks) = (&layout.x_ticks, &layout.y_ticks);
 
     if fig.show_grid && !hidden_frame {
         for &xt in &x_ticks.values {
@@ -357,12 +358,12 @@ fn write_figure_content(
     let y_axis_x = proj.left_band.map(|band| band.left).unwrap_or(plot.left);
 
     let minor = ty.minor_tick_reach();
-    for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
+    for xt in minor_tick_values(&fig.x, x_ticks, ty.minor_ticks) {
         let (px, _) = proj.project([xt, fig.y.min]);
         let end = (px, plot.bottom() + xf.minor_tick_reach);
         dc.line((px, plot.bottom()), end, Color::AXIS, ty.axis_line_pt);
     }
-    for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
+    for yt in minor_tick_values(&fig.y, y_ticks, ty.minor_ticks) {
         let (_, py) = proj.project([fig.x.min, yt]);
         let start = (y_axis_x - minor, py);
         dc.line(start, (y_axis_x, py), Color::AXIS, ty.axis_line_pt);
@@ -578,6 +579,10 @@ fn write_figure_content(
             }
         }
         AxisFrame::Hidden => {}
+    }
+
+    if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack, 1.0) {
+        right_axis::write(dc, fig, &right, plot);
     }
 
     if let (Some(trace), Some(band)) = (&fig.top_projection, proj.top_band) {

@@ -166,7 +166,11 @@ impl PlotiumApp {
         // restarts from it just as after a range edit.
         let x_range_changed = before.x_range != after.x_range || before.x_scale != after.x_scale;
         let y_range_changed = before.y_range != after.y_range || before.y_scale != after.y_scale;
-        let needs_automatic_rebuild = before.x_display_unit != after.x_display_unit
+        let y2_range_changed =
+            before.y2_range != after.y2_range || before.y2_scale != after.y2_scale;
+        // Right-axis edits are rare and always rebuild, which refits its window.
+        let needs_automatic_rebuild = before.right_axis_changed(&after)
+            || before.x_display_unit != after.x_display_unit
             || before.x_scale != after.x_scale
             || before.y_scale != after.y_scale
             || before.y_display_unit != after.y_display_unit
@@ -209,7 +213,12 @@ impl PlotiumApp {
         plot.axis_overrides = after;
 
         if let Some(figure) = rebuilt {
-            plot.rebuild_for_axis_overrides(figure, x_range_changed, y_range_changed);
+            plot.rebuild_for_axis_overrides(
+                figure,
+                x_range_changed,
+                y_range_changed,
+                y2_range_changed,
+            );
             return;
         }
 

@@ -87,6 +87,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.bar.width` | Object + Series | 0.05–1, fraction of the bar's slot (bar curves; default 0.8) |
 | `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
 | `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt, or the theme's supporting-line width) |
+| `series.y_axis` | Object + Series | `left`, `right` (line and scatter curves; bars stay left) |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -94,6 +95,11 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.x_scale / object.axes.y_scale` | Object | `linear`, `log` (line, scatter and stick plots; a manual range must stay above zero) |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | Object | compatible code from property inspection |
 | `object.axes.x_range / object.axes.y_range` | Object | auto or manual range object |
+| `object.axes.y2_label` | Object | string; right y axis title |
+| `object.axes.y2_show_tick_labels / object.axes.y2_show_label` | Object | boolean |
+| `object.axes.y2_scale` | Object | `linear`, `log` |
+| `object.axes.y2_display_unit` | Object | compatible code from property inspection |
+| `object.axes.y2_range` | Object | auto or manual range object |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | Object | 1–72 pt |
 | `object.guides.visibility` | Object | `auto`, `show`, `hide` |
 | `object.guides.placement` | Object | `auto`, `inside`, `outside_right`, `outside_bottom`, `custom` |
@@ -109,6 +115,9 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `document.figure.typography.minor_ticks` | document | 0–9 minor ticks per major interval; 0 hides them |
 | `document.figure.typography.typeface` | document | `arial`, `helvetica`, `times_new_roman`; text inside every plot |
 | `document.figure.typography.font_weight` | document | `regular`, `bold`; text inside every plot |
+
+The `object.axes.y2_*` properties apply only while some curve of the plot has
+`series.y_axis` `right`; on other plots they are not applicable.
 
 Scientific processing and task interfaces are described below. Preferences, new format parsers, automatic scientific-result plotting and built-in chat are outside this interface.
 
@@ -819,7 +828,12 @@ texts share one slot. Bar curves that share a slot sit side by side within it; a
 bar alone in its slot keeps the full width, so one bar curve per category gives
 centred bars in their own colors.
 A plot with a text x holds bar curves only; bars mix with line and scatter
-curves on a numeric x. Bar plots have no logarithmic axes. Multiple entries create independent native Series in this
+curves on a numeric x. Bar plots have no logarithmic axes. Optional `y_axis`
+is `left` (default) or `right` for a line or scatter curve; `right` on a bar is
+rejected. Any right curve gives the plot a right y axis with its own automatic
+range, scale and title, which starts as the first right curve's column name and
+unit; that curve also fixes the right axis's unit. Reference lines, annotations
+and arrows stay in left-axis coordinates. Multiple entries create independent native Series in this
 one plot, not separate plots. Source extraction and all numeric, missing-value,
 error and unit rules are the same as explicit curve binding above. Table-wide
 X/Y defaults and other plots are untouched; no source table is copied.
@@ -1235,6 +1249,9 @@ owning plot's legend through `evidence.other_target` / `other_component`.
 - `text_container_overflow` is a warning based on native width/line-spacing
   **estimates**, not exact glyph ink. Text does not automatically wrap or shrink.
 - `content_frame_overlap` is informational; deliberate overlap is allowed.
+- `right_axis_untitled` is a warning: curves use the right y axis but it shows
+  no title. Set `object.axes.y2_label` (or turn `object.axes.y2_show_label`
+  back on).
 - `legend_occlusion_potential` is a warning, not a claim that data is invisible.
   The scan visits projected line segments and marker shapes after effective
   clipping, retaining dash phase across batches. It does not use a whole-curve

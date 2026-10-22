@@ -142,6 +142,10 @@ impl FigureDiagnosticScan {
                 "warning",
                 "Visible curve primitives intersect the legend layout box. Its translucent background may obscure data; this is a potential visual conflict.",
             ),
+            "right_axis_untitled" => (
+                "warning",
+                "Curves use the right y axis but it shows no title, so readers cannot tell which quantity it measures. Set object.axes.y2_label.",
+            ),
             _ => (
                 "info",
                 "Selected content frames overlap. Intentional overlap is allowed; this is not a pixel-occlusion judgment.",

@@ -324,7 +324,7 @@ fn curve_null_nonfinite_and_error_null_preserve_gaps_and_report_rows() {
         y_column_id: ids[1],
         y_error_column_id: Some(ids[2]),
     };
-    let data = extract_table_curve(&table, c, &CurveCoordinates { x: None, y: None }).unwrap();
+    let data = extract_table_curve(&table, c, &CurveCoordinates::default()).unwrap();
     assert_eq!(data.runs.len(), 3);
     assert_eq!(data.diagnostics.total_rows, 5);
     assert_eq!(data.diagnostics.plotted_rows, 3);

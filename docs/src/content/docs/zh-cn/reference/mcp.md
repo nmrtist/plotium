@@ -75,6 +75,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.bar.width` | 图对象＋Series | 0.05–1，占所在槽位宽度的比例（仅柱状曲线；默认 0.8） |
 | `series.bar.edge_color` | 图对象＋Series | `#RRGGBB`，柱描边颜色（仅柱状曲线；未设置时为带填充色色相的近黑色，并随曲线颜色变化） |
 | `series.bar.edge_width` | 图对象＋Series | 0–5 pt，柱描边宽度；0 表示无描边（仅柱状曲线；默认 0.5 pt，主题规定了辅助线宽时用它） |
+| `series.y_axis` | 图对象＋Series | `left`、`right`（折线和散点曲线；柱状曲线只能在左轴） |
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
@@ -82,6 +83,11 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
 | `object.axes.x_range / object.axes.y_range` | 图对象 | 自动或手动范围对象 |
+| `object.axes.y2_label` | 图对象 | 文本；右 y 轴标题 |
+| `object.axes.y2_show_tick_labels / object.axes.y2_show_label` | 图对象 | 布尔值 |
+| `object.axes.y2_scale` | 图对象 | `linear`、`log` |
+| `object.axes.y2_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
+| `object.axes.y2_range` | 图对象 | 自动或手动范围对象 |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | 图对象 | 1–72 pt |
 | `object.guides.visibility` | 图对象 | `auto`, `show`, `hide` |
 | `object.guides.placement` | 图对象 | `auto`, `inside`, `outside_right`, `outside_bottom`, `custom` |
@@ -97,6 +103,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `document.figure.typography.minor_ticks` | document | 每个主刻度间隔 0–9 个子刻度；0 为不显示 |
 | `document.figure.typography.typeface` | document | `arial`、`helvetica`、`times_new_roman`；作用于所有图内文字 |
 | `document.figure.typography.font_weight` | document | `regular`、`bold`；作用于所有图内文字 |
+
+`object.axes.y2_*` 属性只在图中有曲线的 `series.y_axis` 为 `right` 时适用；其他图上为不适用。
 
 科学处理与任务接口见下文。应用偏好、新格式解析、科学结果自动建图及内置聊天暂不在此接口范围内。
 
@@ -677,7 +685,10 @@ GUI 保存重开保留原生绑定和单位；MCP `project.save` 需桌面单独
 表格行顺序成为类别，相同文本共用一个槽位。共用同一槽位的柱状曲线在槽位内
 并排分组；槽位内只有一根柱时占满整个宽度，因此每个类别一条柱状曲线即可得到居中、
 各自配色的柱。文本 x 的图只能包含柱状曲线；数值 x 上柱状曲线可与折线、散点混合。
-柱状图不支持对数坐标轴。多条 `series` 表示
+柱状图不支持对数坐标轴。折线或散点曲线可选 `y_axis`：`left`（默认）或 `right`；
+柱状曲线设为 `right` 会被拒绝。只要有曲线在右侧，图就会有一条右 y 轴，拥有自己的
+自动范围、刻度类型和标题，标题初始为第一条右轴曲线的列名和单位，该曲线也决定右轴的
+单位。参考线、标注和箭头仍按左轴坐标。多条 `series` 表示
 同一图对象内相互独立的原生曲线，不是多张图。全行提取、数值、缺失值、
 误差和单位规则与上文显式曲线绑定相同；不修改表格共享默认 X/Y、不影响
 其他图，也不复制源表。
@@ -1004,6 +1015,8 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 - `text_container_overflow` 是基于原生宽度／行距**估计**的警告，不是精确字形边界；
   文字不会自动换行或缩小。
 - `content_frame_overlap` 是信息性事实，允许有意重叠。
+- `right_axis_untitled` 是警告：有曲线使用右 y 轴，但右轴没有显示标题。设置
+  `object.axes.y2_label`（或重新打开 `object.axes.y2_show_label`）。
 - `legend_occlusion_potential` 表示潜在视觉冲突，不表示数据必然不可见。逐段／逐点
   检查实际投影、有效裁剪后的线与 marker，分批保留虚线相位，不使用整条曲线包围盒，
   不抽样。线条包络与图例布局矩形是保守边界；圆角、半透明和抗锯齿可能有所不同。

@@ -150,7 +150,7 @@ fn paint_with_detail_and_stats_impl(
     }
 
     let hidden_frame = fig.axis_frame == AxisFrame::Hidden;
-    let (x_ticks, y_ticks) = (layout.x_ticks, layout.y_ticks);
+    let (x_ticks, y_ticks) = (&layout.x_ticks, &layout.y_ticks);
 
     if fig.show_grid && !hidden_frame {
         let grid_stroke = Stroke::new(1.0 * scale, col(Color::GRID));
@@ -174,7 +174,7 @@ fn paint_with_detail_and_stats_impl(
     let y_axis_x = proj.left_band.map(|band| band.left).unwrap_or(plot.left);
 
     let minor = ty.minor_tick_reach() * scale;
-    for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
+    for xt in minor_tick_values(&fig.x, x_ticks, ty.minor_ticks) {
         let (px, _) = proj.project([xt, fig.y.min]);
         let ends = [
             to_pos(px, plot.bottom()),
@@ -182,7 +182,7 @@ fn paint_with_detail_and_stats_impl(
         ];
         painter.line_segment(ends, axis_stroke);
     }
-    for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
+    for yt in minor_tick_values(&fig.y, y_ticks, ty.minor_ticks) {
         let (_, py) = proj.project([fig.x.min, yt]);
         painter.line_segment(
             [to_pos(y_axis_x - minor, py), to_pos(y_axis_x, py)],
@@ -454,6 +454,10 @@ fn paint_with_detail_and_stats_impl(
             }
         }
         AxisFrame::Hidden => {}
+    }
+
+    if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack.as_ref(), scale) {
+        crate::y2_axis::paint(painter, fig, &right, plot, scale);
     }
 
     if let (Some(trace), Some(band)) = (&fig.top_projection, proj.top_band) {

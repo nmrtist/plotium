@@ -37,7 +37,7 @@ impl Projector<'_> {
     pub fn unproject(&self, point: (f32, f32)) -> [f64; 2] {
         let tx = f64::from((point.0 - self.plot.left) / self.plot.width);
         let ty = 1.0 - f64::from((point.1 - self.plot.top) / self.plot.height);
-        [self.fig.x.value_at(tx), self.fig.y.value_at(ty)]
+        [self.fig.x.value_at(tx), self.y_axis().value_at(ty)]
     }
 }
 
@@ -73,6 +73,7 @@ pub(crate) fn error_bar_segments(
     error_bar: &ErrorBar,
     output_scale: f32,
 ) -> Option<ErrorBarSegments> {
+    let proj = &proj.on(error_bar.y_axis);
     if !error_bar.center[0].is_finite()
         || !error_bar.center[1].is_finite()
         || !error_bar.negative.is_finite()
@@ -191,6 +192,7 @@ mod tests {
             cap_width: 4.0,
             draw_over_data: false,
             cap_data_width: None,
+            y_axis: plotium_figure::YAxisSide::Left,
         };
         let segments = error_bar_segments(&proj, &bar(10.0, 20.0), 1.0).expect("visible top");
         assert_eq!(segments.as_slice().len(), 2, "stem and upper cap only");

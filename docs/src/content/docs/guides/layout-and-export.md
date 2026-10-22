@@ -258,7 +258,9 @@ In the stack:
   starts at 0 pt; raise **Gap** in the Panel inspector to separate them while
   keeping them aligned.
 - Plot areas share one left and one right edge, so the y-axis titles line up
-  whatever the width of the tick numbers.
+  whatever the width of the tick numbers. Each plot keeps or omits its own
+  right y axis, and the right-axis titles of the plots that have one line up
+  the same way.
 - Only the bottom plot draws x tick numbers and the x-axis title, and only the
   top plot draws a figure title. Where two plots meet, their x ticks point
   inward; the bottom axis keeps the tick direction you chose. A ×10ⁿ multiplier
@@ -346,6 +348,22 @@ What you control directly:
   panning move by decades. Logarithmic axes are not offered for categorical
   axes, 2D maps, bars and distributions, or NMR spectra, whose integral, phase
   and cursor tools measure in linear ppm.
+- **Y axis** under the advanced controls of **Line** puts a line or scatter
+  curve on a second y axis at the right of the plot, for a quantity with a
+  different unit or magnitude. The right axis appears as soon as one curve
+  uses it and goes away when every curve is back on the left. It fits its own
+  automatic range to its curves and draws its own ticks, tick labels and
+  title; the title reads bottom to top like the left one and starts as the
+  first right curve's column name and unit. The **Right Y axis** section of the
+  Object inspector, shown only while the plot has a right axis, sets its
+  title, range, logarithmic scale, tick labels and display unit. Scrolling,
+  dragging and box zoom move both y axes by the same fraction of their range,
+  a double-click returns both to their full range, and the **Inspect** cursor
+  reads the pointer on x and on both y axes. One legend lists every curve.
+  Bars stay on the left axis, and reference lines, annotations and arrows are
+  placed in left-axis coordinates. In a table plot each y axis keeps the unit
+  of its first curve; a curve whose unit cannot convert to it cannot join that
+  axis.
 - Use **Legend & scales** in the Object inspector for any plot. With
   **Visibility** on **Auto**, Plotium shows a categorical legend when the plot
   has two or more named entries and shows a continuous colour scale for a

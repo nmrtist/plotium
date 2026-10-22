@@ -2,7 +2,7 @@
 //! windows, and viewport navigation measured in the axis scale.
 
 use super::{AxisOverrides, AxisRange};
-use plotium_figure::{AxisFrame, AxisScale, Figure, SeriesKind};
+use plotium_figure::{AxisFrame, AxisScale, Figure, SeriesKind, YAxisSide};
 
 /// Window used when a log axis has no positive data to fit.
 const EMPTY_LOG_RANGE: AxisRange = AxisRange {
@@ -44,6 +44,21 @@ pub fn log_scale_unavailable(figure: &Figure, x: bool) -> Option<&'static str> {
     }
 }
 
+/// Why the right y axis cannot switch to a log scale, or `None` when it can.
+/// Only line and scatter curves use the right axis, so bars and other filled
+/// shapes measured on the left do not prevent it.
+pub fn right_log_scale_unavailable(figure: &Figure) -> Option<&'static str> {
+    if figure.y2.is_none() {
+        Some(super::right_axis::NO_RIGHT_AXIS)
+    } else if figure.axis_frame == AxisFrame::Hidden {
+        Some("Choose a chart with visible axes to edit axis settings.")
+    } else if figure.heatmap.is_some() || !figure.contours.is_empty() || figure.lock_aspect {
+        Some("Logarithmic axes are available on line, scatter and stick plots only.")
+    } else {
+        None
+    }
+}
+
 /// Automatic log window over the positive finite `values`, padded in decades.
 pub fn log_auto_range(values: impl IntoIterator<Item = f64>) -> AxisRange {
     let (lo, hi) = values
@@ -71,23 +86,26 @@ pub fn log_auto_range(values: impl IntoIterator<Item = f64>) -> AxisRange {
 
 /// Positions a figure draws on one axis: curve samples and, for y, both
 /// uncertainty ends so automatic windows never clip a whisker. `within`
-/// limits y values to samples inside an x window.
+/// limits y values to samples inside an x window. Y values come only from
+/// the data measured on the axis of `side`; x values from every series.
 pub(crate) fn axis_values(
     figure: &Figure,
     x: bool,
     within: Option<AxisRange>,
+    side: YAxisSide,
 ) -> impl Iterator<Item = f64> + '_ {
     let inside = move |px: f64| within.is_none_or(|range| range.contains(px));
     let points = figure
         .series
         .iter()
+        .filter(move |series| x || series.appearance.y_axis == side)
         .flat_map(|series| &series.points)
         .filter(move |point| inside(point[0]))
         .map(move |point| if x { point[0] } else { point[1] });
     let bars = figure
         .error_bars
         .iter()
-        .filter(move |bar| inside(bar.center[0]))
+        .filter(move |bar| (x || bar.y_axis == side) && inside(bar.center[0]))
         .flat_map(move |bar| {
             if x {
                 [bar.center[0], bar.center[0]]
@@ -113,12 +131,25 @@ impl AxisOverrides {
                 continue;
             }
             let automatic = (scale == AxisScale::Log10 && manual.is_none())
-                .then(|| log_auto_range(axis_values(figure, x, None)));
+                .then(|| log_auto_range(axis_values(figure, x, None, YAxisSide::Left)));
             let axis = if x { &mut figure.x } else { &mut figure.y };
             axis.scale = scale;
             if let Some(range) = automatic {
                 axis.min = range.min;
                 axis.max = range.max;
+            }
+        }
+        if let Some(scale) = self.y2_scale
+            && right_log_scale_unavailable(figure).is_none()
+        {
+            let automatic = (scale == AxisScale::Log10 && self.y2_range.is_none())
+                .then(|| log_auto_range(axis_values(figure, false, None, YAxisSide::Right)));
+            if let Some(axis) = figure.y2.as_mut() {
+                axis.scale = scale;
+                if let Some(range) = automatic {
+                    axis.min = range.min;
+                    axis.max = range.max;
+                }
             }
         }
     }

@@ -83,7 +83,11 @@ fn params(series: Vec<NewCurve>) -> PlotCreateParams {
 }
 
 fn curve(kind: CurveKind, source: TableCurveSource) -> NewCurve {
-    NewCurve { kind, source }
+    NewCurve {
+        kind,
+        source,
+        y_axis: Default::default(),
+    }
 }
 
 fn plan(app: &PlotiumApp, series: Vec<NewCurve>) -> Result<CurveEditPlan, String> {

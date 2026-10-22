@@ -209,7 +209,7 @@ fn write_figure(
     }
 
     let hidden_frame = fig.axis_frame == AxisFrame::Hidden;
-    let (x_ticks, y_ticks) = (layout.x_ticks, layout.y_ticks);
+    let (x_ticks, y_ticks) = (&layout.x_ticks, &layout.y_ticks);
 
     if fig.show_grid && !hidden_frame {
         let grid = plotium_figure::Color::GRID.to_hex();
@@ -238,7 +238,7 @@ fn write_figure(
 
     let minor = ty.minor_tick_reach();
     let mut minor_path = String::new();
-    for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
+    for xt in minor_tick_values(&fig.x, x_ticks, ty.minor_ticks) {
         let (px, _) = proj.project([xt, fig.y.min]);
         let _ = write!(
             minor_path,
@@ -247,7 +247,7 @@ fn write_figure(
             minor = xf.minor_tick_reach,
         );
     }
-    for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
+    for yt in minor_tick_values(&fig.y, y_ticks, ty.minor_ticks) {
         let (_, py) = proj.project([fig.x.min, yt]);
         let _ = write!(
             minor_path,
@@ -551,6 +551,10 @@ fn write_figure(
             }
         }
         AxisFrame::Hidden => {}
+    }
+
+    if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack, 1.0) {
+        crate::y2_axis::write_svg(s, fig, &right, plot);
     }
 
     if let (Some(trace), Some(band)) = (&fig.top_projection, proj.top_band) {

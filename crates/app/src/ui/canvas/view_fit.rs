@@ -135,6 +135,9 @@ mod tests {
             view_x: AxisRange::new(2.0, 8.0),
             view_y: AxisRange::new(-50.0, 50.0),
             auto_y: false,
+            full_y2: None,
+            view_y2: None,
+            auto_y2: true,
         };
         viewport.apply_to(&mut figure);
         canvas.objects.push(CanvasObject {

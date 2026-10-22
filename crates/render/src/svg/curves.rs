@@ -6,6 +6,7 @@ pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
     if series.points.is_empty() {
         return;
     }
+    let proj = &proj.on(series.appearance.y_axis);
     if series.kind == SeriesKind::Stick {
         super::sticks::write(s, proj, series);
         return;

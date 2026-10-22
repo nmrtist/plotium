@@ -214,12 +214,16 @@ impl PlotiumApp {
         let mut ymin = f64::INFINITY;
         let mut ymax = f64::NEG_INFINITY;
         let mut label_set = false;
+        let mut x_label_set = false;
         let mut prepared = Vec::new();
         let mut global_peak = 0.0_f64;
         let mut first_span = None;
         // Whether the plot's x is text categories, fixed by its first curve.
         let mut categorical = None;
         let mut categories = super::curve_bars::CategorySlots::default();
+        // Right-axis curves are converted into the right axis's own unit.
+        let right_coordinates = coordinates.for_axis(plotium_figure::YAxisSide::Right);
+        let mut right_label = None;
         for (series_index, sb) in binding.series.iter().enumerate() {
             let SeriesEncoding::Line(line) = &sb.encoding else {
                 return Err("Column bindings require a line/point encoding.".into());
@@ -232,10 +236,19 @@ impl PlotiumApp {
             }
             let bar = line.kind == SeriesKind::Bar;
             let aux_line_pt = self.doc.style_library.figure_typography.aux_line_pt;
+            let right = line.appearance.y_axis.is_right();
+            if right && !super::right_axis_supports(line.kind) {
+                return Err(super::right_axis::RIGHT_AXIS_KINDS.into());
+            }
             let bar_style = bar.then(|| super::curve_bars::BarStyle::of(line, aux_line_pt));
             let (table, selections) = self.table_curve_sources(sb.source)?;
             for (index, columns) in selections.iter().copied().enumerate() {
-                let mut extracted = extract_table_curve(table, columns, coordinates)?;
+                let target = if right {
+                    &right_coordinates
+                } else {
+                    coordinates
+                };
+                let mut extracted = extract_table_curve(table, columns, target)?;
                 let text_x = extracted.categories.is_some();
                 if text_x && !bar {
                     return Err("A text x column needs bar series; every series of a category plot must be a bar.".into());
@@ -248,8 +261,13 @@ impl PlotiumApp {
                 if let Some(local) = &extracted.categories {
                     categories.remap(local, &mut extracted.runs, &mut extracted.errors);
                 }
-                if !label_set {
-                    figure.x.label = extracted.x_label;
+                if !x_label_set {
+                    figure.x.label = std::mem::take(&mut extracted.x_label);
+                    x_label_set = true;
+                }
+                if right {
+                    right_label.get_or_insert(extracted.y_label);
+                } else if !label_set {
                     figure.y.label = extracted.y_label;
                     label_set = true;
                 }
@@ -415,6 +433,10 @@ impl PlotiumApp {
         {
             return Err("Curve bounds overflowed.".into());
         }
+        if let Some(label) = right_label {
+            figure.y2 = Some(Axis::new(label, 0., 1.));
+        }
+        super::right_axis::split_y_axes(&mut figure);
         Ok(self.normalize_binding_figure(figure, size_mm))
     }
 }

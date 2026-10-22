@@ -178,6 +178,53 @@ pub fn figure_text_boxes_placed(
             );
         }
     }
+    if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack, 1.) {
+        for (value, y, label) in &right.ticks {
+            if let Some(label) = label {
+                let part = format!("axis.y2.tick:{value}");
+                add(
+                    &part,
+                    label,
+                    right.label_x,
+                    y - ty.tick_pt * 0.5,
+                    ty.tick_pt,
+                    0.,
+                    false,
+                    None,
+                );
+            }
+        }
+        if let Some((text, x, inside)) = &right.multiplier {
+            let y = if *inside {
+                plot.top + TICK_LABEL_PAD
+            } else {
+                plot.top - TICK_LABEL_PAD - ty.tick_pt
+            };
+            add(
+                "axis.y2.multiplier",
+                text,
+                *x,
+                y,
+                ty.tick_pt,
+                1.,
+                false,
+                None,
+            );
+        }
+        if let Some((text, lane, centre)) = right.title {
+            let x = lane + ty.label_pt * 0.5;
+            add(
+                "axis.y2.label",
+                text,
+                x,
+                centre,
+                ty.label_pt,
+                0.5,
+                true,
+                None,
+            );
+        }
+    }
     if let Some(r) = legend_rect(fig, plot, 1.) {
         let entries = legend_entries(fig);
         let l = legend_layout(fig, &entries);

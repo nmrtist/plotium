@@ -58,7 +58,8 @@ impl PlotiumApp {
         for series in &binding.series {
             let (table, columns) = self.table_curve_sources(series.source)?;
             for columns in columns {
-                let diagnostics = extract_table_curve(table, columns, coordinates)?.diagnostics;
+                let target = coordinates.for_axis(series.y_axis());
+                let diagnostics = extract_table_curve(table, columns, &target)?.diagnostics;
                 summaries.push(CurveBindingSummary {
                     binding_mode: if series.source.columns().is_some() {
                         "table_explicit"

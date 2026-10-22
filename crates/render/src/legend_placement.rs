@@ -1,7 +1,7 @@
 //! Automatic legend placement: choose the inside anchor that covers the least
 //! plotted data, so the default legend sits in empty plot space.
 use crate::Rect;
-use plotium_figure::{Figure, SeriesKind};
+use plotium_figure::{Figure, SeriesKind, YAxisSide};
 
 /// Gap between an automatic legend and the plot edges, in points at scale 1.
 pub(crate) const LEGEND_INSET: f32 = 8.0;
@@ -91,9 +91,9 @@ pub(crate) fn for_each_segment(
     plot: Rect,
     mut add_segment: impl FnMut((f32, f32), (f32, f32)),
 ) {
-    let project = |p: [f64; 2]| {
+    let project = |p: [f64; 2], side: YAxisSide| {
         let tx = fig.x.normalize(p[0]) as f32;
-        let ty = fig.y.normalize(p[1]) as f32;
+        let ty = fig.y_axis(side).normalize(p[1]) as f32;
         (
             plot.left + tx * plot.width,
             plot.top + (1.0 - ty) * plot.height,
@@ -101,14 +101,15 @@ pub(crate) fn for_each_segment(
     };
     // A point is drawn only where it has a finite position; on a log axis
     // zero and negative values have none.
-    let placed = |p: [f64; 2]| Some(project(p)).filter(|q| crate::is_finite_point(*q));
+    let placed = |p: [f64; 2], side| Some(project(p, side)).filter(|q| crate::is_finite_point(*q));
     // Dense lines are pooled into one vertical span per output unit, so the
     // cost per call stays bounded by the plot width for long spectra.
     let columns = plot.width.max(1.0).ceil() as usize;
     for series in &fig.series {
+        let side = series.appearance.y_axis;
         if matches!(series.kind, SeriesKind::Line) && series.points.len() > 2 * columns {
             let mut spans: Vec<Option<(f32, f32)>> = vec![None; columns];
-            for (x, y) in series.points.iter().filter_map(|p| placed(*p)) {
+            for (x, y) in series.points.iter().filter_map(|p| placed(*p, side)) {
                 let column = (x - plot.left).floor();
                 if !(0.0..columns as f32).contains(&column) {
                     continue;
@@ -126,7 +127,7 @@ pub(crate) fn for_each_segment(
         }
         let mut previous: Option<(f32, f32)> = None;
         for &point in &series.points {
-            let Some(p) = placed(point) else {
+            let Some(p) = placed(point, side) else {
                 previous = None;
                 continue;
             };
@@ -135,7 +136,7 @@ pub(crate) fn for_each_segment(
                 // Builders lower bars to polygons; treat a stray one as points.
                 SeriesKind::Points | SeriesKind::Bar => add_segment(p, p),
                 SeriesKind::Stick => {
-                    let baseline = crate::clip_to_plot(project([point[0], 0.0]), plot);
+                    let baseline = crate::clip_to_plot(project([point[0], 0.0], side), plot);
                     add_segment(baseline.unwrap_or(p), p);
                 }
             }
@@ -145,15 +146,24 @@ pub(crate) fn for_each_segment(
     for bar in &fig.error_bars {
         let low = [bar.center[0], bar.center[1] - bar.negative];
         let high = [bar.center[0], bar.center[1] + bar.positive];
-        if let (Some(low), Some(high)) = (crate::clip_to_plot(project(low), plot), placed(high)) {
+        if let (Some(low), Some(high)) = (
+            crate::clip_to_plot(project(low, bar.y_axis), plot),
+            placed(high, bar.y_axis),
+        ) {
             add_segment(low, high);
         }
     }
-    for p in fig.text_annotations().filter_map(|a| placed(a.at)) {
+    for p in fig
+        .text_annotations()
+        .filter_map(|a| placed(a.at, YAxisSide::Left))
+    {
         add_segment(p, p);
     }
     for arrow in &fig.author_arrows {
-        if let (Some(from), Some(to)) = (placed(arrow.from), placed(arrow.to)) {
+        if let (Some(from), Some(to)) = (
+            placed(arrow.from, YAxisSide::Left),
+            placed(arrow.to, YAxisSide::Left),
+        ) {
             add_segment(from, to);
         }
     }

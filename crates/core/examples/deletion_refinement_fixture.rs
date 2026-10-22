@@ -55,6 +55,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let columns = &r.snapshot.schema.columns;
         let series = (1..=if i == 0 { 6 } else { 2 })
             .map(|j| NewCurve {
+                y_axis: Default::default(),
                 kind: if j % 2 == 0 {
                     CurveKind::Scatter
                 } else {

@@ -52,6 +52,7 @@ impl FigureDiagnosticScan {
                         plot: work.plot,
                         top_band: None,
                         left_band: None,
+                        y_side: series.appearance.y_axis,
                     };
                     let clip = geometry::intersection(
                         work.plot,
@@ -345,6 +346,20 @@ impl FigureDiagnosticScan {
                         (Some(self.page), &["output_page"]),
                         "text_estimate",
                         t.container.map(move_rect),
+                    );
+                }
+                if figure.y2.is_some() && !geometry::shows_right_axis_title(&figure) {
+                    let curves = figure
+                        .series
+                        .iter()
+                        .filter(|s| s.appearance.y_axis.is_right())
+                        .count();
+                    self.issue(
+                        &target,
+                        "axis.y2.label",
+                        "right_axis_untitled",
+                        "figure_model",
+                        json!({"right_axis_curves":curves,"property":"object.axes.y2_label"}),
                     );
                 }
                 if !figure.polygons.is_empty()

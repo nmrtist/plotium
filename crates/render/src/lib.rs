@@ -27,6 +27,7 @@ mod screen_stats;
 mod stack;
 pub mod svg;
 mod ticks;
+mod y2_axis;
 mod y_title;
 pub use y_title::{YTitleClearance, y_title_area};
 pub(crate) use y_title::{y_title_center, y_title_left};
@@ -47,7 +48,7 @@ mod screen_raster;
 #[cfg(all(windows, feature = "emf"))]
 pub mod emf;
 
-use plotium_figure::{AxisTrace, Color, Figure, HeatmapGrid, Polygon};
+use plotium_figure::{AxisTrace, Color, Figure, HeatmapGrid, Polygon, YAxisSide};
 use std::sync::Arc;
 
 /// Fraction of the plot dimension reserved for a marginal axis-projection band.
@@ -262,6 +263,7 @@ impl Margins {
 }
 
 /// Maps figure data-space coordinates into an output-space plot rectangle.
+#[derive(Clone, Copy)]
 pub struct Projector<'a> {
     pub fig: &'a Figure,
     pub plot: Rect,
@@ -269,6 +271,8 @@ pub struct Projector<'a> {
     pub top_band: Option<Rect>,
     /// The band left of `plot` reserved for the left (F1) projection, when present.
     pub left_band: Option<Rect>,
+    /// The vertical axis data y values are measured against.
+    pub y_side: YAxisSide,
 }
 
 impl<'a> Projector<'a> {
@@ -321,6 +325,7 @@ impl<'a> Projector<'a> {
             plot,
             top_band,
             left_band,
+            y_side: YAxisSide::Left,
         }
     }
 
@@ -332,10 +337,23 @@ impl<'a> Projector<'a> {
         (outer.bottom() - margins.bottom - self.plot.bottom()).max(0.0)
     }
 
+    /// The same plot area measuring y on the axis of `side`.
+    pub fn on(&self, side: YAxisSide) -> Self {
+        Self {
+            y_side: side,
+            ..*self
+        }
+    }
+
+    /// The vertical axis this projector measures y against.
+    pub fn y_axis(&self) -> &'a plotium_figure::Axis {
+        self.fig.y_axis(self.y_side)
+    }
+
     /// Data `[x, y]` → output `(px, py)`; y is flipped so larger values sit higher.
     pub fn project(&self, p: [f64; 2]) -> (f32, f32) {
         let tx = self.fig.x.normalize(p[0]) as f32;
-        let ty = self.fig.y.normalize(p[1]) as f32;
+        let ty = self.y_axis().normalize(p[1]) as f32;
         let px = self.plot.left + tx * self.plot.width;
         let py = self.plot.top + (1.0 - ty) * self.plot.height;
         (px, py)
@@ -479,7 +497,10 @@ pub fn legend_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
     let available_y = (plot.height - height).max(0.0);
     let (left, top) = fig.legend_position.map_or_else(
         || match fig.guide_placement {
-            plotium_figure::GuidePlacement::OutsideRight => (plot.right() + 8.0 * scale, plot.top),
+            plotium_figure::GuidePlacement::OutsideRight => {
+                let axis = y2_axis::guide_offset(fig, plot.height / scale);
+                (plot.right() + (axis + 8.0) * scale, plot.top)
+            }
             plotium_figure::GuidePlacement::OutsideBottom => {
                 (plot.left, plot.bottom() + 8.0 * scale)
             }

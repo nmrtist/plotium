@@ -146,7 +146,7 @@ fn curve_all_rows_are_validated_beyond_old_sampling_and_record_batch_boundary() 
         y_error_column_id: Some(ids[2]),
     };
     assert!(
-        extract_table_curve(&t, c, &CurveCoordinates { x: None, y: None })
+        extract_table_curve(&t, c, &CurveCoordinates::default())
             .err()
             .unwrap()
             .contains("non-negative")
@@ -188,7 +188,7 @@ fn curve_numeric_types_and_exact_integer_conversion_are_enforced() {
         y_error_column_id: None,
     };
     assert!(
-        extract_table_curve(&t, c, &CurveCoordinates { x: None, y: None })
+        extract_table_curve(&t, c, &CurveCoordinates::default())
             .err()
             .unwrap()
             .contains("exactly")
@@ -224,7 +224,7 @@ fn curve_numeric_types_and_exact_integer_conversion_are_enforced() {
             y_column_id: yi,
             y_error_column_id: None,
         };
-        assert!(extract_table_curve(&t, c, &CurveCoordinates { x: None, y: None }).is_err());
+        assert!(extract_table_curve(&t, c, &CurveCoordinates::default()).is_err());
     }
     let mut app = fixture(false);
     let mut candidate = source(&app, 0, 1, None);
@@ -290,6 +290,6 @@ fn curve_nonfinite_error_rejects_even_when_xy_is_missing() {
             y_column_id: ids[1],
             y_error_column_id: Some(ids[2]),
         };
-        assert!(extract_table_curve(&t, c, &CurveCoordinates { x: None, y: None }).is_err());
+        assert!(extract_table_curve(&t, c, &CurveCoordinates::default()).is_err());
     }
 }

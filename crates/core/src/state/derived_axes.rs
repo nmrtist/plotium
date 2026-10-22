@@ -15,10 +15,15 @@ pub struct DerivedAxes {
     pub frame: AxisFrame,
     pub x_scale: AxisScale,
     pub y_scale: AxisScale,
+    pub y2_label: String,
+    pub y2_show_tick_labels: bool,
+    pub y2_show_label: bool,
+    pub y2_scale: AxisScale,
 }
 
 impl DerivedAxes {
     pub fn from_figure(figure: &Figure) -> Self {
+        let right = figure.y2.as_ref();
         Self {
             x_label: figure.x.label.clone(),
             y_label: figure.y.label.clone(),
@@ -31,6 +36,10 @@ impl DerivedAxes {
             frame: figure.axis_frame,
             x_scale: figure.x.scale,
             y_scale: figure.y.scale,
+            y2_label: right.map(|axis| axis.label.clone()).unwrap_or_default(),
+            y2_show_tick_labels: right.is_none_or(|axis| axis.show_tick_labels),
+            y2_show_label: right.is_none_or(|axis| axis.show_label),
+            y2_scale: right.map_or(AxisScale::Linear, |axis| axis.scale),
         }
     }
 }

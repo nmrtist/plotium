@@ -17,6 +17,13 @@ pub const MARKER_HOLLOW: PropertyId = PropertyId("series.line.marker_hollow");
 pub const BAR_WIDTH: PropertyId = PropertyId("series.bar.width");
 pub const BAR_EDGE_COLOR: PropertyId = PropertyId("series.bar.edge_color");
 pub const BAR_EDGE_WIDTH: PropertyId = PropertyId("series.bar.edge_width");
+pub const Y_AXIS: PropertyId = PropertyId("series.y_axis");
+pub const LEFT: &str = "left";
+pub const RIGHT: &str = "right";
+const Y_AXES: &[EnumVariant] = &[
+    EnumVariant::new(LEFT, "Left"),
+    EnumVariant::new(RIGHT, "Right"),
+];
 const MARKER_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
 const BAR_WIDTH_BOUNDS: FloatBounds = FloatBounds::inclusive(0.05, 1.);
 const BAR_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
@@ -84,6 +91,7 @@ const DEFINITIONS: &[PropertyDefinition] = &[
         "Marker edge width",
     ),
     advanced(MARKER_HOLLOW, ValueSchema::Bool, "Hollow marker"),
+    advanced(Y_AXIS, ValueSchema::Enum { variants: Y_AXES }, "Y axis"),
     advanced(
         BAR_WIDTH,
         ValueSchema::Float {
@@ -210,6 +218,15 @@ impl PropertyProvider for DisplayProvider {
                 PropertyValue::Bool(false),
                 None,
             ),
+            Y_AXIS => (
+                PropertyValue::Enum(if line.appearance.y_axis.is_right() {
+                    RIGHT
+                } else {
+                    LEFT
+                }),
+                PropertyValue::Enum(LEFT),
+                None,
+            ),
             BAR_WIDTH => (
                 PropertyValue::Float(line.bar_width()),
                 PropertyValue::Float(plotium_figure::DEFAULT_BAR_WIDTH),
@@ -270,6 +287,8 @@ impl PropertyProvider for DisplayProvider {
                 && kind != plotium_figure::SeriesKind::Bar
             {
                 Availability::Disabled("Choose a bar curve to edit its bar settings.")
+            } else if d.id == Y_AXIS && !crate::state::right_axis_supports(kind) {
+                Availability::Disabled(crate::state::right_axis::RIGHT_AXIS_KINDS)
             } else if d.id == STYLE && kind != plotium_figure::SeriesKind::Line {
                 Availability::Disabled("Choose a line curve to edit its stroke style.")
             } else {
@@ -301,6 +320,57 @@ impl PropertyProvider for DisplayProvider {
             EditOp::Reset => resolved.default_value.ok_or_else(invalid)?,
             EditOp::Step(_) => return Err(invalid()),
         };
+        // The first curve on a y axis fixes that axis's unit, as the first
+        // curve fixes the left one at creation; later curves must convert.
+        let moved = match (d.id, &value) {
+            (Y_AXIS, PropertyValue::Enum(side)) => {
+                let side = if *side == RIGHT {
+                    plotium_figure::YAxisSide::Right
+                } else {
+                    plotium_figure::YAxisSide::Left
+                };
+                curve_y_unit(app, c.canvas, c.object, c.series)
+                    .map_err(|message| PropertyError::InvalidValue {
+                        property: d.id,
+                        message,
+                    })?
+                    .map(|unit| (side, unit))
+            }
+            _ => None,
+        };
+        let binding = tx.data_binding(app, c.canvas, c.object)?;
+        let mut unit_replaced = None;
+        if let Some((side, unit)) = moved {
+            let shared = binding
+                .series
+                .iter()
+                .any(|s| s.id != c.series && s.y_axis() == side);
+            if let Some(coordinates) = binding.coordinates.as_mut() {
+                let axis_unit = if side.is_right() {
+                    &mut coordinates.y2
+                } else {
+                    &mut coordinates.y
+                };
+                if !shared {
+                    if *axis_unit != unit {
+                        unit_replaced = Some(side);
+                    }
+                    *axis_unit = unit;
+                } else if let Err(message) =
+                    crate::state::CurveUnitConversion::new(&unit, axis_unit, false)
+                {
+                    return Err(PropertyError::InvalidValue {
+                        property: d.id,
+                        message,
+                    });
+                }
+            }
+        }
+        if let Some(side) = unit_replaced {
+            // Ranges and display units were written in the replaced unit.
+            tx.axis_overrides(app, c.canvas, c.object)?
+                .forget_axis_units(side);
+        }
         let binding = tx.data_binding(app, c.canvas, c.object)?;
         let sb = binding
             .series
@@ -383,6 +453,13 @@ impl PropertyProvider for DisplayProvider {
                 };
             }
             (MARKER_HOLLOW, PropertyValue::Bool(hollow)) => line.appearance.marker_hollow = hollow,
+            (Y_AXIS, PropertyValue::Enum(v)) => {
+                line.appearance.y_axis = match v {
+                    LEFT => plotium_figure::YAxisSide::Left,
+                    RIGHT => plotium_figure::YAxisSide::Right,
+                    _ => return Err(invalid()),
+                }
+            }
             (BAR_EDGE_COLOR, PropertyValue::Color(color)) => {
                 line.bar_edge_color = (!matches!(op, EditOp::Reset)).then_some(color);
             }
@@ -407,6 +484,31 @@ impl PropertyProvider for DisplayProvider {
         }
         Ok(())
     }
+}
+/// The y unit a curve brings to the axis it moves to: `Some(unit)` for an
+/// explicit-coordinate curve (the unit itself may be unknown), `None` for a
+/// plot without explicit coordinates.
+fn curve_y_unit(
+    app: &PlotiumApp,
+    canvas: usize,
+    object: crate::state::ObjectId,
+    series: crate::state::SeriesId,
+) -> Result<Option<Option<plotium_data::UnitSpec>>, String> {
+    let Some(plot) = app.doc.canvases[canvas]
+        .object(object)
+        .and_then(|o| o.plot())
+        .filter(|plot| plot.binding.coordinates.is_some())
+    else {
+        return Ok(None);
+    };
+    let Some(sb) = plot.binding.series.iter().find(|s| s.id == series) else {
+        return Ok(None);
+    };
+    let (table, selections) = app.table_curve_sources(sb.source)?;
+    let columns = selections.first().ok_or("The curve selects no columns.")?;
+    Ok(Some(
+        crate::state::table_curve_coordinates(table, *columns)?.y,
+    ))
 }
 pub fn style_id(style: LineStyle) -> &'static str {
     match style {

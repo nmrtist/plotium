@@ -77,6 +77,7 @@ impl PlotObject {
             stack_x_reversed: None,
             natural_x_reversed,
         };
+        plot.viewport.auto_y2 = !plot.has_manual_y2_range();
         plot.make_legend_room();
         plot
     }
@@ -121,6 +122,7 @@ impl PlotObject {
         plot.axis_overrides
             .typography
             .apply_to(&mut plot.figure.typography);
+        plot.viewport.auto_y2 = !plot.has_manual_y2_range();
         plot.make_legend_room();
         plot
     }
@@ -166,6 +168,16 @@ impl PlotObject {
             } else {
                 self.axis_overrides.y_display_unit.as_deref()
             },
+        )
+    }
+
+    /// The right-axis title the plot shows without an authored one.
+    pub(crate) fn automatic_right_axis_label(&self) -> String {
+        let coordinates = self.binding.coordinates.as_ref();
+        super::axis_display::display_label(
+            &self.derived_axes.y2_label,
+            coordinates.and_then(|c| c.y2.as_ref()),
+            self.axis_overrides.y2_display_unit.as_deref(),
         )
     }
 
@@ -220,6 +232,7 @@ impl PlotObject {
             &self.derived_axes,
             &self.axis_overrides,
         );
+        self.viewport.auto_y2 = !self.has_manual_y2_range();
         prepare(self, &mut figure);
         if let Some(reversed) = self.stack_x_reversed {
             figure.x.reversed = reversed;
@@ -234,6 +247,7 @@ impl PlotObject {
         self.commit_rebuilt_figure(figure, |plot, figure| {
             plot.axis_overrides.apply_to(figure);
             plot.viewport = CanvasViewport::from_figure(figure);
+            plot.viewport.auto_y2 = !plot.has_manual_y2_range();
             if plot.has_manual_y_range(figure) {
                 plot.viewport.auto_y = false;
             }
@@ -265,6 +279,7 @@ impl PlotObject {
         figure: Figure,
         x_range_changed: bool,
         y_range_changed: bool,
+        y2_range_changed: bool,
     ) {
         self.commit_rebuilt_figure(figure, |plot, figure| {
             plot.axis_overrides.apply_to(figure);
@@ -286,6 +301,9 @@ impl PlotObject {
                     plot.viewport.reset_y(figure);
                 }
             }
+            if y2_range_changed {
+                plot.viewport.view_y2 = plot.viewport.full_y2;
+            }
             plot.viewport.apply_to(figure);
         });
     }
@@ -306,8 +324,11 @@ impl PlotObject {
         let grow_y = self.axis_overrides.y_range.is_none()
             && full_x
             && (viewport.view_y == viewport.full_y || viewport.auto_y);
+        let grow_y2 = self.axis_overrides.y2_range.is_none()
+            && full_x
+            && (viewport.view_y2 == viewport.full_y2 || viewport.auto_y);
         let size = [self.figure.width, self.figure.height];
-        plotium_render::make_legend_room(&mut self.figure, size, grow_x, grow_y);
+        plotium_render::make_legend_room(&mut self.figure, size, grow_x, grow_y, grow_y2);
     }
 
     /// Zoom the requested axes in place without cloning the materialized figure.
@@ -391,6 +412,11 @@ impl PlotObject {
             viewport.view_y = viewport.full_y;
             viewport.auto_y = false;
         }
+        viewport.auto_y2 = !self.has_manual_y2_range();
+    }
+
+    fn has_manual_y2_range(&self) -> bool {
+        self.axis_overrides.y2_range.is_some()
     }
 
     fn has_manual_y_range(&self, figure: &Figure) -> bool {

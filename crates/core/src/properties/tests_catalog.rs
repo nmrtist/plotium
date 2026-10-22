@@ -116,6 +116,14 @@ fn every_derived_default_read_reports_a_reset_target() {
     for definition in catalog()
         .iter()
         .filter(|definition| matches!(&definition.default_policy, DefaultPolicy::Derived))
+        // Right-axis rows resolve only on a plot with a right axis; their
+        // defaults are covered in `state::right_axis` tests.
+        .filter(|definition| {
+            !super::right_axis::PROVIDER
+                .definitions()
+                .iter()
+                .any(|right| right.id == definition.id)
+        })
     {
         let target = if definition.applicability.encoding == Some(EncodingKind::Heatmap) {
             heatmap.clone()

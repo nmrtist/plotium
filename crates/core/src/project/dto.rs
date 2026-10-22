@@ -673,6 +673,10 @@ pub struct ViewportDto {
     pub view_x: RangeDto,
     pub view_y: RangeDto,
     pub auto_y: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full_y2: Option<RangeDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view_y2: Option<RangeDto>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -693,6 +697,8 @@ impl ViewportDto {
             view_x: RangeDto::from_range(v.view_x),
             view_y: RangeDto::from_range(v.view_y),
             auto_y: v.auto_y,
+            full_y2: v.full_y2.map(RangeDto::from_range),
+            view_y2: v.view_y2.map(RangeDto::from_range),
         }
     }
 
@@ -703,6 +709,10 @@ impl ViewportDto {
             view_x: self.view_x.into_range(),
             view_y: self.view_y.into_range(),
             auto_y: self.auto_y,
+            full_y2: self.full_y2.map(RangeDto::into_range),
+            view_y2: self.view_y2.map(RangeDto::into_range),
+            // The owning plot derives this from its right-axis range override.
+            auto_y2: true,
         }
     }
 }
