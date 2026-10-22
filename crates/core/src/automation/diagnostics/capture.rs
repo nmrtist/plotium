@@ -13,8 +13,8 @@ pub(super) fn validate<'a>(
         .ok_or_else(|| {
             invalid("Use an existing whole canvas with its complete target identity.")
         })?;
-    if p.limit == 0 || p.limit > 200 || p.checks.is_empty() || p.checks.len() > 5 {
-        return Err(invalid("Use 1..=200 rows and 1..=5 checks."));
+    if p.limit == 0 || p.limit > 200 || p.checks.is_empty() || p.checks.len() > 7 {
+        return Err(invalid("Use 1..=200 rows and 1..=7 checks."));
     }
     for (i, k) in p.checks.iter().enumerate() {
         if p.checks[..i].contains(k) {
@@ -176,7 +176,13 @@ impl FigureDiagnosticScan {
                                 })
                                 .collect()
                         });
+                    let facts = hints::PlotFacts::of(
+                        app,
+                        &binding,
+                        params.checks.contains(&DiagnosticCheck::DataShape),
+                    );
                     SnapshotKind::Plot {
+                        facts,
                         figure: Box::new(f.clone()),
                         stack: c.shared_x_stack_placement(o.id),
                         selected_series,
@@ -346,6 +352,10 @@ impl FigureDiagnosticScan {
             unsupported: 0,
             snapshot_bytes: bytes,
             font_status: None,
+            hint_texts: Vec::new(),
+            hint_plots: Vec::new(),
+            hints_done: false,
+            texts_dropped: 0,
         };
         if scan.checks(DiagnosticCheck::ContentOverlap) && scan.params.overlap_targets.len() < 2 {
             scan.coverage(&scan.params.canvas.clone(),"content_overlap","not_applicable","Supply at least two explicit whole-content overlap_targets; GUI selection is never used.");

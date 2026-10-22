@@ -1234,7 +1234,7 @@ After discovering the canvas, call `plotium_figure_diagnose` directly (no edit p
   "expected_revision": 7,
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
-  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion"],
+  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
   "view": "both",
   "limit": 100
 }
@@ -1279,14 +1279,38 @@ owning plot's legend through `evidence.other_target` / `other_component`.
   bounding box or sample points. Stroke envelopes and the legend layout rectangle
   are conservative; rounded corners, translucency and exact antialiasing can differ.
 
+The `data_shape` and `layout_aesthetics` checks report issues with severity
+`hint`: the figure could show its data more clearly, nothing is wrong. They are
+included when `checks` is omitted. Hints never edit the document. Each carries
+`suggestions`, a list of `{action, property, target, reason}`; `property` names a
+property to set on `target`, or both are null. Lengths are measured at the
+requested `output.size_mm`; the thresholds are provisional. A query narrowed to
+Series reports Series hints for those Series only.
+
+| Code | Fires when |
+| --- | --- |
+| `small_values_invisible` | A bar's value is under 1 % of the value-axis span, or it prints under 0.5 mm, beside bars at least 5 mm long |
+| `bars_too_narrow` | A bar prints narrower than 0.6 mm |
+| `few_samples_hidden` | Every group of a box or violin Series, or of a bar Series with repeated rows per x, has fewer than 10 values, and the plot has no scatter Series |
+| `too_many_categories` | The category axis draws its labels but drops some, or neighbouring labels collide |
+| `log_scale_candidate` | A plot without bars, boxes or violins has only positive line or scatter values on a linear value axis, spanning three or more decades |
+| `bar_baseline_not_zero` | The value-axis range leaves out the bars' baseline |
+| `labels_overlap` | Two text boxes on the canvas overlap by more than 0.2 mm in both directions; evidence names both and a direction to move the second. Entries of one legend and tick labels of one axis are not compared with each other |
+| `text_over_data` | An annotation or value label overlaps a bar, box, violin, line or marker |
+| `panels_misaligned` | Two frames in one column (left edges within 1 mm) or row (bottom edges within 1 mm) have plot areas whose left or bottom edges differ by more than 0.5 mm, or the gaps between three or more frames in a row or column differ by more than 0.5 mm |
+
+Hints beyond 50 of one kind, and checks that hit a budget, add an `unavailable`
+coverage row.
+
 Native guide layout includes estimated text widths. Font availability is checked
 using native export font discovery; glyph coverage and cross-backend ink bounds
 remain unverified. Raster viewport geometry uses header dimensions, integer crop,
 rotation and fit; successful decoding and alpha-pixel coverage require the preview.
 Non-line/scatter internal geometry, error-bar clipping/occlusion, derived scientific
 annotations and opaque-pixel occlusion are not covered. Native rectangle, ellipse, line and arrow extrema use the actual page clip. Their frame/guide
-observations remain available; coverage states the limitation. This tool does not
-judge aesthetics, scientific correctness or statistical significance.
+observations remain available; coverage states the limitation. Beyond the hints
+above, this tool does not judge aesthetics, scientific correctness or statistical
+significance.
 
 **Read coverage even when no issues are returned.** Per-target statuses distinguish
 `complete`, `unsupported`, `unavailable` and `not_applicable` (for example hidden,

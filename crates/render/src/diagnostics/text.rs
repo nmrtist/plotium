@@ -287,3 +287,45 @@ pub fn figure_text_boxes_placed(
     }
     out
 }
+
+/// Text boxes of a plot's annotations, value labels included, placed as the
+/// renderers place them.
+pub fn annotation_text_boxes(
+    fig: &Figure,
+    size: [f32; 2],
+    stack: Option<&StackPlacement>,
+) -> Vec<TextBox> {
+    let layout = axis_layout_placed(fig, size[0], size[1], stack);
+    let proj = Projector::new(fig, Rect::new(0., 0., size[0], size[1]), &layout.margins);
+    fig.text_annotations()
+        .filter(|a| !a.text.trim().is_empty())
+        .filter_map(|a| {
+            let p = proj.project(a.at);
+            if !crate::is_finite_point(p) {
+                return None;
+            }
+            let at = crate::text_place::place(a.anchor, p, a.size, 1.);
+            let w = a
+                .text
+                .lines()
+                .map(|line| estimated_text_width(line, a.size))
+                .fold(0., f32::max);
+            let left = match at.align {
+                crate::text_place::TextAlign::Center => at.x - 0.5 * w,
+                crate::text_place::TextAlign::Start => at.x,
+                crate::text_place::TextAlign::End => at.x - w,
+            };
+            // A baseline-placed text rises one font size above its baseline.
+            let top = if at.middle {
+                at.y - 0.5 * a.size
+            } else {
+                at.y - a.size
+            };
+            Some(TextBox {
+                component: "annotation".into(),
+                bounds: Rect::new(left, top, w, a.size),
+                container: None,
+            })
+        })
+        .collect()
+}

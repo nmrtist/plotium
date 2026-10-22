@@ -190,7 +190,9 @@ fn lower_bar(
             }
             extents.include(x0, bar.baseline);
             extents.include(x1, y);
-            let rect = Polygon::rect(series.name.clone(), x0, x1, bar.baseline, y, series.color);
+            let mut rect =
+                Polygon::rect(series.name.clone(), x0, x1, bar.baseline, y, series.color);
+            rect.origin = series.origin;
             figure
                 .polygons
                 .push(match bar.style.edge_for(series.color) {
@@ -275,7 +277,12 @@ fn lower_distribution(
             };
             extents.include(center - half, marks.y_range[0]);
             extents.include(center + half, marks.y_range[1]);
-            figure.polygons.extend(marks.polygons);
+            figure
+                .polygons
+                .extend(marks.polygons.into_iter().map(|mut mark| {
+                    mark.origin = series.origin;
+                    mark
+                }));
             // Whiskers and outlines belong to the curve they summarise.
             figure
                 .series
