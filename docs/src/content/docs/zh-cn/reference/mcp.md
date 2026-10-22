@@ -256,6 +256,9 @@ Series 详情包含可直接用于属性查询的完整 target、编码、可见
 
 `plotium_properties_list {}` 只返回当前允许的静态定义，包括 `schema`、`unit`
 （无量纲时为空）、`scope`、`access` 和静态 `applicability`，不混入当前目标值。
+颜色 schema 以 `"format": "#rrggbb"` 说明输入格式。单位代码 schema 列出所有已注册的
+单位代码；某个坐标轴实际可用的代码以 `plotium_properties_inspect` 为该目标返回的为准，
+即与其坐标单位兼容的代码。
 用 `plotium_properties_inspect` 查询明确目标的当前值、默认值、范围和适用性。
 属性是否适用与连接是否允许修改分别表达。
 
@@ -1216,7 +1219,7 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `connect
 显示单位接受属性查询返回的兼容代码，例如 s→ms、mA→A。图对象仍保持 R4 坐标单位契约：
 原始数据、手动范围存储、位移及误差幅度的含义不变；刻度及自动派生的单位文字改变，
 人工轴标题保持原文。重绑、重排和删除首条曲线不重新定义坐标。隐藏轴或分类轴不能
-设置数值手动范围，但可清除已保留的范围。`unit_code.codes` 返回兼容选项；
+设置数值手动范围，但可清除已保留的范围。属性查询中的 `unit_code.codes` 返回该目标的兼容选项；
 `axis_range.input_schema` 描述输入，`view` 和 `unit` 表示当前显示窗口。
 
 符号大小以 pt **直径**表示，显式设置后独立于线宽。没有覆盖时，原生点图仍沿用

@@ -306,11 +306,19 @@ mod export_dpi_tests;
 #[path = "ilt_tests.rs"]
 pub(crate) mod ilt_tests;
 
-/// Context-free schema: enum choices are not filtered by any current target.
+/// Context-free schema: enum choices are not filtered by any current target,
+/// and unit codes list the whole registry because compatibility depends on the
+/// target's coordinate unit.
 pub(crate) fn static_schema(definition: &'static PropertyDefinition) -> ResolvedSchema {
     match definition.value_schema {
         ValueSchema::Enum { variants } => ResolvedSchema::Enum {
             variants: variants.iter().collect(),
+        },
+        ValueSchema::UnitCode => ResolvedSchema::UnitCode {
+            codes: plotium_data::UnitRegistry::plotium_v1()
+                .codes()
+                .map(str::to_owned)
+                .collect(),
         },
         _ => target::resolved_schema(definition, &crate::state::FieldCapabilities::default()),
     }

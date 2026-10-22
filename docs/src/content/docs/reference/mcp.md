@@ -309,7 +309,11 @@ read state and restart the listing. Missing targets and forged identities return
 
 `plotium_properties_list {}` returns the supported definitions:
 `schema`, `unit` (empty for dimensionless values), `scope`, `access` and static
-`applicability`. It contains no current target values. Use
+`applicability`. It contains no current target values. Colour schemas state
+their input form as `"format": "#rrggbb"`. Unit-code schemas list every
+registered unit code; the codes a given axis accepts are the ones
+`plotium_properties_inspect` returns for that target, which are compatible with
+its coordinate unit. Use
 `plotium_properties_inspect` to resolve values, defaults, bounds and applicability
 for explicit targets. Property applicability and connection write permission
 are separate facts.
@@ -1488,7 +1492,7 @@ shifts and error amplitudes keep their meaning. Ticks and automatically derived
 unit text change; authored axis titles stay verbatim. Rebinding/reordering curves
 and removing the first curve do not redefine coordinates. Numeric range editing
 is unavailable on hidden/categorical axes; a retained range can still be cleared.
-`unit_code.codes` lists compatible choices; `axis_range.input_schema` describes
+In inspection, `unit_code.codes` lists the target's compatible choices; `axis_range.input_schema` describes
 the range value and its `view`/`unit` describe the current display window.
 
 Marker size is a diameter in points, independent after explicitly set. Without

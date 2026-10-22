@@ -618,7 +618,9 @@ enum ResolvedSchemaDto {
     Enum {
         variants: Vec<EnumVariantDto>,
     },
-    Color,
+    Color {
+        format: &'static str,
+    },
 }
 
 #[derive(Serialize)]
@@ -724,7 +726,7 @@ fn schema_dto(schema: &ResolvedSchema) -> ResolvedSchemaDto {
         ResolvedSchema::Enum { variants } => ResolvedSchemaDto::Enum {
             variants: variants.iter().copied().map(variant_dto).collect(),
         },
-        ResolvedSchema::Color => ResolvedSchemaDto::Color,
+        ResolvedSchema::Color => ResolvedSchemaDto::Color { format: "#rrggbb" },
     }
 }
 
