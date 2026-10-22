@@ -112,6 +112,16 @@ fn paint_with_detail_and_stats_impl(
     let margins = layout.margins.scaled(scale);
     let proj = Projector::new(fig, outer, &margins);
     let plot = proj.plot;
+    let y_title_cy = crate::y_title_center(fig, plot, outer, y_title_clearance, scale);
+    let y_title_left = crate::y_title_left(
+        fig,
+        &layout,
+        &proj,
+        outer,
+        y_title_cy,
+        stack.as_ref(),
+        scale,
+    );
 
     let to_pos = |x: f32, y: f32| Pos2::new(x, y);
 
@@ -334,10 +344,7 @@ fn paint_with_detail_and_stats_impl(
             col(Color::AXIS),
         )
         .with_angle_and_anchor(-std::f32::consts::FRAC_PI_2, Align2::CENTER_CENTER);
-        y_label.pos += Vec2::new(
-            outer.left + (OUTER_PAD + ty.label_pt * 0.5) * scale,
-            crate::y_title_center(fig, plot, outer, y_title_clearance, scale),
-        );
+        y_label.pos += Vec2::new(y_title_left + ty.label_pt * 0.5 * scale, y_title_cy);
         painter.add(y_label);
     }
 

@@ -27,8 +27,8 @@ mod stack;
 pub mod svg;
 mod ticks;
 mod y_title;
-pub(crate) use y_title::y_title_center;
 pub use y_title::{YTitleClearance, y_title_area};
+pub(crate) use y_title::{y_title_center, y_title_left};
 
 pub use stack::{StackPlacement, XFurniture, axis_layout_placed};
 

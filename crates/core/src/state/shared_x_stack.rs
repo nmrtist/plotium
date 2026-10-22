@@ -165,14 +165,22 @@ impl CanvasDocument {
         if plots.len() < 2 {
             return Vec::new();
         }
-        let (left, right) = plots
+        let (left, right, y_tick_clearance) = plots
             .iter()
             .map(|(_, (frame, figure))| {
-                plotium_render::axis_layout(figure, frame.width, frame.height).margins
+                let layout = plotium_render::axis_layout(figure, frame.width, frame.height);
+                (layout.y_tick_clearance(figure), layout.margins)
             })
-            .fold((0.0f32, 0.0f32), |(left, right), margins| {
-                (left.max(margins.left), right.max(margins.right))
-            });
+            .fold(
+                (0.0f32, 0.0f32, 0.0f32),
+                |(left, right, ticks), (clearance, margins)| {
+                    (
+                        left.max(margins.left),
+                        right.max(margins.right),
+                        ticks.max(clearance),
+                    )
+                },
+            );
         // Two neighbouring plots are joined only while their frames still meet
         // across the gap: deleting or moving out a member leaves a hole until
         // the stack reflows, and the plots beside it must keep their own axes.
@@ -199,6 +207,7 @@ impl CanvasDocument {
                     StackPlacement {
                         left,
                         right,
+                        y_tick_clearance,
                         joined_above: joined(index.checked_sub(1), Some(index)),
                         joined_below: joined(Some(index), Some(index + 1)),
                     },

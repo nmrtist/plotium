@@ -179,9 +179,10 @@ fn write_figure(
     let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, 1.0);
     let layout = axis_layout_placed(fig, outer.width, outer.height, stack);
     let xf = crate::XFurniture::of(fig, stack);
-    let margins = layout.margins;
-    let proj = Projector::new(fig, outer, &margins);
+    let proj = Projector::new(fig, outer, &layout.margins);
     let plot = proj.plot;
+    let y_title_cy = crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0);
+    let y_title_left = crate::y_title_left(fig, &layout, &proj, outer, y_title_cy, stack, 1.0);
 
     if omit_background_matching != Some(fig.background) {
         let _ = write!(
@@ -385,11 +386,13 @@ fn write_figure(
         );
     }
     if !hidden_frame && fig.y.show_label {
+        // The rotated glyph tops face the outer edge, so the lane's left edge
+        // is the line top and the baseline sits on its tick side.
         let _ = write!(
             s,
             r#"<text transform="translate({x:.2},{cy:.2}) rotate(-90)" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
-            x = outer.left + OUTER_PAD + ty.label_pt * 0.5,
-            cy = crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0),
+            x = y_title_left + ty.label_pt * crate::rich_text::TOP_TO_BASELINE,
+            cy = y_title_cy,
             font = ty.label_pt,
             lab = svg_content(&fig.y.label, ty.label_pt),
         );

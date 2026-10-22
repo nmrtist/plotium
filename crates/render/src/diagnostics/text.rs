@@ -40,9 +40,12 @@ pub fn figure_text_boxes_placed(
 ) -> Vec<TextBox> {
     let layout = axis_layout_placed(fig, size[0], size[1], stack);
     let xf = XFurniture::of(fig, stack);
-    let proj = Projector::new(fig, Rect::new(0., 0., size[0], size[1]), &layout.margins);
+    let outer = Rect::new(0., 0., size[0], size[1]);
+    let proj = Projector::new(fig, outer, &layout.margins);
     let plot = proj.plot;
     let ty = fig.typography;
+    let y_title_cy = (plot.top + plot.bottom()) * 0.5;
+    let y_title_left = y_title_left(fig, &layout, &proj, outer, y_title_cy, stack, 1.);
     let mut out = Vec::new();
     let mut add = |part: &str,
                    text: &str,
@@ -165,8 +168,8 @@ pub fn figure_text_boxes_placed(
             add(
                 "axis.y.label",
                 &fig.y.label,
-                OUTER_PAD + ty.label_pt * 0.5,
-                (plot.top + plot.bottom()) * 0.5,
+                y_title_left + ty.label_pt * 0.5,
+                y_title_cy,
                 ty.label_pt,
                 0.5,
                 true,
