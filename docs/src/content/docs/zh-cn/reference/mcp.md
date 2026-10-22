@@ -692,8 +692,13 @@ GUI 保存重开保留原生绑定和单位；MCP `project.save` 需桌面单独
 （面板内内容局部坐标）、`coordinate_units` 和 `series_defaults`（图型及
 pt 线宽）。`binding_plan.bindings` 返回每条 owner+SeriesId 完整目标、实际
 来源映射/表 revision 和全行诊断。预检不创建对象；执行一次性 plan 后，
-`ToolResult.value` 返回同一身份和绑定摘要，结果的 `after_revision` 表示
-提交后的文档 revision。
+`ToolResult.value.creation` 返回同一 `canvas`、`panel`、`plot`、`size_mm`、
+所用的 `size_preset`（如有）、`frame_pt`、`panel_frame_pt`、
+`coordinate_units` 和 `series_defaults`，`value.bindings` 返回每条曲线的
+`target` 及行数统计（`total_rows`、`plotted_rows`、`missing_xy`、
+`non_finite_xy`、`missing_error`）。父目标、来源映射和受影响行 ID 样例只在
+预检里给出；`ToolResult.targets` 列出全部新建目标，结果的 `after_revision`
+表示提交后的文档 revision。
 
 创建是原子的：来源错误、单位不兼容、非法误差或父目标/revision 变化时，
 不留下新画布、面板或半成品图。只读连接拒绝创建预检和执行。每图 1–200

@@ -100,7 +100,27 @@ fn creation_permissions_one_use_revision_and_invalid_batch_are_precise() {
     let pre = p["preflight"]["binding_plan"].clone();
     let e = json!({"plan_id":p["plan_id"]});
     let r = s.call(&mut app, "plotium_execute", e.clone()).unwrap();
-    assert_eq!(r["value"], pre);
+    let created = &pre["creation"];
+    for key in [
+        "canvas",
+        "panel",
+        "plot",
+        "size_mm",
+        "frame_pt",
+        "panel_frame_pt",
+        "coordinate_units",
+        "series_defaults",
+    ] {
+        assert_eq!(r["value"]["creation"][key], created[key]);
+    }
+    assert!(r["value"]["creation"].get("parent").is_none());
+    assert!(r["value"]["creation"].get("created").is_none());
+    assert!(r["value"].get("expected_revision").is_none());
+    let binding = &r["value"]["bindings"][0];
+    assert_eq!(binding["target"], pre["bindings"][0]["target"]);
+    assert_eq!(binding["diagnostics"]["plotted_rows"], 3);
+    assert!(binding.get("source").is_none());
+    assert!(binding["diagnostics"].get("affected_rows").is_none());
     assert_eq!(r["after_revision"], 1);
     assert_eq!(
         s.call(&mut app, "plotium_execute", e).unwrap_err().code,
