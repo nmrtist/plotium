@@ -15,6 +15,8 @@ pub struct AxisLayout {
     pub margins: Margins,
     pub x_ticks: AxisTicks,
     pub y_ticks: AxisTicks,
+    /// Ticks of the right y axis; empty when the figure has none.
+    pub y2_ticks: AxisTicks,
 }
 
 impl AxisLayout {
@@ -25,6 +27,16 @@ impl AxisLayout {
             fig,
             &self.y_ticks,
             widest_tick_label(&self.y_ticks, fig.typography.tick_pt),
+        )
+    }
+
+    /// Room between the right axis line and the right edge of the widest
+    /// right-axis tick label; zero without a right axis.
+    pub fn y2_tick_clearance(&self, fig: &Figure) -> f32 {
+        crate::y2_axis::tick_clearance(
+            fig,
+            &self.y2_ticks,
+            widest_tick_label(&self.y2_ticks, fig.typography.tick_pt),
         )
     }
 }
@@ -40,15 +52,21 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
     if fig.axis_frame == AxisFrame::Hidden {
         let x_ticks = AxisTicks::empty();
         let y_ticks = AxisTicks::empty();
+        let y2_ticks = AxisTicks::empty();
         return AxisLayout {
-            margins: margins_for_ticks(fig, &x_ticks, &y_ticks, outer_width),
+            margins: margins_for_ticks(fig, &x_ticks, &y_ticks, &y2_ticks, outer_width),
             x_ticks,
             y_ticks,
+            y2_ticks,
         };
     }
 
     let initial_x = axis_ticks_for(&fig.x, MAX_X_TARGET);
     let initial_y = axis_ticks_for(&fig.y, MAX_Y_TARGET);
+    let initial_y2 = fig
+        .y2
+        .as_ref()
+        .map_or_else(AxisTicks::empty, |axis| axis_ticks_for(axis, MAX_Y_TARGET));
     // Categorical thinning can select a different subset at a lower target.
     // Size the first pass for every visible category so no second-pass label
     // can make the final margins grow and invalidate the fit checks below.
@@ -57,21 +75,31 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
     let initial_widths = TickLabelWidths {
         x: widest_layout_label(&fig.x, &initial_x, fig.typography.tick_pt),
         y: widest_layout_label(&fig.y, &initial_y, fig.typography.tick_pt),
+        y2: widest_tick_label(&initial_y2, fig.typography.tick_pt),
     };
-    let initial_margins =
-        margins_for_ticks_with_widths(fig, &initial_x, &initial_y, initial_widths, outer_width);
+    let initial_margins = margins_for_ticks_with_widths(
+        fig,
+        &initial_x,
+        [&initial_y, &initial_y2],
+        initial_widths,
+        outer_width,
+    );
     let outer = Rect::new(0.0, 0.0, outer_width.max(0.0), outer_height.max(0.0));
     let plot = Projector::new(fig, outer, &initial_margins).plot;
     let gap = fig.typography.tick_pt * LABEL_GAP_FACTOR;
 
     let x_ticks = adaptive_x_ticks(fig, plot.width, gap, initial_widths.x);
-    let y_ticks = adaptive_y_ticks(fig, plot.height);
-    let margins = margins_for_ticks(fig, &x_ticks, &y_ticks, outer_width);
+    let y_ticks = adaptive_y_ticks(&fig.y, fig.typography.tick_pt, plot.height);
+    let y2_ticks = fig.y2.as_ref().map_or_else(AxisTicks::empty, |axis| {
+        adaptive_y_ticks(axis, fig.typography.tick_pt, plot.height)
+    });
+    let margins = margins_for_ticks(fig, &x_ticks, &y_ticks, &y2_ticks, outer_width);
 
     AxisLayout {
         margins,
         x_ticks,
         y_ticks,
+        y2_ticks,
     }
 }
 
@@ -100,16 +128,16 @@ fn adaptive_x_ticks(fig: &Figure, plot_width: f32, gap: f32, widest: f32) -> Axi
     AxisTicks::empty()
 }
 
-fn adaptive_y_ticks(fig: &Figure, plot_height: f32) -> AxisTicks {
-    let spacing = fig.typography.tick_pt * Y_TICK_SPACING_FACTOR;
+pub(crate) fn adaptive_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> AxisTicks {
+    let spacing = tick_pt * Y_TICK_SPACING_FACTOR;
     if !plot_height.is_finite() || spacing <= 0.0 || plot_height < 2.0 * spacing {
         return AxisTicks::empty();
     }
 
     let target = ((plot_height / spacing).floor() as usize).clamp(2, MAX_Y_TARGET);
     for candidate in (2..=target).rev() {
-        let ticks = axis_ticks_for(&fig.y, candidate);
-        if vertical_labels_fit(&fig.y, &ticks, plot_height, fig.typography.tick_pt) {
+        let ticks = axis_ticks_for(axis, candidate);
+        if vertical_labels_fit(axis, &ticks, plot_height, tick_pt) {
             return ticks;
         }
     }
@@ -173,13 +201,15 @@ pub(crate) fn margins_for_ticks(
     fig: &Figure,
     x_ticks: &AxisTicks,
     y_ticks: &AxisTicks,
+    y2_ticks: &AxisTicks,
     outer_width: f32,
 ) -> Margins {
     let widths = TickLabelWidths {
         x: widest_tick_label(x_ticks, fig.typography.tick_pt),
         y: widest_tick_label(y_ticks, fig.typography.tick_pt),
+        y2: widest_tick_label(y2_ticks, fig.typography.tick_pt),
     };
-    margins_for_ticks_with_widths(fig, x_ticks, y_ticks, widths, outer_width)
+    margins_for_ticks_with_widths(fig, x_ticks, [y_ticks, y2_ticks], widths, outer_width)
 }
 
 /// Room between the y axis line and the left edge of its widest tick label,
@@ -225,12 +255,13 @@ fn x_label_overhang(fig: &Figure, x_ticks: &AxisTicks, available: f32) -> f32 {
 struct TickLabelWidths {
     x: f32,
     y: f32,
+    y2: f32,
 }
 
 fn margins_for_ticks_with_widths(
     fig: &Figure,
     x_ticks: &AxisTicks,
-    y_ticks: &AxisTicks,
+    [y_ticks, y2_ticks]: [&AxisTicks; 2],
     widths: TickLabelWidths,
     outer_width: f32,
 ) -> Margins {
@@ -269,7 +300,12 @@ fn margins_for_ticks_with_widths(
     } else {
         0.0
     };
-    let right = (OUTER_PAD + x_width * 0.5).max(8.0) + guide_right;
+    // A right axis needs its ticks, labels and title beside the plot.
+    let right_axis = crate::y2_axis::reserved_width(fig, y2_ticks, widths.y2);
+    let right = (OUTER_PAD + x_width * 0.5)
+        .max(8.0)
+        .max(OUTER_PAD + right_axis)
+        + guide_right;
     // Keep a left-end x label out of the rotated y-title lane even when the
     // y ticks themselves have been dropped on a short panel.
     let x_endpoint_clearance = if !fig.x.show_tick_labels {
@@ -288,7 +324,8 @@ fn margins_for_ticks_with_widths(
         y_ticks.multiplier_clearance(ty.tick_pt)
     } else {
         0.0
-    };
+    }
+    .max(crate::y2_axis::multiplier_clearance(fig, y2_ticks));
     let x_multiplier = if fig.x.show_tick_labels {
         x_ticks.multiplier_clearance(ty.tick_pt)
     } else {

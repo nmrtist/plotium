@@ -1,5 +1,5 @@
 use plotium_figure::{
-    Axis, AxisFrame, AxisScale, Figure, GuideLayout, GuidePlacement, GuideVisibility,
+    Axis, AxisFrame, AxisScale, Figure, GuideLayout, GuidePlacement, GuideVisibility, YAxisSide,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -72,18 +72,29 @@ pub struct CanvasViewport {
     pub view_x: AxisRange,
     pub view_y: AxisRange,
     pub auto_y: bool,
+    /// Right-axis windows, present while the figure has a right axis. Y
+    /// navigation moves them by the same fractions as the left windows.
+    pub full_y2: Option<AxisRange>,
+    pub view_y2: Option<AxisRange>,
+    /// Whether automatic y refits the right axis too. The owning plot clears
+    /// it while the right axis has a manual range.
+    pub auto_y2: bool,
 }
 
 impl CanvasViewport {
     pub fn from_figure(fig: &Figure) -> Self {
         let full_x = AxisRange::from_axis(&fig.x);
         let full_y = AxisRange::from_axis(&fig.y);
+        let full_y2 = fig.y2.as_ref().map(AxisRange::from_axis);
         Self {
             full_x,
             full_y,
             view_x: full_x,
             view_y: full_y,
             auto_y: true,
+            full_y2,
+            view_y2: full_y2,
+            auto_y2: true,
         }
     }
 
@@ -91,6 +102,7 @@ impl CanvasViewport {
         self.full_x = AxisRange::from_axis(&fig.x);
         self.full_y = AxisRange::from_axis(&fig.y);
         self.view_x = self.view_x.clamp_in(self.full_x, fig.x.scale);
+        self.sync_full_y2(fig);
         if self.auto_y {
             self.refresh_auto_y(fig);
         } else {
@@ -103,11 +115,16 @@ impl CanvasViewport {
         fig.x.max = self.view_x.max;
         fig.y.min = self.view_y.min;
         fig.y.max = self.view_y.max;
+        if let (Some(axis), Some(view)) = (fig.y2.as_mut(), self.view_y2) {
+            axis.min = view.min;
+            axis.max = view.max;
+        }
     }
 
     pub fn reset_all(&mut self) {
         self.view_x = self.full_x;
         self.view_y = self.full_y;
+        self.view_y2 = self.full_y2;
         self.auto_y = true;
     }
 
@@ -140,16 +157,20 @@ impl CanvasViewport {
     }
 
     pub fn zoom_y(&mut self, fig: &Figure, anchor: f64, scale: f64) {
+        let before = self.view_y;
         self.view_y = self
             .view_y
             .zoom_around_in(self.full_y, anchor, scale, fig.y.scale);
+        self.follow_y2(fig, before);
         self.auto_y = false;
     }
 
     /// Pan by fractions of the visible window, measured in each axis scale.
     pub fn pan(&mut self, fig: &Figure, x_fraction: f64, y_fraction: f64) {
+        let before = self.view_y;
         self.view_x = self.view_x.shifted_in(self.full_x, x_fraction, fig.x.scale);
         self.view_y = self.view_y.shifted_in(self.full_y, y_fraction, fig.y.scale);
+        self.follow_y2(fig, before);
         self.auto_y = false;
     }
 
@@ -158,7 +179,9 @@ impl CanvasViewport {
             self.view_x = x.clamp_in(self.full_x, fig.x.scale);
         }
         if let Some(y) = y {
+            let before = self.view_y;
             self.view_y = y.clamp_in(self.full_y, fig.y.scale);
+            self.follow_y2(fig, before);
             self.auto_y = false;
         } else if self.auto_y {
             self.refresh_auto_y(fig);
@@ -166,7 +189,13 @@ impl CanvasViewport {
     }
 
     fn refresh_auto_y(&mut self, fig: &Figure) {
-        self.view_y = visible_y_range(fig, self.view_x).unwrap_or(self.full_y);
+        self.view_y = visible_y_range_on(fig, self.view_x, YAxisSide::Left).unwrap_or(self.full_y);
+        self.view_y2 = if self.auto_y2 {
+            self.full_y2
+                .map(|full| visible_y_range_on(fig, self.view_x, YAxisSide::Right).unwrap_or(full))
+        } else {
+            self.full_y2
+        };
     }
 }
 
@@ -198,6 +227,14 @@ pub struct AxisOverrides {
     pub legend_position: Option<[f32; 2]>,
     /// Author text anchored in data coordinates, lowered on every apply.
     pub annotations: super::PlotAnnotations,
+    /// Right-axis counterparts of the `y_*` overrides. They apply only while
+    /// some series is measured on the right axis.
+    pub y2_display_unit: Option<Box<plotium_data::UnitSpec>>,
+    pub y2_label: Option<String>,
+    pub y2_range: Option<AxisRange>,
+    pub y2_scale: Option<AxisScale>,
+    pub y2_show_tick_labels: Option<bool>,
+    pub y2_show_label: Option<bool>,
 }
 
 impl AxisOverrides {
@@ -224,6 +261,7 @@ impl AxisOverrides {
         if let Some(lock) = self.lock_aspect {
             figure.lock_aspect = lock;
         }
+        self.apply_right_axis(figure);
         self.apply_scales(figure);
         // Charts without axes (pie, 3D) keep their hidden frame.
         if let Some(frame) = self.axis_frame
@@ -283,6 +321,8 @@ impl AxisOverrides {
         self.y_label = normalize_label(self.y_label);
         self.x_range = self.x_range.filter(|range| range.is_valid());
         self.y_range = self.y_range.filter(|range| range.is_valid());
+        self.y2_label = normalize_label(self.y2_label);
+        self.y2_range = self.y2_range.filter(|range| range.is_valid());
         self.axis_frame = self.axis_frame.filter(|frame| *frame != AxisFrame::Hidden);
         self.guide_title = normalize_label(self.guide_title);
         self.legend_position = self.legend_position.and_then(|[x, y]| {
@@ -297,17 +337,24 @@ fn normalize_label(label: Option<String>) -> Option<String> {
 }
 
 pub fn visible_y_range(fig: &Figure, x: AxisRange) -> Option<AxisRange> {
-    if fig.y.scale == plotium_figure::AxisScale::Log10 {
+    visible_y_range_on(fig, x, YAxisSide::Left)
+}
+
+/// Automatic window of the y axis on `side` over the data inside the `x`
+/// window. Filled shapes (bars, boxes) are always measured on the left axis.
+pub fn visible_y_range_on(fig: &Figure, x: AxisRange, side: YAxisSide) -> Option<AxisRange> {
+    if fig.y_axis(side).scale == plotium_figure::AxisScale::Log10 {
         return Some(super::log_auto_range(super::log_axes::axis_values(
             fig,
             false,
             Some(x),
+            side,
         )));
     }
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
 
-    for series in &fig.series {
+    for series in fig.series.iter().filter(|s| s.appearance.y_axis == side) {
         for &[px, py] in &series.points {
             if x.contains(px) && py.is_finite() {
                 lo = lo.min(py);
@@ -318,7 +365,7 @@ pub fn visible_y_range(fig: &Figure, x: AxisRange) -> Option<AxisRange> {
 
     // Presentation edits and X navigation recompute automatic Y limits. Include
     // visible uncertainty endpoints, not just centers, or rebuilt error bars clip.
-    for error in &fig.error_bars {
+    for error in fig.error_bars.iter().filter(|e| e.y_axis == side) {
         if x.contains(error.center[0]) {
             let lower = error.center[1] - error.negative;
             let upper = error.center[1] + error.positive;
@@ -333,7 +380,8 @@ pub fn visible_y_range(fig: &Figure, x: AxisRange) -> Option<AxisRange> {
     // and one resting on y = 0 keeps that baseline as the unpadded floor.
     // Aspect-locked drawings (pies, ternary maps) keep their builder's window.
     let mut zero_floor = false;
-    for polygon in fig.polygons.iter().filter(|_| !fig.lock_aspect) {
+    let left = side == YAxisSide::Left;
+    for polygon in fig.polygons.iter().filter(|_| left && !fig.lock_aspect) {
         let (x0, x1) = polygon
             .points
             .iter()

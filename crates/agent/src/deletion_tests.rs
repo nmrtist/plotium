@@ -26,6 +26,7 @@ fn fixture() -> PlotiumApp {
     let cols = &r.snapshot.schema.columns;
     let series = (1..=2)
         .map(|i| NewCurve {
+            y_axis: Default::default(),
             kind: CurveKind::Line,
             source: TableCurveSource {
                 dataset_id: table.resource_id,

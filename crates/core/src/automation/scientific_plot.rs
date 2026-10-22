@@ -324,6 +324,7 @@ pub(super) fn prepare(
                 y_column_id: derived.series_bindings[index].value_column,
                 y_error_column_id: None,
             },
+            y_axis: plotium_figure::YAxisSide::Left,
         };
         let plan = worker
             .plan_plot_creation(

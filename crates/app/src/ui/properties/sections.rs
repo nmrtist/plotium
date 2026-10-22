@@ -104,6 +104,28 @@ pub(crate) fn axis_section(
     )
 }
 
+pub(crate) fn right_axis_section(
+    app: &mut PlotiumApp,
+    canvas: usize,
+    objects: &[ObjectId],
+    ui: &mut Ui,
+) -> bool {
+    let targets: Vec<TargetRef> = objects
+        .iter()
+        .filter_map(|&object| app.object_target(canvas, object))
+        .collect();
+    render_section(
+        app,
+        RIGHT_AXIS_SECTION,
+        "Right Y axis",
+        SectionNoun::new("plot", "plots"),
+        &targets,
+        None,
+        SectionLayout::Standard,
+        ui,
+    )
+}
+
 pub(crate) fn guide_section(
     app: &mut PlotiumApp,
     canvas: usize,

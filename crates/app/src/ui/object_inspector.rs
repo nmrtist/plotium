@@ -90,6 +90,7 @@ pub(crate) fn render(app: &mut PlotiumApp, ui: &mut Ui) {
     crate::ui::properties::panel::heatmap_section(app, ci, &property_objects, ui);
     crate::ui::properties::panel::line_section(app, ci, &property_objects, ui);
     crate::ui::properties::panel::axis_section(app, ci, &property_objects, ui);
+    crate::ui::properties::panel::right_axis_section(app, ci, &property_objects, ui);
     crate::ui::properties::panel::guide_section(app, ci, &property_objects, ui);
 
     let mut axes_focused = false;

@@ -47,7 +47,7 @@ fn a_clear_plot_keeps_its_axis_windows() {
         Series::line("A", vec![[0.0, 0.0], [10.0, 10.0]]),
         Series::line("B", vec![[0.0, 0.0], [10.0, 9.0]]),
     ]);
-    assert!(!make_legend_room(&mut f, SIZE, true, true));
+    assert!(!make_legend_room(&mut f, SIZE, true, true, false));
     assert_eq!((window(&f.x), window(&f.y)), ([0.0, 10.0], [0.0, 10.0]));
 }
 
@@ -55,7 +55,7 @@ fn a_clear_plot_keeps_its_axis_windows() {
 fn a_crowded_plot_grows_one_automatic_end_until_the_legend_is_clear() {
     let mut f = crowded();
     assert!(!legend_is_clear(&f));
-    assert!(make_legend_room(&mut f, SIZE, true, true));
+    assert!(make_legend_room(&mut f, SIZE, true, true, false));
     assert!(legend_is_clear(&f));
     let moved = [
         f.x.min != 0.0,
@@ -68,7 +68,7 @@ fn a_crowded_plot_grows_one_automatic_end_until_the_legend_is_clear() {
     assert!(!(moved[0] && moved[1]) && !(moved[2] && moved[3]));
     // The figure is already clear, so a second pass changes nothing.
     let before = (window(&f.x), window(&f.y));
-    assert!(!make_legend_room(&mut f, SIZE, true, true));
+    assert!(!make_legend_room(&mut f, SIZE, true, true, false));
     assert_eq!((window(&f.x), window(&f.y)), before);
 }
 
@@ -76,14 +76,14 @@ fn a_crowded_plot_grows_one_automatic_end_until_the_legend_is_clear() {
 fn only_growable_axes_move_and_reversed_axes_grow_on_screen_side() {
     let mut f = crowded();
     f.x.reversed = true;
-    assert!(make_legend_room(&mut f, SIZE, false, true));
+    assert!(make_legend_room(&mut f, SIZE, false, true, false));
     assert_eq!(window(&f.x), [0.0, 10.0]);
     assert!(legend_is_clear(&f));
 
     // A reversed y axis puts the upper anchors at its minimum.
     let mut f = crowded();
     f.y.reversed = true;
-    assert!(make_legend_room(&mut f, SIZE, false, true));
+    assert!(make_legend_room(&mut f, SIZE, false, true, false));
     assert!(f.y.min < 0.0 && f.y.max == 10.0);
     assert!(legend_is_clear(&f));
 
@@ -91,7 +91,7 @@ fn only_growable_axes_move_and_reversed_axes_grow_on_screen_side() {
     // reversed x axis puts the right-hand anchors at its minimum.
     let mut f = crowded();
     f.x.reversed = true;
-    assert!(make_legend_room(&mut f, SIZE, true, false));
+    assert!(make_legend_room(&mut f, SIZE, true, false, false));
     assert_eq!(window(&f.y), [0.0, 10.0]);
     assert!(f.x.min < 0.0 && f.x.max == 10.0);
     assert!(legend_is_clear(&f));
@@ -100,18 +100,18 @@ fn only_growable_axes_move_and_reversed_axes_grow_on_screen_side() {
 #[test]
 fn fixed_axes_manual_legends_and_explicit_placement_are_left_alone() {
     let mut f = crowded();
-    assert!(!make_legend_room(&mut f, SIZE, false, false));
+    assert!(!make_legend_room(&mut f, SIZE, false, false, false));
     let mut f = crowded();
     f.guide_placement = GuidePlacement::Inside;
-    assert!(!make_legend_room(&mut f, SIZE, true, true));
+    assert!(!make_legend_room(&mut f, SIZE, true, true, false));
     let mut f = crowded();
     f.legend_position = Some([0.5, 0.5]);
-    assert!(!make_legend_room(&mut f, SIZE, true, true));
+    assert!(!make_legend_room(&mut f, SIZE, true, true, false));
     let mut f = crowded();
     f.lock_aspect = true;
-    assert!(!make_legend_room(&mut f, SIZE, true, true));
+    assert!(!make_legend_room(&mut f, SIZE, true, true, false));
     let mut f = crowded();
     f.y.categories = Some(vec!["a".into(); 11]);
-    assert!(make_legend_room(&mut f, SIZE, true, true));
+    assert!(make_legend_room(&mut f, SIZE, true, true, false));
     assert_eq!(window(&f.y), [0.0, 10.0]);
 }

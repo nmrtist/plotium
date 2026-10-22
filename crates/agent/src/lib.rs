@@ -366,6 +366,8 @@ mod binding_tests;
 
 #[cfg(test)]
 mod creation_tests;
+#[cfg(test)]
+mod right_axis_tests;
 
 #[derive(Clone, Default)]
 pub struct Activity {

@@ -56,6 +56,18 @@ pub struct AxisOverridesDto {
     legend_position: Option<[f32; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     annotations: Option<PlotAnnotationsDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_display_unit: Option<Box<plotium_data::UnitSpec>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_range: Option<RangeDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_scale: Option<AxisScale>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_show_tick_labels: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_show_label: Option<bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -228,6 +240,12 @@ impl AxisOverridesDto {
             guide_title: overrides.guide_title.clone(),
             legend_position: overrides.legend_position,
             annotations: PlotAnnotationsDto::from_annotations(&overrides.annotations),
+            y2_display_unit: overrides.y2_display_unit.clone(),
+            y2_label: overrides.y2_label.clone(),
+            y2_range: overrides.y2_range.map(RangeDto::from_range),
+            y2_scale: overrides.y2_scale,
+            y2_show_tick_labels: overrides.y2_show_tick_labels,
+            y2_show_label: overrides.y2_show_label,
         })
     }
 
@@ -260,6 +278,12 @@ impl AxisOverridesDto {
                 .as_ref()
                 .map(PlotAnnotationsDto::to_annotations)
                 .unwrap_or_default(),
+            y2_display_unit: self.y2_display_unit.clone(),
+            y2_label: self.y2_label.clone(),
+            y2_range: self.y2_range.map(RangeDto::into_range),
+            y2_scale: self.y2_scale,
+            y2_show_tick_labels: self.y2_show_tick_labels,
+            y2_show_label: self.y2_show_label,
         }
         .normalized()
     }
@@ -306,6 +330,29 @@ mod tests {
         assert!(!json.contains("x_thousands_separator"));
         let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(restored.to_overrides(), overrides);
+    }
+
+    #[test]
+    fn right_axis_overrides_round_trip_through_the_project_format() {
+        let overrides = AxisOverrides {
+            y2_label: Some("Pressure (kPa)".to_owned()),
+            y2_range: Some(crate::state::AxisRange::new(1.0, 100.0)),
+            y2_scale: Some(AxisScale::Log10),
+            y2_show_tick_labels: Some(false),
+            y2_show_label: Some(true),
+            ..AxisOverrides::default()
+        };
+        let dto = AxisOverridesDto::from_overrides(&overrides).expect("right axis is stored");
+        let json = serde_json::to_string(&dto).expect("serializes");
+        assert!(json.contains(r#""y2_scale":"log10""#));
+        let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
+        assert_eq!(restored.to_overrides(), overrides);
+        let plain = AxisOverridesDto::from_overrides(&AxisOverrides {
+            y_label: Some("Signal".to_owned()),
+            ..AxisOverrides::default()
+        })
+        .expect("label is stored");
+        assert!(!serde_json::to_string(&plain).unwrap().contains("y2"));
     }
 
     #[test]

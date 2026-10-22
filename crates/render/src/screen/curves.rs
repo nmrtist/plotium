@@ -13,6 +13,7 @@ pub(super) fn paint(
     if series.points.is_empty() {
         return;
     }
+    let proj = &proj.on(series.appearance.y_axis);
     if series.kind == SeriesKind::Stick {
         super::sticks::paint(painter, proj, series, scale);
         return;
@@ -22,7 +23,7 @@ pub(super) fn paint(
         let visible = scaled_screen_line_points(
             &series.points,
             &proj.fig.x,
-            !proj.fig.y.effective_scale().is_linear(),
+            !proj.y_axis().effective_scale().is_linear(),
             columns,
         );
         if let Some(stats) = stats {

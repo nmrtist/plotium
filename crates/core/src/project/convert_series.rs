@@ -40,7 +40,8 @@ pub(super) fn validate_columns(datasets: &[Dataset], binding: &DataBinding) -> R
                     if line.kind == plotium_figure::SeriesKind::Bar
             );
             for columns in columns {
-                let extracted = crate::state::extract_table_curve(table, columns, coordinates)
+                let target = coordinates.for_axis(series.y_axis());
+                let extracted = crate::state::extract_table_curve(table, columns, &target)
                     .map_err(ProjectError::Invalid)?;
                 if extracted.categories.is_some() && !bar {
                     return Err(ProjectError::Invalid(

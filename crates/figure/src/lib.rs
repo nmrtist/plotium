@@ -120,6 +120,10 @@ impl FigureTypography {
     }
 }
 
+pub(crate) fn is_left(side: &YAxisSide) -> bool {
+    *side == YAxisSide::Left
+}
+
 fn default_axis_line_pt() -> f32 {
     1.0
 }
@@ -579,6 +583,9 @@ pub struct Figure {
     pub title: String,
     pub x: Axis,
     pub y: Axis,
+    /// The right y axis. Present exactly when some series is measured on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y2: Option<Axis>,
     pub series: Vec<Series>,
     /// Persistent descriptions of result-bearing 1D NMR integral curves.
     #[serde(default)]
@@ -661,6 +668,7 @@ impl Figure {
             title: title.into(),
             x,
             y,
+            y2: None,
             series: Vec::new(),
             integral_curves: Vec::new(),
             polygons: Vec::new(),
@@ -708,6 +716,20 @@ impl Figure {
     pub fn with_annotation(mut self, a: Annotation) -> Self {
         self.annotations.push(a);
         self
+    }
+
+    /// The vertical axis a series on `side` is measured against. A figure
+    /// without a right axis measures every series on the left one.
+    pub fn y_axis(&self, side: YAxisSide) -> &Axis {
+        match (side, &self.y2) {
+            (YAxisSide::Right, Some(axis)) => axis,
+            _ => &self.y,
+        }
+    }
+
+    /// Whether any series is measured on the right axis.
+    pub fn uses_right_axis(&self) -> bool {
+        self.series.iter().any(|s| s.appearance.y_axis.is_right())
     }
 
     /// Every data-anchored text label: builder-derived first, then authored.

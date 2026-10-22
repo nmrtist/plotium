@@ -14,11 +14,30 @@ pub struct TableCurveColumns {
 
 /// Coordinates in which authored ranges and line shifts are interpreted.
 /// None means unknown units, not an inferred dimensionless physical quantity.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CurveCoordinates {
     pub x: Option<UnitSpec>,
     pub y: Option<UnitSpec>,
+    /// Unit of the right y axis, fixed by the first curve placed on it, like
+    /// `y` is by the plot's first curve.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y2: Option<UnitSpec>,
+}
+
+impl CurveCoordinates {
+    /// The coordinates a curve measured on `side` is converted into.
+    pub fn for_axis(&self, side: plotium_figure::YAxisSide) -> std::borrow::Cow<'_, Self> {
+        if side.is_right() {
+            std::borrow::Cow::Owned(Self {
+                x: self.x.clone(),
+                y: self.y2.clone(),
+                y2: None,
+            })
+        } else {
+            std::borrow::Cow::Borrowed(self)
+        }
+    }
 }
 
 /// Metadata is checked once per selected curve, before visiting any rows.
@@ -150,5 +169,6 @@ pub fn table_curve_coordinates(
     Ok(CurveCoordinates {
         x: unit(columns.x_column_id)?,
         y: unit(columns.y_column_id)?,
+        y2: None,
     })
 }

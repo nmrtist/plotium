@@ -30,10 +30,12 @@ fn fixture() -> PlotiumApp {
             panel_frame_pt: None,
             series: vec![
                 NewCurve {
+                    y_axis: Default::default(),
                     kind: CurveKind::Line,
                     source: source.clone(),
                 },
                 NewCurve {
+                    y_axis: Default::default(),
                     kind: CurveKind::Scatter,
                     source: source.clone(),
                 },
@@ -457,6 +459,7 @@ fn r6_affine_and_domain_unit_range_inputs_retain_native_meaning() {
             panel_name: None,
             panel_frame_pt: None,
             series: vec![NewCurve {
+                y_axis: Default::default(),
                 kind: CurveKind::Line,
                 source,
             }],

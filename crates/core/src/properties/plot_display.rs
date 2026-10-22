@@ -76,7 +76,7 @@ fn error(id: PropertyId, message: impl ToString) -> PropertyError {
 }
 // An existing explicit coordinate/display UnitSpec is authoritative even for
 // domain units outside the built-in conversion registry.
-fn resolve_unit(
+pub(super) fn resolve_unit(
     code: &str,
     coordinate: &Option<UnitSpec>,
     shown: &Option<UnitSpec>,

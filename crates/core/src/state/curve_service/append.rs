@@ -54,6 +54,22 @@ impl PlotiumApp {
             before: Box::new(before.clone()),
             after: Box::new(before),
         };
+        let had_right_axis = change.after.binding.series.iter().any(
+            |s| matches!(&s.encoding, SeriesEncoding::Line(line) if line.appearance.y_axis.is_right()),
+        );
+        if !had_right_axis
+            && let Some(unit) = super::plot_creation::first_right_axis_unit(self, &params.series)?
+            && let Some(coordinates) = change.after.binding.coordinates.as_mut()
+            && coordinates.y2 != unit
+        {
+            coordinates.y2 = unit;
+            // A right range or display unit left from earlier curves was
+            // written in the replaced unit.
+            change
+                .after
+                .axis_overrides
+                .forget_axis_units(plotium_figure::YAxisSide::Right);
+        }
         for curve in &params.series {
             self.check_table_curve_revision(&curve.source)?;
             let id = change.after.next_series_id;
@@ -63,11 +79,10 @@ impl PlotiumApp {
             let mut series = SeriesBinding::with_source(curve.source.source());
             series.id = id;
             series.encoding = SeriesEncoding::Line(LineEncoding {
-                kind: curve.kind.native(),
                 color: plotium_figure::ColorSource::Explicit(
                     self.next_stack_color(&change.after.binding),
                 ),
-                ..LineEncoding::default()
+                ..curve.encoding()?
             });
             change.after.binding.series.push(series);
         }

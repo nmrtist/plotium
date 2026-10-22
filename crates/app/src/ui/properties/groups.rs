@@ -13,6 +13,17 @@ pub(crate) const GROUPS: &[PropertyGroup] = &[
         unavailable_reason: "Select a plot before changing its axis text.",
     },
     PropertyGroup {
+        section: panel::RIGHT_AXIS_SECTION,
+        label: LocalizedText("Right Y axis"),
+        icon: egui_phosphor::regular::ARROWS_VERTICAL,
+        ribbon: RibbonSpot {
+            tab: WorkflowTab::Figure,
+            group: "Style",
+            priority: 3,
+        },
+        unavailable_reason: "Put a line or scatter curve on the right y axis first.",
+    },
+    PropertyGroup {
         section: panel::GUIDE_SECTION,
         label: LocalizedText("Legend & scales"),
         icon: egui_phosphor::regular::LIST_BULLETS,

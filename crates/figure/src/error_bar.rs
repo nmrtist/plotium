@@ -23,6 +23,9 @@ pub struct ErrorBar {
     /// keep their proportion to the bar at any size or zoom.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cap_data_width: Option<f64>,
+    /// The vertical axis of the curve this whisker belongs to.
+    #[serde(default, skip_serializing_if = "crate::is_left")]
+    pub y_axis: crate::YAxisSide,
 }
 
 impl ErrorBar {
@@ -36,6 +39,7 @@ impl ErrorBar {
             cap_width: 8.0,
             draw_over_data: false,
             cap_data_width: None,
+            y_axis: crate::YAxisSide::Left,
         }
     }
 

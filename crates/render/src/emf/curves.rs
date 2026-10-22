@@ -5,6 +5,7 @@ pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     if series.points.is_empty() {
         return;
     }
+    let proj = &proj.on(series.appearance.y_axis);
     let points: Vec<_> = series.points.iter().map(|p| proj.project(*p)).collect();
     match series.kind {
         SeriesKind::Line => {

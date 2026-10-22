@@ -46,8 +46,7 @@ fn page_with(
             None,
             crate::state::SeriesId::new(1),
             DataBinding {
-                coordinates: explicit
-                    .then_some(crate::state::CurveCoordinates { x: None, y: None }),
+                coordinates: explicit.then_some(crate::state::CurveCoordinates::default()),
                 series: Vec::new(),
             },
             ChartSpec::default(),

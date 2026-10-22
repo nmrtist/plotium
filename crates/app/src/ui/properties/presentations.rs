@@ -5,8 +5,8 @@ use super::routes::*;
 use super::types::*;
 use plotium_core::properties::{
     apodization, app_preferences, axis, baseline, bin, canvas, contour, export_dpi, group_delay,
-    guide, heatmap, ilt, line, line_display, normalize, object, phase, reference, smooth,
-    step_enabled, typography, zero_fill,
+    guide, heatmap, ilt, line, line_display, normalize, object, phase, reference, right_axis,
+    smooth, step_enabled, typography, zero_fill,
 };
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
@@ -15,6 +15,21 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(line_display::LABEL, "Legend label", LINE_HOME),
     object_entry(line_display::STYLE, "Line style", LINE_HOME),
     object_entry(line_display::MARKER, "Marker", LINE_HOME),
+    object_entry(line_display::Y_AXIS, "Y axis", LINE_HOME),
+    object_entry(right_axis::Y2_LABEL, "Right Y title", RIGHT_AXIS_HOME),
+    object_entry(right_axis::Y2_RANGE, "Right Y range", RIGHT_AXIS_HOME),
+    object_entry(right_axis::Y2_SCALE, "Right Y scale", RIGHT_AXIS_HOME),
+    object_entry(
+        right_axis::Y2_SHOW_TICK_LABELS,
+        "Right Y tick labels",
+        RIGHT_AXIS_HOME,
+    ),
+    object_entry(
+        right_axis::Y2_SHOW_LABEL,
+        "Show right Y title",
+        RIGHT_AXIS_HOME,
+    ),
+    object_entry(right_axis::Y2_UNIT, "Right Y display unit", RIGHT_AXIS_HOME),
     object_entry(line_display::MARKER_SIZE, "Marker diameter", LINE_HOME),
     object_entry(line_display::MARKER_FILL, "Marker fill", LINE_HOME),
     object_entry(line_display::MARKER_HOLLOW, "Hollow marker", LINE_HOME),

@@ -31,6 +31,21 @@ pub enum Marker {
     Cross,
 }
 
+/// Which vertical axis a curve is measured against. The x axis is shared.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum YAxisSide {
+    #[default]
+    Left,
+    Right,
+}
+
+impl YAxisSide {
+    pub fn is_right(self) -> bool {
+        self == Self::Right
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CurveAppearance {
@@ -47,6 +62,8 @@ pub struct CurveAppearance {
     pub marker_edge_width: Option<PositiveFiniteF32>,
     /// Closed markers draw only their outline.
     pub marker_hollow: bool,
+    /// Only line and scatter curves may be measured on the right axis.
+    pub y_axis: YAxisSide,
 }
 impl CurveAppearance {
     pub fn marker(self, kind: SeriesKind) -> Marker {

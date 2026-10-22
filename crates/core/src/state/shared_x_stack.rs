@@ -165,19 +165,24 @@ impl CanvasDocument {
         if plots.len() < 2 {
             return Vec::new();
         }
-        let (left, right, y_tick_clearance) = plots
+        let (left, right, y_tick_clearance, y2_tick_clearance) = plots
             .iter()
             .map(|(_, (frame, figure))| {
                 let layout = plotium_render::axis_layout(figure, frame.width, frame.height);
-                (layout.y_tick_clearance(figure), layout.margins)
+                (
+                    layout.y_tick_clearance(figure),
+                    layout.y2_tick_clearance(figure),
+                    layout.margins,
+                )
             })
             .fold(
-                (0.0f32, 0.0f32, 0.0f32),
-                |(left, right, ticks), (clearance, margins)| {
+                (0.0f32, 0.0f32, 0.0f32, 0.0f32),
+                |(left, right, ticks, right_ticks), (clearance, right_clearance, margins)| {
                     (
                         left.max(margins.left),
                         right.max(margins.right),
                         ticks.max(clearance),
+                        right_ticks.max(right_clearance),
                     )
                 },
             );
@@ -208,6 +213,7 @@ impl CanvasDocument {
                         left,
                         right,
                         y_tick_clearance,
+                        y2_tick_clearance,
                         joined_above: joined(index.checked_sub(1), Some(index)),
                         joined_below: joined(Some(index), Some(index + 1)),
                     },

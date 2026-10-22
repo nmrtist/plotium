@@ -31,6 +31,7 @@ mod processing_common;
 mod provider;
 mod readout;
 pub mod reference;
+pub mod right_axis;
 mod service;
 pub mod smooth;
 pub mod step_enabled;
@@ -108,6 +109,9 @@ pub(crate) static GROUPS: &[PropertyProviderGroup] = &[
     },
     PropertyProviderGroup {
         provider: &reference::PROVIDER,
+    },
+    PropertyProviderGroup {
+        provider: &right_axis::PROVIDER,
     },
     PropertyProviderGroup {
         provider: &smooth::PROVIDER,

@@ -37,6 +37,7 @@ fn params(app: &PlotiumApp) -> PlotCreateParams {
         panel_name: None,
         panel_frame_pt: None,
         series: vec![NewCurve {
+            y_axis: Default::default(),
             kind: CurveKind::Line,
             source: source(app, 0, 1, Some(2)),
         }],
@@ -126,12 +127,14 @@ fn invalid_sources_units_errors_and_stale_revisions_leave_no_containers_or_histo
     cases.push(p);
     let mut p = good.clone();
     p.series.push(NewCurve {
+        y_axis: Default::default(),
         kind: CurveKind::Scatter,
         source: source(&app, 0, 1, Some(5)),
     });
     cases.push(p);
     let mut p = good.clone();
     p.series.push(NewCurve {
+        y_axis: Default::default(),
         kind: CurveKind::Scatter,
         source: source(&app, 3, 4, None),
     });
@@ -233,6 +236,7 @@ fn multiple_explicit_series_scatter_and_compatible_units_share_native_coordinate
     let mut app = fixture();
     let mut p = params(&app);
     p.series.push(NewCurve {
+        y_axis: Default::default(),
         kind: CurveKind::Scatter,
         source: source(&app, 7, 6, Some(8)),
     });
@@ -547,6 +551,7 @@ fn append_selected_cross_source_curves_preserves_existing_identity_style_and_ran
     let p = CurveAppendParams {
         plot: owner.clone(),
         series: vec![NewCurve {
+            y_axis: Default::default(),
             kind: CurveKind::Line,
             source: added_source.clone(),
         }],
@@ -607,6 +612,7 @@ fn append_selected_cross_source_curves_preserves_existing_identity_style_and_ran
     ] {
         let mut mixed = p.clone();
         mixed.series.push(NewCurve {
+            y_axis: Default::default(),
             kind: CurveKind::Scatter,
             source: bad,
         });

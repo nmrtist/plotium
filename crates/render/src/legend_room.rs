@@ -20,13 +20,22 @@ const GRID: usize = 256;
 /// may extend the axis ends on its own side — x, y, or both by the same
 /// fraction — and the smallest growth that clears an anchor wins; ties keep
 /// the anchor order and then x before y. Only axes passed as growable and not
-/// categorical are touched. Returns whether the figure changed.
-pub fn make_legend_room(fig: &mut Figure, size: [f32; 2], grow_x: bool, grow_y: bool) -> bool {
+/// categorical are touched. A growable right axis follows the left y axis by
+/// the same fraction on the same screen side, so both keep their alignment.
+/// Returns whether the figure changed.
+pub fn make_legend_room(
+    fig: &mut Figure,
+    size: [f32; 2],
+    grow_x: bool,
+    grow_y: bool,
+    grow_y2: bool,
+) -> bool {
     let growable = |axis: &Axis, allowed: bool| {
         allowed && axis.categories.is_none() && axis.min.is_finite() && axis.max.is_finite()
     };
     let grow_x = growable(&fig.x, grow_x);
     let grow_y = growable(&fig.y, grow_y);
+    let grow_y2 = grow_y && fig.y2.as_ref().is_some_and(|axis| growable(axis, grow_y2));
     // Widening one axis of an aspect-locked plot would reshape its box.
     if !(grow_x || grow_y)
         || fig.lock_aspect
@@ -51,6 +60,7 @@ pub fn make_legend_room(fig: &mut Figure, size: [f32; 2], grow_x: bool, grow_y: 
     }
 
     let (base_x, base_y) = (fig.x.clone(), fig.y.clone());
+    let base_y2 = fig.y2.clone();
     let grid = Occupancy::new(fig);
     let mut candidates = Vec::new();
     for (index, [fx, fy]) in ANCHORS.iter().enumerate() {
@@ -66,6 +76,7 @@ pub fn make_legend_room(fig: &mut Figure, size: [f32; 2], grow_x: bool, grow_y: 
             let mut grid_clear = |fraction: f64| {
                 fig.x = widened(&base_x, sides[0], fraction);
                 fig.y = widened(&base_y, sides[1], fraction);
+                fig.y2 = widened_y2(&base_y, base_y2.as_ref(), sides[1], grow_y2, fraction);
                 let (plot, trial) = zones(fig);
                 grid.is_clear(fig, &base_x, &base_y, plot, trial[index])
             };
@@ -92,6 +103,7 @@ pub fn make_legend_room(fig: &mut Figure, size: [f32; 2], grow_x: bool, grow_y: 
     for (fraction, index, sides) in candidates {
         fig.x = widened(&base_x, sides[0], fraction);
         fig.y = widened(&base_y, sides[1], fraction);
+        fig.y2 = widened_y2(&base_y, base_y2.as_ref(), sides[1], grow_y2, fraction);
         let (plot, trial) = zones(fig);
         if coverage(fig, plot, &trial[index..=index]) == [0] {
             return true;
@@ -99,6 +111,7 @@ pub fn make_legend_room(fig: &mut Figure, size: [f32; 2], grow_x: bool, grow_y: 
     }
     fig.x = base_x;
     fig.y = base_y;
+    fig.y2 = base_y2;
     false
 }
 
@@ -115,6 +128,23 @@ fn widened(axis: &Axis, side: Option<bool>, fraction: f64) -> Axis {
         None => {}
     }
     axis
+}
+
+/// The right axis widened toward the screen side `side` gives the left axis,
+/// or unchanged when it may not grow.
+fn widened_y2(
+    base_y: &Axis,
+    base_y2: Option<&Axis>,
+    side: Option<bool>,
+    grow: bool,
+    fraction: f64,
+) -> Option<Axis> {
+    base_y2.map(|axis| {
+        let side = side
+            .filter(|_| grow)
+            .map(|max| (max != base_y.reversed) != axis.reversed);
+        widened(axis, side, fraction)
+    })
 }
 
 /// Which cells of the original axis windows hold data, as prefix sums. Every
