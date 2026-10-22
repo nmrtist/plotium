@@ -123,6 +123,7 @@ fn update(
 pub(super) fn apply(
     annotations: &mut PlotAnnotations,
     edit: &FigureEdit,
+    default_width: Option<f32>,
 ) -> Result<Option<AnnotationId>, String> {
     let fields = line_fields(edit);
     let not_text = "Reference lines take value and label, not at or text.";
@@ -143,6 +144,9 @@ pub(super) fn apply(
                 .ok_or("A reference line requires an orientation.")?;
             let value = fields.value.ok_or("A reference line requires a value.")?;
             let mut line = PlotReferenceLine::new(annotations.next_id, orientation, value);
+            if let Some(width) = default_width {
+                line.width = width;
+            }
             update(&mut line, &fields, *font_pt)?;
             annotations.add_reference_line(line).map(Some)
         }

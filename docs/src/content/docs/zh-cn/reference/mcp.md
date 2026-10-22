@@ -74,7 +74,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.line.marker_hollow` | 图对象＋Series | 布尔值 |
 | `series.bar.width` | 图对象＋Series | 0.05–1，占所在槽位宽度的比例（仅柱状曲线；默认 0.8） |
 | `series.bar.edge_color` | 图对象＋Series | `#RRGGBB`，柱描边颜色（仅柱状曲线；未设置时为带填充色色相的近黑色，并随曲线颜色变化） |
-| `series.bar.edge_width` | 图对象＋Series | 0–5 pt，柱描边宽度；0 表示无描边（仅柱状曲线；默认 0.5 pt） |
+| `series.bar.edge_width` | 图对象＋Series | 0–5 pt，柱描边宽度；0 表示无描边（仅柱状曲线；默认 0.5 pt，主题规定了辅助线宽时用它） |
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
@@ -809,7 +809,7 @@ Auto height。
 y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它跟随轴范围、缩放和平移，
 `value` 不在可见范围内时不显示。`line` 设置 `color`（`#rrggbb`）、`width_pt`
 （0.1–20）和 `style`（`solid`、`dashed`、`dotted` 或 `dash_dot`）；新参考线默认
-`#000000`、0.75 pt、虚线，`annotation_set` 中省略的 `line` 字段保持原值。可选
+`#000000`、0.75 pt（若主题规定了辅助线宽则用它，Nature 主题为 0.3 pt）、虚线，`annotation_set` 中省略的 `line` 字段保持原值。可选
 `label` 以线条颜色显示在竖线顶部附近或横线右端；未设置 `font_pt` 时使用刻度标签
 字号，一旦用 `font_pt` 设定字号便保持该值直至再次修改；`label` 为空字符串时移除
 标签。参考线与文字标注共用同一 id 序列和
@@ -824,8 +824,8 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
 
 箭头标注（`kind: "arrow"`）是从箭尾 `at` 到箭头 `to` 的直线，两端使用同一数据
 坐标，因此与文字标注一样跟随坐标轴移动并裁切在绘图区内。`head` 默认为 `filled`
-（`double` 两端均为实心箭头，`none` 为无箭头直线）；`line_width_pt` 默认 1 pt
-（0.1–20 pt），`color` 默认黑色；两端不得重合。箭头不带文字，需要说明时另建一个
+（`double` 两端均为实心箭头，`none` 为无箭头直线）；`line_width_pt`（0.1–20 pt）默认 1 pt（若主题规定了辅助线宽则用它，Nature 主题为
+0.3 pt），`color` 默认黑色；两端不得重合。箭头不带文字，需要说明时另建一个
 文字标注（例如放在箭尾）。箭头与其他标注共用该图的 `annotation_id` 序列和每张图 256 个
 的上限，在 `annotations` 中以 `kind: "arrow"` 列出；提供其他类标注的字段会被拒绝。
 

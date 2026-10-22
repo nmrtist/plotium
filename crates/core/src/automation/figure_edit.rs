@@ -29,9 +29,9 @@ pub fn figure_edit_schema() -> Value {
         "color":{"type":"string","pattern":"^#[0-9a-fA-F]{6}$"},
         "width_pt":{"type":"number","minimum":crate::state::reference_line_width_bound(crate::state::MIN_REFERENCE_LINE_WIDTH_PT),"maximum":crate::state::reference_line_width_bound(crate::state::MAX_REFERENCE_LINE_WIDTH_PT)},
         "style":{"enum":["solid","dashed","dotted","dash_dot"]}},
-        "description":"Line stroke; omitted fields keep the current value (new lines default to #000000, 0.75 pt, dashed)."});
+        "description":"Line stroke; omitted fields keep the current value (new lines default to #000000, 0.75 pt or the theme's supporting-line width, dashed)."});
     let arrow_head = json!({"enum":["none","open","filled","double"],"description":"Arrowhead: none (plain line), open V or filled triangle at `to`, or double (filled at both ends). Default filled."});
-    let arrow_width = json!({"type":"number","minimum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.start()),"maximum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.end()),"description":"Shaft stroke width in pt; default 1."});
+    let arrow_width = json!({"type":"number","minimum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.start()),"maximum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.end()),"description":"Shaft stroke width in pt; default 1, or the theme's supporting-line width."});
     let arrow_color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
     let arrow_tail = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow tail point in the plot's source data coordinates (the units in its coordinate_units). The arrow follows axis range, zoom and pan and is clipped to the plot area."});
     let arrow_to = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow head point in the same source data coordinates as `at` (the tail); must differ from `at`."});

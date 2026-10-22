@@ -148,6 +148,10 @@ pub struct LineEncoding {
     /// themes leave locked curves' colours alone.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub color_locked: bool,
+    /// Set when the user chooses this curve's stroke width by hand; themes
+    /// leave locked curves' widths alone.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub width_locked: bool,
     /// Bar width as a fraction of its slot; only bars read it. `None` is
     /// [`DEFAULT_BAR_WIDTH`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -157,7 +161,8 @@ pub struct LineEncoding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_edge_color: Option<Color>,
     /// Bar outline width in points, where zero draws no outline; only bars
-    /// read it. `None` is [`DEFAULT_BAR_EDGE_WIDTH_PT`].
+    /// read it. `None` follows the document's supporting-line width, else
+    /// [`DEFAULT_BAR_EDGE_WIDTH_PT`] (see [`LineEncoding::bar_edge_width`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_edge_width: Option<FiniteF64>,
 }
@@ -174,9 +179,14 @@ impl LineEncoding {
     }
 
     /// Outline width in points; zero (or a negative stored value) is none.
-    pub fn bar_edge_width(&self) -> f64 {
+    /// Unset, it is the document's supporting-line width `aux_line_pt`, else
+    /// [`DEFAULT_BAR_EDGE_WIDTH_PT`].
+    pub fn bar_edge_width(&self, aux_line_pt: Option<f32>) -> f64 {
         self.bar_edge_width
-            .map_or(DEFAULT_BAR_EDGE_WIDTH_PT, FiniteF64::get)
+            .map_or_else(
+                || aux_line_pt.map_or(DEFAULT_BAR_EDGE_WIDTH_PT, f64::from),
+                FiniteF64::get,
+            )
             .max(0.0)
     }
 }
@@ -192,6 +202,7 @@ impl Default for LineEncoding {
                 .expect("literal width is valid"),
             x_shift: FiniteF64::default(),
             color_locked: false,
+            width_locked: false,
             bar_width: None,
             bar_edge_color: None,
             bar_edge_width: None,

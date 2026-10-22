@@ -211,12 +211,15 @@ impl Theme {
         }
     }
 
-    /// Nature Portfolio final-artwork guidelines: 7 pt text (inside
-    /// the 5–7 pt range and at the export precheck's 7 pt floor), thin 0.6 pt
-    /// axes with outward 3 pt ticks, 0.75 pt line series, 3 pt markers without
-    /// an outline, and the colour-blind-safe Okabe–Ito palette.
+    /// Nature Portfolio final-artwork guidelines: 7 pt text (inside the
+    /// 5–7 pt range), strokes scaled to that text ([`nature_strokes`]: 0.3 pt
+    /// axes, ticks, bar outlines and new reference lines and arrows; 0.5 pt
+    /// line series), outward 3 pt ticks, 3 pt markers without an outline, and
+    /// the colour-blind-safe Okabe–Ito palette.
     fn nature() -> Theme {
         let black = Color::rgb(0, 0, 0);
+        let text_pt = 7.0;
+        let (aux_pt, data_pt) = nature_strokes(text_pt);
         Theme {
             id: "nature".to_owned(),
             name: "Nature".to_owned(),
@@ -224,17 +227,18 @@ impl Theme {
             text_color: black,
             base_font_pt: 7.0,
             figure_typography: FigureTypography {
-                tick_pt: 7.0,
-                label_pt: 7.0,
-                title_pt: 7.0,
-                legend_pt: 7.0,
+                tick_pt: text_pt,
+                label_pt: text_pt,
+                title_pt: text_pt,
+                legend_pt: text_pt,
                 legend_color: black,
-                axis_line_pt: 0.6,
+                axis_line_pt: aux_pt,
                 tick_length_pt: 3.0,
                 tick_direction: TickDirection::Out,
                 minor_ticks: 0,
                 typeface: Typeface::Arial,
                 font_weight: FontWeight::Regular,
+                aux_line_pt: Some(aux_pt),
             },
             // Okabe–Ito, yellow last because it has the weakest contrast on
             // white.
@@ -248,7 +252,7 @@ impl Theme {
                 Color::rgb(0xcc, 0x79, 0xa7),
                 Color::rgb(0xf0, 0xe4, 0x42),
             ],
-            line_width_pt: Some(0.75),
+            line_width_pt: Some(data_pt),
             marker_size_pt: Some(3.0),
             clear_marker_edges: true,
             marker_palette: Vec::new(),
@@ -325,6 +329,9 @@ impl Theme {
 #[derive(Clone, PartialEq)]
 pub struct ThemeSnapshot {
     pub background: Color,
+    /// The canvas's journal size preset, which a column theme adopts when the
+    /// canvas already has that column's width but no preset of its own.
+    pub size_preset_id: Option<String>,
     pub style_library: StyleLibrary,
     pub object_styles: Vec<(ObjectId, ObjectStyle)>,
     pub series_encodings: Vec<(ObjectId, Vec<plotium_figure::SeriesEncoding>)>,
@@ -351,6 +358,7 @@ impl PlotiumApp {
         }
         ThemeSnapshot {
             background: canvas.background,
+            size_preset_id: canvas.size_preset_id.clone(),
             style_library: self.doc.style_library.clone(),
             object_styles,
             series_encodings,
@@ -360,6 +368,19 @@ impl PlotiumApp {
     fn themed_snapshot(&self, ci: usize, theme: &Theme) -> ThemeSnapshot {
         let mut snap = self.capture_theme_snapshot(ci);
         snap.background = theme.background;
+        // Choosing a journal theme for a page already at one of its column
+        // widths is choosing that journal: the page then follows the
+        // publisher's minimums (Nature: 5 pt text, 0.25 pt lines), which the
+        // theme's own sizes are drawn to. A page with a preset keeps it.
+        let size_mm = self.doc.canvases[ci].size_mm;
+        if snap.size_preset_id.is_none()
+            && let Some(preset) = theme
+                .column_presets
+                .iter()
+                .find(|preset| preset.matches(size_mm))
+        {
+            snap.size_preset_id = Some(preset.id.to_owned());
+        }
         snap.style_library = theme.style_library();
         for (_, style) in &mut snap.object_styles {
             theme.restyle_object(style);
@@ -395,6 +416,7 @@ impl PlotiumApp {
                             }
                         }
                         if line.kind == plotium_figure::SeriesKind::Line
+                            && !line.width_locked
                             && let Some(width) = theme
                                 .line_width_pt
                                 .and_then(plotium_figure::PositiveFiniteF32::new)
@@ -419,6 +441,7 @@ impl PlotiumApp {
     pub fn apply_theme_snapshot(&mut self, canvas: usize, snap: &ThemeSnapshot) {
         if let Some(c) = self.doc.canvases.get_mut(canvas) {
             c.background = snap.background;
+            c.size_preset_id = snap.size_preset_id.clone();
             for (id, style) in &snap.object_styles {
                 if let Some(o) = c.object_mut(*id) {
                     o.set_style(style);
@@ -548,4 +571,20 @@ impl PlotiumApp {
             self.themed_snapshot(canvas, theme),
         ))
     }
+}
+
+/// Stroke widths of a Nature figure, scaled from its tick text size so the
+/// weight of line and type stays matched when the text size changes: 3/70 of
+/// it for supporting strokes (axes, ticks, outlines) and 1/14 for data lines,
+/// i.e. 0.3 pt and 0.5 pt at 7 pt text, as Nature's own figures draw them.
+fn nature_strokes(tick_pt: f32) -> (f32, f32) {
+    (tick_pt * 3.0 / 70.0, tick_pt / 14.0)
+}
+
+#[cfg(test)]
+#[test]
+fn nature_strokes_scale_with_the_text_size() {
+    assert_eq!(nature_strokes(7.0), (0.3, 0.5));
+    let (aux, data) = nature_strokes(6.0);
+    assert!((aux - 6.0 * 0.3 / 7.0).abs() < 1e-6 && (data - 6.0 * 0.5 / 7.0).abs() < 1e-6);
 }

@@ -231,7 +231,8 @@ impl PlotiumApp {
                 return Err("Curve scale must be finite.".into());
             }
             let bar = line.kind == SeriesKind::Bar;
-            let bar_style = bar.then(|| super::curve_bars::BarStyle::of(line));
+            let aux_line_pt = self.doc.style_library.figure_typography.aux_line_pt;
+            let bar_style = bar.then(|| super::curve_bars::BarStyle::of(line, aux_line_pt));
             let (table, selections) = self.table_curve_sources(sb.source)?;
             for (index, columns) in selections.iter().copied().enumerate() {
                 let mut extracted = extract_table_curve(table, columns, coordinates)?;

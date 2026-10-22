@@ -209,13 +209,7 @@ fn build_report(
             .filter_map(|&page| app.doc.canvases.get(page))
             .map(page_metrics)
             .collect();
-        precheck_report(
-            &metrics,
-            preset.target_width_mm(),
-            &preset.thresholds(),
-            preset.format(),
-            dpi,
-        )
+        precheck_report(&metrics, preset.target_width_mm(), preset.format(), dpi)
     } else {
         PrecheckReport { items: Vec::new() }
     };

@@ -290,6 +290,7 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
         minor_ticks: 4,
         typeface: plotium_figure::Typeface::TimesNewRoman,
         font_weight: plotium_figure::FontWeight::Bold,
+        aux_line_pt: Some(0.3),
     };
     app.set_figure_typography_value(custom_typography);
     let path = temp_project("roundtrip");

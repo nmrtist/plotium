@@ -133,6 +133,7 @@ fn check_sizes(theme: &Theme) -> Result<(), StyleError> {
         ("legend size", Some(t.legend_pt)),
         ("line width", theme.line_width_pt),
         ("marker size", theme.marker_size_pt),
+        ("supporting line width", t.aux_line_pt),
     ];
     let non_negative = [
         ("axis line width", t.axis_line_pt),

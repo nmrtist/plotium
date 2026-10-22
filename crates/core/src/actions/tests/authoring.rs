@@ -158,6 +158,7 @@ fn set_figure_typography_restamps_plots_and_is_undoable() {
         minor_ticks: 1,
         typeface: plotium_figure::Typeface::TimesNewRoman,
         font_weight: plotium_figure::FontWeight::Bold,
+        aux_line_pt: None,
     };
 
     app.execute_action(Action::set_figure_typography(before, after));

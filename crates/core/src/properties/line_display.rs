@@ -224,11 +224,19 @@ impl PropertyProvider for DisplayProvider {
                     Some(line.bar_edge_color.is_some()),
                 )
             }
-            BAR_EDGE_WIDTH => (
-                PropertyValue::Float(line.bar_edge_width()),
-                PropertyValue::Float(plotium_figure::DEFAULT_BAR_EDGE_WIDTH_PT),
-                Some(line.bar_edge_width.is_some()),
-            ),
+            BAR_EDGE_WIDTH => {
+                // Unset, the outline follows the document's supporting lines.
+                let aux = app.doc.style_library.figure_typography.aux_line_pt;
+                let derived = plotium_figure::LineEncoding {
+                    bar_edge_width: None,
+                    ..line.clone()
+                };
+                (
+                    PropertyValue::Float(line.bar_edge_width(aux)),
+                    PropertyValue::Float(derived.bar_edge_width(aux)),
+                    Some(line.bar_edge_width.is_some()),
+                )
+            }
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
         let marker_property = matches!(

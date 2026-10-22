@@ -447,7 +447,7 @@ fn apply_theme_lists_themes_restyles_canvas_and_undoes_in_one_step() {
     );
     assert_eq!(app.doc.canvases[0].size_mm, [120.0, 80.0]);
     let typography = app.doc.style_library.figure_typography;
-    assert_eq!(typography.axis_line_pt, 0.6);
+    assert_eq!(typography.axis_line_pt, 0.3);
     assert_eq!(typography.tick_length_pt, 3.0);
     app.undo();
     assert_eq!(app.doc.style_library.figure_typography, before);

@@ -117,6 +117,7 @@ fn update(arrow: &mut PlotArrow, at: Option<[f64; 2]>, fields: &ArrowFields) -> 
 pub(super) fn apply(
     annotations: &mut PlotAnnotations,
     edit: &FigureEdit,
+    default_width: Option<f32>,
 ) -> Result<Option<AnnotationId>, String> {
     let fields = arrow_fields(edit);
     let not_arrow = "Arrows take at, to, head, line_width_pt and color; label an arrow with a separate text annotation.";
@@ -136,7 +137,10 @@ pub(super) fn apply(
                     at,
                     to,
                     fields.head.unwrap_or(ArrowHead::Filled),
-                    fields.line_width_pt.unwrap_or(DEFAULT_ARROW_LINE_WIDTH_PT),
+                    fields
+                        .line_width_pt
+                        .or(default_width)
+                        .unwrap_or(DEFAULT_ARROW_LINE_WIDTH_PT),
                     parse_color(fields.color)?.unwrap_or(Color::BLACK),
                 )
                 .map(Some)

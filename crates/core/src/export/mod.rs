@@ -19,8 +19,7 @@ mod trim;
 
 pub use asset_render::{MissingImagePolicy, prepare_render_document};
 pub use precheck::{
-    ComplianceStatus, ComplianceThresholds, PrecheckReport, image_precheck_items, page_metrics,
-    precheck_report,
+    ComplianceStatus, PrecheckReport, image_precheck_items, page_metrics, precheck_report,
 };
 pub use preset::ExportPreset;
 pub use raster::{
