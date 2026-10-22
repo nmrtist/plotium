@@ -221,12 +221,15 @@ fn dispatch(app: &mut PlotiumApp, paths: Vec<PathBuf>, target: ImportImageTarget
     }
     let mut images = Vec::new();
     let mut others = Vec::new();
+    let mut queued = Vec::new();
     for path in paths {
         let Some(classified) = file_dialogs::classify_dropped_path(app, &path) else {
             continue;
         };
         if classified.is_image() {
             images.push(path);
+        } else if classified.is_queued_data(&path) {
+            queued.push(path);
         } else {
             others.push((path, classified));
         }
@@ -253,6 +256,7 @@ fn dispatch(app: &mut PlotiumApp, paths: Vec<PathBuf>, target: ImportImageTarget
     for (path, classified) in others {
         file_dialogs::dispatch_dropped_path(app, &path, classified);
     }
+    file_dialogs::queue_data_paths(app, queued);
 }
 
 fn paint_overlay(ctx: &egui::Context, target: Option<canvas::ImagePanelDropTarget>) {

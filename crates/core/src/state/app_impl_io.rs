@@ -385,7 +385,7 @@ impl PlotiumApp {
                             }
                         }
                         Err(error) => warnings.push(plotium_io::LoadWarning {
-                            code: plotium_io::LoadWarningCode::InvalidMetadata,
+                            code: plotium_io::LoadWarningCode::ArchiveEntryFailed,
                             message: format!("Archive dataset could not be opened: {error}"),
                             path: Some(path.to_owned()),
                         }),
@@ -584,12 +584,13 @@ impl PlotiumApp {
 }
 
 fn load_warning_diagnostic(warning: plotium_io::LoadWarning) -> Diagnostic {
-    let mut diagnostic = Diagnostic::new(
-        Severity::Warning,
-        DiagnosticCode::DatasetLoadWarning,
-        warning.message,
-    )
-    .with_source("core.loading");
+    let (severity, code) = if warning.code == plotium_io::LoadWarningCode::ArchiveEntryFailed {
+        (Severity::Error, DiagnosticCode::DatasetLoadFailed)
+    } else {
+        (Severity::Warning, DiagnosticCode::DatasetLoadWarning)
+    };
+    let mut diagnostic =
+        Diagnostic::new(severity, code, warning.message).with_source("core.loading");
     if let Some(path) = warning.path {
         diagnostic = diagnostic.with_context("path", path.display().to_string());
     }

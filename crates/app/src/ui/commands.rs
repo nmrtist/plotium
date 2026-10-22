@@ -40,6 +40,8 @@ pub enum CommandId {
     ClearRecentFiles,
     HelpManual,
     ImportTable,
+    ImportResults,
+    RetryImportBatch(plotium_core::state::ImportBatchId),
     ImportImage,
     ImportImageFirstFrame,
     ImportImageWithoutMetadata,
@@ -177,6 +179,13 @@ pub struct CommandDescriptor {
 pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
     command_ids(app.session.recent_files.len())
         .into_iter()
+        .chain(
+            app.session
+                .data_imports
+                .batches()
+                .iter()
+                .map(|batch| CommandId::RetryImportBatch(batch.id)),
+        )
         .map(|id| {
             debug_assert!(!id.stable_id().is_empty());
             describe(app, id)
@@ -255,6 +264,19 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         CommandId::ClearRecentFiles => requires(
             !app.session.recent_files.is_empty(),
             "Open a file or project to build the recent list.",
+        ),
+        CommandId::ImportResults => requires(
+            !app.session.data_imports.batches().is_empty(),
+            "Import data before viewing import results.",
+        ),
+        CommandId::RetryImportBatch(batch) => requires(
+            app.session.data_imports.batches().iter().any(|item| {
+                item.id == batch
+                    && item.retryable
+                    && item.phase == plotium_core::state::ImportPhase::Complete
+                    && item.failed() > 0
+            }),
+            "Finish an import with failed items before retrying them.",
         ),
         CommandId::ImportTable => requires(
             app.session.ui.table_import_preview.is_none(),

@@ -94,7 +94,14 @@ pub(super) fn render(app: &mut PlotiumApp, ui: &mut Ui) -> egui::scroll_area::Sc
                             ui.add_space(16.0);
                             ui.horizontal(|ui| {
                                 ui.spinner();
-                                ui.label("Importing data… You can continue working.");
+                                let batch =
+                                    app.session.data_imports.batches().iter().find(|batch| {
+                                        batch.phase != plotium_core::state::ImportPhase::Complete
+                                    });
+                                ui.label(batch.map_or_else(
+                                    || "Preparing data…".into(),
+                                    crate::ui::import_feedback::summary,
+                                ));
                             });
                         }
                         if !app.doc.datasets.is_empty() || !app.doc.canvases.is_empty() {

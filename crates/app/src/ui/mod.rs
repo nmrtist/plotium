@@ -21,6 +21,7 @@ mod export_dialog;
 mod figure_typography;
 pub(crate) mod file_dialogs;
 pub(crate) mod file_drop;
+pub(crate) mod import_feedback;
 mod menus;
 #[cfg(target_os = "macos")]
 pub(crate) mod native_documents;
@@ -172,6 +173,8 @@ pub fn render(
     feedback_banner(app, ui, dark);
     activity::observe(app);
 
+    import_feedback::apply_open_target(app, ui);
+
     let workspace_width = ui.available_width();
     sidebars::render(app, ui, dark, workspace_width);
 
@@ -210,6 +213,7 @@ pub fn render(
     panel_note_edit_window(app, &ctx);
     text_edit_window(app, &ctx);
     data_sheet_window(app, &ctx);
+    import_feedback::results_window(app, &ctx);
     save_project_window(app, &ctx);
     external_save_window(app, &ctx);
     external_export_window(app, &ctx);
@@ -299,7 +303,8 @@ fn pending_feedback(
                 OperationOutcome::Warning | OperationOutcome::Failure
             )
         })
-        .filter(|operation| acknowledged.is_none_or(|latest| operation.completion_order > latest));
+        .filter(|operation| acknowledged.is_none_or(|latest| operation.completion_order > latest))
+        .filter(|operation| !import_feedback::represents_operation(app, operation.id));
     let newest = pending.next_back()?;
     let (id, completion_order, outcome, summary) = (
         newest.id,
@@ -311,9 +316,16 @@ fn pending_feedback(
 }
 
 fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
-    let Some((_, completion_order, outcome, summary, earlier)) = pending_feedback(app) else {
-        return;
-    };
+    let import = import_feedback::notice(app, ui.ctx());
+    let operation = pending_feedback(app);
+    let (completion_order, outcome, summary, earlier, batch) =
+        if let Some((_, order, outcome, summary, earlier)) = operation {
+            (Some(order), outcome, summary, earlier, None)
+        } else if let Some(import) = import {
+            (None, import.outcome, import.summary, 0, Some(import.batch))
+        } else {
+            return;
+        };
     let (icon, color) = match outcome {
         OperationOutcome::Failure => (
             egui_phosphor::regular::WARNING_OCTAGON,
@@ -327,7 +339,7 @@ fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
                 Color32::from_rgb(145, 86, 0)
             },
         ),
-        OperationOutcome::Success => return,
+        OperationOutcome::Success => (egui_phosphor::regular::INFO, ui.visuals().text_color()),
     };
     egui::Panel::top("operation_feedback")
         .frame(
@@ -364,10 +376,23 @@ fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
                             dismiss
                         };
                         if dismiss.clicked() {
-                            app.session.ui.dismissed_feedback_order = Some(completion_order);
+                            if let Some(batch) = batch {
+                                import_feedback::dismiss_notice(app, ui.ctx(), batch);
+                            } else {
+                                app.session.ui.dismissed_feedback_order = completion_order;
+                            }
                         }
                         if ui.button("Details").clicked() {
-                            activity::open_diagnostics(app, ui.ctx());
+                            if let Some(batch) = batch {
+                                commands::execute_without_clipboard(
+                                    commands::CommandId::ImportResults,
+                                    app,
+                                    ui.ctx(),
+                                );
+                                import_feedback::open_results(app, ui.ctx(), Some(batch));
+                            } else {
+                                activity::open_diagnostics(app, ui.ctx());
+                            }
                         }
                     },
                 );

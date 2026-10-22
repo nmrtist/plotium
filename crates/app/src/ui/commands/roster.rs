@@ -26,6 +26,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::ClearRecentFiles,
         CommandId::HelpManual,
         CommandId::ImportTable,
+        CommandId::ImportResults,
         CommandId::ImportImage,
         CommandId::ImportImageFirstFrame,
         CommandId::ImportImageWithoutMetadata,
