@@ -36,7 +36,17 @@ pub(crate) fn handle_panel_drag(
         if active {
             let candidate = drag_frame(drag.before, drag.kind, dpx, dpy);
             let bypass = ctx.input(|input| input.modifiers.alt);
-            let (frame, guides) = snap_panel_frame(app, ci, &drag, candidate, bypass);
+            let (snapped, mut guides) = snap_panel_frame(app, ci, &drag, candidate, bypass);
+            let frame = enforce_min_size(
+                drag.before,
+                snapped,
+                drag.kind,
+                panel_min_size(&app.doc.canvases[ci], &drag),
+                false,
+            );
+            if frame != snapped {
+                guides.clear();
+            }
             app.session.ui.snap_guides = guides;
             if let Some(page) = app.doc.canvases.get_mut(ci) {
                 let scale = [
@@ -110,6 +120,21 @@ pub(crate) fn handle_panel_drag(
 
 mod swap;
 pub(crate) use swap::paint_panel_swap;
+
+/// A resize scales every child with the Panel, so the Panel may shrink only
+/// as far as its most constrained plot still keeps room for its data.
+fn panel_min_size(page: &CanvasDocument, drag: &PanelDrag) -> [f32; 2] {
+    let mut scale = [0.0_f32, 0.0_f32];
+    for &(id, before) in &drag.children {
+        let Some(plot) = page.object(id).and_then(|item| item.plot()) else {
+            continue;
+        };
+        let min = plot_min_size(plot.figure(), before);
+        scale[0] = scale[0].max(min[0] / before.width);
+        scale[1] = scale[1].max(min[1] / before.height);
+    }
+    [drag.before.width * scale[0], drag.before.height * scale[1]]
+}
 
 pub(crate) fn begin_panel_drag(
     app: &mut PlotiumApp,

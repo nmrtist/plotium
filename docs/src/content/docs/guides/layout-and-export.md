@@ -85,6 +85,8 @@ handle to resize it together with its contents. `Shift`-click selects multiple
 Panels. To work with an object inside a Panel, double-click the Panel or press
 `Enter`. Use the breadcrumb above the page or press `Esc` to return to the page.
 You can also `Ctrl`/`Cmd`-click an object to select it without entering first.
+A resize stops before any plot inside the Panel would lose the room for its
+data to its axes, ticks and colour scale.
 
 To exchange two Panels on the same canvas, drag one over the other and release
 when both slots are highlighted. The Panels exchange positions and sizes; their

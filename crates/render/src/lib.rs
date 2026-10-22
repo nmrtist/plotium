@@ -324,6 +324,14 @@ impl<'a> Projector<'a> {
         }
     }
 
+    /// How far an aspect lock lifted the plot's bottom edge above where the
+    /// margins put it. The x tick labels follow the plot, so the x title and
+    /// multiplier, which sit in the frame's bottom lane, rise by the same amount
+    /// to keep their gap from the labels.
+    pub fn bottom_letterbox(&self, outer: Rect, margins: &Margins) -> f32 {
+        (outer.bottom() - margins.bottom - self.plot.bottom()).max(0.0)
+    }
+
     /// Data `[x, y]` → output `(px, py)`; y is flipped so larger values sit higher.
     pub fn project(&self, p: [f64; 2]) -> (f32, f32) {
         let tx = self.fig.x.normalize(p[0]) as f32;

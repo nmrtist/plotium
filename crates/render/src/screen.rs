@@ -112,6 +112,7 @@ fn paint_with_detail_and_stats_impl(
     let margins = layout.margins.scaled(scale);
     let proj = Projector::new(fig, outer, &margins);
     let plot = proj.plot;
+    let x_lane_bottom = outer.bottom() - proj.bottom_letterbox(outer, &margins);
     let y_title_cy = crate::y_title_center(fig, plot, outer, y_title_clearance, scale);
     let y_title_left = crate::y_title_left(
         fig,
@@ -265,7 +266,7 @@ fn paint_with_detail_and_stats_impl(
             painter,
             Pos2::new(
                 plot.right(),
-                outer.bottom() - (OUTER_PAD + ty.tick_pt * 0.5) * scale,
+                x_lane_bottom - (OUTER_PAD + ty.tick_pt * 0.5) * scale,
             ),
             Align2::RIGHT_CENTER,
             multiplier,
@@ -284,7 +285,7 @@ fn paint_with_detail_and_stats_impl(
             painter,
             Pos2::new(
                 (plot.left + plot.right()) / 2.0,
-                outer.bottom() - (OUTER_PAD + multiplier_clearance + ty.label_pt * 0.5) * scale,
+                x_lane_bottom - (OUTER_PAD + multiplier_clearance + ty.label_pt * 0.5) * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.x.label,
