@@ -214,3 +214,140 @@ fn close_shortcut_matches_platform_window_semantics() {
         egui::Key::W
     );
 }
+
+fn app_with_pages(pages: usize) -> (PlotiumApp, plotium_core::state::PanelId) {
+    let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+    for _ in 0..pages {
+        app.doc
+            .canvases
+            .push(plotium_core::state::CanvasDocument::new(
+                "page".to_owned(),
+                [180.0, 120.0],
+            ));
+    }
+    let panel = app.doc.canvases[0].create_panel(
+        "Panel".to_owned(),
+        plotium_core::state::ObjectFrame::new(10.0, 10.0, 100.0, 80.0),
+    );
+    app.session.active_canvas = Some(0);
+    (app, panel)
+}
+
+fn select_panel_on_canvas(app: &mut PlotiumApp, panel: plotium_core::state::PanelId) {
+    app.select_panel(0, panel);
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::CanvasObjects;
+}
+
+#[test]
+fn delete_removes_the_selected_panel_undoably() {
+    let (mut app, panel) = app_with_pages(1);
+    select_panel_on_canvas(&mut app, panel);
+
+    delete_selection(&mut app, &egui::Context::default());
+    assert!(app.doc.canvases[0].panel(panel).is_none());
+
+    app.undo();
+    assert!(app.doc.canvases[0].panel(panel).is_some());
+}
+
+#[test]
+fn delete_keeps_a_locked_panel_and_explains_why() {
+    let (mut app, panel) = app_with_pages(1);
+    app.doc.canvases[0].panel_mut(panel).unwrap().locked = true;
+    select_panel_on_canvas(&mut app, panel);
+
+    delete_selection(&mut app, &egui::Context::default());
+
+    assert!(app.doc.canvases[0].panel(panel).is_some());
+    assert!(!app.session.status.is_empty());
+}
+
+#[test]
+fn delete_removes_selected_board_pages_undoably() {
+    let (mut app, _) = app_with_pages(3);
+    let page = |app: &PlotiumApp, ci: usize| {
+        plotium_core::state::BoardFrameId::Page(app.doc.canvases[ci].resource_id)
+    };
+    let kept = app.doc.canvases[1].resource_id;
+    app.session.ui.frame_selection = vec![page(&app, 0), page(&app, 2)];
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::Board;
+
+    delete_selection(&mut app, &egui::Context::default());
+    assert_eq!(app.doc.canvases.len(), 1);
+    assert_eq!(app.doc.canvases[0].resource_id, kept);
+    assert!(app.session.ui.frame_selection.is_empty());
+
+    app.undo();
+    app.undo();
+    assert_eq!(app.doc.canvases.len(), 3);
+}
+
+#[test]
+fn analysis_tools_keep_delete_for_their_own_marks() {
+    let (mut app, panel) = app_with_pages(2);
+    select_panel_on_canvas(&mut app, panel);
+    app.set_tool(Tool::Peaks);
+
+    delete_selection(&mut app, &egui::Context::default());
+    assert!(app.doc.canvases[0].panel(panel).is_some());
+
+    app.session.ui.frame_selection = vec![plotium_core::state::BoardFrameId::Page(
+        app.doc.canvases[1].resource_id,
+    )];
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::Board;
+    delete_selection(&mut app, &egui::Context::default());
+    assert_eq!(app.doc.canvases.len(), 2);
+}
+
+#[test]
+fn focused_text_edit_keeps_delete_for_text_editing() {
+    let (mut app, panel) = app_with_pages(1);
+    select_panel_on_canvas(&mut app, panel);
+    let ctx = egui::Context::default();
+    let mut text = "abc".to_owned();
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        ui.add(egui::TextEdit::singleline(&mut text))
+            .request_focus();
+    });
+    let input = egui::RawInput {
+        events: vec![egui::Event::Key {
+            key: egui::Key::Backspace,
+            physical_key: Some(egui::Key::Backspace),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+        ..Default::default()
+    };
+    let _ = ctx.run_ui(input, |ui| {
+        handle_delete_shortcut(&mut app, ui.ctx());
+        ui.add(egui::TextEdit::singleline(&mut text));
+    });
+
+    assert!(app.doc.canvases[0].panel(panel).is_some());
+}
+
+#[test]
+fn tab_traversal_moves_delete_from_the_page_to_the_traversed_panel() {
+    let (mut app, panel) = app_with_pages(1);
+    app.session.ui.frame_selection = vec![plotium_core::state::BoardFrameId::Page(
+        app.doc.canvases[0].resource_id,
+    )];
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::Board;
+    let ctx = egui::Context::default();
+    let tab = egui::RawInput {
+        events: vec![egui::Event::Key {
+            key: egui::Key::Tab,
+            physical_key: Some(egui::Key::Tab),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+        ..Default::default()
+    };
+    let _ = ctx.run_ui(tab, |ui| handle_hierarchy_traversal(&mut app, ui.ctx()));
+    delete_selection(&mut app, &ctx);
+
+    assert_eq!(app.doc.canvases.len(), 1);
+    assert!(app.doc.canvases[0].panel(panel).is_none());
+}
