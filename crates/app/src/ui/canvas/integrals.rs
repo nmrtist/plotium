@@ -14,10 +14,7 @@ fn integral_hit(
         integrals
             .iter()
             .map(|integral| (integral.id, integral.start_ppm, integral.end_ppm)),
-        plot,
-        xmin,
-        xspan,
-        xrev,
+        |v| x_to_screen(v, plot, xmin, xspan, xrev),
         px,
     )
 }

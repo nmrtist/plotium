@@ -1,6 +1,6 @@
 //! Axis presentation captured before author overrides are applied.
 
-use plotium_figure::{AxisFrame, Figure};
+use plotium_figure::{AxisFrame, AxisScale, Figure};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DerivedAxes {
@@ -13,6 +13,8 @@ pub struct DerivedAxes {
     pub x_thousands_separator: bool,
     pub y_thousands_separator: bool,
     pub frame: AxisFrame,
+    pub x_scale: AxisScale,
+    pub y_scale: AxisScale,
 }
 
 impl DerivedAxes {
@@ -27,6 +29,8 @@ impl DerivedAxes {
             x_thousands_separator: figure.x.thousands_separator,
             y_thousands_separator: figure.y.thousands_separator,
             frame: figure.axis_frame,
+            x_scale: figure.x.scale,
+            y_scale: figure.y.scale,
         }
     }
 }

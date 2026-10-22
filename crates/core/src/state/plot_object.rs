@@ -292,8 +292,21 @@ impl PlotObject {
             self.viewport.zoom_x(&self.figure, anchor, scale);
         }
         if let Some(anchor) = y_anchor {
-            self.viewport.zoom_y(anchor, scale);
+            self.viewport.zoom_y(&self.figure, anchor, scale);
         }
+        self.apply_viewport();
+    }
+
+    /// Pan by fractions of the drawn window, which can exceed the viewport by
+    /// legend room; measuring against it keeps the data under the pointer.
+    pub fn pan_viewport(&mut self, x_fraction: f64, y_fraction: f64) {
+        let drawn = |axis: &plotium_figure::Axis| match axis.effective_scale() {
+            plotium_figure::AxisScale::Linear => axis.span(),
+            scale => scale.forward(axis.max) - scale.forward(axis.min),
+        };
+        let x = x_fraction * drawn(&self.figure.x);
+        let y = y_fraction * drawn(&self.figure.y);
+        self.viewport.pan(&self.figure, x, y);
         self.apply_viewport();
     }
 

@@ -425,8 +425,9 @@ fn write_figure(
         );
     }
     for annotation in &fig.range_annotations {
-        let (x0, _) = proj.project([annotation.x0, fig.y.min]);
-        let (x1, _) = proj.project([annotation.x1, fig.y.min]);
+        let Some((x0, x1)) = crate::range_annotation_xs(&proj, annotation) else {
+            continue;
+        };
         let left = x0.min(x1);
         let right = x0.max(x1);
         let width = (x1 - x0).abs();
@@ -508,6 +509,9 @@ fn write_figure(
     arrows::write(s, &proj, fig);
     for a in fig.text_annotations() {
         let (px, py) = proj.project(a.at);
+        if !crate::is_finite_point((px, py)) {
+            continue;
+        }
         let _ = write!(
             s,
             r#"<text x="{px:.2}" y="{py:.2}" text-anchor="middle" font-size="{sz}" fill="{col}">{txt}</text>"#,
@@ -539,7 +543,7 @@ fn write_error_bars(s: &mut String, fig: &Figure, proj: &Projector<'_>, draw_ove
             continue;
         };
         let mut path = String::new();
-        for [start, end] in segments {
+        for [start, end] in segments.as_slice() {
             let _ = write!(
                 path,
                 "M{:.2} {:.2}L{:.2} {:.2}",

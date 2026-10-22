@@ -9,7 +9,7 @@ use super::{
     ValueSchema,
 };
 use crate::state::{FieldCapabilities, PlotObject, PlotiumApp};
-use plotium_figure::AxisFrame;
+use plotium_figure::{AxisFrame, AxisScale};
 
 pub const X_LABEL: PropertyId = PropertyId("object.axes.x_label");
 pub const Y_LABEL: PropertyId = PropertyId("object.axes.y_label");
@@ -21,12 +21,20 @@ pub const Y_SHOW_LABEL: PropertyId = PropertyId("object.axes.y_show_label");
 pub const X_THOUSANDS_SEPARATOR: PropertyId = PropertyId("object.axes.x_thousands_separator");
 pub const Y_THOUSANDS_SEPARATOR: PropertyId = PropertyId("object.axes.y_thousands_separator");
 pub const FRAME: PropertyId = PropertyId("object.axes.frame");
+pub const X_SCALE: PropertyId = PropertyId("object.axes.x_scale");
+pub const Y_SCALE: PropertyId = PropertyId("object.axes.y_scale");
 
 pub const OPEN: &str = "open";
 pub const BOX: &str = "box";
 const FRAMES: &[EnumVariant] = &[
     EnumVariant::new(OPEN, "Left and bottom"),
     EnumVariant::new(BOX, "All four sides"),
+];
+pub const LINEAR: &str = "linear";
+pub const LOG: &str = "log";
+const SCALES: &[EnumVariant] = &[
+    EnumVariant::new(LINEAR, "Linear"),
+    EnumVariant::new(LOG, "Logarithmic"),
 ];
 const NO_AXES: &str = "Choose a chart with visible axes to edit axis settings.";
 
@@ -142,6 +150,20 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         ],
         Tier::Essential,
     ),
+    axis_definition(
+        X_SCALE,
+        ValueSchema::Enum { variants: SCALES },
+        "X-axis scale",
+        &["log x", "logarithmic x axis", "x log scale"],
+        Tier::Advanced,
+    ),
+    axis_definition(
+        Y_SCALE,
+        ValueSchema::Enum { variants: SCALES },
+        "Y-axis scale",
+        &["log y", "logarithmic y axis", "y log scale", "semilog"],
+        Tier::Advanced,
+    ),
 ];
 
 pub(crate) struct AxisProvider;
@@ -171,6 +193,8 @@ impl PropertyProvider for AxisProvider {
             && plot.figure().axis_frame == AxisFrame::Hidden
         {
             Availability::Disabled(NO_AXES)
+        } else if let Some(reason) = scale_unavailable(app, definition.id, plot) {
+            Availability::Disabled(reason)
         } else {
             Availability::Editable
         };
@@ -216,6 +240,15 @@ impl PropertyProvider for AxisProvider {
         {
             return Err(PropertyError::NotApplicable(NO_AXES.to_owned()));
         }
+        if matches!(definition.id, X_SCALE | Y_SCALE)
+            && !matches!(operation, EditOp::Reset)
+            && let Some(reason) = app.doc.canvases[canvas]
+                .object(object)
+                .and_then(|object| object.plot())
+                .and_then(|plot| scale_unavailable(app, definition.id, plot))
+        {
+            return Err(PropertyError::NotApplicable(reason.to_owned()));
+        }
         let overrides = transaction.axis_overrides(app, canvas, object)?;
         match (definition.id, operation) {
             (EQUAL_F1_F2_SCALE, EditOp::Set(PropertyValue::Bool(value))) => {
@@ -251,6 +284,24 @@ impl PropertyProvider for AxisProvider {
             (FRAME, EditOp::Set(PropertyValue::Enum(BOX))) => {
                 overrides.axis_frame = Some(AxisFrame::Box)
             }
+            (X_SCALE | Y_SCALE, EditOp::Set(PropertyValue::Enum(LINEAR))) => {
+                *scale_slot(overrides, definition.id) = Some(AxisScale::Linear)
+            }
+            (X_SCALE | Y_SCALE, EditOp::Set(PropertyValue::Enum(LOG))) => {
+                let manual = if definition.id == X_SCALE {
+                    overrides.x_range
+                } else {
+                    overrides.y_range
+                };
+                if manual.is_some_and(|range| range.min <= 0.0) {
+                    return Err(PropertyError::InvalidValue {
+                        property: definition.id,
+                        message: NON_POSITIVE_LOG_RANGE.to_owned(),
+                    });
+                }
+                *scale_slot(overrides, definition.id) = Some(AxisScale::Log10)
+            }
+            (X_SCALE | Y_SCALE, EditOp::Reset) => *scale_slot(overrides, definition.id) = None,
             (EQUAL_F1_F2_SCALE, EditOp::Reset) => overrides.lock_aspect = None,
             (X_LABEL, EditOp::Reset) => overrides.x_label = None,
             (Y_LABEL, EditOp::Reset) => overrides.y_label = None,
@@ -303,6 +354,8 @@ fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Property
         X_THOUSANDS_SEPARATOR => Ok(PropertyValue::Bool(plot.figure().x.thousands_separator)),
         Y_THOUSANDS_SEPARATOR => Ok(PropertyValue::Bool(plot.figure().y.thousands_separator)),
         FRAME => Ok(frame_value(plot.figure().axis_frame)),
+        X_SCALE => Ok(scale_value(plot.figure().x.scale)),
+        Y_SCALE => Ok(scale_value(plot.figure().y.scale)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -343,6 +396,8 @@ fn default_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Pro
             plot.derived_axes().y_thousands_separator,
         )),
         FRAME => Ok(frame_value(plot.derived_axes().frame)),
+        X_SCALE => Ok(scale_value(plot.derived_axes().x_scale)),
+        Y_SCALE => Ok(scale_value(plot.derived_axes().y_scale)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -358,6 +413,8 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
         X_THOUSANDS_SEPARATOR => Ok(plot.axis_overrides.x_thousands_separator.is_some()),
         Y_THOUSANDS_SEPARATOR => Ok(plot.axis_overrides.y_thousands_separator.is_some()),
         FRAME => Ok(plot.axis_overrides.axis_frame.is_some()),
+        X_SCALE => Ok(plot.axis_overrides.x_scale.is_some()),
+        Y_SCALE => Ok(plot.axis_overrides.y_scale.is_some()),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -369,4 +426,51 @@ fn frame_value(frame: AxisFrame) -> PropertyValue {
         AxisFrame::Box => BOX,
         AxisFrame::Open | AxisFrame::Hidden => OPEN,
     })
+}
+
+/// Rejection shared by scale and range writes that would leave a log axis
+/// without a positive window.
+pub(crate) const NON_POSITIVE_LOG_RANGE: &str = "A logarithmic axis needs a positive range: set a manual minimum above zero or return the range to Auto.";
+
+fn scale_value(scale: AxisScale) -> PropertyValue {
+    PropertyValue::Enum(match scale {
+        AxisScale::Linear => LINEAR,
+        AxisScale::Log10 => LOG,
+    })
+}
+
+fn scale_slot(
+    overrides: &mut crate::state::AxisOverrides,
+    id: PropertyId,
+) -> &mut Option<AxisScale> {
+    if id == X_SCALE {
+        &mut overrides.x_scale
+    } else {
+        &mut overrides.y_scale
+    }
+}
+
+/// Why a scale property is disabled for `plot`. NMR spectra stay linear
+/// because their integral, phase and cursor tools measure in linear ppm.
+fn scale_unavailable(app: &PlotiumApp, id: PropertyId, plot: &PlotObject) -> Option<&'static str> {
+    if !matches!(id, X_SCALE | Y_SCALE) {
+        return None;
+    }
+    if let Some(reason) = crate::state::log_scale_unavailable(plot.figure(), id == X_SCALE) {
+        return Some(reason);
+    }
+    let nmr_signal = app
+        .display_binding(plot.display_owner, &plot.binding)
+        .series
+        .first()
+        .and_then(|series| {
+            let dataset = app.doc.dataset_by_id(series.source.resource)?;
+            dataset.field_descriptor(series.source.field)
+        })
+        .is_some_and(|field| {
+            field
+                .capabilities
+                .contains(crate::automation::CAP_FIELD_NMR_SIGNAL)
+        });
+    nmr_signal.then_some("NMR spectra keep linear axes: their integral, phase and cursor tools measure in linear ppm.")
 }

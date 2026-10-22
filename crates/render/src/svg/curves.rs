@@ -11,14 +11,16 @@ pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
         return;
     }
     let points: Vec<_> = series.points.iter().map(|p| proj.project(*p)).collect();
-    if series.kind == SeriesKind::Line && points.len() >= 2 {
-        stroke(s, &points, series);
+    if series.kind == SeriesKind::Line {
+        for run in crate::finite_runs(&points).filter(|run| run.len() >= 2) {
+            stroke(s, run, series);
+        }
     }
     let marker = series.appearance.marker(series.kind);
     if marker != Marker::None {
         let paint = MarkerPaint::new(series.appearance, series.color, series.width);
         let r = series.appearance.marker_radius(series.width);
-        for p in points {
+        for p in points.into_iter().filter(|p| crate::is_finite_point(*p)) {
             marker_at(s, p, marker, r, &paint);
         }
     }

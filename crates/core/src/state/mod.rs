@@ -84,6 +84,8 @@ mod datasets_2d_figure;
 mod datasets_2d_maps;
 mod datasets_dispatch;
 mod derived_axes;
+mod log_axes;
+pub use log_axes::{log_auto_range, log_scale_unavailable};
 mod document;
 mod document_identity;
 mod document_lifecycle;

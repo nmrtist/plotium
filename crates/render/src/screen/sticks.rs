@@ -8,8 +8,8 @@ pub(super) fn paint(
 ) {
     let stroke = Stroke::new(series.width * scale, col(series.color));
     for point in &series.points {
-        let (x, baseline) = projector.project([point[0], 0.0]);
-        let (_, y) = projector.project(*point);
-        painter.line_segment([Pos2::new(x, baseline), Pos2::new(x, y)], stroke);
+        if let Some([(x, baseline), (_, y)]) = crate::stick_segment(projector, *point) {
+            painter.line_segment([Pos2::new(x, baseline), Pos2::new(x, y)], stroke);
+        }
     }
 }

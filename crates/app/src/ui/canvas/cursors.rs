@@ -187,13 +187,7 @@ fn point_at_pointer(
         .object(object)?
         .plot()?
         .figure();
-    let x = screen_to_x(
-        pointer.x,
-        plot,
-        figure.x.min,
-        figure.x.span(),
-        figure.x.reversed,
-    );
+    let x = from_screen_x(pointer.x, plot, &figure.x);
     let data = app.doc.datasets.get(dataset)?;
     let (y, intensity) = match data {
         Dataset::Nmr(_) => {
@@ -205,13 +199,7 @@ fn point_at_pointer(
             let Processed2D::Ft(spectrum) = &nmr.processed else {
                 return None;
             };
-            let y = screen_to_y(
-                pointer.y,
-                plot,
-                figure.y.min,
-                figure.y.span(),
-                figure.y.reversed,
-            );
+            let y = from_screen_y(pointer.y, plot, &figure.y);
             let col = spectrum.nearest_f2(x);
             let row = spectrum.nearest_f1(y);
             let value = spectrum
@@ -255,20 +243,8 @@ fn point_to_screen(
         .plot()?
         .figure();
     Some(Pos2::new(
-        x_to_screen(
-            point.x,
-            plot,
-            figure.x.min,
-            figure.x.span(),
-            figure.x.reversed,
-        ),
-        y_to_screen(
-            point.y.unwrap_or(point.intensity),
-            plot,
-            figure.y.min,
-            figure.y.span(),
-            figure.y.reversed,
-        ),
+        to_screen_x(point.x, plot, &figure.x),
+        to_screen_y(point.y.unwrap_or(point.intensity), plot, &figure.y),
     ))
 }
 

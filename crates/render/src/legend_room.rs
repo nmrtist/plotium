@@ -102,13 +102,16 @@ pub fn make_legend_room(fig: &mut Figure, size: [f32; 2], grow_x: bool, grow_y: 
     false
 }
 
-/// `axis` with one end moved outward by `fraction` of its span.
+/// `axis` with one end moved outward by `fraction` of its span, measured in
+/// the axis scale so a log axis grows by decades and never reaches zero.
 fn widened(axis: &Axis, side: Option<bool>, fraction: f64) -> Axis {
     let mut axis = axis.clone();
-    let extra = (axis.max - axis.min).abs() * fraction;
+    let scale = axis.effective_scale();
+    let (min, max) = (scale.forward(axis.min), scale.forward(axis.max));
+    let extra = (max - min).abs() * fraction;
     match side {
-        Some(true) => axis.max += extra,
-        Some(false) => axis.min -= extra,
+        Some(true) => axis.max = scale.inverse(max + extra),
+        Some(false) => axis.min = scale.inverse(min - extra),
         None => {}
     }
     axis
@@ -168,11 +171,13 @@ impl Occupancy {
     fn is_clear(&self, fig: &Figure, base_x: &Axis, base_y: &Axis, plot: Rect, zone: Rect) -> bool {
         let side = GRID as f64;
         let x_at = |px: f32| {
-            let value = denormalize(&fig.x, f64::from((px - plot.left) / plot.width));
+            let value = fig.x.value_at(f64::from((px - plot.left) / plot.width));
             base_x.normalize(value) * side
         };
         let y_at = |py: f32| {
-            let value = denormalize(&fig.y, f64::from(1.0 - (py - plot.top) / plot.height));
+            let value = fig
+                .y
+                .value_at(f64::from(1.0 - (py - plot.top) / plot.height));
             (1.0 - base_y.normalize(value)) * side
         };
         let span = |a: f64, b: f64| {
@@ -194,12 +199,6 @@ impl Occupancy {
             - self.sums[(bottom + 1) * width + left];
         total == 0
     }
-}
-
-/// Data value at normalized position `t`, the inverse of [`Axis::normalize`].
-fn denormalize(axis: &Axis, t: f64) -> f64 {
-    let t = if axis.reversed { 1.0 - t } else { t };
-    axis.min + t * axis.span()
 }
 
 #[cfg(test)]

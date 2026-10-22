@@ -103,8 +103,8 @@ pub(crate) fn finish_selection_drag(
     if let Some(descriptor) = app.plot_interaction_descriptor(ci, object_id) {
         let object = app.doc.canvases[ci].object(object_id).unwrap();
         let figure = object.plot().unwrap().figure();
-        let start = screen_to_x(a.x, plot, figure.x.min, figure.x.span(), figure.x.reversed);
-        let end = screen_to_x(b.x, plot, figure.x.min, figure.x.span(), figure.x.reversed);
+        let start = from_screen_x(a.x, plot, &figure.x);
+        let end = from_screen_x(b.x, plot, &figure.x);
         if let Some(request) = descriptor.range(start, end) {
             app.dispatch_plot_interaction(request);
         }
@@ -118,13 +118,13 @@ pub(crate) fn finish_selection_drag(
     let plot_object = object.plot().unwrap();
     let fig = plot_object.figure();
     let x = AxisRange::new(
-        screen_to_x(a.x, plot, fig.x.min, fig.x.span(), fig.x.reversed),
-        screen_to_x(b.x, plot, fig.x.min, fig.x.span(), fig.x.reversed),
+        from_screen_x(a.x, plot, &fig.x),
+        from_screen_x(b.x, plot, &fig.x),
     );
     let y = ((a.y - b.y).abs() >= SELECT_MIN_PX).then(|| {
         AxisRange::new(
-            screen_to_y(a.y, plot, fig.y.min, fig.y.span(), fig.y.reversed),
-            screen_to_y(b.y, plot, fig.y.min, fig.y.span(), fig.y.reversed),
+            from_screen_y(a.y, plot, &fig.y),
+            from_screen_y(b.y, plot, &fig.y),
         )
     });
 
@@ -215,16 +215,16 @@ pub(crate) fn finish_zoom_drag(
     let before = plot_object.viewport.clone();
     let x = if width >= SELECT_MIN_PX {
         Some(AxisRange::new(
-            screen_to_x(a.x, plot, fig.x.min, fig.x.span(), fig.x.reversed),
-            screen_to_x(b.x, plot, fig.x.min, fig.x.span(), fig.x.reversed),
+            from_screen_x(a.x, plot, &fig.x),
+            from_screen_x(b.x, plot, &fig.x),
         ))
     } else {
         None
     };
     let y = if height >= SELECT_MIN_PX {
         Some(AxisRange::new(
-            screen_to_y(a.y, plot, fig.y.min, fig.y.span(), fig.y.reversed),
-            screen_to_y(b.y, plot, fig.y.min, fig.y.span(), fig.y.reversed),
+            from_screen_y(a.y, plot, &fig.y),
+            from_screen_y(b.y, plot, &fig.y),
         ))
     } else {
         None
@@ -267,13 +267,7 @@ pub(crate) fn handle_data_tool_target(
             .object(id)
             .and_then(|object| object.plot())
             .map(|plot| plot.figure())
-        && let Some(request) = descriptor.cursor(screen_to_x(
-            screen_pos.x,
-            inner,
-            figure.x.min,
-            figure.x.span(),
-            figure.x.reversed,
-        ))
+        && let Some(request) = descriptor.cursor(from_screen_x(screen_pos.x, inner, &figure.x))
     {
         app.dispatch_plot_interaction(request);
     }

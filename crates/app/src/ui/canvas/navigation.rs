@@ -369,20 +369,9 @@ pub(crate) fn apply_plot_pan(
     let fig = plot_object.figure();
     let x_sign = if fig.x.reversed { 1.0 } else { -1.0 };
     let y_sign = if fig.y.reversed { -1.0 } else { 1.0 };
-    let dx = x_sign * f64::from(delta.x) / f64::from(plot.width.max(1.0)) * fig.x.span();
-    let dy = y_sign * f64::from(delta.y) / f64::from(plot.height.max(1.0)) * fig.y.span();
-    plot_object.viewport.view_x = AxisRange::new(
-        plot_object.viewport.view_x.min + dx,
-        plot_object.viewport.view_x.max + dx,
-    )
-    .clamp_to(plot_object.viewport.full_x);
-    plot_object.viewport.view_y = AxisRange::new(
-        plot_object.viewport.view_y.min + dy,
-        plot_object.viewport.view_y.max + dy,
-    )
-    .clamp_to(plot_object.viewport.full_y);
-    plot_object.viewport.auto_y = false;
-    plot_object.apply_viewport();
+    let x_fraction = x_sign * f64::from(delta.x) / f64::from(plot.width.max(1.0));
+    let y_fraction = y_sign * f64::from(delta.y) / f64::from(plot.height.max(1.0));
+    plot_object.pan_viewport(x_fraction, y_fraction);
     app.sync_linked_x_viewports(ci, object_id);
     app.mark_document_dirty();
 }
@@ -480,8 +469,8 @@ pub(crate) fn finish_axis_zoom(
                 return;
             }
             let range = AxisRange::new(
-                screen_to_x(a.x, plot, fig.x.min, fig.x.span(), fig.x.reversed),
-                screen_to_x(b.x, plot, fig.x.min, fig.x.span(), fig.x.reversed),
+                from_screen_x(a.x, plot, &fig.x),
+                from_screen_x(b.x, plot, &fig.x),
             );
             (Some(range), None)
         }
@@ -490,8 +479,8 @@ pub(crate) fn finish_axis_zoom(
                 return;
             }
             let range = AxisRange::new(
-                screen_to_y(a.y, plot, fig.y.min, fig.y.span(), fig.y.reversed),
-                screen_to_y(b.y, plot, fig.y.min, fig.y.span(), fig.y.reversed),
+                from_screen_y(a.y, plot, &fig.y),
+                from_screen_y(b.y, plot, &fig.y),
             );
             (None, Some(range))
         }
@@ -730,6 +719,8 @@ fn scale_line_intensity(
     let view = before.view_y;
     let anchor = if view.min <= 0.0 && view.max >= 0.0 {
         0.0
+    } else if y_axis.scale == plotium_figure::AxisScale::Log10 {
+        (view.min * view.max).sqrt()
     } else {
         (view.min + view.max) * 0.5
     };
@@ -740,10 +731,7 @@ fn scale_line_intensity(
         object,
         plot_rect(plot),
         plot,
-        Pos2::new(
-            pointer.x,
-            y_to_screen(anchor, plot, y_axis.min, y_axis.span(), y_axis.reversed),
-        ),
+        Pos2::new(pointer.x, to_screen_y(anchor, plot, &y_axis)),
         scale,
         (false, true),
         now,
@@ -786,8 +774,8 @@ pub(crate) fn zoom_plot_viewport(
         return;
     };
     let fig = plot_object.figure();
-    let x_anchor = zoom_x.then(|| screen_to_x(p.x, plot, fig.x.min, fig.x.span(), fig.x.reversed));
-    let y_anchor = zoom_y.then(|| screen_to_y(p.y, plot, fig.y.min, fig.y.span(), fig.y.reversed));
+    let x_anchor = zoom_x.then(|| from_screen_x(p.x, plot, &fig.x));
+    let y_anchor = zoom_y.then(|| from_screen_y(p.y, plot, &fig.y));
     plot_object.zoom_viewport_around(x_anchor, y_anchor, scale);
     app.sync_linked_x_viewports(ci, object_id);
     app.mark_document_dirty();

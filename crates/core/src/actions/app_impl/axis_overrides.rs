@@ -162,9 +162,13 @@ impl PlotiumApp {
             return;
         }
 
-        let x_range_changed = before.x_range != after.x_range;
-        let y_range_changed = before.y_range != after.y_range;
+        // A scale change replaces the automatic window, so the viewport
+        // restarts from it just as after a range edit.
+        let x_range_changed = before.x_range != after.x_range || before.x_scale != after.x_scale;
+        let y_range_changed = before.y_range != after.y_range || before.y_scale != after.y_scale;
         let needs_automatic_rebuild = before.x_display_unit != after.x_display_unit
+            || before.x_scale != after.x_scale
+            || before.y_scale != after.y_scale
             || before.y_display_unit != after.y_display_unit
             || before.typography != after.typography
             || cleared(&before.x_label, &after.x_label)

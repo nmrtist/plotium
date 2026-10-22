@@ -14,13 +14,25 @@ const PEAK_SNAP_PX: f32 = 12.0;
 /// The snap for a manual pick: an apex search over ± `PEAK_SNAP_PX` at the
 /// current zoom, or the nearest sample while `Shift` is held (free placement
 /// for shoulders the apex search refuses to land on).
-pub(crate) fn manual_peak_snap(shift: bool, x_span: f64, plot_width: f32) -> ManualPeakSnap {
+/// The data width is measured around the pick position `px`, which on a log
+/// axis differs from one end of the plot to the other.
+pub(crate) fn manual_peak_snap(
+    shift: bool,
+    plot: PlotRect,
+    x_axis: &plotium_figure::Axis,
+    px: f32,
+) -> ManualPeakSnap {
     if shift {
         return ManualPeakSnap::NearestSample;
     }
-    ManualPeakSnap::Apex {
-        half_width: x_span.abs() / f64::from(plot_width.max(1.0)) * f64::from(PEAK_SNAP_PX),
-    }
+    let half_width = if x_axis.effective_scale().is_linear() {
+        x_axis.span().abs() / f64::from(plot.width.max(1.0)) * f64::from(PEAK_SNAP_PX)
+    } else {
+        let low = from_screen_x(px - PEAK_SNAP_PX, plot, x_axis);
+        let high = from_screen_x(px + PEAK_SNAP_PX, plot, x_axis);
+        (high - low).abs() * 0.5
+    };
+    ManualPeakSnap::Apex { half_width }
 }
 
 fn peak_hit(resolved: &[ResolvedPeak], sc: &Screen, p: Pos2) -> Option<u64> {
@@ -44,26 +56,22 @@ fn threshold_y(peaks: &PeakSet, trace: &Trace1d) -> f64 {
 
 struct Screen {
     plot: PlotRect,
-    xmin: f64,
-    xspan: f64,
-    xrev: bool,
-    ymin: f64,
-    yspan: f64,
-    yrev: bool,
+    x_axis: plotium_figure::Axis,
+    y_axis: plotium_figure::Axis,
 }
 
 impl Screen {
     fn x(&self, x: f64) -> f32 {
-        x_to_screen(x, self.plot, self.xmin, self.xspan, self.xrev)
+        to_screen_x(x, self.plot, &self.x_axis)
     }
     fn y(&self, y: f64) -> f32 {
-        y_to_screen(y, self.plot, self.ymin, self.yspan, self.yrev)
+        to_screen_y(y, self.plot, &self.y_axis)
     }
     fn to_x(&self, px: f32) -> f64 {
-        screen_to_x(px, self.plot, self.xmin, self.xspan, self.xrev)
+        from_screen_x(px, self.plot, &self.x_axis)
     }
     fn to_y(&self, py: f32) -> f64 {
-        screen_to_y(py, self.plot, self.ymin, self.yspan, self.yrev)
+        from_screen_y(py, self.plot, &self.y_axis)
     }
 }
 
@@ -103,12 +111,8 @@ pub(crate) fn handle_peaks(
         .clone();
     let sc = Screen {
         plot,
-        xmin: fig.x.min,
-        xspan: fig.x.span(),
-        xrev: fig.x.reversed,
-        ymin: fig.y.min,
-        yspan: fig.y.span(),
-        yrev: fig.y.reversed,
+        x_axis: fig.x,
+        y_axis: fig.y,
     };
 
     let (hover, pressed, down, released, del, esc, shift) = ui.input(|i| {
@@ -243,7 +247,7 @@ fn finish_band_drag(
         return;
     };
     if (sc.x(drag.anchor_x) - sc.x(drag.current_x)).abs() < DRAG_DEADZONE_PX {
-        let snap = manual_peak_snap(shift, sc.xspan, sc.plot.width);
+        let snap = manual_peak_snap(shift, sc.plot, &sc.x_axis, sc.x(drag.anchor_x));
         app.add_manual_peak(dataset, drag.anchor_x, column, snap);
     } else {
         app.add_peaks_in_range(dataset, drag.anchor_x, drag.current_x, column);

@@ -8,8 +8,9 @@ pub(super) fn write(
 ) {
     let mut path = String::new();
     for point in &series.points {
-        let (x, baseline) = projector.project([point[0], 0.0]);
-        let (_, y) = projector.project(*point);
+        let Some([(x, baseline), (_, y)]) = crate::stick_segment(projector, *point) else {
+            continue;
+        };
         let _ = write!(path, "M{x:.2} {baseline:.2}V{y:.2}");
     }
     let _ = write!(

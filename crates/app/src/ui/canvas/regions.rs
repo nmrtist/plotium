@@ -4,19 +4,14 @@ use super::*;
 fn region_hit(
     regions: &[Region],
     plot: PlotRect,
-    xmin: f64,
-    xspan: f64,
-    xrev: bool,
+    x_axis: &plotium_figure::Axis,
     px: f32,
 ) -> Option<BandHit<RegionId>> {
     band_hit(
         regions
             .iter()
             .map(|region| (region.id, region.lo, region.hi)),
-        plot,
-        xmin,
-        xspan,
-        xrev,
+        |v| to_screen_x(v, plot, x_axis),
         px,
     )
 }
@@ -48,14 +43,13 @@ pub(crate) fn handle_region_drag(
         )
     });
 
-    let (xmin, xspan, xrev) = {
-        let fig = &app.doc.canvases[ci]
-            .object(object_id)
-            .and_then(|object| object.plot())
-            .unwrap()
-            .figure();
-        (fig.x.min, fig.x.span(), fig.x.reversed)
-    };
+    let x_axis = app.doc.canvases[ci]
+        .object(object_id)
+        .and_then(|object| object.plot())
+        .unwrap()
+        .figure()
+        .x
+        .clone();
 
     if esc {
         if matches!(app.interaction(), Interaction::Region(_)) {
@@ -71,11 +65,11 @@ pub(crate) fn handle_region_drag(
     }
     if matches!(app.interaction(), Interaction::Region(_)) {
         if let Some(p) = hover {
-            let ppm = screen_to_x(p.x.clamp(plot.left, plot.right()), plot, xmin, xspan, xrev);
+            let ppm = from_screen_x(p.x.clamp(plot.left, plot.right()), plot, &x_axis);
             apply_region_drag_live(app, dataset, ppm);
         }
         if primary_released || !primary_down {
-            finish_region_drag(app, dataset, xspan);
+            finish_region_drag(app, dataset, &x_axis);
         }
         return;
     }
@@ -92,7 +86,7 @@ pub(crate) fn handle_region_drag(
             .region_analysis()
             .expect("the capability gate guarantees region state")
             .regions;
-        region_hit(regions, plot, xmin, xspan, xrev, p.x)
+        region_hit(regions, plot, &x_axis, p.x)
     };
     match hit {
         Some(BandHit::Edge { .. }) => ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal),
@@ -101,7 +95,7 @@ pub(crate) fn handle_region_drag(
     }
 
     if primary_pressed {
-        let ppm = screen_to_x(p.x, plot, xmin, xspan, xrev);
+        let ppm = from_screen_x(p.x, plot, &x_axis);
         let before = app.doc.datasets[dataset]
             .region_analysis()
             .expect("the capability gate guarantees region state")
@@ -179,7 +173,7 @@ fn apply_region_drag_live(app: &mut PlotiumApp, dataset: usize, ppm: f64) {
     r.hi = hi;
 }
 
-fn finish_region_drag(app: &mut PlotiumApp, dataset: usize, xspan: f64) {
+fn finish_region_drag(app: &mut PlotiumApp, dataset: usize, x_axis: &plotium_figure::Axis) {
     if !matches!(app.interaction(), Interaction::Region(_)) {
         return;
     }
@@ -189,8 +183,10 @@ fn finish_region_drag(app: &mut PlotiumApp, dataset: usize, xspan: f64) {
     if drag.kind == RegionDragKind::NewBand {
         let lo = drag.anchor_ppm.min(drag.current_ppm);
         let hi = drag.anchor_ppm.max(drag.current_ppm);
-        let min_w = (xspan.abs() * 0.002).max(f64::MIN_POSITIVE);
-        if (hi - lo) <= min_w {
+        // Measured in plot position so a log axis keeps the same on-screen
+        // minimum width at every decade.
+        let width = (x_axis.normalize(hi) - x_axis.normalize(lo)).abs();
+        if !width.is_finite() || width <= 0.002 {
             return;
         }
         let Some(state) = app

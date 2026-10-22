@@ -728,6 +728,9 @@ impl PlotiumApp {
 }
 
 pub fn visible_y_range(fig: &Figure, x: AxisRange) -> Option<AxisRange> {
+    if fig.y.scale == plotium_figure::AxisScale::Log10 {
+        return Some(log_auto_range(log_axes::axis_values(fig, false, Some(x))));
+    }
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
 

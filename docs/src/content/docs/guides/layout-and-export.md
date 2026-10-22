@@ -282,6 +282,18 @@ What you control directly:
   stroke as the other axes; ticks and labels stay on the left and bottom axes.
   Most plots start with left and bottom axes; 2D maps such as contour plots and
   heatmaps start with all four sides.
+- **X scale** and **Y scale**, under the more options of the **Axes** section,
+  switch a line, scatter or stick plot between *Linear* and *Logarithmic*. A
+  logarithmic axis labels powers of ten (10¹, 10², …), thins them when the
+  axis is short, and uses ordinary ticks when fewer than two powers of ten are
+  visible;
+  minor ticks, when enabled, mark 2–9 × each decade. Its automatic range fits
+  only the positive data. Zero and negative values have no position: lines
+  break there, and error bars and sticks that reach below the axis end at its
+  edge. A manual range on a logarithmic axis must start above zero. Zooming and
+  panning move by decades. Logarithmic axes are not offered for categorical
+  axes, 2D maps, bars and distributions, or NMR spectra, whose integral, phase
+  and cursor tools measure in linear ppm.
 - Use **Legend & scales** in the Object inspector for any plot. With
   **Visibility** on **Auto**, Plotium shows a categorical legend when the plot
   has two or more named entries and shows a continuous colour scale for a
