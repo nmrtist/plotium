@@ -4,8 +4,8 @@
 
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OUTER_PAD, OverlayAlign,
-    OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head,
-    axis_layout_placed, color_scale_rect, error_bar_segments, heatmap_cells, integral,
+    OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, YTitleClearance,
+    arrow_head, axis_layout_placed, color_scale_rect, error_bar_segments, heatmap_cells, integral,
     legend_entries, legend_entry_origin, legend_layout, legend_rect, minor_tick_values,
     polygon_outline, projection_points, range_label_layout, renders_legend,
 };
@@ -295,7 +295,7 @@ fn write_figure(
     dc: &mut Dc,
     fig: &Figure,
     outer: Rect,
-    y_title_clearance: f32,
+    y_title_clearance: YTitleClearance,
     stack: Option<&crate::StackPlacement>,
 ) {
     // Like the SVG plot group, all plot text takes the figure face.
@@ -307,11 +307,12 @@ fn write_figure(
 fn write_figure_content(
     dc: &mut Dc,
     fig: &Figure,
-    outer: Rect,
-    y_title_clearance: f32,
+    frame: Rect,
+    y_title_clearance: YTitleClearance,
     stack: Option<&crate::StackPlacement>,
 ) {
     let ty = fig.typography;
+    let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, 1.0);
     let layout = axis_layout_placed(fig, outer.width, outer.height, stack);
     let xf = crate::XFurniture::of(fig, stack);
     let margins = layout.margins;
@@ -319,10 +320,10 @@ fn write_figure_content(
     let plot = proj.plot;
 
     let background = Rect::new(
-        outer.left,
-        outer.top + xf.background_inset,
-        outer.width,
-        outer.height - xf.background_inset,
+        frame.left,
+        frame.top + xf.background_inset,
+        frame.width,
+        frame.height - xf.background_inset,
     );
     dc.rect(background, Some(fig.background), None);
 
@@ -330,8 +331,8 @@ fn write_figure_content(
         dc.text(
             &fig.title,
             (
-                outer.left + outer.width / 2.0,
-                outer.top + OUTER_PAD + ty.title_pt,
+                frame.left + frame.width / 2.0,
+                frame.top + OUTER_PAD + ty.title_pt,
             ),
             TextStyle::new(ty.title_pt, Color::BLACK, TA_CENTER),
         );

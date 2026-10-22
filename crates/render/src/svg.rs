@@ -27,7 +27,7 @@ pub fn export(fig: &Figure) -> String {
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{font_family}">"#,
         font_family = crate::rich_text::SVG_FONT_FAMILY,
     );
-    write_figure(&mut s, fig, outer, "plot", None, 0.0, None);
+    write_figure(&mut s, fig, outer, "plot", None, Default::default(), None);
     let _ = write!(s, "</svg>");
     s
 }
@@ -156,10 +156,10 @@ fn write_overlay(s: &mut String, overlay: &DocumentOverlay<'_>) {
 fn write_figure(
     s: &mut String,
     fig: &Figure,
-    outer: Rect,
+    frame: Rect,
     clip_id: &str,
     omit_background_matching: Option<plotium_figure::Color>,
-    y_title_clearance: f32,
+    y_title_clearance: crate::YTitleClearance,
     stack: Option<&crate::StackPlacement>,
 ) {
     let ty = fig.typography;
@@ -174,8 +174,9 @@ fn write_figure(
             ""
         },
     );
-    let w = outer.width;
-    let h = outer.height;
+    let w = frame.width;
+    let h = frame.height;
+    let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, 1.0);
     let layout = axis_layout_placed(fig, outer.width, outer.height, stack);
     let xf = crate::XFurniture::of(fig, stack);
     let margins = layout.margins;
@@ -187,8 +188,8 @@ fn write_figure(
             s,
             r#"<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{}"/>"#,
             fig.background.to_hex(),
-            x = outer.left,
-            y = outer.top + xf.background_inset,
+            x = frame.left,
+            y = frame.top + xf.background_inset,
             h = h - xf.background_inset,
         );
     }
@@ -197,8 +198,8 @@ fn write_figure(
         let _ = write!(
             s,
             r#"<text x="{cx}" y="{y}" text-anchor="middle" font-size="{font}" fill="{col}">{title}</text>"#,
-            cx = outer.left + w / 2.0,
-            y = outer.top + OUTER_PAD + ty.title_pt,
+            cx = frame.left + w / 2.0,
+            y = frame.top + OUTER_PAD + ty.title_pt,
             font = ty.title_pt,
             col = plotium_figure::Color::BLACK.to_hex(),
             title = svg_content(&fig.title, ty.title_pt),

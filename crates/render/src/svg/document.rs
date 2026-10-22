@@ -304,7 +304,7 @@ mod tests {
                 geometry_generation: None,
                 visible: true,
                 title: None,
-                y_title_clearance: 0.0,
+                y_title_clearance: Default::default(),
                 stack: None,
             })],
         };
@@ -321,7 +321,7 @@ mod tests {
                 geometry_generation: None,
                 visible: true,
                 title: None,
-                y_title_clearance: 0.0,
+                y_title_clearance: Default::default(),
                 stack: None,
             })],
             ..matching_doc

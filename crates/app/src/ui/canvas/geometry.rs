@@ -264,18 +264,7 @@ pub(crate) fn plot_under_cursor(
         let Some(plot_object) = canvas.object(id).and_then(|object| object.plot()) else {
             continue;
         };
-        let layout = plotium_render::axis_layout_placed(
-            plot_object.figure(),
-            outer.width / zoom,
-            outer.height / zoom,
-            canvas.shared_x_stack_placement(id).as_ref(),
-        );
-        let plot = plotium_render::Projector::new(
-            plot_object.figure(),
-            outer,
-            &layout.margins.scaled(zoom),
-        )
-        .plot;
+        let plot = plot_screen_box(canvas, id, plot_object.figure(), outer, zoom);
         return Some((id, outer_rect, plot));
     }
     None
@@ -289,18 +278,29 @@ pub(crate) fn plot_inner_rect(
 ) -> Option<PlotRect> {
     let canvas = app.doc.canvases.get(ci)?;
     let outer = object_screen_rect(app.session.board, canvas, object_id, screen)?;
-    let plot_object = canvas.object(object_id).and_then(|object| object.plot())?;
+    let figure = canvas.object(object_id)?.plot()?.figure();
     let zoom = app.session.board.zoom;
+    Some(plot_screen_box(canvas, object_id, figure, outer, zoom))
+}
+
+/// Screen box of a canvas plot's axes, laid out exactly as the renderers do,
+/// including its stack placement and any shift right of a panel letter.
+pub(crate) fn plot_screen_box(
+    canvas: &CanvasDocument,
+    id: ObjectId,
+    figure: &plotium_figure::Figure,
+    outer: PlotRect,
+    zoom: f32,
+) -> PlotRect {
+    let clearance = canvas.y_title_clearance(id).scaled(zoom);
+    let (outer, _) = plotium_render::y_title_area(figure, outer, clearance, zoom);
     let layout = plotium_render::axis_layout_placed(
-        plot_object.figure(),
+        figure,
         outer.width / zoom,
         outer.height / zoom,
-        canvas.shared_x_stack_placement(object_id).as_ref(),
+        canvas.shared_x_stack_placement(id).as_ref(),
     );
-    Some(
-        plotium_render::Projector::new(plot_object.figure(), outer, &layout.margins.scaled(zoom))
-            .plot,
-    )
+    plotium_render::Projector::new(figure, outer, &layout.margins.scaled(zoom)).plot
 }
 
 pub(crate) fn screen_to_page_unbounded(

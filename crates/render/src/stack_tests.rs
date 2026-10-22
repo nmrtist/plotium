@@ -86,7 +86,7 @@ fn svg_stack_draws_x_text_only_on_the_bottom_member() {
             geometry_generation: None,
             visible: true,
             title: None,
-            y_title_clearance: 0.0,
+            y_title_clearance: Default::default(),
             stack: Some(stack),
         })
     };
@@ -138,7 +138,7 @@ fn joined_top_edge_moves_the_y_multiplier_inside_and_skips_its_edge_label() {
             geometry_generation: None,
             visible: true,
             title: None,
-            y_title_clearance: 0.0,
+            y_title_clearance: Default::default(),
             stack: Some(placement(true, false)),
         })],
     };

@@ -80,7 +80,7 @@ struct ObjectExtras {
     /// Runtime identity for editor-only geometry caches.
     geometry_generation: Option<u64>,
     /// Screen-space clearance for the y-axis title below the frame top.
-    y_title_clearance: f32,
+    y_title_clearance: crate::YTitleClearance,
     /// Unscaled shared-x stack placement.
     stack: Option<crate::StackPlacement>,
 }
@@ -100,6 +100,8 @@ fn paint_with_detail_and_stats_impl(
         stack,
     } = extras;
     let ty = fig.typography;
+    let frame = outer;
+    let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, scale);
     let layout = axis_layout_placed(
         fig,
         outer.width / scale,
@@ -115,8 +117,8 @@ fn paint_with_detail_and_stats_impl(
 
     painter.rect_filled(
         egui::Rect::from_min_size(
-            Pos2::new(outer.left, outer.top + xf.background_inset * scale),
-            Vec2::new(outer.width, outer.height - xf.background_inset * scale),
+            Pos2::new(frame.left, frame.top + xf.background_inset * scale),
+            Vec2::new(frame.width, frame.height - xf.background_inset * scale),
         ),
         0.0,
         col(fig.background),
@@ -126,8 +128,8 @@ fn paint_with_detail_and_stats_impl(
         crate::rich_text::paint(
             painter,
             Pos2::new(
-                outer.left + outer.width / 2.0,
-                outer.top + (OUTER_PAD + ty.title_pt * 0.5) * scale,
+                frame.left + frame.width / 2.0,
+                frame.top + (OUTER_PAD + ty.title_pt * 0.5) * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.title,
@@ -708,7 +710,7 @@ fn paint_document_object(
         detail,
         ObjectExtras {
             geometry_generation: object.geometry_generation,
-            y_title_clearance: object.y_title_clearance * viewport.zoom,
+            y_title_clearance: object.y_title_clearance.scaled(viewport.zoom),
             stack: object.stack,
         },
         stats,
