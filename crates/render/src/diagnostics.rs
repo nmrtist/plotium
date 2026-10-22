@@ -7,7 +7,10 @@ mod text;
 use crate::Rect;
 pub use curves::{CurveScan, CurveScanResult, scan_curve};
 pub use raster::raster_bounds;
-pub use text::{TextBox, figure_text_boxes, figure_text_boxes_placed, overlay_text_bounds};
+pub use text::{
+    TextBox, annotation_text_boxes, figure_text_boxes, figure_text_boxes_placed,
+    overlay_text_bounds,
+};
 
 /// Whether the figure's right y axis draws a visible, non-blank title.
 pub fn shows_right_axis_title(fig: &plotium_figure::Figure) -> bool {

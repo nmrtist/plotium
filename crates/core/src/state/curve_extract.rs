@@ -496,3 +496,29 @@ impl TableDataset {
             .unwrap_or_else(|| super::table::series_color(index))
     }
 }
+
+impl PlotiumApp {
+    /// Rows at each distinct x of a table-backed explicit curve, one entry
+    /// per x of each column selection.
+    pub(crate) fn curve_rows_per_x(
+        &self,
+        binding: &DataBinding,
+        series: &SeriesBinding,
+    ) -> Result<Vec<usize>, String> {
+        let coordinates = binding
+            .coordinates
+            .as_ref()
+            .ok_or("The plot has no explicit coordinates.")?;
+        let (table, selections) = self.table_curve_sources(series.source)?;
+        let mut sizes = Vec::new();
+        for columns in selections {
+            let curve = extract_table_curve(table, columns, coordinates)?;
+            let mut counts: std::collections::HashMap<u64, usize> = Default::default();
+            for point in curve.runs.iter().flatten() {
+                *counts.entry((point[0] + 0.0).to_bits()).or_default() += 1;
+            }
+            sizes.extend(counts.into_values());
+        }
+        Ok(sizes)
+    }
+}

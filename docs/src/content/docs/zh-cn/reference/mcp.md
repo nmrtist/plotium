@@ -1004,7 +1004,7 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
   "expected_revision": 7,
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
-  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion"],
+  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
   "view": "both",
   "limit": 100
 }
@@ -1039,11 +1039,31 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
   检查实际投影、有效裁剪后的线与 marker，分批保留虚线相位，不使用整条曲线包围盒，
   不抽样。线条包络与图例布局矩形是保守边界；圆角、半透明和抗锯齿可能有所不同。
 
+`data_shape` 和 `layout_aesthetics` 检查报告 `severity` 为 `hint` 的问题：图可以表达得
+更清楚，但没有错误。省略 `checks` 时包含这两项。提示从不修改文档。每条提示带
+`suggestions`，即 `{action, property, target, reason}` 列表；`property` 是要在 `target`
+上设置的属性，没有则两者都为 null。长度按请求的 `output.size_mm` 测量；阈值是暂定值。
+限定到 Series 的查询只报告这些 Series 的提示。
+
+| 代码 | 触发条件 |
+| --- | --- |
+| `small_values_invisible` | 某根柱的数值不到数值轴跨度的 1 %，或打印长度不到 0.5 mm，而旁边有至少 5 mm 长的柱 |
+| `bars_too_narrow` | 某根柱打印宽度不到 0.6 mm |
+| `few_samples_hidden` | 箱线、小提琴 Series，或每个 x 有多行的柱状 Series，每组都少于 10 个值，且图中没有散点 Series |
+| `too_many_categories` | 类别轴显示标签，但省略了部分标签，或相邻标签相互重叠 |
+| `log_scale_candidate` | 不含柱、箱线或小提琴的图，线性数值轴上的折线或散点值全为正，且跨越三个及以上数量级 |
+| `bar_baseline_not_zero` | 数值轴范围不包含柱的基线 |
+| `labels_overlap` | 画布上两个文字框在两个方向上都重叠超过 0.2 mm；证据给出两者和第二个的移动方向。同一图例的条目之间、同一坐标轴的刻度标签之间不互相比较 |
+| `text_over_data` | 标注或数值标签压在柱、箱线、小提琴、折线或标记上 |
+| `panels_misaligned` | 同一列（左边缘相差 1 mm 以内）或同一行（下边缘相差 1 mm 以内）的两个框，绘图区左边缘或下边缘相差超过 0.5 mm；或同一行／列三个及以上框之间的间距相差超过 0.5 mm |
+
+同类提示超过 50 条，或检查用完预算时，会增加一条 `unavailable` 覆盖行。
+
 原生 guide 布局本身使用文字宽度估计。字体可用性沿用原生导出的字体发现；实际字形
 覆盖和跨后端 ink 边界仍未验证。图像视口几何使用头部尺寸、整数裁剪、旋转及 fit；
 是否成功解码、透明像素分布需看原生预览。首轮不覆盖非普通折线／散点的内部几何、
 误差棒裁剪／遮挡、科研派生标注及不透明像素遮挡；原生矩形、椭圆、直线和箭头的极值边界使用实际页面裁剪区；仍可观察其 frame/guide，覆盖
-结果会说明限制。不做审美评分、科研正确性或统计意义判断。
+结果会说明限制。除上述提示外，不做审美评分、科研正确性或统计意义判断。
 
 **没有问题时也必须读 coverage。** 各目标区分 `complete`、`unsupported`、
 `unavailable`、`not_applicable`（如隐藏、空渲染数据或无图例）。整体 `partial`

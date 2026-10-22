@@ -1,4 +1,4 @@
-use plotium_figure::{Figure, Series};
+use plotium_figure::{Figure, Polygon, Series};
 
 /// View snapshots intentionally serialize no runtime IDs. Rebuild already runs
 /// during loading to recover derived axes. Its binding order is authoritative:
@@ -6,6 +6,17 @@ use plotium_figure::{Figure, Series};
 /// by names, matching individual points, or an unvalidated collection position.
 /// A diverged snapshot remains viewable but has explicitly unverified provenance.
 pub(super) fn restore(snapshot: &mut Figure, rebuilt: &Figure) {
+    if snapshot.polygons.len() == rebuilt.polygons.len()
+        && snapshot
+            .polygons
+            .iter()
+            .zip(&rebuilt.polygons)
+            .all(|(a, b)| same_mark(a, b))
+    {
+        for (saved, current) in snapshot.polygons.iter_mut().zip(&rebuilt.polygons) {
+            saved.origin = current.origin;
+        }
+    }
     if snapshot.series.len() != rebuilt.series.len()
         || !snapshot
             .series
@@ -18,6 +29,9 @@ pub(super) fn restore(snapshot: &mut Figure, rebuilt: &Figure) {
     for (saved, current) in snapshot.series.iter_mut().zip(&rebuilt.series) {
         saved.origin = current.origin;
     }
+}
+fn same_mark(a: &Polygon, b: &Polygon) -> bool {
+    a.points == b.points && a.name == b.name && a.fill == b.fill
 }
 fn same_run(a: &Series, b: &Series) -> bool {
     a.points == b.points

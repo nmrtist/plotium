@@ -1,5 +1,6 @@
 //! Revision-bound, non-persistent native layout observations and scan cursors.
 mod capture;
+mod hints;
 mod scan;
 mod schema;
 use super::*;
@@ -23,6 +24,7 @@ enum SnapshotKind {
         stack: Option<plotium_render::StackPlacement>,
         selected_series: Option<BTreeSet<SeriesId>>,
         declared: Vec<(SeriesId, bool, String)>,
+        facts: hints::PlotFacts,
     },
     Text {
         text: String,
@@ -67,6 +69,12 @@ pub struct FigureDiagnosticScan {
     unsupported: usize,
     snapshot_bytes: usize,
     font_status: Option<&'static str>,
+    /// Page-space text boxes and plot areas gathered for the canvas-wide
+    /// layout hints, which run once after every item is scanned.
+    hint_texts: Vec<(TargetRef, String, Rect)>,
+    hint_plots: Vec<(TargetRef, Rect, Rect)>,
+    hints_done: bool,
+    texts_dropped: usize,
 }
 impl FigureDiagnosticScan {
     pub fn release_completed_storage(&mut self) {
@@ -88,6 +96,7 @@ impl FigureDiagnosticScan {
             && self.curves.is_empty()
             && self.overlaps.is_empty()
             && self.pending.is_empty()
+            && self.hints_done
     }
     fn checks(&self, c: DiagnosticCheck) -> bool {
         self.params.checks.contains(&c)

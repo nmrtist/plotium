@@ -132,6 +132,10 @@ impl FigureDiagnosticScan {
             if !self.items.is_empty() {
                 break;
             }
+            if !self.hints_done {
+                self.canvas_hints();
+                continue;
+            }
             if let Some((a, ra, b, rb)) = self.overlaps.pop_front() {
                 self.scanned_pairs += 1;
                 if let Some(r) = geometry::intersection(ra, rb) {
@@ -251,6 +255,7 @@ impl FigureDiagnosticScan {
             } => {
                 self.text_font_coverage(&target);
                 if let Some(r) = geometry::overlay_text_bounds(frame, &text, font, align) {
+                    self.note_text(&target, part, r);
                     self.box_observation(
                         &target,
                         part,
@@ -310,6 +315,7 @@ impl FigureDiagnosticScan {
                 stack,
                 selected_series,
                 declared,
+                mut facts,
             } => {
                 let size = [frame.width, frame.height];
                 let guide = plotium_render::guide_geometry_placed(&figure, size, stack.as_ref());
@@ -338,7 +344,8 @@ impl FigureDiagnosticScan {
                     );
                 }
                 self.text_font_coverage(&target);
-                for t in geometry::figure_text_boxes_placed(&figure, size, stack.as_ref()) {
+                let texts = geometry::figure_text_boxes_placed(&figure, size, stack.as_ref());
+                for t in &texts {
                     self.box_observation(
                         &target,
                         &t.component,
@@ -346,6 +353,21 @@ impl FigureDiagnosticScan {
                         (Some(self.page), &["output_page"]),
                         "text_estimate",
                         t.container.map(move_rect),
+                    );
+                }
+                if self.checks(DiagnosticCheck::DataShape)
+                    || self.checks(DiagnosticCheck::LayoutAesthetics)
+                {
+                    let annotations =
+                        geometry::annotation_text_boxes(&figure, size, stack.as_ref());
+                    facts.select(selected_series.clone());
+                    self.plot_hints(
+                        &target,
+                        frame,
+                        &figure,
+                        guide.plot,
+                        (&texts, &annotations),
+                        &facts,
                     );
                 }
                 if figure.y2.is_some() && !geometry::shows_right_axis_title(&figure) {
