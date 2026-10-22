@@ -528,24 +528,29 @@ fn welcome_action(ui: &mut Ui, glyph: &str, label: &str) -> bool {
 }
 
 fn canvas_cursor(app: &PlotiumApp, ci: usize, rect: egui::Rect, ui: &Ui) {
+    if let Some((icon, hint)) = navigation_cursor(app, ci, rect, ui) {
+        ui.ctx().set_cursor_icon(icon);
+        if let Some(hint) = hint
+            && let Some(p) = ui.input(|i| i.pointer.hover_pos())
+        {
+            egui::Tooltip::always_open(
+                ui.ctx().clone(),
+                ui.layer_id(),
+                ui.id().with("axis_zoom_hint"),
+                p,
+            )
+            .show(|ui| {
+                ui.label(hint);
+            });
+        }
+        return;
+    }
     let Some(p) = ui
         .input(|i| i.pointer.hover_pos())
         .filter(|p| rect.contains(*p))
     else {
         return;
     };
-    if matches!(app.session.ui.interaction, Interaction::Furniture(_)) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-        return;
-    }
-    if matches!(app.session.ui.interaction, Interaction::Pan(_)) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-        return;
-    }
-    if ui.input(|i| i.key_down(egui::Key::Space)) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-        return;
-    }
     if furniture_hovered(app, ci, rect, p) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
         return;

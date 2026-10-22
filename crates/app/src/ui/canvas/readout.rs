@@ -120,8 +120,8 @@ pub(crate) fn paint_wheel_target_hint(
 
     let trackpad = last_wheel_was_trackpad(ui.ctx());
     let text = match zone {
-        HitZone::XAxis if trackpad => "Drag: zoom X · Double-click: reset X".to_owned(),
-        HitZone::YAxis if trackpad => "Drag: zoom Y · Double-click: reset Y".to_owned(),
+        HitZone::XAxis if trackpad => "Double-click: reset X".to_owned(),
+        HitZone::YAxis if trackpad => "Double-click: reset Y".to_owned(),
         HitZone::XAxis => "Scroll: zoom X · Double-click: reset X".to_owned(),
         HitZone::YAxis => "Scroll: zoom Y · Double-click: reset Y".to_owned(),
         HitZone::Plot if trackpad => {

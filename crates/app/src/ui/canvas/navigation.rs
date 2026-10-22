@@ -3,7 +3,10 @@ use super::*;
 #[path = "navigation_input.rs"]
 mod input;
 use input::*;
+#[path = "navigation_pointer.rs"]
+mod pointer;
 pub(crate) use input::{last_wheel_was_trackpad, selected_plot_body, sync_macos_trackpad_gesture};
+pub(crate) use pointer::*;
 
 /// Wheel navigation targets the hovered plot; trackpad swipes and pinches target
 /// the board unless over the selected plot's body. Cmd/Ctrl targets the board.
@@ -53,23 +56,16 @@ pub(crate) fn handle_navigation(
                 .button_double_clicked(egui::PointerButton::Primary),
         )
     });
-    let (
-        primary_down,
-        primary_pressed,
-        primary_released,
-        middle_down,
-        middle_pressed,
-        middle_released,
-    ) = ui.input(|i| {
-        (
-            i.pointer.primary_down(),
-            i.pointer.primary_pressed(),
-            i.pointer.primary_released(),
-            i.pointer.middle_down(),
-            i.pointer.button_pressed(egui::PointerButton::Middle),
-            i.pointer.button_released(egui::PointerButton::Middle),
-        )
-    });
+    let (primary_down, primary_pressed, primary_released, middle_pressed, middle_released) = ui
+        .input(|i| {
+            (
+                i.pointer.primary_down(),
+                i.pointer.primary_pressed(),
+                i.pointer.primary_released(),
+                i.pointer.button_pressed(egui::PointerButton::Middle),
+                i.pointer.button_released(egui::PointerButton::Middle),
+            )
+        });
     let (command, space_down, alt, now) = ui.input(|i| {
         (
             i.modifiers.command || i.modifiers.ctrl,
@@ -137,7 +133,7 @@ pub(crate) fn handle_navigation(
     }
 
     let panning = matches!(app.session.ui.interaction, Interaction::Pan(_));
-    let pan_input = !typing && (middle_down || (space_down && primary_down));
+    let pan_input = pan_input(ui);
 
     // Finish an in-flight data-pan even if the pointer has left the canvas.
     let Some(p) = hover.filter(|p| rect.contains(*p)) else {
@@ -273,36 +269,23 @@ pub(crate) fn handle_navigation(
         }
     }
 
-    if !typing
-        && primary_pressed
-        && !pan_input
-        && matches!(app.session.ui.interaction, Interaction::Idle)
-        && let Some((id, outer, plot)) = data_target
-    {
-        let axis = match hit_zone(p, outer, plot) {
-            HitZone::XAxis => Some(ZoomAxis::X),
-            HitZone::YAxis => Some(ZoomAxis::Y),
-            HitZone::Plot if alt => Some(ZoomAxis::Box),
-            HitZone::Plot | HitZone::None => None,
-        };
-        if let Some(axis) = axis {
-            freeze_board_for_gesture(app);
-            app.begin_interaction(Interaction::Zoom(ZoomDrag {
-                canvas: ci,
-                object: id,
-                start: [p.x, p.y],
-                current: [p.x, p.y],
-                axis,
-            }));
-            return true;
-        }
+    let pointer_navigation = pointer_navigation(app, ci, rect, p, ui);
+    if primary_pressed && let Some(PointerNavigation::Zoom(id, axis)) = pointer_navigation {
+        freeze_board_for_gesture(app);
+        app.begin_interaction(Interaction::Zoom(ZoomDrag {
+            canvas: ci,
+            object: id,
+            start: [p.x, p.y],
+            current: [p.x, p.y],
+            axis,
+        }));
+        return true;
     }
 
     let pan_started = middle_pressed || (space_down && primary_pressed);
     if pan_input {
         if pan_started
-            && matches!(app.session.ui.interaction, Interaction::Idle)
-            && let Some((id, _outer, _plot)) = data_target
+            && let Some(PointerNavigation::Pan(Some(id))) = pointer_navigation
             && let Some(before) = app.doc.canvases[ci]
                 .object(id)
                 .and_then(|object| object.plot())
