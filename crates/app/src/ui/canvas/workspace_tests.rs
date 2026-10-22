@@ -169,7 +169,7 @@ fn pending_import_remains_visible_alongside_existing_content() {
         app.session.primary_sidebar_visible = false;
         app.queue_data_import("data".into(), || Ok(Vec::new()));
         let texts = frame(&mut app, &crate::typography::test_context(), Vec::new());
-        assert!(has(&texts, "Importing data…"));
+        assert!(has(&texts, "Data import queued"));
         assert_eq!(has(&texts, "Workspace overview"), with_content);
         assert!(!has(&texts, "Open data or a project to get started."));
         assert_eq!(app.session.active_canvas, None);

@@ -1,5 +1,24 @@
 use super::*;
 
+#[test]
+fn archive_entry_failure_remains_distinct_from_a_successful_import_warning() {
+    let diagnostic = load_warning_diagnostic(plotium_io::LoadWarning {
+        code: plotium_io::LoadWarningCode::ArchiveEntryFailed,
+        message: "Invalid spectrum".into(),
+        path: Some("broken.dx".into()),
+    });
+    assert_eq!(diagnostic.code, DiagnosticCode::DatasetLoadFailed);
+    assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(diagnostic.context["path"], "broken.dx");
+    let warning = load_warning_diagnostic(plotium_io::LoadWarning {
+        code: plotium_io::LoadWarningCode::InvalidMetadata,
+        message: "Optional metadata missing".into(),
+        path: None,
+    });
+    assert_eq!(warning.code, DiagnosticCode::DatasetLoadWarning);
+    assert_eq!(warning.severity, Severity::Warning);
+}
+
 #[cfg(test)]
 mod export_operation_tests {
     use super::*;

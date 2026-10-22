@@ -41,6 +41,7 @@ fn execute_inner(
     if !commands::describe(app, id).enabled {
         return;
     }
+    app.cancel_import_open_intent();
     match id {
         CommandId::NewProject => {
             app.request_project_transition(ProjectTransition::New);
@@ -72,6 +73,12 @@ fn execute_inner(
             ctx.open_url(egui::OpenUrl::new_tab(commands::MANUAL_URL));
         }
         CommandId::ImportTable => super::file_dialogs::import_delimited_table(app),
+        CommandId::ImportResults => super::import_feedback::open_results(app, ctx, None),
+        CommandId::RetryImportBatch(batch) => {
+            if let Some(retry) = app.retry_failed_import(batch) {
+                super::import_feedback::open_results(app, ctx, Some(retry));
+            }
+        }
         CommandId::ImportImage => super::file_dialogs::import_images(app),
         CommandId::ImportImageFirstFrame => {
             super::file_dialogs::image_import::import_images_first_frame(app)

@@ -8,10 +8,13 @@ use plotium_core::project::{
 use plotium_core::state::PlotiumApp;
 use plotium_core::state::ProcessingSchemeDialogState;
 
+mod archive_feedback;
 mod delimited;
 mod discovery;
 pub(crate) mod image_import;
+mod import_navigation;
 pub(crate) mod nmr_sampling;
+mod open_batch;
 mod origin;
 mod path;
 mod preview;
@@ -19,6 +22,7 @@ mod recent;
 mod xlsx;
 pub(crate) use delimited::DelimitedTableSource;
 pub(crate) use image_import::{import_image_paths, import_images};
+pub(crate) use open_batch::{open_paths, queue_data_paths};
 use path::{ensure_extension, ensure_plotium_extension, io_error_category};
 pub(crate) use preview::table_import_preview_window;
 pub(crate) use recent::{RecentOpenKind, open_recent_path, recent_open_kind};
@@ -29,6 +33,13 @@ pub(crate) struct ClassifiedDropPath(recent::ClassifiedOpenPath);
 impl ClassifiedDropPath {
     pub(crate) fn is_image(&self) -> bool {
         self.0.kind() == RecentOpenKind::Image
+    }
+
+    pub(crate) fn is_queued_data(&self, path: &std::path::Path) -> bool {
+        matches!(
+            self.0,
+            recent::ClassifiedOpenPath::DataFile | recent::ClassifiedOpenPath::Folder
+        ) && !plotium_io::archive::is_zip(path)
     }
 }
 
@@ -352,14 +363,51 @@ where
         ));
         return false;
     }
-    for candidate in preview.candidates {
-        app.import_table_dataset_typed(
-            candidate.name,
-            candidate.retained_sources,
-            candidate.typed_state,
-            candidate.x_binding,
-            candidate.series_bindings,
-        );
+    app.cancel_import_open_intent();
+    let empty = app.doc.datasets.is_empty() && app.doc.canvases.is_empty();
+    let single = preview.candidates.len() == 1;
+    let path = preview.recent_path.clone().unwrap_or_default();
+    let import = |app: &mut PlotiumApp| {
+        preview
+            .candidates
+            .into_iter()
+            .map(|candidate| {
+                let index = app.import_table_dataset_typed(
+                    candidate.name,
+                    candidate.retained_sources,
+                    candidate.typed_state,
+                    candidate.x_binding,
+                    candidate.series_bindings,
+                );
+                let dataset = app.doc.datasets[index].resource_id();
+                let canvas = app
+                    .session
+                    .active_canvas
+                    .and_then(|index| app.doc.canvases.get(index))
+                    .filter(|canvas| {
+                        canvas.objects.iter().any(|object| {
+                            object
+                                .plot()
+                                .is_some_and(|plot| plot.binding.contains_dataset(dataset))
+                        })
+                    })
+                    .map(|canvas| canvas.resource_id);
+                plotium_core::state::ImportItem {
+                    path: path.clone(),
+                    result: Ok(plotium_core::state::ImportTarget { dataset, canvas }),
+                }
+            })
+            .collect()
+    };
+    let items = if empty && single {
+        import(app)
+    } else {
+        import_navigation::preserve(app, import)
+    };
+    let batch =
+        app.record_completed_user_import_with_operations(path, items, vec![preview.report.id]);
+    if empty && !single {
+        app.request_completed_import_open(batch);
     }
     app.session.record_operation(preview.report);
     // Noting the file persists preferences, and a failed write reports itself
@@ -371,17 +419,17 @@ where
     true
 }
 
+#[cfg(test)]
+#[path = "file_dialogs/import_navigation_tests.rs"]
+mod import_navigation_tests;
+
 pub(crate) fn load_and_note(app: &mut PlotiumApp, path: &std::path::Path) {
     if plotium_io::archive::is_zip(path) {
-        let before = app.doc.datasets.len();
-        app.load_from(path);
-        if app.doc.datasets.len() > before {
-            app.note_recent_file(path);
-        }
+        archive_feedback::load(app, path);
         return;
     }
     let selected = path.to_owned();
-    app.queue_data_import(selected.clone(), move || Ok(vec![selected]));
+    app.queue_user_data_import(selected.clone(), move || Ok(vec![selected]));
 }
 
 pub(crate) fn open_file(app: &mut PlotiumApp) {
@@ -412,9 +460,7 @@ pub(crate) fn open_file(app: &mut PlotiumApp) {
         .set_title("Open data or add images — format is detected automatically")
         .pick_files()
     {
-        for path in paths {
-            open_recent_path(app, &path);
-        }
+        open_paths(app, paths);
     }
 }
 
@@ -453,7 +499,7 @@ pub(crate) fn open_folder(app: &mut PlotiumApp) {
 /// any file of the batch loaded, not just the last one.
 fn open_folder_path(app: &mut PlotiumApp, path: &std::path::Path) {
     let folder = path.to_owned();
-    app.queue_data_import(folder.clone(), move || discovery::discover_folder(&folder));
+    app.queue_user_data_import(folder.clone(), move || discovery::discover_folder(&folder));
 }
 
 pub(crate) fn choose_export_path(settings: &ExportSettings) -> Option<std::path::PathBuf> {

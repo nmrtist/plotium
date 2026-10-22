@@ -14,8 +14,20 @@ introduces the same regions in walkthrough form.
   the project's dataset and canvas counts. Click a canvas to open it, **View
   table** to open a table sheet, or **Select dataset** to select data in the
   Primary Side Bar. While data imports run, an importing indicator appears
-  alongside existing content; new arrivals do not change your selection or open
-  a Side Bar. An empty project instead offers data and project opening actions.
+  alongside existing content. An empty project offers data and project opening actions.
+- **Messages** — the message banner shows queued imports, file
+  discovery, progress, and success/failure counts. You can dismiss it; a completed
+  import with no failures disappears automatically. **File → Import results** opens the
+  retained batches, with links to available results and per-file errors. For
+  background scientific-data batches, **Retry failed items** retries only the
+  failed files. If discovery itself fails, open the source folder again.
+  A single manual import into an empty project opens its result. A batch of spectra
+  shows its successful plots together on the board, without opening a results window.
+  Failed imports remain in the dismissible message banner; details remain available
+  through **File → Import results**. Appending to an
+  existing project preserves your view. Clicking, typing, or scrolling while
+  waiting cancels automatic opening; hovering does not. Confirmed table imports
+  follow the same single-result and existing-project behavior.
 - **Primary Side Bar** — the left panel. Its **Canvas** mode lists plots,
   pages, and saved board views; its **Data** mode shows every dataset and the
   results derived from it. Each canvas row includes a live page thumbnail;

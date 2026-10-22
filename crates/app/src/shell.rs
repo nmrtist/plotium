@@ -172,8 +172,9 @@ impl eframe::App for Shell {
         );
     }
 
-    #[cfg(windows)]
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        ui::import_feedback::cancel_on_input(&mut self.app, raw_input);
+        #[cfg(windows)]
         ui::clipboard_native::restore_missing_paste_shortcut(raw_input);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {

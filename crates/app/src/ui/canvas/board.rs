@@ -27,6 +27,12 @@ pub(crate) fn request_board_fit(app: &mut PlotiumApp, ctx: &egui::Context, frame
     mark_workspace_navigation(ctx, ctx.input(|input| input.time));
 }
 
+pub(crate) fn request_board_fit_all(app: &mut PlotiumApp, ctx: &egui::Context) {
+    app.session.viewport_mode = ViewportMode::Fit(BoardFitTarget::AllFrames);
+    seed_board_fit_springs(app, ctx);
+    mark_workspace_navigation(ctx, ctx.input(|input| input.time));
+}
+
 /// Consume the transient core request once UI animation services are available.
 pub(crate) fn consume_board_reveal(app: &mut PlotiumApp, ctx: &egui::Context) {
     if let Some(frame) = app.session.board_reveal.take()

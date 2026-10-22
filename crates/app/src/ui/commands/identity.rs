@@ -14,6 +14,7 @@ impl CommandId {
     pub fn stable_id(self) -> String {
         match self {
             Self::OpenRecent(i) => format!("file.open_recent.{i}"),
+            Self::RetryImportBatch(id) => format!("file.retry_import.{id}"),
             Self::NewCanvas(i) => format!("file.new_canvas.{i}"),
             Self::Export(f) => format!("file.export.{}", f.extension()),
             Self::ArrangeGrid(r, c) => format!("arrange.grid.{r}x{c}"),
@@ -65,6 +66,11 @@ pub(super) fn command_identity(
         CommandId::ClearRecentFiles => plain("Clear Recent Files", None),
         CommandId::HelpManual => plain("User Manual", Some(icon::BOOK_OPEN)),
         CommandId::ImportTable => plain("Import Table…", Some(icon::FILE_CSV)),
+        CommandId::ImportResults => plain("Import Results", Some(icon::LIST_CHECKS)),
+        CommandId::RetryImportBatch(id) => plain(
+            &format!("Retry Failed Imports — Batch {id}"),
+            Some(icon::ARROWS_CLOCKWISE),
+        ),
         CommandId::ImportImage => plain("Add Images…", Some(icon::IMAGES)),
         CommandId::ImportImageFirstFrame => {
             plain("Add Animated Image First Frame…", Some(icon::FILM_STRIP))
@@ -431,6 +437,7 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::AgentConnections => "file.agent_connections",
         CommandId::RunScientificScript => "tools.run_scientific_script",
         CommandId::ImportTable => "file.import_table",
+        CommandId::ImportResults => "file.import_results",
         CommandId::ImportImage => "figure.import_image",
         CommandId::ImportImageFirstFrame => "figure.import_image_first_frame",
         CommandId::ImportImageWithoutMetadata => "figure.import_image_without_metadata",

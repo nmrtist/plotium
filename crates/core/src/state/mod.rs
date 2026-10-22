@@ -60,7 +60,10 @@ mod craft_fields;
 mod cursors;
 mod data_import;
 mod dataset_identity;
-pub use data_import::DataImports;
+pub use data_import::{
+    DataImports, ImportBatch, ImportBatchId, ImportDiscovery, ImportItem, ImportOpenTarget,
+    ImportPhase, ImportTarget,
+};
 mod curve_bars;
 mod curve_layout;
 pub(crate) use curve_bars::bar_edge_color;

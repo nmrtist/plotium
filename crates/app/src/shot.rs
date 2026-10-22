@@ -76,6 +76,7 @@ impl Theme {
 #[derive(Clone, Copy)]
 enum Op {
     Workspace(bool),
+    ImportResults,
     /// Reset zoom and window size, then load the synthetic FID and arm a fit.
     Setup,
     /// Fit the FID band and frame the result.
@@ -142,6 +143,8 @@ const SCENES: &[Scene] = &[
     shot(4, "workspace_empty"),
     act(2, Op::Workspace(true)),
     shot(4, "workspace_overview"),
+    act(2, Op::ImportResults),
+    shot(30, "batch_import"),
     act(2, Op::Setup),
     shot(8, "band"),
     act(2, Op::History(true)),
@@ -384,6 +387,7 @@ fn themes_from_env() -> Vec<Theme> {
 fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), String> {
     match op {
         Op::Workspace(content) => workspace_shot::setup(app, content),
+        Op::ImportResults => workspace_shot::imports(app),
         Op::Setup => {
             workspace_shot::setup(app, false);
             setup(app);
