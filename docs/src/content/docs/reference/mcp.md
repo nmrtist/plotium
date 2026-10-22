@@ -946,7 +946,7 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"` |
 | `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
 | `annotation_create` (arrow) | `target: EXACT_PLOT_TARGET`, `kind: "arrow"`, tail `at: [x,y]`, head `to: [x,y]`; optional `head: none\|open\|filled\|double`, `line_width_pt`, `color: "#rrggbb"` |
-| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt` (text), `orientation`, `value`, `label`, `font_pt`, `line` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow) |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow); optional `override_hand_edits` |
 | `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
@@ -999,7 +999,17 @@ gap_pt}`. `plotium_figure_diagnose` and plan previews use the stacked geometry.
 
 Plot annotations are anchored in data coordinates, not page pt: the label is
 centred above its `at` point and follows the plot's axis ranges, zoom and pan,
-in the canvas and in every export. An anchor outside the visible range is
+in the canvas and in every export. When that spot covers data, the legend, a
+value label or another label, the text moves to the nearest clear spot within
+about three text heights; an arrow pointing at it does not count.
+`offset_pt: [dx, dy]` (pt, x right, y up) pins the text there instead, with
+`[0, 0]` exactly at `at`, and `placement: "auto"` returns it to automatic
+placement. A label the user dragged on the canvas keeps its place through
+edits of `text`, `at` and `font_pt`; `offset_pt` or `placement` on it is
+rejected unless `override_hand_edits: true` says the user asked. Each text in
+`annotations` reports `placement` (`auto`, `fixed` or `hand`) and the drawn
+`offset_pt`, and `plotium_get_state` lists dragged labels under `hand_edits`
+with key `annotation.label_position`. An anchor outside the visible range is
 clipped with the plot. `annotation_id` is local to the plot and never reused
 after deletion; read it from `annotation_edits` in the result or from the plot's
 `annotations` list in `plotium_document_inspect`. `at` uses the plot's source
@@ -1017,7 +1027,11 @@ sets `color` (`#rrggbb`), `width_pt` (0.1–20) and `style` (`solid`, `dashed`,
 theme's supporting-line width, 0.3 pt under Nature), dashed, and
 omitted `line` fields keep their value on `annotation_set`. The optional
 `label` is drawn in the line colour near the top of a vertical line or the right
-end of a horizontal one. It uses the tick label size until `font_pt` sets an
+end of a horizontal one, or further along the line or on its other side when
+that spot covers data, the legend or another label; inspection reports
+`label_placement` and the drawn `label_position: {along, side}`, and
+`placement: "auto"` returns a dragged label to automatic placement under the
+same `override_hand_edits` rule. It uses the tick label size until `font_pt` sets an
 explicit size, which then stays until changed. An empty `label` removes it. Reference lines and text
 annotations share one id sequence and the 256-per-plot budget, and
 `plotium_document_inspect` lists both under `annotations`, each with its `kind`.

@@ -249,11 +249,11 @@ fn variant_dto(variant: &'static EnumVariant) -> EnumVariantDto {
 /// before it edits: one reading per property, at most `limit` from `offset`.
 pub fn hand_edit_readings(app: &PlotiumApp, offset: usize, limit: usize) -> serde_json::Value {
     let edits = app.live_hand_edits();
+    let labels = crate::state::hand_placed_label_readings(app);
+    let total = edits.len() + labels.len();
     let items: Vec<_> = edits
         .iter()
-        .skip(offset)
-        .take(limit)
-        .filter_map(|address| {
+        .map(|address| {
             let resolved = app.resolve_property(address).ok()?;
             let definition = crate::properties::definition(address.definition)?;
             Some(serde_json::json!({
@@ -263,11 +263,15 @@ pub fn hand_edit_readings(app: &PlotiumApp, offset: usize, limit: usize) -> serd
                 "value": aggregate_dto(&resolved.value),
             }))
         })
+        .chain(labels.into_iter().map(Some))
+        .skip(offset)
+        .take(limit)
+        .flatten()
         .collect();
-    let end = offset.saturating_add(limit).min(edits.len());
+    let end = offset.saturating_add(limit).min(total);
     serde_json::json!({
         "items": items,
-        "total": edits.len(),
-        "next_offset": (end < edits.len()).then_some(end),
+        "total": total,
+        "next_offset": (end < total).then_some(end),
     })
 }

@@ -362,6 +362,7 @@ fn value_label(value: f64, at: [f64; 2], anchor: TextAnchor, style: LabelStyle) 
         color: style.color,
         size: style.size,
         anchor,
+        offset_pt: None,
     }
 }
 

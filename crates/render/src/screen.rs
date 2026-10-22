@@ -353,7 +353,8 @@ fn paint_with_detail_and_stats_impl(
     }
 
     crate::screen_annotations::paint(&clipped, fig, &proj, plot, scale);
-    crate::screen_annotations::paint_reference_lines(&clipped, fig, &proj, plot, scale);
+    let labels = crate::label_layout(fig, plot, scale);
+    crate::screen_annotations::paint_reference_lines(&clipped, fig, plot, scale, &labels);
 
     paint_contours(
         painter,
@@ -400,12 +401,7 @@ fn paint_with_detail_and_stats_impl(
     }
 
     crate::screen_annotations::paint_arrows(&clipped, fig, &proj, scale);
-    for a in fig.text_annotations() {
-        let (px, py) = proj.project(a.at);
-        if !crate::is_finite_point((px, py)) {
-            continue;
-        }
-        let at = crate::text_place::place(a.anchor, (px, py), a.size, scale);
+    for (a, at) in crate::label_placement::drawn_texts(fig, plot, &labels, scale) {
         let align = match (at.align, at.middle) {
             (crate::text_place::TextAlign::Center, false) => Align2::CENTER_BOTTOM,
             (crate::text_place::TextAlign::Center, true) => Align2::CENTER_CENTER,

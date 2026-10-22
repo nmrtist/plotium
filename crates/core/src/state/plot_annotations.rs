@@ -16,6 +16,8 @@ pub struct PlotAnnotation {
     pub text: String,
     pub font_size: f32,
     pub color: Color,
+    /// Offset of the text from its anchor in pt, x right and y up.
+    pub placement: super::LabelPlacement<[f32; 2]>,
 }
 
 impl PlotAnnotation {
@@ -31,7 +33,9 @@ impl PlotAnnotation {
         if !self.font_size.is_finite() || !(1.0..=72.0).contains(&self.font_size) {
             return Err("Annotation font size must be 1–72 pt.".into());
         }
-        Ok(())
+        self.placement
+            .pinned()
+            .map_or(Ok(()), super::plot_label_placement::validate_offset)
     }
 
     fn lower(&self) -> Annotation {
@@ -41,6 +45,7 @@ impl PlotAnnotation {
             color: self.color,
             size: self.font_size,
             anchor: plotium_figure::TextAnchor::Point,
+            offset_pt: self.placement.pinned(),
         }
     }
 }
@@ -93,6 +98,7 @@ impl PlotAnnotations {
             text,
             font_size,
             color: Color::BLACK,
+            placement: Default::default(),
         };
         annotation.validate()?;
         self.next_id = id

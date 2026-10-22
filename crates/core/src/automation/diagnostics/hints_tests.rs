@@ -335,6 +335,7 @@ fn text_on_a_bar_is_text_over_data() {
         size: 7.,
         color: plotium_figure::Color::BLACK,
         anchor: plotium_figure::TextAnchor::Point,
+        offset_pt: None,
     });
     let target = summary.plot.clone();
     let mut facts = PlotFacts::default();

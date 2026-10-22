@@ -183,6 +183,7 @@ fn reference_lines_record_strokes_and_labels() {
             line_style,
             label: "REFLINE_LABEL".into(),
             label_size: None,
+            label_position: None,
         });
     }
     let base = export_document_emf(&demo_document(&plain)).expect("export");

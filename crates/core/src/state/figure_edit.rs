@@ -122,6 +122,12 @@ pub enum FigureEdit {
         head: Option<plotium_figure::ArrowHead>,
         line_width_pt: Option<f32>,
         color: Option<String>,
+        /// Pinned text offset from `at` in pt, x right and y up.
+        offset_pt: Option<[f32; 2]>,
+        placement: Option<PlacementRequest>,
+        /// Also re-place a label the user placed by hand.
+        #[serde(default)]
+        override_hand_edits: bool,
     },
     AnnotationDelete {
         target: TargetRef,

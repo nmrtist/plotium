@@ -21,15 +21,17 @@ pub fn figure_edit_schema() -> Value {
     let annotation_text =
         json!({"type":"string","minLength":1,"maxLength":crate::state::MAX_ANNOTATION_TEXT_BYTES});
     let annotation_id = json!({"type":"integer","minimum":0,"description":"Plot-local annotation id from document inspection or an earlier annotation_edits result."});
-    let data_point = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] anchor in the plot's source data coordinates (the units in its coordinate_units, before any display-unit conversion). The label is centred above the anchor and follows axis range, zoom and pan; anchors outside the visible range are clipped."});
+    let data_point = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] anchor in the plot's source data coordinates (the units in its coordinate_units, before any display-unit conversion). The label is centred above the anchor, or moved up to three text heights to the nearest spot clear of data, and follows axis range, zoom and pan; anchors outside the visible range are clipped."});
     let orientation = json!({"enum":["vertical","horizontal"],"description":"vertical: constant x, spans the plot's height; horizontal: constant y, spans its width."});
     let line_value = json!({"type":"number","description":"Finite x (vertical) or y (horizontal) in the plot's source data coordinates (coordinate_units). The line spans the plot area, follows axis range, zoom and pan, and is clipped when off-axis."});
-    let line_label = json!({"type":"string","maxLength":crate::state::MAX_ANNOTATION_TEXT_BYTES,"description":"Optional label drawn at the line's top (vertical) or right end (horizontal) in the line colour; empty removes it. It uses the tick label size until font_pt sets an explicit size, which then stays until changed."});
+    let line_label = json!({"type":"string","maxLength":crate::state::MAX_ANNOTATION_TEXT_BYTES,"description":"Optional label drawn in the line colour at the line's top (vertical) or right end (horizontal), or further along the line when that spot covers data; empty removes it. It uses the tick label size until font_pt sets an explicit size, which then stays until changed."});
     let line_style = json!({"type":"object","additionalProperties":false,"minProperties":1,"properties":{
         "color":{"type":"string","pattern":"^#[0-9a-fA-F]{6}$"},
         "width_pt":{"type":"number","minimum":crate::state::reference_line_width_bound(crate::state::MIN_REFERENCE_LINE_WIDTH_PT),"maximum":crate::state::reference_line_width_bound(crate::state::MAX_REFERENCE_LINE_WIDTH_PT)},
         "style":{"enum":["solid","dashed","dotted","dash_dot"]}},
         "description":"Line stroke; omitted fields keep the current value (new lines default to #000000, 0.75 pt or the theme's supporting-line width, dashed)."});
+    let label_offset = json!({"type":"array","minItems":2,"maxItems":2,"items":{"type":"number","minimum":-crate::state::MAX_LABEL_OFFSET_PT,"maximum":crate::state::MAX_LABEL_OFFSET_PT},"description":"Pin the text [dx,dy] pt from at (x right, y up) instead of automatic placement; [0,0] draws it exactly at at."});
+    let placement = json!({"enum":["auto"],"description":"Return the label to automatic placement, which keeps it clear of data, the legend and other labels."});
     let arrow_head = json!({"enum":["none","open","filled","double"],"description":"Arrowhead: none (plain line), open V or filled triangle at `to`, or double (filled at both ends). Default filled."});
     let arrow_width = json!({"type":"number","minimum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.start()),"maximum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.end()),"description":"Shaft stroke width in pt; default 1, or the theme's supporting-line width."});
     let arrow_color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
@@ -120,7 +122,7 @@ pub fn figure_edit_schema() -> Value {
             let mut set = variant(
                 "annotation_set",
                 vec!["target", "annotation_id"],
-                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":arrow_color}),
+                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":arrow_color,"offset_pt":label_offset,"placement":placement,"override_hand_edits":{"type":"boolean","description":"Also re-place a label the user placed by hand (placement hand). Pass true only when the user asked for it."}}),
             );
             set["anyOf"] = json!(
                 [
@@ -134,12 +136,14 @@ pub fn figure_edit_schema() -> Value {
                     "to",
                     "head",
                     "line_width_pt",
-                    "color"
+                    "color",
+                    "offset_pt",
+                    "placement"
                 ]
                 .map(|field| json!({"required":[field]}))
             );
             set["description"] = json!(
-                "text and at apply to text annotations; orientation, value, label and line to reference lines; font_pt to both; at, to, head, line_width_pt and color to arrows (at is the tail)."
+                "text, at and offset_pt apply to text annotations; orientation, value, label and line to reference lines; font_pt and placement to both; at, to, head, line_width_pt and color to arrows (at is the tail). Labels are placed clear of data automatically; a label the user dragged keeps its place through other edits, and offset_pt or placement on it needs override_hand_edits."
             );
             set
         },

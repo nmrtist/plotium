@@ -26,4 +26,26 @@ pub struct ReferenceLine {
     pub label: String,
     /// Label size in points; `None` follows the figure's tick text size.
     pub label_size: Option<f32>,
+    /// Pinned label position; `None` lets the renderer place it clear of data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_position: Option<ReferenceLabelPosition>,
+}
+
+/// Which side of its line a reference label sits on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReferenceLabelSide {
+    /// Left of a vertical line, above a horizontal one.
+    Before,
+    /// Right of a vertical line, below a horizontal one.
+    After,
+}
+
+/// A reference label pinned along its line. `along` is the label centre as a
+/// fraction of the plot, from the bottom for a vertical line and from the left
+/// for a horizontal one, so the label follows the line through range changes.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ReferenceLabelPosition {
+    pub along: f32,
+    pub side: ReferenceLabelSide,
 }

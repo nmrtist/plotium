@@ -54,6 +54,12 @@ fn arrow_fields(edit: &FigureEdit) -> ArrowFields<'_> {
 /// would otherwise silently ignore.
 fn has_other_kind_fields(edit: &FigureEdit) -> bool {
     match edit {
+        FigureEdit::AnnotationSet {
+            offset_pt: Some(_), ..
+        }
+        | FigureEdit::AnnotationSet {
+            placement: Some(_), ..
+        } => true,
         FigureEdit::AnnotationCreate {
             text,
             font_pt,

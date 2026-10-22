@@ -785,7 +785,7 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 | `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"` |
 | `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
 | `annotation_create`（箭头） | `target: 完整图目标`、`kind: "arrow"`、箭尾 `at: [x,y]`、箭头 `to: [x,y]`；可选 `head: none\|open\|filled\|double`、`line_width_pt`、`color: "#rrggbb"` |
-| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一 |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一；可选 `override_hand_edits` |
 | `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
@@ -831,7 +831,14 @@ x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示�
 和计划预览使用同一套堆叠几何。
 
 图内标注按数据坐标定位，而不是页面 pt：文字居中显示在 `at` 点上方，画布和所有
-导出中都跟随该图的轴范围、缩放和平移移动；锚点在可见范围外时随图一起裁切。
+导出中都跟随该图的轴范围、缩放和平移移动；锚点在可见范围外时随图一起裁切。该位置
+压到数据、图例、数值标签或其他标签时，文字挪到约三个字高范围内最近的空位；指向它的
+箭头不算遮挡。`offset_pt: [dx, dy]`（pt，x 向右、y 向上）把文字固定在该偏移处，
+`[0, 0]` 即正好在 `at`；`placement: "auto"` 恢复自动摆放。用户在画布上拖过的标签在
+修改 `text`、`at`、`font_pt` 时保持原位；对它使用 `offset_pt` 或 `placement` 会被
+拒绝，除非以 `override_hand_edits: true` 表明是用户要求。`annotations` 中每个文字
+标注报告 `placement`（`auto`、`fixed` 或 `hand`）和实际绘制的 `offset_pt`；
+`plotium_get_state` 在 `hand_edits` 中以键 `annotation.label_position` 列出拖过的标签。
 `annotation_id` 只在所属图内有效，删除后不会复用；可从结果的 `annotation_edits`
 或 `plotium_document_inspect` 返回的图 `annotations` 列表读取。`at` 使用
 `coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。标注文字最多 1024
@@ -843,7 +850,10 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
 `value` 不在可见范围内时不显示。`line` 设置 `color`（`#rrggbb`）、`width_pt`
 （0.1–20）和 `style`（`solid`、`dashed`、`dotted` 或 `dash_dot`）；新参考线默认
 `#000000`、0.75 pt（若主题规定了辅助线宽则用它，Nature 主题为 0.3 pt）、虚线，`annotation_set` 中省略的 `line` 字段保持原值。可选
-`label` 以线条颜色显示在竖线顶部附近或横线右端；未设置 `font_pt` 时使用刻度标签
+`label` 以线条颜色显示在竖线顶部附近或横线右端，那里压到数据、图例或其他标签时沿线
+挪到别处或换到线的另一侧；检查结果报告 `label_placement` 和实际的
+`label_position: {along, side}`，`placement: "auto"` 按同样的 `override_hand_edits`
+规则把拖过的标签恢复为自动摆放；未设置 `font_pt` 时使用刻度标签
 字号，一旦用 `font_pt` 设定字号便保持该值直至再次修改；`label` 为空字符串时移除
 标签。参考线与文字标注共用同一 id 序列和
 每张图 256 个的上限，`plotium_document_inspect` 在 `annotations` 中同时列出二者，

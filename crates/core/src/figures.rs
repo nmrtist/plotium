@@ -80,6 +80,7 @@ pub fn apply_peak_labels(mut fig: Figure, peaks: &[ResolvedPeak]) -> Figure {
             color: Color::rgb(0x8a, 0x1c, 0x1c),
             size: 12.0,
             anchor: plotium_figure::TextAnchor::Point,
+            offset_pt: None,
         });
     }
     fig

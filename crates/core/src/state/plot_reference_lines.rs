@@ -28,6 +28,7 @@ pub struct PlotReferenceLine {
     pub label: String,
     /// `None` follows the figure's tick text size.
     pub font_size: Option<f32>,
+    pub label_placement: super::LabelPlacement<plotium_figure::ReferenceLabelPosition>,
 }
 
 impl PlotReferenceLine {
@@ -41,6 +42,7 @@ impl PlotReferenceLine {
             line_style: DEFAULT_REFERENCE_LINE_STYLE,
             label: String::new(),
             font_size: None,
+            label_placement: Default::default(),
         }
     }
 
@@ -66,7 +68,10 @@ impl PlotReferenceLine {
         {
             return Err("Reference line label size must be 1–72 pt.".into());
         }
-        Ok(())
+        self.label_placement.pinned().map_or(
+            Ok(()),
+            super::plot_label_placement::validate_reference_position,
+        )
     }
 
     fn lower(&self) -> ReferenceLine {
@@ -78,6 +83,7 @@ impl PlotReferenceLine {
             line_style: self.line_style,
             label: self.label.clone(),
             label_size: self.font_size,
+            label_position: self.label_placement.pinned(),
         }
     }
 }
