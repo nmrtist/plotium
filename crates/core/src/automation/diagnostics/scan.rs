@@ -362,6 +362,21 @@ impl FigureDiagnosticScan {
                         json!({"right_axis_curves":curves,"property":"object.axes.y2_label"}),
                     );
                 }
+                let hidden: usize = figure
+                    .series
+                    .iter()
+                    .flat_map(|series| &series.points)
+                    .filter(|[x, y]| figure.x.hides(*x) || figure.y.hides(*y))
+                    .count();
+                if hidden > 0 {
+                    self.issue(
+                        &target,
+                        "plot.axis_break",
+                        "points_hidden_by_axis_break",
+                        "figure_data",
+                        json!({"hidden_points":hidden,"x_break":figure.x.active_break().map(|b| b.bounds()),"y_break":figure.y.active_break().map(|b| b.bounds())}),
+                    );
+                }
                 if !figure.polygons.is_empty()
                     || !figure.contours.is_empty()
                     || figure.heatmap.is_some()

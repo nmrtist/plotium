@@ -565,6 +565,7 @@ fn write_figure(
         }
         AxisFrame::Hidden => {}
     }
+    crate::axis_break::write_svg(s, fig, plot, y_axis_x);
 
     if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack, 1.0) {
         crate::y2_axis::write_svg(s, fig, &right, plot);

@@ -463,8 +463,12 @@ pub(crate) fn scale_unavailable(
     if let Some(reason) = crate::state::log_scale_unavailable(plot.figure(), id == X_SCALE) {
         return Some(reason);
     }
-    let nmr_signal = app
-        .display_binding(plot.display_owner, &plot.binding)
+    is_nmr_spectrum(app, plot).then_some("NMR spectra keep linear axes: their integral, phase and cursor tools measure in linear ppm.")
+}
+
+/// Whether `plot` shows an NMR signal, whose tools measure in linear ppm.
+pub(crate) fn is_nmr_spectrum(app: &PlotiumApp, plot: &PlotObject) -> bool {
+    app.display_binding(plot.display_owner, &plot.binding)
         .series
         .first()
         .and_then(|series| {
@@ -475,6 +479,5 @@ pub(crate) fn scale_unavailable(
             field
                 .capabilities
                 .contains(crate::automation::CAP_FIELD_NMR_SIGNAL)
-        });
-    nmr_signal.then_some("NMR spectra keep linear axes: their integral, phase and cursor tools measure in linear ppm.")
+        })
 }

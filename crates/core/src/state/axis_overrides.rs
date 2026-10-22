@@ -1,5 +1,6 @@
 use plotium_figure::{
-    Axis, AxisFrame, AxisScale, Figure, GuideLayout, GuidePlacement, GuideVisibility, YAxisSide,
+    Axis, AxisBreak, AxisFrame, AxisScale, Figure, GuideLayout, GuidePlacement, GuideVisibility,
+    YAxisSide,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -214,6 +215,8 @@ pub struct AxisOverrides {
     pub axis_frame: Option<AxisFrame>,
     pub x_scale: Option<AxisScale>,
     pub y_scale: Option<AxisScale>,
+    pub x_break: Option<AxisBreak>,
+    pub y_break: Option<AxisBreak>,
     pub x_show_tick_labels: Option<bool>,
     pub x_show_label: Option<bool>,
     pub y_show_tick_labels: Option<bool>,
@@ -297,6 +300,13 @@ impl AxisOverrides {
         }
         self.apply_right_axis(figure);
         self.apply_scales(figure);
+        // A break would distort the equal data scale of a locked aspect.
+        let breakable = |axis: &Axis| !figure.lock_aspect && axis.categories.is_none();
+        figure.x.axis_break = self.x_break.filter(|_| breakable(&figure.x));
+        // The right axis would keep running straight past a left y break.
+        figure.y.axis_break = self
+            .y_break
+            .filter(|_| breakable(&figure.y) && figure.y2.is_none());
         // Charts without axes (pie, 3D) keep their hidden frame.
         if let Some(frame) = self.axis_frame
             && figure.axis_frame != AxisFrame::Hidden
@@ -358,12 +368,23 @@ impl AxisOverrides {
         self.y2_label = normalize_label(self.y2_label);
         self.y2_range = self.y2_range.filter(|range| range.is_valid());
         self.axis_frame = self.axis_frame.filter(|frame| *frame != AxisFrame::Hidden);
+        self.x_break = self.x_break.filter(axis_break_is_valid);
+        self.y_break = self.y_break.filter(axis_break_is_valid);
         self.guide_title = normalize_label(self.guide_title);
         self.legend_position = self.legend_position.and_then(|[x, y]| {
             (x.is_finite() && y.is_finite()).then(|| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)])
         });
         self
     }
+}
+
+pub fn axis_break_is_valid(brk: &AxisBreak) -> bool {
+    brk.from.is_finite()
+        && brk.to.is_finite()
+        && brk.from != brk.to
+        && brk
+            .lower_fraction
+            .is_none_or(|f| f.is_finite() && f > 0.0 && f < 1.0)
 }
 
 fn normalize_label(label: Option<String>) -> Option<String> {

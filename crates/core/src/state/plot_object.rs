@@ -381,7 +381,14 @@ impl PlotObject {
     /// legend room; measuring against it keeps the data under the pointer.
     pub fn pan_viewport(&mut self, x_fraction: f64, y_fraction: f64) {
         let drawn = |axis: &plotium_figure::Axis| match axis.effective_scale() {
-            plotium_figure::AxisScale::Linear => axis.span(),
+            // A break hides part of the span; pan by the shown data instead.
+            plotium_figure::AxisScale::Linear => match axis.break_pieces() {
+                Some([(a, b), (c, d)]) => {
+                    ((b - a) + (d - c)) / (1.0 - plotium_figure::AXIS_BREAK_GAP)
+                        * axis.span().signum()
+                }
+                None => axis.span(),
+            },
             scale => scale.forward(axis.max) - scale.forward(axis.min),
         };
         let x = x_fraction * drawn(&self.figure.x);

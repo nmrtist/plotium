@@ -8,7 +8,7 @@ use plotium_figure::AxisScale;
 
 /// A table line plot whose y values run 0..=99 over x 1..=100, so the data
 /// includes a zero that a log axis must leave out.
-fn line_app() -> (PlotiumApp, TargetRef, ObjectId) {
+pub(super) fn line_app() -> (PlotiumApp, TargetRef, ObjectId) {
     let table = materialized_float_series_table(
         (
             "x".to_owned(),
@@ -41,7 +41,7 @@ fn line_app() -> (PlotiumApp, TargetRef, ObjectId) {
     (app, target, id)
 }
 
-fn figure(app: &PlotiumApp, id: ObjectId) -> &plotium_figure::Figure {
+pub(super) fn figure(app: &PlotiumApp, id: ObjectId) -> &plotium_figure::Figure {
     app.doc.canvases[0]
         .object(id)
         .and_then(|object| object.plot())
@@ -49,7 +49,12 @@ fn figure(app: &PlotiumApp, id: ObjectId) -> &plotium_figure::Figure {
         .figure()
 }
 
-fn write(app: &mut PlotiumApp, target: &TargetRef, id: PropertyId, value: PropertyValue) {
+pub(super) fn write(
+    app: &mut PlotiumApp,
+    target: &TargetRef,
+    id: PropertyId,
+    value: PropertyValue,
+) {
     let commit = app
         .plan_property_write(id, std::slice::from_ref(target), &value)
         .expect("write plans");
@@ -57,7 +62,7 @@ fn write(app: &mut PlotiumApp, target: &TargetRef, id: PropertyId, value: Proper
     app.commit_property(commit);
 }
 
-fn manual(min: f64, max: f64) -> PropertyValue {
+pub(super) fn manual(min: f64, max: f64) -> PropertyValue {
     PropertyValue::AxisRange(AxisRangeValue::Manual {
         min,
         max,

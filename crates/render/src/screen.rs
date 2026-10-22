@@ -462,6 +462,18 @@ fn paint_with_detail_and_stats_impl(
         }
         AxisFrame::Hidden => {}
     }
+    let gap = crate::axis_break::overlay(fig, plot, y_axis_x, scale);
+    for r in &gap.erase {
+        let rect =
+            egui::Rect::from_min_size(Pos2::new(r.left, r.top), Vec2::new(r.width, r.height));
+        painter.rect_filled(rect, 0.0, col(fig.background));
+    }
+    for &[a, b] in &gap.marks {
+        painter.line_segment(
+            [to_pos(a.0, a.1), to_pos(b.0, b.1)],
+            Stroke::new(gap.mark_width, col(Color::AXIS)),
+        );
+    }
 
     if let Some(right) = crate::y2_axis::right_axis(fig, &layout, &proj, stack.as_ref(), scale) {
         crate::y2_axis::paint(painter, fig, &right, plot, scale);

@@ -10,6 +10,13 @@ pub const X_UNIT: PropertyId = PropertyId("object.axes.x_display_unit");
 pub const Y_UNIT: PropertyId = PropertyId("object.axes.y_display_unit");
 pub const X_RANGE: PropertyId = PropertyId("object.axes.x_range");
 pub const Y_RANGE: PropertyId = PropertyId("object.axes.y_range");
+pub const X_BREAK: PropertyId = PropertyId("object.axes.x_break");
+pub const Y_BREAK: PropertyId = PropertyId("object.axes.y_break");
+pub const X_BREAK_FRACTION: PropertyId = PropertyId("object.axes.x_break_lower_fraction");
+pub const Y_BREAK_FRACTION: PropertyId = PropertyId("object.axes.y_break_lower_fraction");
+const BREAK_FRACTION_MIN: f64 = 0.05;
+const BREAK_FRACTION_MAX: f64 = 0.95;
+const BREAK_FRACTION: FloatBounds = FloatBounds::inclusive(BREAK_FRACTION_MIN, BREAK_FRACTION_MAX);
 pub const TICK_PT: PropertyId = PropertyId("object.figure.typography.tick_pt");
 pub const LABEL_PT: PropertyId = PropertyId("object.figure.typography.label_pt");
 pub const LEGEND_PT: PropertyId = PropertyId("object.figure.typography.legend_pt");
@@ -43,6 +50,26 @@ const DEFINITIONS: &[PropertyDefinition] = &[
     def(Y_UNIT, ValueSchema::UnitCode, "Y display unit"),
     def(X_RANGE, ValueSchema::AxisRange, "X range"),
     def(Y_RANGE, ValueSchema::AxisRange, "Y range"),
+    def(X_BREAK, ValueSchema::AxisRange, "X-axis break"),
+    def(Y_BREAK, ValueSchema::AxisRange, "Y-axis break"),
+    def(
+        X_BREAK_FRACTION,
+        ValueSchema::Float {
+            bounds: BREAK_FRACTION,
+            display: FloatDisplay::Linear(""),
+            drag_step: Some(0.05),
+        },
+        "X-axis break lower piece share",
+    ),
+    def(
+        Y_BREAK_FRACTION,
+        ValueSchema::Float {
+            bounds: BREAK_FRACTION,
+            display: FloatDisplay::Linear(""),
+            drag_step: Some(0.05),
+        },
+        "Y-axis break lower piece share",
+    ),
     font(TICK_PT, "Plot tick-label size"),
     font(LABEL_PT, "Plot axis-title size"),
     font(LEGEND_PT, "Plot legend size"),
@@ -50,7 +77,7 @@ const DEFINITIONS: &[PropertyDefinition] = &[
 pub(crate) struct PlotDisplayProvider;
 pub(crate) static PROVIDER: PlotDisplayProvider = PlotDisplayProvider;
 fn is_x(id: PropertyId) -> bool {
-    matches!(id, X_UNIT | X_RANGE)
+    matches!(id, X_UNIT | X_RANGE | X_BREAK | X_BREAK_FRACTION)
 }
 fn coordinate_unit(plot: &PlotObject, x: bool) -> Option<UnitSpec> {
     plot.binding
@@ -204,6 +231,63 @@ impl PropertyProvider for PlotDisplayProvider {
                     },
                 )
             }
+            X_BREAK | Y_BREAK => {
+                let brk = axis_break_override(plot, x);
+                let value = match brk {
+                    Some(b) => {
+                        let (low, high) = b.bounds();
+                        AxisRangeValue::Manual {
+                            min: convert_curve_value(low, &coordinate, &shown, false)
+                                .map_err(|e| error(d.id, e))?,
+                            max: convert_curve_value(high, &coordinate, &shown, false)
+                                .map_err(|e| error(d.id, e))?,
+                            unit: unit_code(&shown),
+                        }
+                    }
+                    None => AxisRangeValue::Auto,
+                };
+                // `view` seeds a new break, so offer the middle third of the window.
+                let (lo, hi) = (axis.min.min(axis.max), axis.min.max(axis.max));
+                let third = (hi - lo) / 3.0;
+                let window = [lo + third, hi - third];
+                let unavailable = break_unavailable(app, plot, x);
+                (
+                    PropertyValue::AxisRange(value),
+                    PropertyValue::AxisRange(AxisRangeValue::Auto),
+                    brk.is_some(),
+                    ResolvedSchema::AxisRange {
+                        manual_allowed: unavailable.is_none(),
+                        unit: unit_code(&shown),
+                        view: [
+                            convert_curve_value(window[0], &coordinate, &shown, false)
+                                .map_err(|e| error(d.id, e))?,
+                            convert_curve_value(window[1], &coordinate, &shown, false)
+                                .map_err(|e| error(d.id, e))?,
+                        ],
+                    },
+                    unavailable.map_or(Availability::Editable, Availability::Disabled),
+                )
+            }
+            X_BREAK_FRACTION | Y_BREAK_FRACTION => {
+                let brk = axis_break_override(plot, x);
+                let natural = natural_lower_fraction(axis)
+                    .unwrap_or(0.5)
+                    .clamp(BREAK_FRACTION_MIN, BREAK_FRACTION_MAX);
+                (
+                    PropertyValue::Float(brk.and_then(|b| b.lower_fraction).unwrap_or(natural)),
+                    PropertyValue::Float(natural),
+                    brk.is_some_and(|b| b.lower_fraction.is_some()),
+                    ResolvedSchema::Float {
+                        bounds: BREAK_FRACTION,
+                        display: FloatDisplay::Linear(""),
+                    },
+                    if axis.active_break().is_some() {
+                        Availability::Editable
+                    } else {
+                        Availability::Disabled("Set an axis break inside the visible range first.")
+                    },
+                )
+            }
             TICK_PT | LABEL_PT | LEGEND_PT => {
                 let (v, default) = match d.id {
                     TICK_PT => (ty.tick_pt, defaults.tick_pt),
@@ -350,6 +434,66 @@ impl PropertyProvider for PlotDisplayProvider {
                     overrides.y_range = range;
                 }
             }
+            (X_BREAK | Y_BREAK, PropertyValue::AxisRange(value)) => {
+                let slot = if x {
+                    &mut overrides.x_break
+                } else {
+                    &mut overrides.y_break
+                };
+                *slot = match value {
+                    AxisRangeValue::Auto => None,
+                    AxisRangeValue::Manual { min, max, unit } => {
+                        if !min.is_finite() || !max.is_finite() || min >= max {
+                            return Err(error(
+                                d.id,
+                                "Break endpoints must be finite with from < to.",
+                            ));
+                        }
+                        let from = unit
+                            .map(|u| resolve_unit(&u, &coordinate, &shown_unit(plot, x)))
+                            .transpose()
+                            .map_err(|e| error(d.id, e))?;
+                        let (a, b) = (
+                            convert_curve_value(min, &from, &coordinate, false)
+                                .map_err(|e| error(d.id, e))?,
+                            convert_curve_value(max, &from, &coordinate, false)
+                                .map_err(|e| error(d.id, e))?,
+                        );
+                        let axis = if x {
+                            &plot.figure().x
+                        } else {
+                            &plot.figure().y
+                        };
+                        let (lo, hi) = (axis.min.min(axis.max), axis.min.max(axis.max));
+                        if !(lo < a.min(b) && a.max(b) < hi) {
+                            return Err(error(
+                                d.id,
+                                "The break must lie strictly inside the axis range.",
+                            ));
+                        }
+                        Some(plotium_figure::AxisBreak {
+                            from: a,
+                            to: b,
+                            lower_fraction: slot.and_then(|old| old.lower_fraction),
+                        })
+                    }
+                };
+            }
+            (X_BREAK_FRACTION | Y_BREAK_FRACTION, PropertyValue::Float(v)) => {
+                if !reset {
+                    BREAK_FRACTION.check(d.id, "piece share", v)?;
+                }
+                let slot = if x {
+                    &mut overrides.x_break
+                } else {
+                    &mut overrides.y_break
+                };
+                match slot.as_mut() {
+                    Some(brk) => brk.lower_fraction = (!reset).then_some(v),
+                    None if reset => {}
+                    None => return Err(error(d.id, "Set an axis break first.")),
+                }
+            }
             (TICK_PT | LABEL_PT | LEGEND_PT, PropertyValue::Float(v)) => {
                 FloatBounds::inclusive(1., 72.).check(d.id, "font size", v)?;
                 let v = if reset {
@@ -376,4 +520,46 @@ impl PropertyProvider for PlotDisplayProvider {
         .map_err(|e| error(d.id, e))?;
         Ok(())
     }
+}
+
+fn axis_break_override(plot: &PlotObject, x: bool) -> Option<plotium_figure::AxisBreak> {
+    if x {
+        plot.axis_overrides.x_break
+    } else {
+        plot.axis_overrides.y_break
+    }
+}
+
+/// Why an axis of `plot` cannot take a break.
+fn break_unavailable(app: &PlotiumApp, plot: &PlotObject, x: bool) -> Option<&'static str> {
+    let figure = plot.figure();
+    let axis = if x { &figure.x } else { &figure.y };
+    if axis.categories.is_some() || figure.axis_frame == plotium_figure::AxisFrame::Hidden {
+        Some("Only a numeric visible axis can be broken.")
+    } else if figure.heatmap.is_some()
+        || !figure.contours.is_empty()
+        || figure.top_projection.is_some()
+        || figure.left_projection.is_some()
+    {
+        Some("2D maps cannot have a broken axis.")
+    } else if !x && figure.y2.is_some() {
+        Some("A plot with a right y axis cannot break its y axis.")
+    } else if super::axis::is_nmr_spectrum(app, plot) {
+        Some(
+            "NMR spectra keep continuous axes: their integral, phase and cursor tools measure in ppm.",
+        )
+    } else if axis.scale != plotium_figure::AxisScale::Linear {
+        Some("A logarithmic axis cannot be broken; switch it to linear first.")
+    } else if figure.lock_aspect {
+        Some("An axis with equal x/y scale cannot be broken.")
+    } else {
+        None
+    }
+}
+
+/// The lower piece's share of the drawn length when both pieces keep the same
+/// scale, for an axis whose break is active.
+fn natural_lower_fraction(axis: &plotium_figure::Axis) -> Option<f64> {
+    let [(lo, low), (high, hi)] = axis.break_pieces()?;
+    Some((low - lo) / ((low - lo) + (hi - high)))
 }
