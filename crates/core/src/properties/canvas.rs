@@ -25,6 +25,7 @@ pub const HEIGHT_MM: PropertyId = PropertyId("canvas.size.height_mm");
 pub const AUTO_HEIGHT: PropertyId = PropertyId("canvas.size.auto_height");
 pub const CAPTION_VISIBLE: PropertyId = PropertyId("canvas.caption_visible");
 pub const PANEL_LABEL_STYLE: PropertyId = PropertyId("canvas.panel_label_style");
+pub const PANEL_LABELS_VISIBLE: PropertyId = PropertyId("canvas.panel_labels_visible");
 
 const LENGTH_BOUNDS: FloatBounds = FloatBounds::inclusive(0.0, 100.0);
 const SIZE_BOUNDS: FloatBounds = FloatBounds::inclusive(10.0, 1000.0);
@@ -224,6 +225,18 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         canonical_label: "Panel label style",
         canonical_aliases: &["panel letters", "panel numbering"],
     },
+    PropertyDefinition {
+        id: PANEL_LABELS_VISIBLE,
+        scope_kind: ScopeKind::Canvas,
+        value_schema: ValueSchema::Bool,
+        access: PropertyAccess::ReadWrite,
+        applicability: CANVAS_VALUE,
+        default_policy: DefaultPolicy::Fixed(PropertyValue::Bool(true)),
+        tier: Tier::Essential,
+        copies: ValueCopies::PerTarget,
+        canonical_label: "Show panel letters",
+        canonical_aliases: &["hide panel letters", "panel label visibility"],
+    },
 ];
 
 pub(crate) struct CanvasProvider;
@@ -341,6 +354,7 @@ fn value_of(id: PropertyId, canvas: &CanvasDocument) -> Result<PropertyValue, Pr
         AUTO_HEIGHT => Ok(PropertyValue::Bool(canvas.auto_height)),
         CAPTION_VISIBLE => Ok(PropertyValue::Bool(canvas.caption_visible)),
         PANEL_LABEL_STYLE => Ok(PropertyValue::Enum(canvas.panel_label_style.as_key())),
+        PANEL_LABELS_VISIBLE => Ok(PropertyValue::Bool(canvas.panel_labels_visible)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -397,6 +411,7 @@ fn write(
         (PANEL_LABEL_STYLE, PropertyValue::Enum(value)) => {
             canvas.panel_label_style = panel_label_style(value).expect("validated panel style")
         }
+        (PANEL_LABELS_VISIBLE, PropertyValue::Bool(value)) => canvas.panel_labels_visible = value,
         (_, value) => {
             return Err(PropertyError::InvalidValue {
                 property: id,

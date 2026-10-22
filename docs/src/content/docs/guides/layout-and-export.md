@@ -108,7 +108,10 @@ letter, or clear **Participates in sequence** to leave it unlettered. A letter
 placed over an image automatically switches between black and white for
 contrast, and a plot's y-axis title moves down when needed so the letter never
 sits on it. Manual and locked labels remain
-visible on a page with one Panel.
+visible on a page with one Panel. To hide every letter on a page at once, clear
+**Show panel letters** in **Canvas settings**; the letters keep their sequence
+and return unchanged when you turn it back on, and axis titles no longer make
+room for them while they are hidden.
 
 Drag a single Panel completely clear of every canvas and keep it outside for
 0.5 seconds to prepare a new canvas. The preview shows a progress bar, then a

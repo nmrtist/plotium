@@ -263,6 +263,8 @@ pub struct ViewObject {
     #[serde(default = "caption_visible_default")]
     pub caption_visible: bool,
     pub panel_label_style: String,
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub panel_labels_visible: bool,
     pub layout: ViewLayout,
     pub objects: Vec<ViewCanvasObject>,
     pub panels: Vec<ViewPanel>,

@@ -292,7 +292,7 @@ fn migrated_canvas_and_typography_controls_keep_their_visibility_and_section_den
         ),
         (
             panel::CANVAS_CAPTION_SECTION,
-            2,
+            3,
             "a canvas with caption and panel-label controls",
         ),
         (

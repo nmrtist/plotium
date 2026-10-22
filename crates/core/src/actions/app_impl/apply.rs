@@ -247,6 +247,11 @@ impl PlotiumApp {
                     c.panel_label_style = *after;
                 }
             }
+            Action::SetPanelLabelsVisible { canvas, after, .. } => {
+                if let Some(c) = self.doc.canvases.get_mut(*canvas) {
+                    c.panel_labels_visible = *after;
+                }
+            }
             Action::RenameDataset { dataset, after, .. } => {
                 let dataset = dataset_index!(*dataset);
                 if let Some(d) = self.doc.datasets.get_mut(dataset) {

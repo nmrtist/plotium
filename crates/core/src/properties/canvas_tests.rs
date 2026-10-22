@@ -202,3 +202,19 @@ fn auto_height_and_grid_visibility_remain_non_undoable() {
     assert!(app.doc.canvases[0].layout.show_grid);
     assert_eq!(app.session.undo_stack.len(), history);
 }
+
+#[test]
+fn hiding_panel_letters_is_one_undoable_canvas_edit() {
+    let (mut app, target) = canvas_app();
+    let history = app.session.undo_stack.len();
+    write(
+        &mut app,
+        &target,
+        canvas::PANEL_LABELS_VISIBLE,
+        PropertyValue::Bool(false),
+    );
+    assert!(!app.doc.canvases[0].panel_labels_visible);
+    assert_eq!(app.session.undo_stack.len(), history + 1);
+    app.undo();
+    assert!(app.doc.canvases[0].panel_labels_visible);
+}

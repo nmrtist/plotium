@@ -245,6 +245,7 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
     app.doc.canvases[0].caption = "Fig 1. Sample spectrum.".to_owned();
     app.doc.canvases[0].caption_visible = false;
     app.doc.canvases[0].panel_label_style = crate::state::PanelLabelStyle::UpperAlpha;
+    app.doc.canvases[0].panel_labels_visible = false;
     app.session.board = crate::state::BoardViewport {
         zoom: 1.75,
         world_center: [-40.0, 12.0],
@@ -333,6 +334,7 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
     );
     assert_eq!(loaded.doc.canvases[0].caption, "Fig 1. Sample spectrum.");
     assert!(!loaded.doc.canvases[0].caption_visible);
+    assert!(!loaded.doc.canvases[0].panel_labels_visible);
     assert_eq!(
         loaded.doc.canvases[0].panel_label_style,
         crate::state::PanelLabelStyle::UpperAlpha

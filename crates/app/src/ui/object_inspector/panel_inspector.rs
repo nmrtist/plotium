@@ -99,7 +99,10 @@ pub(super) fn render(app: &mut PlotiumApp, ci: usize, id: PanelId, ui: &mut Ui) 
         });
     ui.separator();
     ui.label(crate::typography::headline("Panel label"));
-    ui.checkbox(&mut after.label.visible, "Show label");
+    let show = ui.checkbox(&mut after.label.visible, "Show label");
+    if !app.doc.canvases[ci].panel_labels_visible {
+        show.on_hover_text("Hidden on this page by Canvas settings › Show panel letters");
+    }
     ui.checkbox(
         &mut after.label.participates_in_sequence,
         "Participates in sequence",

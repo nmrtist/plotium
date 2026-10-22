@@ -464,6 +464,9 @@ pub struct CanvasDocument {
     pub caption_visible: bool,
     /// The numbering style for this page's auto-assigned panel letters (a/b/c…).
     pub panel_label_style: PanelLabelStyle,
+    /// Canvas-wide switch over every panel letter. Per-panel visibility still
+    /// applies when it is on; when off, no letter is drawn or reserves space.
+    pub panel_labels_visible: bool,
     pub layout: crate::layout::PageLayout,
     pub next_object_id: ObjectId,
     pub next_group_id: GroupId,
@@ -490,6 +493,7 @@ impl CanvasDocument {
             caption: String::new(),
             caption_visible: true,
             panel_label_style: PanelLabelStyle::default(),
+            panel_labels_visible: true,
             layout: crate::layout::PageLayout::default(),
             next_object_id: ObjectId::new(1),
             next_group_id: 1,

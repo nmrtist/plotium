@@ -42,6 +42,7 @@ impl PlotiumApp {
         destination.board_pos = board_pos;
         destination.background = source.background;
         destination.panel_label_style = source.panel_label_style;
+        destination.panel_labels_visible = source.panel_labels_visible;
         destination.next_panel_label_slot = source.next_panel_label_slot;
         destination.next_object_id = source.next_object_id;
         destination.next_group_id = source.next_group_id;

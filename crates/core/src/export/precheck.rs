@@ -87,8 +87,7 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
                 if let Some(panel) = canvas
                     .parent_panel(object.id)
                     .and_then(|id| canvas.panel(id))
-                    && panel.visible
-                    && panel.label.visible
+                    && canvas.panel_label_is_displayed(panel.id)
                 {
                     fonts.push(panel.label.font_size);
                 }

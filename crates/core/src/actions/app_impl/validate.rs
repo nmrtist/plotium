@@ -220,7 +220,8 @@ pub(super) fn validate_action(
         | Action::ApplyTheme { canvas, .. }
         | Action::SetCanvasSize { canvas, .. }
         | Action::SetCanvasCaption { canvas, .. }
-        | Action::SetPanelLabelStyle { canvas, .. } => {
+        | Action::SetPanelLabelStyle { canvas, .. }
+        | Action::SetPanelLabelsVisible { canvas, .. } => {
             if *canvas >= shape.canvases {
                 return Err(ActionApplyError::StaleTarget(format!("canvas {canvas}")));
             }

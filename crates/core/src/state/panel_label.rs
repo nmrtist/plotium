@@ -159,7 +159,9 @@ impl CanvasDocument {
             .collect()
     }
 
-    /// `None` if `object_id` is not a plot on this page.
+    /// `None` if `object_id` is not a plot on this page. This names the panel
+    /// even while the page hides its letters; drawing goes through
+    /// `panel_label_is_displayed`.
     pub fn panel_letter(&self, object_id: ObjectId) -> Option<String> {
         let panel = self.parent_panel(object_id).and_then(|id| self.panel(id))?;
         if !panel.label.visible {
