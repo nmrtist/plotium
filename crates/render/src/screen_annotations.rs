@@ -1,6 +1,7 @@
+use crate::curve_style::dashed_segments;
 use crate::{Projector, Rect, TextAnchor, range_label_layout};
 use egui::{Align2, Color32, FontId, Pos2, Stroke};
-use plotium_figure::Figure;
+use plotium_figure::{Figure, LineStyle};
 
 pub(crate) fn paint(
     painter: &egui::Painter,
@@ -52,5 +53,46 @@ pub(crate) fn paint(
             FontId::proportional(figure.typography.tick_pt * scale),
             color,
         );
+    }
+}
+
+pub(crate) fn paint_reference_lines(
+    painter: &egui::Painter,
+    figure: &Figure,
+    projector: &Projector,
+    plot: Rect,
+    scale: f32,
+) {
+    for item in crate::reference_lines::layout(figure, projector, plot, scale) {
+        let line = item.line;
+        let color = Color32::from_rgb(line.color.r, line.color.g, line.color.b);
+        let stroke = Stroke::new(line.width * scale, color);
+        let pos = |(x, y): (f32, f32)| Pos2::new(x, y);
+        if line.line_style == LineStyle::Solid {
+            painter.line_segment([pos(item.start), pos(item.end)], stroke);
+        } else {
+            for [a, b] in dashed_segments(
+                &[item.start, item.end],
+                line.line_style,
+                line.width * scale,
+                plot,
+            ) {
+                painter.line_segment([pos(a), pos(b)], stroke);
+            }
+        }
+        if let Some(label) = item.label {
+            crate::rich_text::paint(
+                painter,
+                Pos2::new(label.x, label.top),
+                match label.anchor {
+                    TextAnchor::Left => Align2::LEFT_TOP,
+                    TextAnchor::Center => Align2::CENTER_TOP,
+                    TextAnchor::Right => Align2::RIGHT_TOP,
+                },
+                label.text,
+                FontId::proportional(label.size),
+                color,
+            );
+        }
     }
 }

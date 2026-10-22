@@ -163,3 +163,37 @@ fn panel_label_visibility_controls_emf_text() {
     let hidden = export_document_emf(&hidden).expect("hidden label export");
     assert!(!contains_utf16(&hidden, label));
 }
+
+#[test]
+fn reference_lines_record_strokes_and_labels() {
+    use plotium_figure::{LineStyle, ReferenceLine, ReferenceOrientation};
+    let plain = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 1.0))
+        .with_series(Series::line("trace", vec![[0.0, 0.0], [10.0, 1.0]]));
+    let mut fig = plain.clone();
+    for (orientation, value, line_style) in [
+        (ReferenceOrientation::Vertical, 4.0, LineStyle::Dashed),
+        (ReferenceOrientation::Horizontal, 0.5, LineStyle::Solid),
+    ] {
+        fig.reference_lines.push(ReferenceLine {
+            orientation,
+            value,
+            color: Color::rgb(0xcc, 0x22, 0x11),
+            width: 1.0,
+            line_style,
+            label: "REFLINE_LABEL".into(),
+            label_size: None,
+        });
+    }
+    let base = export_document_emf(&demo_document(&plain)).expect("export");
+    let with_lines = export_document_emf(&demo_document(&fig)).expect("export");
+    assert!(with_lines.len() > base.len());
+    let label: Vec<u8> = "REFLINE_LABEL"
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    assert!(
+        with_lines
+            .windows(label.len())
+            .any(|window| window == label)
+    );
+}

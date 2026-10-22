@@ -68,6 +68,9 @@ mod figure_delete;
 mod figure_edit;
 mod figure_edit_annotation;
 pub(crate) use figure_edit_annotation::annotation_reading;
+mod figure_edit_reference_line;
+pub(crate) use figure_edit_reference_line::reference_line_reading;
+pub use figure_edit_reference_line::{AnnotationKind, ReferenceLineStyleEdit};
 mod figure_edit_content;
 mod figure_edit_image;
 mod plot_creation;
@@ -112,6 +115,7 @@ mod peaks2d;
 mod plot_annotations;
 mod plot_interaction;
 mod plot_object;
+mod plot_reference_lines;
 mod pseudo_map_field;
 mod reference_pick;
 mod region;
@@ -216,6 +220,7 @@ pub use peaks2d::*;
 pub use plot_annotations::*;
 pub use plot_interaction::*;
 pub use plot_object::*;
+pub use plot_reference_lines::*;
 pub(crate) use pseudo_map_field::{DOSY_GRID_COLS, DOSY_GRID_ROWS, dosy_scalar_grid};
 pub use reference_pick::*;
 pub use region::*;
@@ -315,6 +320,8 @@ mod figure_delete_asset_tests;
 mod figure_delete_tests;
 #[cfg(test)]
 mod figure_edit_annotation_tests;
+#[cfg(test)]
+mod figure_edit_reference_line_tests;
 #[cfg(test)]
 mod figure_edit_tests;
 

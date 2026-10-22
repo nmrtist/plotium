@@ -108,6 +108,12 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
                 for annotation in plot.figure().text_annotations() {
                     fonts.push(annotation.size);
                 }
+                for line in &plot.figure().reference_lines {
+                    lines.push(line.width);
+                    if !line.label.trim().is_empty() {
+                        fonts.push(line.label_size.unwrap_or(typography.tick_pt));
+                    }
+                }
                 for series in &plot.figure().series {
                     if !series.points.is_empty() {
                         lines.push(series.width);

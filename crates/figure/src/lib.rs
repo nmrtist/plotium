@@ -4,7 +4,9 @@
 mod colormap;
 mod display;
 mod encoding;
+mod reference_line;
 pub use display::*;
+pub use reference_line::{ReferenceLine, ReferenceOrientation};
 
 pub use colormap::ColormapId;
 pub use encoding::{
@@ -548,6 +550,10 @@ pub struct Figure {
     /// builder-derived `annotations` and re-applying overrides is idempotent.
     #[serde(default)]
     pub author_annotations: Vec<Annotation>,
+    /// Author-placed reference lines, owned and replaced by plot overrides
+    /// exactly like `author_annotations`.
+    #[serde(default)]
+    pub reference_lines: Vec<ReferenceLine>,
     pub range_annotations: Vec<RangeAnnotation>,
     /// Zero, one, or many contour overlays painted on the shared axes (e.g. one
     /// per dataset in a 2D color-overlay stack), each with its own colour/width.
@@ -610,6 +616,7 @@ impl Figure {
             error_bars: Vec::new(),
             annotations: Vec::new(),
             author_annotations: Vec::new(),
+            reference_lines: Vec::new(),
             range_annotations: Vec::new(),
             contours: Vec::new(),
             top_projection: None,

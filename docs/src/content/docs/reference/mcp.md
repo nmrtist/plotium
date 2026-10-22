@@ -881,7 +881,8 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `text_set` | `target: EXACT_TEXT_TARGET`, `text`; optional `font_pt` |
 | `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG or JPEG) |
 | `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt` |
-| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt` |
+| `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt` (text) or `orientation`, `value`, `label`, `font_pt`, `line` (reference line) |
 | `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
@@ -919,6 +920,26 @@ units reported in `coordinate_units`, not a display unit chosen for the tick
 labels. Annotation text permits 1024 UTF-8 bytes (nonblank), and a plot holds at
 most 256 annotations. The plot and its parent panel must be unlocked; Auto height
 may stay on.
+
+A reference line is a plot annotation of `kind: "reference_line"`: a vertical
+line at x = `value` or a horizontal line at y = `value`, in the same source
+units as `at`, that spans the whole plot area. It follows the axis ranges, zoom
+and pan, and disappears when `value` lies outside the visible range. `line`
+sets `color` (`#rrggbb`), `width_pt` (0.1–20) and `style` (`solid`, `dashed`,
+`dotted` or `dash_dot`); a new line defaults to `#272727`, 0.75 pt, dashed, and
+omitted `line` fields keep their value on `annotation_set`. The optional
+`label` is drawn in the line colour near the top of a vertical line or the right
+end of a horizontal one. It uses the tick label size until `font_pt` sets an
+explicit size, which then stays until changed. An empty `label` removes it. Reference lines and text
+annotations share one id sequence and the 256-per-plot budget, and
+`plotium_document_inspect` lists both under `annotations`, each with its `kind`.
+Fields of the other kind are rejected rather than ignored.
+
+```json
+{"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"reference_line",
+ "orientation":"horizontal","value":0,"label":"baseline",
+ "line":{"color":"#7f7f7f","width_pt":0.5,"style":"dotted"}}
+```
 
 Align uses the selected bounding edges/centres. Distribution equalizes centres
 between fixed endpoints, not edge gaps. Grid composes the existing native cell
@@ -1287,7 +1308,7 @@ proof of occlusion.
 | Existing plan | Candidate support |
 | --- | --- |
 | `properties.set` / `properties.reset` | The five `object.guides.*` properties above, including their native multi-target batch |
-| `figure.edit` local edits | `content_frame`, `image_replace`, `text_set`, `annotation_create`/`annotation_set`/`annotation_delete`, including native batches |
+| `figure.edit` local edits | `content_frame`, `image_replace`, `text_set`, `annotation_create`/`annotation_set`/`annotation_delete` (text and reference lines), including native batches |
 | `figure.edit` deletion-only batch | `content_delete`, originally empty `panel_delete`, explicit-column `series_delete`; all existing refusal rules remain |
 | Other operations, including save/export | `unsupported_operation`; their normal execution contract is unchanged |
 

@@ -452,6 +452,7 @@ fn write_figure(
             label = svg_content(&label.text, fig.typography.tick_pt),
         );
     }
+    crate::reference_lines::write_svg(s, fig, &proj, plot);
     for contour in &fig.contours {
         let mut path = String::new();
         for seg in &contour.segments {
