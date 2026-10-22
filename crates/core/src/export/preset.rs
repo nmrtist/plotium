@@ -1,4 +1,4 @@
-use super::{ComplianceThresholds, DEFAULT_BITMAP_DPI, ExportFormat};
+use super::{DEFAULT_BITMAP_DPI, ExportFormat};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExportPreset {
@@ -76,9 +76,5 @@ impl ExportPreset {
             Self::SingleColumnPng => 300,
             Self::VectorPdf | Self::VectorSvg => DEFAULT_BITMAP_DPI,
         }
-    }
-
-    pub fn thresholds(self) -> ComplianceThresholds {
-        ComplianceThresholds { min_line_pt: 0.5 }
     }
 }

@@ -86,7 +86,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.line.marker_hollow` | Object + Series | boolean |
 | `series.bar.width` | Object + Series | 0.05–1, fraction of the bar's slot (bar curves; default 0.8) |
 | `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
-| `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt) |
+| `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt, or the theme's supporting-line width) |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -974,7 +974,8 @@ line at x = `value` or a horizontal line at y = `value`, in the same source
 units as `at`, that spans the whole plot area. It follows the axis ranges, zoom
 and pan, and disappears when `value` lies outside the visible range. `line`
 sets `color` (`#rrggbb`), `width_pt` (0.1–20) and `style` (`solid`, `dashed`,
-`dotted` or `dash_dot`); a new line defaults to `#000000`, 0.75 pt, dashed, and
+`dotted` or `dash_dot`); a new line defaults to `#000000`, 0.75 pt (or the
+theme's supporting-line width, 0.3 pt under Nature), dashed, and
 omitted `line` fields keep their value on `annotation_set`. The optional
 `label` is drawn in the line colour near the top of a vertical line or the right
 end of a horizontal one. It uses the tick label size until `font_pt` sets an
@@ -992,8 +993,8 @@ Fields of the other kind are rejected rather than ignored.
 An arrow annotation (`kind: "arrow"`) draws a straight line from its tail `at` to
 its head `to`, both in the same data coordinates, so it follows the axes and is
 clipped to the plot area like a label. `head` defaults to `filled` (`double`
-fills both ends, `none` draws a plain line); `line_width_pt` defaults to 1 pt
-(0.1–20 pt) and `color` to black. The two ends must differ. An arrow carries no
+fills both ends, `none` draws a plain line); `line_width_pt` (0.1–20 pt) defaults to 1 pt, or the
+theme's supporting-line width (0.3 pt under Nature); `color` defaults to black. The two ends must differ. An arrow carries no
 text: label it with a separate text annotation, for example at its tail. Arrows
 share the `annotation_id` sequence and 256-per-plot budget with the other kinds,
 are listed under `annotations` with `kind: "arrow"`, and reject fields of the

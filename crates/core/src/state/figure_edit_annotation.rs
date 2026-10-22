@@ -31,15 +31,23 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
         .and_then(ContentItem::plot_mut)
         .ok_or("Plot target disappeared.")?;
     let mut annotations = plot.axis_overrides.annotations.clone();
+    // New supporting lines start at the document's supporting-line width,
+    // when it is one a reference line or arrow may take.
+    let aux_line_pt = plot
+        .figure()
+        .typography
+        .aux_line_pt
+        .filter(|width| (0.1..=20.0).contains(width));
     let missing = || "Discover an exact annotation id on this plot.".to_owned();
-    if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit)? {
+    if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit, aux_line_pt)? {
         let reading = annotations
             .arrow(id)
             .map(super::figure_edit_arrow::arrow_reading);
         plot.set_annotations(annotations);
         return Ok(json!({"target":target,"op":op,"annotation_id":id,"annotation":reading}));
     }
-    if let Some(id) = super::figure_edit_reference_line::apply(&mut annotations, edit)? {
+    if let Some(id) = super::figure_edit_reference_line::apply(&mut annotations, edit, aux_line_pt)?
+    {
         let reading = annotations
             .reference_line(id)
             .map(super::figure_edit_reference_line::reference_line_reading);

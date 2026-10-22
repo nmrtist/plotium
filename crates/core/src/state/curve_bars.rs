@@ -23,8 +23,9 @@ pub(super) struct BarStyle {
 }
 
 impl BarStyle {
-    pub fn of(line: &LineEncoding) -> Self {
-        let edge = line.bar_edge_width() as f32;
+    /// `aux_line_pt` is the document's supporting-line width.
+    pub fn of(line: &LineEncoding, aux_line_pt: Option<f32>) -> Self {
+        let edge = line.bar_edge_width(aux_line_pt) as f32;
         Self {
             width: line.bar_width(),
             edge: (edge > 0.0).then_some((line.bar_edge_color, edge)),

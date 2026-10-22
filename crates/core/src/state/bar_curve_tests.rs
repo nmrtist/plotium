@@ -380,3 +380,35 @@ fn numeric_bar_slots_follow_the_typical_gap_not_the_closest_pair() {
     }
     assert_eq!(super::curve_bars::slot_widths(&[5.0]), vec![1.0]);
 }
+
+#[test]
+fn bar_outlines_follow_the_theme_until_set_by_hand() {
+    let mut app = fixture();
+    let (a, b) = (source(&app, X, Y, None), source(&app, X, Y2, None));
+    let summary = create(
+        &mut app,
+        vec![curve(CurveKind::Bar, a), curve(CurveKind::Line, b)],
+    );
+    let (bar, line) = (
+        summary.series_defaults[0].target.clone(),
+        summary.series_defaults[1].target.clone(),
+    );
+    set(&mut app, &bar, "series.bar.edge_width", json!(0.6));
+    set(&mut app, &line, "series.line.stroke_width", json!(1.5));
+    app.apply_theme(&crate::theme::Theme::by_id("nature").unwrap());
+    // Hand-set widths survive; the theme's 0.3 pt is only the default.
+    assert_eq!(figure(&app).polygons[0].stroke.unwrap().1, 0.6);
+    assert_eq!(figure(&app).series[0].width, 1.5);
+    let reset = app
+        .plan_property_reset(line_display::BAR_EDGE_WIDTH, std::slice::from_ref(&bar))
+        .unwrap();
+    app.commit_property(reset);
+    assert_eq!(figure(&app).polygons[0].stroke.unwrap().1, 0.3);
+    let width = app
+        .resolve_property(&PropertyAddress::new(bar, line_display::BAR_EDGE_WIDTH))
+        .unwrap();
+    assert_eq!(
+        width.default_value,
+        Some(PropertyValue::Float(f64::from(0.3_f32)))
+    );
+}

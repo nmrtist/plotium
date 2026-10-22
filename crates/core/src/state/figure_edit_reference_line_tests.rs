@@ -268,3 +268,21 @@ fn schema_separates_the_kinds_and_states_exact_width_bounds() {
     assert_eq!(width["minimum"], json!(0.1));
     assert_eq!(width["maximum"], json!(20.0));
 }
+
+#[test]
+fn new_supporting_lines_take_the_theme_width_unless_given_one() {
+    let (mut a, target) = fixture();
+    a.apply_theme(&crate::theme::Theme::by_id("nature").unwrap());
+    let result = commit(
+        &mut a,
+        json!([
+            {"op":"annotation_create","target":target,"kind":"reference_line","orientation":"vertical","value":1.0},
+            {"op":"annotation_create","target":target,"kind":"arrow","at":[0.5,1.0],"to":[1.0,2.0]},
+            {"op":"annotation_create","target":target,"kind":"arrow","at":[0.5,1.0],"to":[1.5,2.0],"line_width_pt":1.2}
+        ]),
+    );
+    let edits = &result["annotation_edits"];
+    assert_eq!(edits[0]["annotation"]["line"]["width_pt"], json!(0.3));
+    let lines = &plot(&a).figure().author_arrows;
+    assert_eq!((lines[0].width, lines[1].width), (0.3, 1.2));
+}

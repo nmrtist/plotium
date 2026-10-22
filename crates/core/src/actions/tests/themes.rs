@@ -31,10 +31,12 @@ fn nature_theme_sets_axis_furniture_lines_and_markers_undoably() {
 
     let typography = app.doc.style_library.figure_typography;
     assert_eq!(typography.tick_direction, TickDirection::Out);
-    assert_eq!(typography.axis_line_pt, 0.6);
+    // Strokes scale from the 7 pt text: 0.3 pt supporting, 0.5 pt data lines.
+    assert_eq!(typography.axis_line_pt, 0.3);
+    assert_eq!(typography.aux_line_pt, Some(0.3));
     assert_eq!(typography.tick_pt, 7.0);
     let line = first_line(&app);
-    assert_eq!(line.width.get(), 0.75);
+    assert_eq!(line.width.get(), 0.5);
     // A plain line draws no markers, so its marker size is left alone.
     assert_eq!(line.appearance.marker_size, None);
     assert_eq!(line.appearance.marker_edge_width, None);
@@ -52,7 +54,22 @@ fn themes_without_line_settings_keep_series_width() {
     let mut app = sample_app();
     app.apply_theme(&Theme::by_id("nature").unwrap());
     app.apply_theme(&Theme::by_id("publication").unwrap());
-    assert_eq!(first_line(&app).width.get(), 0.75);
+    assert_eq!(first_line(&app).width.get(), 0.5);
+}
+
+#[test]
+fn hand_set_line_widths_survive_re_theming() {
+    let mut app = sample_app();
+    {
+        let line = first_line_mut(&mut app);
+        line.width = PositiveFiniteF32::new(1.5).unwrap();
+        line.width_locked = true;
+    }
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    assert_eq!(first_line(&app).width.get(), 1.5);
+    first_line_mut(&mut app).width_locked = false;
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    assert_eq!(first_line(&app).width.get(), 0.5);
 }
 
 #[test]
@@ -190,4 +207,32 @@ fn locked_curves_keep_their_colours_and_marker_paint() {
     assert_eq!(line.appearance.marker_fill, Some(fill));
     assert_eq!(line.appearance.marker_edge_color, Some(edge));
     assert!(line.appearance.marker_hollow);
+}
+
+#[test]
+fn a_column_theme_adopts_the_matching_preset_undoably() {
+    let mut app = sample_app();
+    let size = crate::state::NATURE_SINGLE_COLUMN.size_mm();
+    app.doc.canvases[0].size_mm = size;
+    app.doc.canvases[0].size_preset_id = None;
+    app.apply_theme(&Theme::by_id("nature").unwrap());
+    let canvas = &app.doc.canvases[0];
+    assert_eq!(canvas.size_preset_id.as_deref(), Some("nature-1col"));
+    // The theme's 0.3 pt strokes then meet the page's own 0.25 pt minimum.
+    let report = crate::export::precheck_report(
+        &[crate::export::page_metrics(canvas)],
+        None,
+        crate::export::ExportFormat::Svg,
+        300,
+    );
+    assert!(
+        report
+            .items
+            .iter()
+            .all(|item| item.status == crate::export::ComplianceStatus::Pass),
+        "{:?}",
+        report.items
+    );
+    app.undo();
+    assert_eq!(app.doc.canvases[0].size_preset_id, None);
 }

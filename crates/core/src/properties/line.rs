@@ -136,6 +136,8 @@ impl PropertyProvider for LineProvider {
             ));
         };
         line.width = width;
+        // A hand-set width survives re-theming; a reset hands it back.
+        line.width_locked = !matches!(operation, EditOp::Reset);
         Ok(())
     }
 }

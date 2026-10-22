@@ -81,6 +81,10 @@ pub struct FigureTypography {
     /// Weight of all text drawn inside a plot.
     #[serde(default)]
     pub font_weight: FontWeight,
+    /// Default stroke of supporting lines that are not data: bar outlines and
+    /// new reference lines and arrows. `None` keeps each one's own default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aux_line_pt: Option<f32>,
 }
 
 /// Which side of the axis line the tick marks point to.
@@ -172,6 +176,7 @@ impl Default for FigureTypography {
             minor_ticks: 0,
             typeface: Typeface::Arial,
             font_weight: FontWeight::Regular,
+            aux_line_pt: None,
         }
     }
 }

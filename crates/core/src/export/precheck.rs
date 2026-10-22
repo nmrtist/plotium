@@ -1,19 +1,14 @@
 use super::ExportFormat;
 use crate::state::{AssetId, AssetRecord, CanvasDocument, CanvasObjectKind, ImageFit, QuarterTurn};
-use plotium_figure::AxisFrame;
+use plotium_figure::{AxisFrame, Marker, SeriesKind};
 use std::collections::BTreeMap;
 
 /// Minimum text size for pages without a publisher-stated minimum, in points
 /// at the exported physical size.
 const DEFAULT_MIN_FONT_PT: f32 = 7.0;
-
-/// The minimum rendered sizes a figure must meet for a target. Values are in
-/// points, measured at the exported physical size (after any column downscale).
-/// The text minimum is per page (see [`PageMetrics::required_font_pt`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ComplianceThresholds {
-    pub min_line_pt: f32,
-}
+/// Minimum line width for pages without a publisher-stated minimum, in points
+/// at the exported physical size.
+const DEFAULT_MIN_LINE_PT: f32 = 0.5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComplianceStatus {
@@ -63,6 +58,7 @@ pub struct PageMetrics {
     pub min_font_pt: Option<f32>,
     pub min_line_pt: Option<f32>,
     pub required_font_pt: f32,
+    pub required_line_pt: f32,
 }
 
 /// Scan a page for the smallest authored (user-controlled) font and line width.
@@ -94,6 +90,8 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
                 let typography = plot.figure().typography;
                 if plot.figure().axis_frame != AxisFrame::Hidden {
                     fonts.extend([typography.tick_pt, typography.label_pt]);
+                    // The frame and its tick marks share one stroke width.
+                    lines.push(typography.axis_line_pt);
                 }
                 if !plot.figure().range_annotations.is_empty() {
                     fonts.push(typography.tick_pt);
@@ -114,10 +112,39 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
                     }
                 }
                 for series in &plot.figure().series {
-                    if !series.points.is_empty() {
+                    if series.points.is_empty() {
+                        continue;
+                    }
+                    let marker = series.appearance.marker(series.kind);
+                    let open = matches!(marker, Marker::Plus | Marker::Cross);
+                    // A point series' width is its marker radius, a stroke
+                    // only for the open plus and cross markers.
+                    if series.kind != SeriesKind::Points || open {
                         lines.push(series.width);
                     }
+                    // Closed markers draw their edge; sticks draw no markers.
+                    if series.kind != SeriesKind::Stick
+                        && !matches!(marker, Marker::None | Marker::Plus | Marker::Cross)
+                        && let Some((_, edge)) = series.appearance.marker_edge(series.color)
+                    {
+                        lines.push(edge);
+                    }
                 }
+                // Bar outlines, which only explicit column bindings draw;
+                // chart builders' fixed shape edges are not authored. A
+                // background-colored stroke only separates segments.
+                if plot.binding.coordinates.is_some() {
+                    let background = plot.figure().background;
+                    lines.extend(
+                        plot.figure()
+                            .polygons
+                            .iter()
+                            .filter_map(|polygon| polygon.stroke)
+                            .filter(|(color, _)| *color != background)
+                            .map(|(_, width)| width),
+                    );
+                }
+                lines.extend(plot.figure().error_bars.iter().map(|bar| bar.width));
                 for contour in &plot.figure().contours {
                     lines.push(contour.width);
                 }
@@ -130,40 +157,50 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
     PageMetrics {
         width_mm: canvas.size_mm[0],
         min_font_pt: fonts.into_iter().reduce(f32::min),
-        min_line_pt: lines.into_iter().reduce(f32::min),
-        required_font_pt: required_font_pt(canvas),
+        // A zero width is a "no outline" setting, not a line.
+        min_line_pt: lines
+            .into_iter()
+            .filter(|width| width.is_finite() && *width > 0.0)
+            .reduce(f32::min),
+        required_font_pt: page_preset(canvas)
+            .and_then(|preset| preset.min_font_pt)
+            .unwrap_or(DEFAULT_MIN_FONT_PT),
+        required_line_pt: page_preset(canvas)
+            .and_then(|preset| preset.min_line_pt)
+            .unwrap_or(DEFAULT_MIN_LINE_PT),
     }
 }
 
-/// The text minimum for a page: the stated minimum of the journal size preset
-/// the page was explicitly set to (and still matches), otherwise the house
-/// default. Width-only matching is deliberately not used: new pages default to
-/// 89 mm without a preset and must not silently inherit Nature's 5 pt. The
-/// page's own preset decides even when export downscales it to another width.
-fn required_font_pt(canvas: &CanvasDocument) -> f32 {
+/// The journal size preset whose stated minimums apply to a page: the one the
+/// page was explicitly set to, while it still matches. Width-only matching is
+/// deliberately not used: new pages default to 89 mm without a preset and must
+/// not silently inherit Nature's minimums. The page's own preset decides even
+/// when export downscales it to another width.
+fn page_preset(canvas: &CanvasDocument) -> Option<&'static crate::state::SizePreset> {
     canvas
         .size_preset_id
         .as_deref()
         .and_then(crate::state::preset_by_id)
         .filter(|preset| preset.matches(canvas.size_mm))
-        .and_then(|preset| preset.min_font_pt)
-        .unwrap_or(DEFAULT_MIN_FONT_PT)
 }
 
-/// Pure compliance check: page metrics + target width + thresholds → a status
-/// list. Each page's metric is scaled to the exported physical width (a wide
-/// canvas downscaled to a column shrinks fonts and lines), then the worst page
-/// is compared to the threshold. Text minimums can differ per page, so the
-/// reported text is the page closest to (or furthest below) its own minimum.
+/// Pure compliance check: page metrics + target width → a status list. Each
+/// page's metric is scaled to the exported physical width (a wide canvas
+/// downscaled to a column shrinks fonts and lines). Minimums can differ per
+/// page, so each item reports the page closest to (or furthest below) its own
+/// minimum.
 pub fn precheck_report(
     metrics: &[PageMetrics],
     target_width_mm: Option<f32>,
-    thresholds: &ComplianceThresholds,
     format: ExportFormat,
     dpi: u16,
 ) -> PrecheckReport {
-    let font = worst_font(metrics, target_width_mm);
-    let line = worst_scaled(metrics, target_width_mm, |m| m.min_line_pt);
+    let font = worst_relative(metrics, target_width_mm, |m| {
+        (m.min_font_pt, m.required_font_pt)
+    });
+    let line = worst_relative(metrics, target_width_mm, |m| {
+        (m.min_line_pt, m.required_line_pt)
+    });
 
     let mut items = vec![
         metric_item(
@@ -171,7 +208,11 @@ pub fn precheck_report(
             font.map(|(value, _)| value),
             font.map_or(DEFAULT_MIN_FONT_PT, |(_, required)| required),
         ),
-        metric_item("Thinnest line", line, thresholds.min_line_pt),
+        metric_item(
+            "Thinnest line",
+            line.map(|(value, _)| value),
+            line.map_or(DEFAULT_MIN_LINE_PT, |(_, required)| required),
+        ),
     ];
     items.push(if format.is_bitmap() {
         resolution_item(dpi)
@@ -321,25 +362,18 @@ fn export_scale(metrics: &PageMetrics, target_width_mm: Option<f32>) -> f32 {
     target_width_mm.map_or(1.0, |t| t / metrics.width_mm.max(f32::MIN_POSITIVE))
 }
 
-fn worst_scaled(
+/// The smallest exported value and its page's minimum, for the page whose
+/// value has the least headroom relative to that minimum.
+fn worst_relative(
     metrics: &[PageMetrics],
     target_width_mm: Option<f32>,
-    pick: impl Fn(&PageMetrics) -> Option<f32>,
-) -> Option<f32> {
-    metrics
-        .iter()
-        .filter_map(|m| pick(m).map(|value| value * export_scale(m, target_width_mm)))
-        .reduce(f32::min)
-}
-
-/// The smallest exported text and its page's minimum, for the page whose text
-/// has the least headroom relative to that minimum.
-fn worst_font(metrics: &[PageMetrics], target_width_mm: Option<f32>) -> Option<(f32, f32)> {
+    pick: impl Fn(&PageMetrics) -> (Option<f32>, f32),
+) -> Option<(f32, f32)> {
     metrics
         .iter()
         .filter_map(|m| {
-            m.min_font_pt
-                .map(|font| (font * export_scale(m, target_width_mm), m.required_font_pt))
+            let (value, required) = pick(m);
+            value.map(|value| (value * export_scale(m, target_width_mm), required))
         })
         .filter(|(value, _)| !value.is_nan())
         .min_by(|a, b| {
@@ -358,9 +392,15 @@ fn metric_item(label: &str, value: Option<f32>, min: f32) -> ComplianceItem {
         Some(value) => ComplianceItem {
             status: threshold_status(value, min),
             label: label.to_owned(),
-            detail: format!("{value:.1} pt rendered (min {min:.1} pt)"),
+            detail: format!("{} pt rendered (min {} pt)", points(value), points(min)),
         },
     }
+}
+
+/// One decimal, or two when needed: 7.0, 0.5, 0.25.
+fn points(value: f32) -> String {
+    let text = format!("{value:.2}");
+    text.strip_suffix('0').map_or(text.clone(), str::to_owned)
 }
 
 fn resolution_item(dpi: u16) -> ComplianceItem {
@@ -390,6 +430,10 @@ fn threshold_status(value: f32, min: f32) -> ComplianceStatus {
 }
 
 #[cfg(test)]
+#[path = "precheck_line_tests.rs"]
+mod line_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::state::{
@@ -402,10 +446,6 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::io::Cursor;
 
-    fn thresholds() -> ComplianceThresholds {
-        ComplianceThresholds { min_line_pt: 0.5 }
-    }
-
     #[test]
     fn flags_sub_threshold_font_after_downscale() {
         // A comfortable 10 pt label on a 200 mm page falls to 4.45 pt once the
@@ -415,8 +455,9 @@ mod tests {
             min_font_pt: Some(10.0),
             min_line_pt: Some(2.0),
             required_font_pt: 7.0,
+            required_line_pt: 0.5,
         }];
-        let report = precheck_report(&metrics, Some(89.0), &thresholds(), ExportFormat::Tiff, 600);
+        let report = precheck_report(&metrics, Some(89.0), ExportFormat::Tiff, 600);
         let font = &report.items[0];
         assert_eq!(font.status, ComplianceStatus::Fail);
         assert_eq!(report.worst(), ComplianceStatus::Fail);
@@ -429,9 +470,10 @@ mod tests {
             min_font_pt: Some(font),
             min_line_pt: Some(1.0),
             required_font_pt: 5.0,
+            required_line_pt: 0.5,
         };
         let report = |metrics: &[PageMetrics]| {
-            precheck_report(metrics, None, &thresholds(), ExportFormat::Svg, 300).items[0].clone()
+            precheck_report(metrics, None, ExportFormat::Svg, 300).items[0].clone()
         };
         assert_eq!(report(&[nature(6.0)]).status, ComplianceStatus::Pass);
         let below = report(&[nature(4.5)]);
@@ -445,6 +487,7 @@ mod tests {
             min_font_pt: Some(7.5),
             min_line_pt: Some(1.0),
             required_font_pt: 7.0,
+            required_line_pt: 0.5,
         };
         let mixed = report(&[nature(6.0), custom]);
         assert_eq!(mixed.status, ComplianceStatus::Warn);
@@ -479,11 +522,12 @@ mod tests {
             min_font_pt: Some(30.0),
             min_line_pt: Some(1.0),
             required_font_pt: 7.0,
+            required_line_pt: 0.5,
         }];
-        let scaled = precheck_report(&metrics, Some(89.0), &thresholds(), ExportFormat::Png, 300);
+        let scaled = precheck_report(&metrics, Some(89.0), ExportFormat::Png, 300);
         assert_eq!(scaled.items[1].status, ComplianceStatus::Fail);
 
-        let natural = precheck_report(&metrics, None, &thresholds(), ExportFormat::Png, 300);
+        let natural = precheck_report(&metrics, None, ExportFormat::Png, 300);
         assert_eq!(natural.items[1].status, ComplianceStatus::Pass);
     }
 
@@ -494,12 +538,13 @@ mod tests {
             min_font_pt: Some(9.0),
             min_line_pt: Some(1.0),
             required_font_pt: 7.0,
+            required_line_pt: 0.5,
         }];
-        let warn = precheck_report(&metrics, None, &thresholds(), ExportFormat::Png, 200);
+        let warn = precheck_report(&metrics, None, ExportFormat::Png, 200);
         assert_eq!(warn.items[2].status, ComplianceStatus::Warn);
-        let fail = precheck_report(&metrics, None, &thresholds(), ExportFormat::Png, 96);
+        let fail = precheck_report(&metrics, None, ExportFormat::Png, 96);
         assert_eq!(fail.items[2].status, ComplianceStatus::Fail);
-        let vector = precheck_report(&metrics, None, &thresholds(), ExportFormat::Svg, 96);
+        let vector = precheck_report(&metrics, None, ExportFormat::Svg, 96);
         assert_eq!(vector.items[2].status, ComplianceStatus::Pass);
     }
 
