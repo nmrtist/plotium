@@ -4,7 +4,7 @@ use crate::{
     TICK_LABEL_PAD, axis_layout, error_bar_segments, heatmap_cells, integral, minor_tick_values,
     polygon_outline, projection_points,
     screen_contours::paint_contours,
-    screen_lod::{line_columns, screen_line_points},
+    screen_lod::{line_columns, scaled_screen_line_points},
 };
 use egui::{Align2, Color32, FontId, Pos2, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure};
@@ -396,6 +396,9 @@ fn paint_with_detail_and_stats_impl(
     crate::screen_annotations::paint_arrows(&clipped, fig, &proj, scale);
     for a in fig.text_annotations() {
         let (px, py) = proj.project(a.at);
+        if !crate::is_finite_point((px, py)) {
+            continue;
+        }
         crate::rich_text::paint(
             &clipped,
             Pos2::new(px, py),
@@ -432,7 +435,7 @@ fn paint_error_bars(
             continue;
         };
         let stroke = Stroke::new(error_bar.width * scale, col(error_bar.color));
-        for [start, end] in segments {
+        for &[start, end] in segments.as_slice() {
             painter.line_segment(
                 [Pos2::new(start.0, start.1), Pos2::new(end.0, end.1)],
                 stroke,

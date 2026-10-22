@@ -48,6 +48,8 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::axis::X_LABEL,
     properties::axis::Y_LABEL,
     properties::axis::FRAME,
+    properties::axis::X_SCALE,
+    properties::axis::Y_SCALE,
     properties::plot_display::X_UNIT,
     properties::plot_display::Y_UNIT,
     properties::plot_display::X_RANGE,

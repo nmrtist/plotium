@@ -7,7 +7,13 @@ pub mod contour;
 mod curve_style;
 pub mod diagnostics;
 pub mod integral;
+mod projected;
 mod reference_lines;
+pub(crate) use projected::{
+    clip_to_plot, error_bar_segments, finite_runs, is_finite_point, range_annotation_xs,
+    stick_segment,
+};
+mod log_ticks;
 pub mod rich_text;
 #[cfg(feature = "screen")]
 mod screen_contour_cache;
@@ -34,7 +40,7 @@ mod screen_raster;
 #[cfg(all(windows, feature = "emf"))]
 pub mod emf;
 
-use plotium_figure::{AxisTrace, Color, ErrorBar, Figure, HeatmapGrid, Polygon};
+use plotium_figure::{AxisTrace, Color, Figure, HeatmapGrid, Polygon};
 use std::sync::Arc;
 
 /// Fraction of the plot dimension reserved for a marginal axis-projection band.
@@ -341,44 +347,6 @@ impl<'a> Projector<'a> {
         let py = self.plot.top + (1.0 - ty) * self.plot.height;
         (px, py)
     }
-}
-
-/// Project one vertical uncertainty whisker into its stem and lower/upper caps.
-/// `output_scale` converts the cap's logical-unit width for zoomed screen output.
-pub(crate) fn error_bar_segments(
-    proj: &Projector<'_>,
-    error_bar: &ErrorBar,
-    output_scale: f32,
-) -> Option<[[(f32, f32); 2]; 3]> {
-    if !error_bar.center[0].is_finite()
-        || !error_bar.center[1].is_finite()
-        || !error_bar.negative.is_finite()
-        || error_bar.negative < 0.0
-        || !error_bar.positive.is_finite()
-        || error_bar.positive < 0.0
-        || !error_bar.width.is_finite()
-        || error_bar.width <= 0.0
-        || !error_bar.cap_width.is_finite()
-        || error_bar.cap_width < 0.0
-        || !output_scale.is_finite()
-        || output_scale <= 0.0
-    {
-        return None;
-    }
-    let x = error_bar.center[0];
-    let low_y = error_bar.center[1] - error_bar.negative;
-    let high_y = error_bar.center[1] + error_bar.positive;
-    if !low_y.is_finite() || !high_y.is_finite() {
-        return None;
-    }
-    let low = proj.project([x, low_y]);
-    let high = proj.project([x, high_y]);
-    let half_cap = error_bar.cap_width * output_scale * 0.5;
-    Some([
-        [low, high],
-        [(low.0 - half_cap, low.1), (low.0 + half_cap, low.1)],
-        [(high.0 - half_cap, high.1), (high.0 + half_cap, high.1)],
-    ])
 }
 
 /// Project a filled polygon's vertices; `None` when degenerate (< 3 points) or

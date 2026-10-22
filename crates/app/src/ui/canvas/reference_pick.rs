@@ -16,25 +16,17 @@ mod tests;
 
 /// Screen-space geometry of the pick target plot: the axis mappings copied out
 /// of the figure so previews and commits share one conversion.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct PickGeometry {
-    xmin: f64,
-    xspan: f64,
-    xrev: bool,
-    ymin: f64,
-    yspan: f64,
-    yrev: bool,
+    x_axis: plotium_figure::Axis,
+    y_axis: plotium_figure::Axis,
 }
 
 impl PickGeometry {
     fn of(figure: &plotium_figure::Figure) -> Self {
         Self {
-            xmin: figure.x.min,
-            xspan: figure.x.span(),
-            xrev: figure.x.reversed,
-            ymin: figure.y.min,
-            yspan: figure.y.span(),
-            yrev: figure.y.reversed,
+            x_axis: figure.x.clone(),
+            y_axis: figure.y.clone(),
         }
     }
 }
@@ -196,7 +188,7 @@ fn picked_position(
 ) -> Option<PickedPosition> {
     match resolved.axis.orient() {
         PhaseOrient::Vertical => {
-            let x = screen_to_x(p.x, plot, geometry.xmin, geometry.xspan, geometry.xrev);
+            let x = from_screen_x(p.x, plot, &geometry.x_axis);
             let trace = app
                 .doc
                 .datasets
@@ -204,10 +196,10 @@ fn picked_position(
                 .and_then(|dataset| dataset.displayed_trace(None));
             match trace {
                 Some(trace) => {
-                    let snap = super::peaks::manual_peak_snap(shift, geometry.xspan, plot.width);
+                    let snap = super::peaks::manual_peak_snap(shift, plot, &geometry.x_axis, p.x);
                     let (px, py) = trace.pick(x, snap);
-                    let sx = x_to_screen(px, plot, geometry.xmin, geometry.xspan, geometry.xrev);
-                    let sy = y_to_screen(py, plot, geometry.ymin, geometry.yspan, geometry.yrev);
+                    let sx = to_screen_x(px, plot, &geometry.x_axis);
+                    let sy = to_screen_y(py, plot, &geometry.y_axis);
                     Some(PickedPosition {
                         ppm: px,
                         line_px: sx,
@@ -222,7 +214,7 @@ fn picked_position(
             }
         }
         PhaseOrient::Horizontal => Some(PickedPosition {
-            ppm: screen_to_y(p.y, plot, geometry.ymin, geometry.yspan, geometry.yrev),
+            ppm: from_screen_y(p.y, plot, &geometry.y_axis),
             line_px: p.y,
             apex: None,
         }),

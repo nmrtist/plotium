@@ -19,10 +19,10 @@ pub(super) fn paint(
     }
     if series.kind == SeriesKind::Line && series.points.len() >= 2 {
         let columns = line_columns(detail, proj.plot.width, painter.ctx().pixels_per_point());
-        let visible = screen_line_points(
+        let visible = scaled_screen_line_points(
             &series.points,
-            proj.fig.x.min.min(proj.fig.x.max),
-            proj.fig.x.min.max(proj.fig.x.max),
+            &proj.fig.x,
+            !proj.fig.y.effective_scale().is_linear(),
             columns,
         );
         if let Some(stats) = stats {
@@ -34,14 +34,19 @@ pub(super) fn paint(
             );
         }
         let pts: Vec<_> = visible.points.iter().map(|p| proj.project(*p)).collect();
-        stroke(painter, &pts, series, scale, proj.plot);
+        for run in crate::finite_runs(&pts).filter(|run| run.len() >= 2) {
+            stroke(painter, run, series, scale, proj.plot);
+        }
     }
     let marker = series.appearance.marker(series.kind);
     if marker != Marker::None {
         let r = series.appearance.marker_radius(series.width) * scale;
         let paint = MarkerPaint::new(series.appearance, series.color, series.width).scaled(scale);
         for p in &series.points {
-            marker_at(painter, proj.project(*p), marker, r, &paint);
+            let p = proj.project(*p);
+            if crate::is_finite_point(p) {
+                marker_at(painter, p, marker, r, &paint);
+            }
         }
     }
 }

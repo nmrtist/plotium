@@ -11,8 +11,9 @@ pub(crate) fn paint(
     scale: f32,
 ) {
     for annotation in &figure.range_annotations {
-        let (x0, _) = projector.project([annotation.x0, figure.y.min]);
-        let (x1, _) = projector.project([annotation.x1, figure.y.min]);
+        let Some((x0, x1)) = crate::range_annotation_xs(projector, annotation) else {
+            continue;
+        };
         let rect = egui::Rect::from_min_max(
             Pos2::new(x0.min(x1), plot.top),
             Pos2::new(x0.max(x1), plot.bottom()),

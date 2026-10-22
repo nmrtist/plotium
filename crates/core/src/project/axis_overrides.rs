@@ -3,7 +3,8 @@ use crate::state::{
     AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations, PlotArrow, PlotReferenceLine,
 };
 use plotium_figure::{
-    AxisFrame, GuideLayout, GuidePlacement, GuideVisibility, LineStyle, ReferenceOrientation,
+    AxisFrame, AxisScale, GuideLayout, GuidePlacement, GuideVisibility, LineStyle,
+    ReferenceOrientation,
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +28,10 @@ pub struct AxisOverridesDto {
     lock_aspect: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     axis_frame: Option<AxisFrame>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    x_scale: Option<AxisScale>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y_scale: Option<AxisScale>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     x_show_tick_labels: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -209,6 +214,8 @@ impl AxisOverridesDto {
             y_range: overrides.y_range.map(RangeDto::from_range),
             lock_aspect: overrides.lock_aspect,
             axis_frame: overrides.axis_frame,
+            x_scale: overrides.x_scale,
+            y_scale: overrides.y_scale,
             x_show_tick_labels: overrides.x_show_tick_labels,
             x_show_label: overrides.x_show_label,
             y_show_tick_labels: overrides.y_show_tick_labels,
@@ -235,6 +242,8 @@ impl AxisOverridesDto {
             y_range: self.y_range.map(RangeDto::into_range),
             lock_aspect: self.lock_aspect,
             axis_frame: self.axis_frame,
+            x_scale: self.x_scale,
+            y_scale: self.y_scale,
             x_show_tick_labels: self.x_show_tick_labels,
             x_show_label: self.x_show_label,
             y_show_tick_labels: self.y_show_tick_labels,
@@ -295,6 +304,20 @@ mod tests {
         let json = serde_json::to_string(&dto).expect("serializes");
         assert!(json.contains("\"y_thousands_separator\":true"));
         assert!(!json.contains("x_thousands_separator"));
+        let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
+        assert_eq!(restored.to_overrides(), overrides);
+    }
+
+    #[test]
+    fn scale_overrides_round_trip_through_the_project_format() {
+        let overrides = AxisOverrides {
+            x_scale: Some(AxisScale::Linear),
+            y_scale: Some(AxisScale::Log10),
+            ..AxisOverrides::default()
+        };
+        let dto = AxisOverridesDto::from_overrides(&overrides).expect("scale override is stored");
+        let json = serde_json::to_string(&dto).expect("serializes");
+        assert!(json.contains(r#""y_scale":"log10""#));
         let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(restored.to_overrides(), overrides);
     }

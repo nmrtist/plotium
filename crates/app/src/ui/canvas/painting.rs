@@ -106,20 +106,8 @@ pub(crate) fn paint_analysis_selection(
         return;
     };
     let fig = plot_object.figure();
-    let x0 = x_to_screen(
-        selection.x_range.min,
-        plot,
-        fig.x.min,
-        fig.x.span(),
-        fig.x.reversed,
-    );
-    let x1 = x_to_screen(
-        selection.x_range.max,
-        plot,
-        fig.x.min,
-        fig.x.span(),
-        fig.x.reversed,
-    );
+    let x0 = to_screen_x(selection.x_range.min, plot, &fig.x);
+    let x1 = to_screen_x(selection.x_range.max, plot, &fig.x);
     let r = EguiRect::from_min_max(
         Pos2::new(x0.min(x1), plot.top),
         Pos2::new(x0.max(x1), plot.bottom()),
@@ -175,8 +163,8 @@ pub(crate) fn paint_regions(
         if selected != Some(region.id) {
             continue;
         }
-        let x0 = x_to_screen(region.lo, plot, fig.x.min, fig.x.span(), fig.x.reversed);
-        let x1 = x_to_screen(region.hi, plot, fig.x.min, fig.x.span(), fig.x.reversed);
+        let x0 = to_screen_x(region.lo, plot, &fig.x);
+        let x1 = to_screen_x(region.hi, plot, &fig.x);
         let r = EguiRect::from_min_max(
             Pos2::new(x0.min(x1), plot.top),
             Pos2::new(x0.max(x1), plot.bottom()),
@@ -209,20 +197,8 @@ pub(crate) fn paint_regions(
         && drag.canvas == ci
         && drag.kind == RegionDragKind::NewBand
     {
-        let x0 = x_to_screen(
-            drag.anchor_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
-        let x1 = x_to_screen(
-            drag.current_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
+        let x0 = to_screen_x(drag.anchor_ppm, plot, &fig.x);
+        let x1 = to_screen_x(drag.current_ppm, plot, &fig.x);
         let r = EguiRect::from_min_max(
             Pos2::new(x0.min(x1), plot.top),
             Pos2::new(x0.max(x1), plot.bottom()),
@@ -264,20 +240,8 @@ pub(crate) fn paint_craft_regions(
     let dataset_id = app.doc.datasets[dataset].resource_id();
     let regions = craft_preview_regions(app, dataset_id);
     for (index, region) in regions.iter().enumerate() {
-        let x0 = x_to_screen(
-            region.start_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
-        let x1 = x_to_screen(
-            region.end_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
+        let x0 = to_screen_x(region.start_ppm, plot, &fig.x);
+        let x1 = to_screen_x(region.end_ppm, plot, &fig.x);
         let rect = EguiRect::from_min_max(
             Pos2::new(x0.min(x1), plot.top),
             Pos2::new(x0.max(x1), plot.bottom()),
@@ -322,13 +286,7 @@ pub(crate) fn paint_craft_regions(
         return;
     };
     for signal in &cache.invocation.assessment.clear_signals {
-        let x = x_to_screen(
-            signal.chemical_shift_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
+        let x = to_screen_x(signal.chemical_shift_ppm, plot, &fig.x);
         if x < plot.left || x > plot.right() {
             continue;
         }
@@ -354,13 +312,7 @@ pub(crate) fn paint_craft_regions(
     });
     let mut labelled_x = Vec::<f32>::new();
     for signal in prioritized {
-        let x = x_to_screen(
-            signal.chemical_shift_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
+        let x = to_screen_x(signal.chemical_shift_ppm, plot, &fig.x);
         if x >= plot.left
             && x <= plot.right()
             && labelled_x
@@ -387,13 +339,7 @@ pub(crate) fn paint_craft_regions(
             .clear_signals
             .iter()
             .map(|signal| {
-                let x = x_to_screen(
-                    signal.chemical_shift_ppm,
-                    plot,
-                    fig.x.min,
-                    fig.x.span(),
-                    fig.x.reversed,
-                );
+                let x = to_screen_x(signal.chemical_shift_ppm, plot, &fig.x);
                 (signal, (x - pointer.x).abs())
             })
             .filter(|(_, distance)| *distance <= 8.0)
@@ -441,14 +387,8 @@ pub(crate) fn paint_integrals(
             .map(|position| position.x)
     });
     for integ in &n.integrals {
-        let x0 = x_to_screen(
-            integ.start_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
-        let x1 = x_to_screen(integ.end_ppm, plot, fig.x.min, fig.x.span(), fig.x.reversed);
+        let x0 = to_screen_x(integ.start_ppm, plot, &fig.x);
+        let x1 = to_screen_x(integ.end_ppm, plot, &fig.x);
         let r = EguiRect::from_min_max(
             Pos2::new(x0.min(x1), plot.top),
             Pos2::new(x0.max(x1), plot.bottom()),
@@ -492,20 +432,8 @@ pub(crate) fn paint_integrals(
         && drag.canvas == ci
         && drag.kind == RegionDragKind::NewBand
     {
-        let x0 = x_to_screen(
-            drag.anchor_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
-        let x1 = x_to_screen(
-            drag.current_ppm,
-            plot,
-            fig.x.min,
-            fig.x.span(),
-            fig.x.reversed,
-        );
+        let x0 = to_screen_x(drag.anchor_ppm, plot, &fig.x);
+        let x1 = to_screen_x(drag.current_ppm, plot, &fig.x);
         let r = EguiRect::from_min_max(
             Pos2::new(x0.min(x1), plot.top),
             Pos2::new(x0.max(x1), plot.bottom()),
@@ -562,8 +490,8 @@ pub(crate) fn paint_peaks(
         }
         _ => None,
     };
-    let sy = |v: f64| y_to_screen(v, plot, fig.y.min, fig.y.span(), fig.y.reversed);
-    let sx = |v: f64| x_to_screen(v, plot, fig.x.min, fig.x.span(), fig.x.reversed);
+    let sy = |v: f64| to_screen_y(v, plot, &fig.y);
+    let sx = |v: f64| to_screen_x(v, plot, &fig.x);
     // Confine every marker, ring, line and preview to the plot box so nothing spills
     // into the axes or margins when the view is zoomed in.
     let painter = painter.with_clip_rect(plot_rect(plot));
@@ -648,10 +576,10 @@ pub(crate) fn paint_peaks(
     if near_marker || on_line {
         return;
     }
-    let hover_x = screen_to_x(hp.x, plot, fig.x.min, fig.x.span(), fig.x.reversed);
+    let hover_x = from_screen_x(hp.x, plot, &fig.x);
     // The preview must resolve exactly as the click would, modifier included.
     let shift = painter.ctx().input(|i| i.modifiers.shift);
-    let snap = super::peaks::manual_peak_snap(shift, fig.x.span(), plot.width);
+    let snap = super::peaks::manual_peak_snap(shift, plot, &fig.x, hp.x);
     let (px, py) = trace.pick(hover_x, snap);
     let at = Pos2::new(sx(px), sy(py));
     if plot_contains(plot, at) {

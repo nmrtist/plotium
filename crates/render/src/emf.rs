@@ -463,8 +463,9 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
             dc.polygon(&outline, Some(fill), poly.stroke);
         }
         for annotation in &fig.range_annotations {
-            let (x0, _) = proj.project([annotation.x0, fig.y.min]);
-            let (x1, _) = proj.project([annotation.x1, fig.y.min]);
+            let Some((x0, x1)) = crate::range_annotation_xs(&proj, annotation) else {
+                continue;
+            };
             let rect = Rect::new(x0.min(x1), plot.top, (x1 - x0).abs(), plot.height);
             let fill = blend(
                 annotation.color,
@@ -523,6 +524,9 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
         arrows::write(dc, &proj, fig);
         for a in fig.text_annotations() {
             let (px, py) = proj.project(a.at);
+            if !crate::is_finite_point((px, py)) {
+                continue;
+            }
             dc.text(
                 &a.text,
                 (px, py),
@@ -548,7 +552,7 @@ fn write_error_bars(dc: &mut Dc, fig: &Figure, proj: &Projector<'_>, draw_over_d
             continue;
         }
         if let Some(segments) = error_bar_segments(proj, error_bar, 1.0) {
-            dc.segments(&segments, error_bar.color, error_bar.width);
+            dc.segments(segments.as_slice(), error_bar.color, error_bar.width);
         }
     }
 }

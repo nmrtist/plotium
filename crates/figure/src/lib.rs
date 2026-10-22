@@ -1,8 +1,10 @@
 //! Figure model: a pure-data description of what to draw, in data-space
 //! coordinates. Both renderers (egui screen, SVG export) consume this model.
 
+mod axis_scale;
 mod colormap;
 mod display;
+pub use axis_scale::AxisScale;
 mod encoding;
 mod reference_line;
 mod typeface;
@@ -194,6 +196,8 @@ pub struct Axis {
     /// conventionally `[-0.5, n - 0.5]` so slots get equal half-unit padding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub categories: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "AxisScale::is_linear")]
+    pub scale: AxisScale,
 }
 
 impl Axis {
@@ -208,6 +212,7 @@ impl Axis {
             max,
             reversed: false,
             categories: None,
+            scale: AxisScale::Linear,
         }
     }
 
@@ -225,6 +230,7 @@ impl Axis {
             max: n - 0.5,
             reversed: false,
             categories: Some(names),
+            scale: AxisScale::Linear,
         }
     }
 
@@ -239,10 +245,47 @@ impl Axis {
         if s == 0.0 { 1.0 } else { s }
     }
 
-    /// Map a value to a normalized `[0,1]` position, honoring `reversed`.
+    /// The scale positions are drawn with. A log axis whose window is not
+    /// strictly positive has no finite log positions and draws linearly; range
+    /// edits reject such windows before they reach a figure.
+    pub fn effective_scale(&self) -> AxisScale {
+        if self.scale.supports_range(self.min, self.max) {
+            self.scale
+        } else {
+            AxisScale::Linear
+        }
+    }
+
+    /// Map a value to a normalized `[0,1]` position, honoring `reversed` and
+    /// the axis scale. Values without a position on a log axis come back
+    /// non-finite.
     pub fn normalize(&self, v: f64) -> f64 {
-        let t = (v - self.min) / self.span();
+        let t = match self.effective_scale() {
+            AxisScale::Linear => (v - self.min) / self.span(),
+            scale => {
+                let (lo, span) = self.transformed_window(scale);
+                (scale.forward(v) - lo) / span
+            }
+        };
         if self.reversed { 1.0 - t } else { t }
+    }
+
+    /// The value at a normalized position; the inverse of [`Axis::normalize`].
+    pub fn value_at(&self, n: f64) -> f64 {
+        let t = if self.reversed { 1.0 - n } else { n };
+        match self.effective_scale() {
+            AxisScale::Linear => self.min + t * self.span(),
+            scale => {
+                let (lo, span) = self.transformed_window(scale);
+                scale.inverse(lo + t * span)
+            }
+        }
+    }
+
+    fn transformed_window(&self, scale: AxisScale) -> (f64, f64) {
+        let lo = scale.forward(self.min);
+        let span = scale.forward(self.max) - lo;
+        (lo, if span == 0.0 { 1.0 } else { span })
     }
 }
 

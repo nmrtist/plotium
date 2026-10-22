@@ -153,10 +153,7 @@ pub(crate) fn handle_craft_region_drag(
         regions
             .iter()
             .map(|region| (region.id, region.start_ppm, region.end_ppm)),
-        plot,
-        xmin,
-        xspan,
-        xrev,
+        |v| x_to_screen(v, plot, xmin, xspan, xrev),
         pointer.x,
     );
     match hit {

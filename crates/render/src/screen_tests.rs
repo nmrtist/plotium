@@ -317,3 +317,39 @@ fn render_stats(
     });
     stats
 }
+
+#[test]
+fn log_x_pooling_keeps_detail_in_the_low_decades() {
+    let points: Vec<[f64; 2]> = (10..=100_000)
+        .map(|i| [f64::from(i) * 0.1, (f64::from(i) * 0.37).sin().abs() + 1.0])
+        .collect();
+    let mut x = plotium_figure::Axis::new("x", 1.0, 10_000.0);
+    x.scale = plotium_figure::AxisScale::Log10;
+    let drawn = crate::screen_lod::scaled_screen_line_points(&points, &x, false, 1_000);
+    assert!(drawn.pooled);
+    // The first decade holds 90 samples across a quarter of the columns.
+    let first_decade = drawn.points.iter().filter(|p| p[0] < 10.0).count();
+    assert!(first_decade >= 90, "{first_decade}");
+    assert!(drawn.points.len() <= 2 * 1_000 + 2);
+}
+
+#[test]
+fn log_y_pooling_ignores_samples_without_a_position() {
+    let points: Vec<[f64; 2]> = (0..10_000)
+        .map(|i| {
+            [
+                f64::from(i),
+                if i % 2 == 0 {
+                    0.0
+                } else {
+                    5.0 + f64::from(i % 7)
+                },
+            ]
+        })
+        .collect();
+    let x = plotium_figure::Axis::new("x", 0.0, 10_000.0);
+    let drawn = crate::screen_lod::scaled_screen_line_points(&points, &x, true, 100);
+    assert!(drawn.pooled);
+    let interior = &drawn.points[1..drawn.points.len() - 1];
+    assert!(interior.iter().all(|p| p[1] > 0.0));
+}

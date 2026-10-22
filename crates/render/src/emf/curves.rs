@@ -7,12 +7,16 @@ pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     }
     let points: Vec<_> = series.points.iter().map(|p| proj.project(*p)).collect();
     match series.kind {
-        SeriesKind::Line if points.len() >= 2 => stroke(dc, &points, series, proj.plot),
+        SeriesKind::Line => {
+            for run in crate::finite_runs(&points).filter(|run| run.len() >= 2) {
+                stroke(dc, run, series, proj.plot);
+            }
+        }
         SeriesKind::Stick => {
             let segments = series
                 .points
                 .iter()
-                .map(|p| [proj.project([p[0], 0.]), proj.project(*p)])
+                .filter_map(|p| crate::stick_segment(proj, *p))
                 .collect::<Vec<_>>();
             dc.segments(&segments, series.color, series.width);
             return;
@@ -23,7 +27,7 @@ pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     if marker != Marker::None {
         let paint = MarkerPaint::new(series.appearance, series.color, series.width);
         let r = series.appearance.marker_radius(series.width);
-        for p in points {
+        for p in points.into_iter().filter(|p| crate::is_finite_point(*p)) {
             marker_at(dc, p, marker, r, &paint);
         }
     }

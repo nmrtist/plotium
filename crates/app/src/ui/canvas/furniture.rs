@@ -181,20 +181,8 @@ fn furniture_hit(
             continue;
         };
         for annotation in figure.range_annotations.iter().rev() {
-            let x0 = x_to_screen(
-                annotation.x0,
-                plot,
-                figure.x.min,
-                figure.x.span(),
-                figure.x.reversed,
-            );
-            let x1 = x_to_screen(
-                annotation.x1,
-                plot,
-                figure.x.min,
-                figure.x.span(),
-                figure.x.reversed,
-            );
+            let x0 = to_screen_x(annotation.x0, plot, &figure.x);
+            let x1 = to_screen_x(annotation.x1, plot, &figure.x);
             let Some(layout) = plotium_render::range_label_layout(
                 plot,
                 x0.min(x1),

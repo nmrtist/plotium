@@ -247,6 +247,10 @@ mod apodization_tests;
 mod axis_tests;
 
 #[cfg(test)]
+#[path = "axis_scale_tests.rs"]
+mod axis_scale_tests;
+
+#[cfg(test)]
 #[path = "object_tests.rs"]
 mod object_tests;
 

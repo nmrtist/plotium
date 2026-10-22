@@ -42,6 +42,8 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
             x_thousands_separator: Some(true),
             y_thousands_separator: Some(true),
             axis_frame: Some(plotium_figure::AxisFrame::Open),
+            x_scale: Some(plotium_figure::AxisScale::Linear),
+            y_scale: Some(plotium_figure::AxisScale::Linear),
             guide_visibility: Some(plotium_figure::GuideVisibility::Hide),
             guide_placement: Some(plotium_figure::GuidePlacement::OutsideRight),
             guide_layout: Some(plotium_figure::GuideLayout::Horizontal),
@@ -80,6 +82,12 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
         }),
         (axis::FRAME, |value: &AxisOverrides| {
             value.axis_frame.is_none()
+        }),
+        (axis::X_SCALE, |value: &AxisOverrides| {
+            value.x_scale.is_none()
+        }),
+        (axis::Y_SCALE, |value: &AxisOverrides| {
+            value.y_scale.is_none()
         }),
         (guide::VISIBILITY, |value: &AxisOverrides| {
             value.guide_visibility.is_none()
