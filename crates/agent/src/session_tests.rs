@@ -104,6 +104,52 @@ fn axis_strokes_and_tick_marks_are_settable() {
     assert_eq!(typography.minor_ticks, 1);
 }
 #[test]
+fn figure_font_and_weight_are_settable() {
+    let mut app = app();
+    let mut session = Session::default();
+    session.allow_modify = true;
+    for (key, value) in [
+        ("document.figure.typography.typeface", "times_new_roman"),
+        ("document.figure.typography.font_weight", "bold"),
+    ] {
+        let p = plan(
+            &mut session,
+            &mut app,
+            "properties.set",
+            json!({"key": key, "value": value}),
+            json!(["document"]),
+        )
+        .unwrap();
+        execute(&mut session, &mut app, &p).unwrap();
+    }
+    let typography = app.doc.style_library.figure_typography;
+    assert_eq!(json!(typography.typeface), json!("times_new_roman"));
+    assert_eq!(json!(typography.font_weight), json!("bold"));
+    let p = plan(
+        &mut session,
+        &mut app,
+        "properties.set",
+        json!({"key": "document.figure.typography.typeface", "value": "helvetica"}),
+        json!(["document"]),
+    )
+    .unwrap();
+    execute(&mut session, &mut app, &p).unwrap();
+    assert_eq!(
+        json!(app.doc.style_library.figure_typography.typeface),
+        json!("helvetica")
+    );
+    assert!(
+        plan(
+            &mut session,
+            &mut app,
+            "properties.set",
+            json!({"key": "document.figure.typography.typeface", "value": "comic_sans"}),
+            json!(["document"]),
+        )
+        .is_err()
+    );
+}
+#[test]
 fn manual_edit_undo_delete_and_permission_revocation_block_old_plans() {
     let mut app = app();
     let mut session = Session::default();

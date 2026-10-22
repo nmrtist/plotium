@@ -92,6 +92,7 @@ pub fn export_document_emf(doc: &Document<'_>) -> Result<Vec<u8>, EmfError> {
                 pens: HashMap::new(),
                 brushes: HashMap::new(),
                 fonts: HashMap::new(),
+                plot_text: Default::default(),
             };
             dc.rect(Rect::new(0.0, 0.0, w, h), Some(doc.background), None);
             for item in &doc.items {
@@ -285,6 +286,13 @@ fn write_overlay(dc: &mut Dc, overlay: &DocumentOverlay<'_>) {
 }
 
 fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) {
+    // Like the SVG plot group, all plot text takes the figure face.
+    dc.plot_text = (fig.typography.typeface, fig.typography.font_weight);
+    write_figure_content(dc, fig, outer, y_title_clearance);
+    dc.plot_text = Default::default();
+}
+
+fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) {
     let ty = fig.typography;
     let layout = axis_layout(fig, outer.width, outer.height);
     let margins = layout.margins;

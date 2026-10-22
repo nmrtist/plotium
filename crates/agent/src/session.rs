@@ -33,6 +33,8 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::typography::TICK_LENGTH_PT,
     properties::typography::TICK_DIRECTION,
     properties::typography::MINOR_TICKS,
+    properties::typography::TYPEFACE,
+    properties::typography::FONT_WEIGHT,
     properties::line_display::COLOR,
     properties::line_display::LABEL,
     properties::line_display::STYLE,

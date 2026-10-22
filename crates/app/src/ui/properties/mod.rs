@@ -330,6 +330,8 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         canvas_step: false,
         uses_canvas_length_unit: false,
     },
+    typography_entry(typography::TYPEFACE, "Font", &[]),
+    typography_entry(typography::FONT_WEIGHT, "Font weight", &[]),
     typography_entry(
         typography::TICK_PT,
         "Tick-label size",

@@ -1,6 +1,6 @@
 use super::col;
 use crate::{Rect, color_scale_rect};
-use egui::{Align2, FontId, Pos2, Stroke, StrokeKind, Vec2};
+use egui::{Align2, Pos2, Stroke, StrokeKind, Vec2};
 use plotium_figure::{Color, Figure};
 
 pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f32) {
@@ -35,7 +35,7 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
         Stroke::new(0.75 * scale, col(Color::AXIS)),
         StrokeKind::Inside,
     );
-    let font = FontId::proportional(fig.typography.legend_pt * scale);
+    let font = crate::rich_text::plot_font(fig.typography.legend_pt * scale, &fig.typography);
     let [min, max] = heatmap.value_range;
     let text_color = col(fig.typography.legend_color);
     if horizontal {

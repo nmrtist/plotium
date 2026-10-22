@@ -3,6 +3,10 @@
 //! are drawn the same way, so every label gets true scripts set in the
 //! figure's own font instead of whatever glyphs a fallback font supplies.
 
+#[cfg(feature = "screen")]
+use plotium_figure::FigureTypography;
+use plotium_figure::{FontWeight, Typeface};
+
 /// Distance from a line's visual middle down to its alphabetic baseline, in
 /// ems. SVG text is placed on the baseline instead of using
 /// `dominant-baseline`, which rescales script runs and is ignored by many
@@ -17,6 +21,39 @@ pub const SVG_FONT_FAMILY: &str = "Arial, Helvetica, sans-serif";
 /// egui family the app registers with Arial (or Helvetica) first, so figure
 /// text on the canvas matches the exported typeface.
 pub const FIGURE_FONT_FAMILY: &str = "plotium-figure";
+
+/// SVG font stack for plot text set in `typeface`. Each stack ends in the
+/// generic family that export maps to an installed substitute.
+pub fn svg_font_family(typeface: Typeface) -> &'static str {
+    match typeface {
+        Typeface::Arial => SVG_FONT_FAMILY,
+        Typeface::Helvetica => "Helvetica, Arial, sans-serif",
+        Typeface::TimesNewRoman => "'Times New Roman', Times, serif",
+    }
+}
+
+/// egui family the app registers for one typeface and weight of plot text.
+pub fn figure_font_family(typeface: Typeface, weight: FontWeight) -> &'static str {
+    match (typeface, weight) {
+        (Typeface::Arial, FontWeight::Regular) => "plotium-figure-arial",
+        (Typeface::Arial, FontWeight::Bold) => "plotium-figure-arial-bold",
+        (Typeface::Helvetica, FontWeight::Regular) => "plotium-figure-helvetica",
+        (Typeface::Helvetica, FontWeight::Bold) => "plotium-figure-helvetica-bold",
+        (Typeface::TimesNewRoman, FontWeight::Regular) => "plotium-figure-times",
+        (Typeface::TimesNewRoman, FontWeight::Bold) => "plotium-figure-times-bold",
+    }
+}
+
+/// Font for plot text of `size` in the figure's typeface and weight.
+#[cfg(feature = "screen")]
+pub(crate) fn plot_font(size: f32, typography: &FigureTypography) -> egui::FontId {
+    egui::FontId::new(
+        size,
+        egui::FontFamily::Name(
+            figure_font_family(typography.typeface, typography.font_weight).into(),
+        ),
+    )
+}
 
 /// Script size relative to the surrounding text.
 pub const SCRIPT_SCALE: f32 = 0.7;
@@ -255,19 +292,29 @@ pub(crate) fn galley(
     painter.layout_job(job)
 }
 
-/// Swap the default proportional family for the figure family when the host
-/// registered one; headless and test contexts keep the egui default.
+/// Resolve figure families to ones the host registered: a plot face falls
+/// back to the default figure family, and that to the egui proportional
+/// default, which headless and test contexts keep.
 #[cfg(feature = "screen")]
 fn figure_font(painter: &egui::Painter, font: egui::FontId) -> egui::FontId {
-    if font.family != egui::FontFamily::Proportional {
-        return font;
-    }
-    let family = egui::FontFamily::Name(FIGURE_FONT_FAMILY.into());
-    if painter.fonts(|fonts| fonts.definitions().families.contains_key(&family)) {
-        egui::FontId::new(font.size, family)
-    } else {
-        font
-    }
+    let default = egui::FontFamily::Name(FIGURE_FONT_FAMILY.into());
+    let candidates = match &font.family {
+        egui::FontFamily::Proportional => [None, Some(default)],
+        egui::FontFamily::Name(name) if name.starts_with(FIGURE_FONT_FAMILY) => {
+            [Some(font.family.clone()), Some(default)]
+        }
+        _ => return font,
+    };
+    let registered = painter.fonts(|fonts| {
+        candidates
+            .into_iter()
+            .flatten()
+            .find(|family| fonts.definitions().families.contains_key(family))
+    });
+    egui::FontId::new(
+        font.size,
+        registered.unwrap_or(egui::FontFamily::Proportional),
+    )
 }
 
 /// Like `Painter::text`, with super- and subscripts.

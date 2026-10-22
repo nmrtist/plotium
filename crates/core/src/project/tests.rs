@@ -288,6 +288,8 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
         tick_length_pt: 2.25,
         tick_direction: plotium_figure::TickDirection::In,
         minor_ticks: 4,
+        typeface: plotium_figure::Typeface::TimesNewRoman,
+        font_weight: plotium_figure::FontWeight::Bold,
     };
     app.set_figure_typography_value(custom_typography);
     let path = temp_project("roundtrip");
