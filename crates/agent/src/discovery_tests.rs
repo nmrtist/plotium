@@ -202,3 +202,28 @@ fn static_definitions_and_connection_gate_are_the_same_supported_subset() {
         assert_eq!(s.call(&mut app,"plotium_plan",json!({"expected_project_context":context,"expected_revision":revision,"ids":["document"],"tool_id":operation,"parameters":{}})).unwrap_err().code,"unsupported_operation");
     }
 }
+#[test]
+fn static_catalog_states_colour_format_and_every_unit_code() {
+    let catalog = property_catalog();
+    let row = |id: &str| {
+        catalog["properties"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == id)
+            .unwrap_or_else(|| panic!("{id} is in the catalog"))
+            .clone()
+    };
+    assert_eq!(
+        row("series.line.color")["schema"],
+        json!({"type":"color","format":"#rrggbb"})
+    );
+    let registry = plotium_core::data::UnitRegistry::plotium_v1();
+    let expected: Vec<_> = registry.codes().collect();
+    for id in ["object.axes.x_display_unit", "object.axes.y_display_unit"] {
+        let schema = row(id)["schema"].clone();
+        assert_eq!(schema["type"], "unit_code");
+        assert_eq!(schema["codes"], json!(expected), "{id}");
+    }
+    assert!(expected.contains(&"ppm") && expected.contains(&"ms"));
+}

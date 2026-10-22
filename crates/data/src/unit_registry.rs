@@ -68,6 +68,11 @@ impl UnitRegistry {
         })
     }
 
+    /// Every registered code, in code order.
+    pub fn codes(&self) -> impl Iterator<Item = &str> {
+        self.units.keys().map(String::as_str)
+    }
+
     pub fn compatible_codes(&self, source: &UnitSpec) -> Vec<&str> {
         self.units
             .iter()

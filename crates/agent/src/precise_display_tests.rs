@@ -76,12 +76,12 @@ fn r6_session_discovery_target_validation_permissions_revision_and_batch_undo() 
             json!({"expected_project_context":context,"expected_revision":rev,"ids":[object],"key":"object.axes.y_display_unit"}),
         )
         .unwrap();
-    assert!(
-        details["value"]["readings"][0]["schema"]["codes"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("A"))
-    );
+    let codes = details["value"]["readings"][0]["schema"]["codes"]
+        .as_array()
+        .unwrap();
+    assert!(codes.contains(&json!("A")) && codes.contains(&json!("nA")));
+    // The static catalog lists every code; a target narrows it to compatible ones.
+    assert!(!codes.contains(&json!("ms")), "{codes:?}");
     assert_eq!(
         plan(
             &mut app,
