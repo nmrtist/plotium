@@ -435,7 +435,8 @@ What you control directly:
   (89, 136 or 183 mm wide) adds a note to the status bar naming those widths;
   the canvas keeps its size. The
   line widths and marker sizes stay when you switch to a theme that does not
-  set them.
+  set them. Curve and marker colours you set by hand are kept when a theme is
+  re-applied; resetting a curve's colour returns it to theme colours.
 - **Save Canvas Style…** (View ▸ Canvas Theme, or **Save Style** in the
   Figure Ribbon tab's Style group) saves the active canvas's look as a named
   style: background, text colour and size, figure typography (including the

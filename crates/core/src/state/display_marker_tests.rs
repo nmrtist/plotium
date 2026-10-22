@@ -1,12 +1,19 @@
 //! Marker fill and outline are per-curve overrides of the curve colour.
 use super::*;
 use crate::properties::{Availability, line_display};
+use crate::theme::Theme;
 
 fn appearance(app: &PlotiumApp, series: usize) -> plotium_figure::CurveAppearance {
     let SeriesEncoding::Line(line) = &plot(app, 0).binding.series[series].encoding else {
         panic!()
     };
     line.appearance
+}
+fn line(app: &PlotiumApp, series: usize) -> plotium_figure::LineEncoding {
+    let SeriesEncoding::Line(line) = &plot(app, 0).binding.series[series].encoding else {
+        panic!()
+    };
+    line.clone()
 }
 fn value(app: &PlotiumApp, target: &TargetRef, key: properties::PropertyId) -> PropertyValue {
     let resolved = app
@@ -201,4 +208,66 @@ fn hollow_markers_keep_an_outline_and_their_fill_setting() {
         Some(Color::rgb(0xf2, 0xd7, 0x97))
     );
     assert_eq!(filled.marker_edge(Color::BLACK), None);
+}
+
+#[test]
+fn hand_chosen_colours_lock_the_curve_against_rethemes() {
+    let mut app = fixture();
+    app.session.active_canvas = Some(0);
+    let a = target(&app, 0, 0);
+    // Resetting a marker colour is not a colour choice and leaves the curve unlocked.
+    for key in [line_display::MARKER_FILL, line_display::MARKER_EDGE_COLOR] {
+        let reset = app
+            .plan_property_reset(key, std::slice::from_ref(&a))
+            .unwrap();
+        app.commit_property(reset);
+        assert!(!line(&app, 0).color_locked);
+    }
+    let chosen = Color::rgb(0xe6, 0x9f, 0x00);
+    let fill = Color::rgb(0xf2, 0xd7, 0x97);
+    write(
+        &mut app,
+        line_display::COLOR,
+        PropertyValue::Color(chosen),
+        std::slice::from_ref(&a),
+    );
+    assert!(line(&app, 0).color_locked);
+    write(
+        &mut app,
+        line_display::MARKER_FILL,
+        PropertyValue::Color(fill),
+        std::slice::from_ref(&a),
+    );
+    let before = plot(&app, 0).binding.series.clone();
+    let nature = Theme::by_id("nature").unwrap();
+
+    app.apply_theme(&nature);
+
+    assert_eq!(line(&app, 0).color.resolve(), chosen);
+    assert_eq!(line(&app, 0).appearance.marker_fill, Some(fill));
+    assert_eq!(line(&app, 1).color.resolve(), nature.trace_palette[1]);
+    app.undo();
+    assert_eq!(plot(&app, 0).binding.series, before);
+
+    // Dropping a marker override keeps the lock; resetting the colour releases it.
+    let reset = app
+        .plan_property_reset(line_display::MARKER_FILL, std::slice::from_ref(&a))
+        .unwrap();
+    app.commit_property(reset);
+    assert!(line(&app, 0).color_locked);
+    let reset = app
+        .plan_property_reset(line_display::COLOR, std::slice::from_ref(&a))
+        .unwrap();
+    app.commit_property(reset);
+    assert!(!line(&app, 0).color_locked);
+    app.apply_theme(&nature);
+    assert_eq!(line(&app, 0).color.resolve(), nature.trace_palette[0]);
+
+    write(
+        &mut app,
+        line_display::MARKER_EDGE_COLOR,
+        PropertyValue::Color(fill),
+        std::slice::from_ref(&a),
+    );
+    assert!(line(&app, 0).color_locked);
 }
