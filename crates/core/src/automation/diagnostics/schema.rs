@@ -23,9 +23,18 @@ pub enum DiagnosticCheck {
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticView {
     Layout,
-    Issues,
     #[default]
+    Issues,
     Both,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticDetail {
+    /// Issue evidence reduced to the fields that identify what it refers to,
+    /// and no coverage rows that report a complete check.
+    #[default]
+    Compact,
+    Full,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,6 +53,8 @@ pub struct FigureDiagnosticParams {
     pub overlap_targets: Vec<TargetRef>,
     #[serde(default)]
     pub view: DiagnosticView,
+    #[serde(default)]
+    pub detail: DiagnosticDetail,
     #[serde(default = "page_default")]
     pub limit: usize,
 }
@@ -72,7 +83,8 @@ pub fn figure_diagnostic_schema() -> Value {
         "checks":{"type":"array","minItems":1,"maxItems":7,"uniqueItems":true,"items":{"enum":["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"]},"description":"data_shape and layout_aesthetics report severity hint issues: the figure could be clearer, nothing is wrong. Each carries suggestions and never edits the document."},
         "targets":{"type":"array","minItems":1,"maxItems":200,"items":target,"description":"Exact content or Series targets; Series queries include owning plot frame/guide context. Omit to scan the entire canvas; never uses selection."},
         "overlap_targets":{"type":"array","maxItems":200,"items":target,"description":"Explicit whole-content targets for frame overlap only."},
-        "view":{"enum":["layout","issues","both"],"default":"both"},"limit":{"type":"integer","minimum":1,"maximum":200,"default":100}
+        "view":{"enum":["layout","issues","both"],"default":"issues","description":"issues returns findings, layout returns measured geometry rows instead, both returns both."},
+        "detail":{"enum":["compact","full"],"default":"compact","description":"compact issue evidence keeps only other_target, other_component, point_range and interpretation; full returns all evidence geometry and lists complete coverage rows."},"limit":{"type":"integer","minimum":1,"maximum":200,"default":100}
     }})
 }
 pub(super) fn invalid(message: impl Into<String>) -> AutomationError {

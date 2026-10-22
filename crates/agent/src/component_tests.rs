@@ -86,7 +86,8 @@ fn exact_edits_deduplicate_preserve_owners_and_replay_after_page_reorder() {
     let target = inspect["value"]["readings"][0]["target"].clone();
     assert_eq!(target, json!(targets[0]));
     let result = edit(&mut session, &mut app, json!([target, target]), false);
-    assert_eq!(result["targets"].as_array().unwrap().len(), 1);
+    assert_eq!(result["summary"]["succeeded"], 1, "{result}");
+    assert_eq!(result["targets"], json!([]));
     let after = values(&app, &targets);
     assert_ne!(before[0], after[0]);
     assert_eq!(before[1..], after[1..]);

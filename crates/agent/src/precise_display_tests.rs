@@ -176,7 +176,7 @@ fn r6_session_discovery_target_validation_permissions_revision_and_batch_undo() 
     let r = s
         .call(&mut app, "plotium_execute", json!({"plan_id":p["plan_id"]}))
         .unwrap();
-    assert_eq!(r["targets"][0]["outcome"], "succeeded");
+    assert_eq!(r["summary"]["succeeded"], 1, "{r}");
     let binding = app.doc.canvases[0].objects[0]
         .plot()
         .unwrap()

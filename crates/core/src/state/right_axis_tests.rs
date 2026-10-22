@@ -405,6 +405,7 @@ fn diagnosed_codes(app: &PlotiumApp) -> Vec<String> {
         targets: None,
         overlap_targets: vec![],
         view: DiagnosticView::Issues,
+        detail: DiagnosticDetail::Compact,
         limit: 200,
     };
     let revision = DocumentRevision(app.doc.automation_revision);

@@ -10,6 +10,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug, PartialEq)]
 pub enum ToolCommand {
     List,
+    Properties,
     Describe(String),
     Run {
         input: PathBuf,
@@ -21,9 +22,10 @@ pub fn parse(mut args: VecDeque<OsString>) -> Result<ParseOutcome, ParseError> {
     let action = args
         .pop_front()
         .and_then(|s| s.into_string().ok())
-        .ok_or_else(|| ParseError::new("tool requires list, describe or run"))?;
+        .ok_or_else(|| ParseError::new("tool requires list, properties, describe or run"))?;
     let command = match action.as_str() {
         "list" if args.is_empty() => ToolCommand::List,
+        "properties" if args.is_empty() => ToolCommand::Properties,
         "describe" if args.len() == 1 => ToolCommand::Describe(
             args.pop_front()
                 .and_then(|s| s.into_string().ok())
@@ -62,7 +64,7 @@ pub fn parse(mut args: VecDeque<OsString>) -> Result<ParseOutcome, ParseError> {
         }
         _ => {
             return Err(ParseError::new(
-                "usage: tool list | tool describe <id> | tool run <input> --request <operation.json> [--output <project.plotium>]",
+                "usage: tool list | tool properties | tool describe <id> | tool run <input> --request <operation.json> [--output <project.plotium>]",
             ));
         }
     };
@@ -74,8 +76,9 @@ struct Operation {
     tool_id: String,
     #[serde(default = "empty_parameters")]
     parameters: serde_json::Value,
-    /// Projects require explicit stable targets. A single native input defaults
-    /// to its newly loaded DatasetId, or resolves a field_key once at loading.
+    /// Projects require explicit stable targets unless the tool names its own
+    /// targets in parameters. A single native input defaults to its newly
+    /// loaded DatasetId, or resolves a field_key once at loading.
     targets: Option<TargetSelector>,
     field_key: Option<String>,
 }
@@ -92,6 +95,12 @@ pub fn run(command: ToolCommand) -> Status {
             .cloned()
             .ok_or_else(|| format!("Unknown tool: {id}"))
             .and_then(|tool| serde_json::to_value(tool).map_err(|e| e.to_string())),
+        ToolCommand::Properties => Ok(serde_json::json!(
+            plotium_core::properties::catalog()
+                .iter()
+                .filter_map(|d| property_definition_description(d.id))
+                .collect::<Vec<_>>()
+        )),
         ToolCommand::Run {
             input,
             request,
@@ -172,6 +181,8 @@ fn run_operation(
         TargetSelector::Explicit {
             ids: vec![resource.id],
         }
+    } else if let Some(targets) = parameter_targets(&operation.tool_id) {
+        targets
     } else {
         return Err("Project operations require explicit stable targets.".into());
     };
@@ -250,4 +261,19 @@ fn run_operation(
         plotium_core::project::save_project(&app, &path, false).map_err(|e| e.to_string())?;
     }
     serde_json::to_value(result).map_err(|e| e.to_string())
+}
+
+/// The empty selector for tools whose targets travel inside their parameters.
+pub(crate) fn parameter_targets(tool_id: &str) -> Option<TargetSelector> {
+    matches!(
+        tool_id,
+        TOOL_SET_MANY
+            | FIGURE_EDIT
+            | PLOT_CREATE
+            | CURVE_BIND
+            | CURVE_APPEND
+            | CURVE_MATERIALIZE
+            | "data.import"
+    )
+    .then(|| TargetSelector::Explicit { ids: vec![] })
 }

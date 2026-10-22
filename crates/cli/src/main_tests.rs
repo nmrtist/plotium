@@ -217,3 +217,19 @@ fn export_parser_defaults_to_pdf_and_repeats_canvas_selectors() {
         .is_err()
     );
 }
+
+#[test]
+fn tool_properties_lists_the_catalog_and_parameter_targets_default() {
+    assert_eq!(
+        parse(&["plotium-cli", "tool", "properties"]),
+        Ok(ParseOutcome::Command(Command::Tool(
+            tool::ToolCommand::Properties
+        )))
+    );
+    assert!(parse(&["plotium-cli", "tool", "properties", "extra"]).is_err());
+    assert_eq!(
+        tool::parameter_targets("properties.set_many"),
+        Some(plotium_core::automation::TargetSelector::Explicit { ids: vec![] })
+    );
+    assert_eq!(tool::parameter_targets("properties.set"), None);
+}

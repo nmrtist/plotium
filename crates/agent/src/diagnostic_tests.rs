@@ -39,7 +39,7 @@ fn fixture() -> (PlotiumApp, Session, Vec<TargetRef>) {
     (a, s, targets)
 }
 fn args(a: &PlotiumApp, targets: &[TargetRef]) -> Value {
-    json!({"expected_project_context":a.session.project_context,"expected_revision":a.doc.automation_revision,"canvas":TargetRef::resource(a.doc.canvases[0].resource_id.into()),"output":{"size_mm":a.doc.canvases[0].size_mm},"overlap_targets":&targets[2..],"limit":200})
+    json!({"expected_project_context":a.session.project_context,"expected_revision":a.doc.automation_revision,"canvas":TargetRef::resource(a.doc.canvases[0].resource_id.into()),"output":{"size_mm":a.doc.canvases[0].size_mm},"overlap_targets":&targets[2..],"view":"both","detail":"full","limit":200})
 }
 fn all(a: &mut PlotiumApp, s: &mut Session, mut q: Value) -> (Vec<Value>, Value) {
     let mut rows = vec![];
@@ -394,4 +394,55 @@ fn saved_views_restore_native_curve_targets_without_persisting_diagnostics() {
                 .is_some_and(|s| s.contains("no verified native provenance"))
         }));
     }
+}
+
+#[test]
+fn default_scan_returns_compact_issues_with_a_summary() {
+    let (mut a, mut s, targets) = fixture();
+    let mut q = args(&a, &targets);
+    let full = all(&mut a, &mut s, q.clone()).0;
+    for key in ["view", "detail"] {
+        q.as_object_mut().unwrap().remove(key);
+    }
+    let (rows, page) = all(&mut a, &mut s, q);
+    assert!(rows.iter().all(|r| r["kind"] != "layout"));
+    let issues: Vec<_> = rows.iter().filter(|r| r["kind"] == "issue").collect();
+    assert_eq!(
+        issues.len(),
+        full.iter().filter(|r| r["kind"] == "issue").count()
+    );
+    assert!(issues.iter().all(|r| {
+        r["measurement_basis"].is_string()
+            && r.get("evidence").is_none_or(|e| {
+                e.as_object().unwrap().keys().all(|k| {
+                    [
+                        "other_target",
+                        "other_component",
+                        "point_range",
+                        "interpretation",
+                    ]
+                    .contains(&k.as_str())
+                })
+            })
+    }));
+    assert!(issues.iter().any(|r| r["code"] == "content_frame_overlap"
+        && r["evidence"]["other_target"].is_object()
+        && r["evidence"]["interpretation"].is_string()));
+    assert!(
+        issues
+            .iter()
+            .any(|r| r["code"] == "legend_occlusion_potential"
+                && r["evidence"]["other_component"] == "guide.legend")
+    );
+    assert!(issues.iter().all(|r| r["severity"].is_string()));
+    assert_eq!(page["summary"]["issues"], issues.len());
+    let warnings = issues.iter().filter(|r| r["severity"] == "warning").count();
+    assert_eq!(page["summary"]["by_severity"]["warning"], warnings);
+    assert_eq!(
+        page["summary"]["by_code"]["text_container_overflow"],
+        issues
+            .iter()
+            .filter(|r| r["code"] == "text_container_overflow")
+            .count()
+    );
 }
