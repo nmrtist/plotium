@@ -34,6 +34,7 @@ use plotium_io::{AxisSource, Dim, Domain, NmrData, NmrData2D, PseudoAxis, Pseudo
 mod capture;
 mod craft_shot;
 mod thumbnail_shot;
+mod workspace_shot;
 
 const FIT_LO: f64 = 1.4;
 const FIT_HI: f64 = 3.2;
@@ -74,6 +75,7 @@ impl Theme {
 /// live in the variant so the scene list stays a plain data table.
 #[derive(Clone, Copy)]
 enum Op {
+    Workspace(bool),
     /// Reset zoom and window size, then load the synthetic FID and arm a fit.
     Setup,
     /// Fit the FID band and frame the result.
@@ -129,16 +131,17 @@ const fn shot(settle: u32, name: &'static str) -> Scene {
     }
 }
 
-/// The scripted session, replayed once per palette. Settle counts are the frame
-/// gaps the previous frame-number state machine encoded implicitly; the larger
-/// gaps wait out asynchronous fits.
-///
 /// A zoom change and a window resize must never share a frame: eframe converts a
 /// requested inner size to physical pixels through the current zoom, and issuing
 /// both together races so the capture size depends on the pass's prior zoom. Set
 /// zoom in its own scene and let it settle before the next resize.
 const SCENES: &[Scene] = &[
     act(2, Op::Zoom(0.75)),
+    act(2, Op::Resize(BASE_WINDOW[0], BASE_WINDOW[1])),
+    act(2, Op::Workspace(false)),
+    shot(4, "workspace_empty"),
+    act(2, Op::Workspace(true)),
+    shot(4, "workspace_overview"),
     act(2, Op::Setup),
     shot(8, "band"),
     act(2, Op::History(true)),
@@ -380,13 +383,9 @@ fn themes_from_env() -> Vec<Theme> {
 
 fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), String> {
     match op {
+        Op::Workspace(content) => workspace_shot::setup(app, content),
         Op::Setup => {
-            // Resize explicitly instead of inheriting the previous pass's window;
-            // zoom is already settled from the preceding scene.
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
-                BASE_WINDOW[0],
-                BASE_WINDOW[1],
-            )));
+            workspace_shot::setup(app, false);
             setup(app);
         }
         Op::LineFit => line_fit(app, ctx)?,

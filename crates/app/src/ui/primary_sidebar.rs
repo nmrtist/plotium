@@ -173,15 +173,7 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
             app.session.ui.selection_anchors.canvas = Some(id);
             app.session.ui.selection_anchors.canvas_lead = Some(id);
         } else {
-            app.activate_canvas(ci);
-            app.session.ui.panel_note_inline_edit = None;
-            app.session.ui.panel_note_edit = None;
-            if let Some(id) = plotium_core::state::board_frame_id(app, FrameRef::Page(ci)) {
-                app.session.ui.frame_selection = vec![id];
-            }
-            app.session.ui.selection_anchors.canvas = Some(id);
-            app.session.ui.selection_anchors.canvas_lead = Some(id);
-            crate::ui::canvas::request_board_fit(app, ui.ctx(), FrameRef::Page(ci));
+            select_canvas(app, ui, ci);
         }
     }
     if let Some(ci) = start_rename {
