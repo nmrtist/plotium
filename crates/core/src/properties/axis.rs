@@ -18,6 +18,8 @@ pub const X_SHOW_TICK_LABELS: PropertyId = PropertyId("object.axes.x_show_tick_l
 pub const X_SHOW_LABEL: PropertyId = PropertyId("object.axes.x_show_label");
 pub const Y_SHOW_TICK_LABELS: PropertyId = PropertyId("object.axes.y_show_tick_labels");
 pub const Y_SHOW_LABEL: PropertyId = PropertyId("object.axes.y_show_label");
+pub const X_THOUSANDS_SEPARATOR: PropertyId = PropertyId("object.axes.x_thousands_separator");
+pub const Y_THOUSANDS_SEPARATOR: PropertyId = PropertyId("object.axes.y_thousands_separator");
 pub const FRAME: PropertyId = PropertyId("object.axes.frame");
 
 pub const OPEN: &str = "open";
@@ -104,6 +106,28 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         ValueSchema::Bool,
         "Show y-axis title",
         &["y title visibility"],
+        Tier::Advanced,
+    ),
+    axis_definition(
+        X_THOUSANDS_SEPARATOR,
+        ValueSchema::Bool,
+        "X-axis thousands separator",
+        &[
+            "x digit grouping",
+            "x comma separator",
+            "x tick label format",
+        ],
+        Tier::Advanced,
+    ),
+    axis_definition(
+        Y_THOUSANDS_SEPARATOR,
+        ValueSchema::Bool,
+        "Y-axis thousands separator",
+        &[
+            "y digit grouping",
+            "y comma separator",
+            "y tick label format",
+        ],
         Tier::Advanced,
     ),
     axis_definition(
@@ -215,6 +239,12 @@ impl PropertyProvider for AxisProvider {
             (Y_SHOW_LABEL, EditOp::Set(PropertyValue::Bool(value))) => {
                 overrides.y_show_label = Some(*value)
             }
+            (X_THOUSANDS_SEPARATOR, EditOp::Set(PropertyValue::Bool(value))) => {
+                overrides.x_thousands_separator = Some(*value)
+            }
+            (Y_THOUSANDS_SEPARATOR, EditOp::Set(PropertyValue::Bool(value))) => {
+                overrides.y_thousands_separator = Some(*value)
+            }
             (FRAME, EditOp::Set(PropertyValue::Enum(OPEN))) => {
                 overrides.axis_frame = Some(AxisFrame::Open)
             }
@@ -228,6 +258,8 @@ impl PropertyProvider for AxisProvider {
             (X_SHOW_LABEL, EditOp::Reset) => overrides.x_show_label = None,
             (Y_SHOW_TICK_LABELS, EditOp::Reset) => overrides.y_show_tick_labels = None,
             (Y_SHOW_LABEL, EditOp::Reset) => overrides.y_show_label = None,
+            (X_THOUSANDS_SEPARATOR, EditOp::Reset) => overrides.x_thousands_separator = None,
+            (Y_THOUSANDS_SEPARATOR, EditOp::Reset) => overrides.y_thousands_separator = None,
             (FRAME, EditOp::Reset) => overrides.axis_frame = None,
             (_, EditOp::Step(_)) => {
                 return Err(PropertyError::InvalidValue {
@@ -268,6 +300,8 @@ fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Property
         X_SHOW_LABEL => Ok(PropertyValue::Bool(plot.figure().x.show_label)),
         Y_SHOW_TICK_LABELS => Ok(PropertyValue::Bool(plot.figure().y.show_tick_labels)),
         Y_SHOW_LABEL => Ok(PropertyValue::Bool(plot.figure().y.show_label)),
+        X_THOUSANDS_SEPARATOR => Ok(PropertyValue::Bool(plot.figure().x.thousands_separator)),
+        Y_THOUSANDS_SEPARATOR => Ok(PropertyValue::Bool(plot.figure().y.thousands_separator)),
         FRAME => Ok(frame_value(plot.figure().axis_frame)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
@@ -302,6 +336,12 @@ fn default_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Pro
         X_SHOW_LABEL => Ok(PropertyValue::Bool(plot.derived_axes().x_show_label)),
         Y_SHOW_TICK_LABELS => Ok(PropertyValue::Bool(plot.derived_axes().y_show_tick_labels)),
         Y_SHOW_LABEL => Ok(PropertyValue::Bool(plot.derived_axes().y_show_label)),
+        X_THOUSANDS_SEPARATOR => Ok(PropertyValue::Bool(
+            plot.derived_axes().x_thousands_separator,
+        )),
+        Y_THOUSANDS_SEPARATOR => Ok(PropertyValue::Bool(
+            plot.derived_axes().y_thousands_separator,
+        )),
         FRAME => Ok(frame_value(plot.derived_axes().frame)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
@@ -315,6 +355,8 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
         X_SHOW_LABEL => Ok(plot.axis_overrides.x_show_label.is_some()),
         Y_SHOW_TICK_LABELS => Ok(plot.axis_overrides.y_show_tick_labels.is_some()),
         Y_SHOW_LABEL => Ok(plot.axis_overrides.y_show_label.is_some()),
+        X_THOUSANDS_SEPARATOR => Ok(plot.axis_overrides.x_thousands_separator.is_some()),
+        Y_THOUSANDS_SEPARATOR => Ok(plot.axis_overrides.y_thousands_separator.is_some()),
         FRAME => Ok(plot.axis_overrides.axis_frame.is_some()),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }

@@ -134,3 +134,21 @@ impl PropertyPresentation {
         definition(self.id)
     }
 }
+
+pub fn presentation(id: PropertyId) -> Option<&'static PropertyPresentation> {
+    super::PRESENTATIONS
+        .iter()
+        .find(|presentation| presentation.id == id)
+}
+
+/// Essential entries a single panel section renders by default. The budget
+/// check counts these.
+pub fn essential_in(section: &str) -> Vec<&'static PropertyPresentation> {
+    super::PRESENTATIONS
+        .iter()
+        .filter(|presentation| {
+            presentation.home_route.section == section
+                && presentation.tier() == Some(Tier::Essential)
+        })
+        .collect()
+}

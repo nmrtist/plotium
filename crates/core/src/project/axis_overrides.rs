@@ -32,6 +32,10 @@ pub struct AxisOverridesDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     y_show_label: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    x_thousands_separator: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y_thousands_separator: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     guide_visibility: Option<GuideVisibility>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     guide_placement: Option<GuidePlacement>,
@@ -113,6 +117,8 @@ impl AxisOverridesDto {
             x_show_label: overrides.x_show_label,
             y_show_tick_labels: overrides.y_show_tick_labels,
             y_show_label: overrides.y_show_label,
+            x_thousands_separator: overrides.x_thousands_separator,
+            y_thousands_separator: overrides.y_thousands_separator,
             guide_visibility: overrides.guide_visibility,
             guide_placement: overrides.guide_placement,
             guide_layout: overrides.guide_layout,
@@ -137,6 +143,8 @@ impl AxisOverridesDto {
             x_show_label: self.x_show_label,
             y_show_tick_labels: self.y_show_tick_labels,
             y_show_label: self.y_show_label,
+            x_thousands_separator: self.x_thousands_separator,
+            y_thousands_separator: self.y_thousands_separator,
             guide_visibility: self.guide_visibility,
             guide_placement: self.guide_placement,
             guide_layout: self.guide_layout,
@@ -177,6 +185,20 @@ mod tests {
         };
         let dto = AxisOverridesDto::from_overrides(&overrides).expect("frame override is stored");
         let json = serde_json::to_string(&dto).expect("serializes");
+        let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
+        assert_eq!(restored.to_overrides(), overrides);
+    }
+
+    #[test]
+    fn thousands_separator_override_round_trips_through_the_project_format() {
+        let overrides = AxisOverrides {
+            y_thousands_separator: Some(true),
+            ..AxisOverrides::default()
+        };
+        let dto = AxisOverridesDto::from_overrides(&overrides).expect("separator is stored");
+        let json = serde_json::to_string(&dto).expect("serializes");
+        assert!(json.contains("\"y_thousands_separator\":true"));
+        assert!(!json.contains("x_thousands_separator"));
         let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(restored.to_overrides(), overrides);
     }

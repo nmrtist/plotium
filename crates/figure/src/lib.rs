@@ -167,6 +167,10 @@ pub struct Axis {
     pub show_tick_labels: bool,
     #[serde(default = "default_true")]
     pub show_label: bool,
+    /// Group integer digits of numeric tick labels with commas ("1,000"). Large
+    /// values are then written in full instead of with a ×10ⁿ multiplier.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub thousands_separator: bool,
     pub min: f64,
     pub max: f64,
     /// If true, larger values draw toward the lower screen coordinate (left for
@@ -187,6 +191,7 @@ impl Axis {
             label: label.into(),
             show_tick_labels: true,
             show_label: true,
+            thousands_separator: false,
             min,
             max,
             reversed: false,
@@ -203,6 +208,7 @@ impl Axis {
             label: label.into(),
             show_tick_labels: true,
             show_label: true,
+            thousands_separator: false,
             min: -0.5,
             max: n - 0.5,
             reversed: false,

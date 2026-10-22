@@ -24,13 +24,13 @@ use routes::*;
 pub(crate) use search::property_hits;
 pub use types::*;
 
-#[cfg(test)]
-use plotium_core::properties::definition;
 use plotium_core::properties::{
-    PropertyId, Tier, apodization, app_preferences, axis, baseline, bin, canvas, contour,
-    export_dpi, group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase,
-    reference, smooth, step_enabled, typography, zero_fill,
+    PropertyId, apodization, app_preferences, axis, baseline, bin, canvas, contour, export_dpi,
+    group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase, reference,
+    smooth, step_enabled, typography, zero_fill,
 };
+#[cfg(test)]
+use plotium_core::properties::{Tier, definition};
 #[cfg(test)]
 use plotium_core::state::SettingsCategory;
 use plotium_core::state::WorkflowTab;
@@ -173,6 +173,16 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         canvas_step: false,
         uses_canvas_length_unit: false,
     },
+    object_entry(
+        axis::X_THOUSANDS_SEPARATOR,
+        "X thousands separator",
+        AXIS_HOME,
+    ),
+    object_entry(
+        axis::Y_THOUSANDS_SEPARATOR,
+        "Y thousands separator",
+        AXIS_HOME,
+    ),
     PropertyPresentation {
         id: axis::FRAME,
         localized_label: LocalizedText("Frame"),
@@ -772,24 +782,6 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         uses_canvas_length_unit: false,
     },
 ];
-
-pub fn presentation(id: PropertyId) -> Option<&'static PropertyPresentation> {
-    PRESENTATIONS
-        .iter()
-        .find(|presentation| presentation.id == id)
-}
-
-/// Essential entries a single panel section renders by default. The budget
-/// check counts these.
-pub fn essential_in(section: &str) -> Vec<&'static PropertyPresentation> {
-    PRESENTATIONS
-        .iter()
-        .filter(|presentation| {
-            presentation.home_route.section == section
-                && presentation.tier() == Some(Tier::Essential)
-        })
-        .collect()
-}
 
 #[cfg(test)]
 #[path = "tests.rs"]

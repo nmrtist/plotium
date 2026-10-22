@@ -6,6 +6,8 @@ const MAX_X_TARGET: usize = 8;
 const MAX_Y_TARGET: usize = 5;
 const LABEL_GAP_FACTOR: f32 = 0.8;
 const Y_TICK_SPACING_FACTOR: f32 = 1.8;
+/// f64 represents every integer below 2⁵³ ≈ 9×10¹⁵ exactly.
+const GROUPED_FULL_EXPONENT_LIMIT: i32 = 15;
 
 /// Margins and tick sets computed together for a particular output size.
 #[derive(Debug, Clone, PartialEq)]
@@ -347,17 +349,18 @@ fn estimated_plain_width(text: &str, font_size: f32) -> f32 {
 pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
     if axis.categories.is_none() {
         if let Some(display) = &axis.display {
-            let mut result = axis_ticks(
+            let mut result = format_axis_ticks(
                 display.to_display(axis.min),
                 display.to_display(axis.max),
                 target,
+                axis.thousands_separator,
             );
             for value in &mut result.values {
                 *value = display.to_coordinate(*value);
             }
             return result;
         }
-        return axis_ticks(axis.min, axis.max, target);
+        return format_axis_ticks(axis.min, axis.max, target, axis.thousands_separator);
     }
     let visible: Vec<(f64, &str)> = visible_categories(axis).collect();
     let stride = visible.len().div_ceil(target.max(1)).max(1);
@@ -409,6 +412,10 @@ fn visible_categories(axis: &Axis) -> impl Iterator<Item = (f64, &str)> {
 }
 
 pub fn axis_ticks(min: f64, max: f64, target: usize) -> AxisTicks {
+    format_axis_ticks(min, max, target, false)
+}
+
+fn format_axis_ticks(min: f64, max: f64, target: usize, group_thousands: bool) -> AxisTicks {
     let values = ticks(min, max, target);
     let max_abs = min.abs().max(max.abs());
     let exponent = if max_abs.is_finite() && max_abs > 0.0 {
@@ -416,7 +423,15 @@ pub fn axis_ticks(min: f64, max: f64, target: usize) -> AxisTicks {
     } else {
         0
     };
-    let scale_exponent = (exponent >= 4 || exponent <= -4).then_some(exponent);
+    // Grouped labels are written in full up to the largest magnitude whose
+    // integers f64 still prints exactly; beyond that, and for tiny values, the
+    // ×10ⁿ multiplier stays.
+    let large_exponent = if group_thousands {
+        GROUPED_FULL_EXPONENT_LIMIT
+    } else {
+        4
+    };
+    let scale_exponent = (exponent >= large_exponent || exponent <= -4).then_some(exponent);
     let scale = scale_exponent.map_or(1.0, |value| 10f64.powi(value));
     let scaled_step = values
         .windows(2)
@@ -434,7 +449,12 @@ pub fn axis_ticks(min: f64, max: f64, target: usize) -> AxisTicks {
             } else {
                 scaled
             };
-            format!("{clean:.precision$}")
+            let label = format!("{clean:.precision$}");
+            if group_thousands {
+                group_integer_digits(&label)
+            } else {
+                label
+            }
         })
         .collect();
 
@@ -443,6 +463,29 @@ pub fn axis_ticks(min: f64, max: f64, target: usize) -> AxisTicks {
         labels,
         scale_exponent,
     }
+}
+
+/// Insert commas every three integer digits of a plain decimal label, leaving
+/// the sign and fractional part untouched: `-12345.5` → `-12,345.5`.
+fn group_integer_digits(label: &str) -> String {
+    let (sign, unsigned) = match label.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", label),
+    };
+    let (integer, fraction) = match unsigned.find('.') {
+        Some(dot) => unsigned.split_at(dot),
+        None => (unsigned, ""),
+    };
+    let mut grouped = String::with_capacity(label.len() + integer.len() / 3);
+    grouped.push_str(sign);
+    for (index, digit) in integer.chars().enumerate() {
+        if index > 0 && (integer.len() - index) % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    grouped.push_str(fraction);
+    grouped
 }
 
 fn decimal_places(step: f64) -> usize {
@@ -472,3 +515,7 @@ fn superscript(value: i32) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "ticks_tests.rs"]
+mod tests;

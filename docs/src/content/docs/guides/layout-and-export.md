@@ -219,6 +219,15 @@ To bring text back on one panel, select it and use **Axes** in the Object
 inspector: the **X text** and **Y text** rows toggle **Tick labels** and
 **Title** individually, and **Automatic** returns that axis to showing both.
 
+To write large tick values as `1,000` rather than `1000`, open **Advanced** in
+the same **Axes** section and turn on **X thousands separator** or **Y
+thousands separator**. When the axis reaches ±10,000, its labels are then
+written in full, such as `15,000`, instead of using a shared ×10ⁿ multiplier.
+An axis that reaches 10¹⁵ or more, or whose largest value is below 0.001, keeps
+the multiplier. Agents can set the same option through the
+`object.axes.x_thousands_separator` and `object.axes.y_thousands_separator`
+properties.
+
 ## Stacked and multi-dataset plots
 
 A single plot frame can display several 1D datasets — superimposed, or

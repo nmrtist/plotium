@@ -393,6 +393,11 @@ fn equal_scale_is_directly_visible_and_title_visibility_is_advanced() {
             .tier(),
         Some(Tier::Advanced)
     );
+    for id in [axis::X_THOUSANDS_SEPARATOR, axis::Y_THOUSANDS_SEPARATOR] {
+        let entry = presentation(id).expect("thousands separator presentation");
+        assert_eq!(entry.tier(), Some(Tier::Advanced));
+        assert_eq!(entry.home_route.section, panel::AXIS_SECTION);
+    }
 }
 
 #[test]
