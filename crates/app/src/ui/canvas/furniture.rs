@@ -223,7 +223,7 @@ fn plot_geometry(
     object: ObjectId,
     canvas_rect: egui::Rect,
 ) -> Option<(PlotRect, f32)> {
-    let outer = object_screen_rect(
+    let outer = content_screen_rect(
         app.session.board,
         app.doc.canvases.get(ci)?,
         object,

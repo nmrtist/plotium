@@ -49,6 +49,14 @@ impl HierarchicalSelection {
         self.paths.clear();
     }
 
+    /// A selected Panel is held only here, not in the flat object selection, so
+    /// clearing a page's selection must drop it too or Delete still removes it.
+    pub fn clear_canvas(&mut self, canvas: CanvasId) {
+        if self.paths.iter().any(|path| path.canvas == canvas) {
+            self.paths.clear();
+        }
+    }
+
     pub fn lead(&self) -> Option<SelectionPath> {
         self.paths.first().copied()
     }

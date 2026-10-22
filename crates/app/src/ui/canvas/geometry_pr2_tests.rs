@@ -53,3 +53,30 @@ fn content_hit_uses_page_position_inside_an_editing_panel() {
     );
     assert!(hit_content_object(&canvas, Pos2::new(6.0, 11.0), 1.0, Some(panel)).is_none());
 }
+
+#[test]
+fn plot_geometry_follows_content_that_does_not_fill_its_panel() {
+    let (mut app, ids) = crate::ui::properties::fixture::contour_page(1);
+    let object = ids[0];
+    let canvas = &mut app.doc.canvases[0];
+    let panel = canvas.create_panel(
+        "Panel".to_owned(),
+        ObjectFrame::new(40.0, 30.0, 150.0, 120.0),
+    );
+    canvas.panel_mut(panel).unwrap().item_order.push(object);
+    canvas.object_mut(object).unwrap().frame = ObjectFrame::new(20.0, 10.0, 100.0, 50.0);
+    app.session.board = BoardViewport {
+        zoom: 1.0,
+        world_center: [100.0, 100.0],
+    };
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 400.0));
+
+    let content = content_screen_rect(app.session.board, &app.doc.canvases[0], object, screen)
+        .expect("content is on the board");
+    let plot = plot_inner_rect(&app, 0, object, screen).expect("plot is on the board");
+    assert!(plot.left >= content.left && plot.right() <= content.right());
+    assert!(plot.top >= content.top && plot.bottom() <= content.bottom());
+
+    let beside = Pos2::new(content.right() + 10.0, content.top + 10.0);
+    assert!(plot_under_cursor(&app, 0, screen, beside).is_none());
+}

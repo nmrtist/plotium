@@ -251,6 +251,44 @@ fn delete_removes_the_selected_panel_undoably() {
 }
 
 #[test]
+fn an_empty_page_click_deselects_the_panel_so_delete_keeps_it() {
+    let (mut app, panel) = app_with_pages(1);
+    select_panel_on_canvas(&mut app, panel);
+
+    canvas::clear_canvas_interaction_state(
+        &mut app,
+        0,
+        canvas::CanvasInteractionClearScope::Selection,
+    );
+    assert!(app.session.ui.hierarchical_selection.paths().is_empty());
+
+    delete_selection(&mut app, &egui::Context::default());
+    assert!(app.doc.canvases[0].panel(panel).is_some());
+}
+
+#[test]
+fn escape_deselects_a_selected_panel() {
+    let (mut app, panel) = app_with_pages(1);
+    select_panel_on_canvas(&mut app, panel);
+
+    handle_escape(&mut app, 0.0);
+
+    assert!(app.session.ui.hierarchical_selection.paths().is_empty());
+    assert_eq!(app.session.status, "Selection cleared.");
+}
+
+#[test]
+fn escape_deselects_a_panel_left_on_an_inactive_page() {
+    let (mut app, panel) = app_with_pages(2);
+    select_panel_on_canvas(&mut app, panel);
+    app.session.active_canvas = Some(1);
+
+    handle_escape(&mut app, 0.0);
+
+    assert!(app.session.ui.hierarchical_selection.paths().is_empty());
+}
+
+#[test]
 fn delete_keeps_a_locked_panel_and_explains_why() {
     let (mut app, panel) = app_with_pages(1);
     app.doc.canvases[0].panel_mut(panel).unwrap().locked = true;

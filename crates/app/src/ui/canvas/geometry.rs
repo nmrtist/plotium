@@ -1,7 +1,7 @@
 use super::*;
 #[path = "geometry_aspect.rs"]
 mod aspect;
-pub(crate) use aspect::{enforce_min_size, plot_min_size, preserve_aspect_frame};
+pub(crate) use aspect::{MIN_PLOT_AREA_PT, enforce_min_size, plot_min_size, preserve_aspect_frame};
 #[path = "geometry_panels.rs"]
 mod panels;
 pub(crate) use panels::{
@@ -119,6 +119,9 @@ pub(crate) fn clear_canvas_interaction_state(
             canvas.selected_object = None;
         }
         app.session.ui.selection = Selection::None;
+        if let Some(canvas) = app.doc.canvases.get(ci).map(|canvas| canvas.resource_id) {
+            app.session.ui.hierarchical_selection.clear_canvas(canvas);
+        }
         if matches!(app.session.ui.panel_label_selection, Some((canvas, _)) if canvas == ci) {
             app.session.ui.panel_label_selection = None;
         }
@@ -254,7 +257,7 @@ pub(crate) fn plot_under_cursor(
     let canvas = app.doc.canvases.get(ci)?;
     let zoom = app.session.board.zoom;
     for id in canvas.plot_object_ids().into_iter().rev() {
-        let Some(outer) = object_screen_rect(app.session.board, canvas, id, screen) else {
+        let Some(outer) = content_screen_rect(app.session.board, canvas, id, screen) else {
             continue;
         };
         let outer_rect = plot_rect(outer);
@@ -277,7 +280,7 @@ pub(crate) fn plot_inner_rect(
     screen: egui::Rect,
 ) -> Option<PlotRect> {
     let canvas = app.doc.canvases.get(ci)?;
-    let outer = object_screen_rect(app.session.board, canvas, object_id, screen)?;
+    let outer = content_screen_rect(app.session.board, canvas, object_id, screen)?;
     let figure = canvas.object(object_id)?.plot()?.figure();
     let zoom = app.session.board.zoom;
     Some(plot_screen_box(canvas, object_id, figure, outer, zoom))

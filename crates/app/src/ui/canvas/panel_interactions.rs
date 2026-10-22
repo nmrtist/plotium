@@ -271,6 +271,75 @@ fn finish_panel_drag(app: &mut PlotiumApp, ci: usize, drag: PanelDrag) {
     app.rebuild_canvas(ci);
 }
 
+/// Content dropped outside its Panel would be drawn where it landed while the
+/// Panel, which owns hit-testing at page scope, stayed behind; nothing could
+/// then grab the visible plot to bring it back. A move shifts each Panel's
+/// dragged group by one shared offset so the group keeps its arrangement; a
+/// resize is trimmed to the Panel so the corner the user did not drag stays put.
+fn keep_inside_panel(page: &mut CanvasDocument, contents: &[ObjectId], kind: ObjectDragKind) {
+    let mut groups: Vec<(ObjectFrame, Vec<ObjectId>)> = Vec::new();
+    for &id in contents {
+        let Some(panel) = page
+            .parent_panel(id)
+            .and_then(|panel| page.panel(panel))
+            .map(|panel| panel.frame)
+        else {
+            continue;
+        };
+        match groups.iter_mut().find(|(frame, _)| *frame == panel) {
+            Some((_, ids)) => ids.push(id),
+            None => groups.push((panel, vec![id])),
+        }
+    }
+    for (panel, ids) in groups {
+        if let ObjectDragKind::Resize(_) = kind
+            && let [id] = ids[..]
+            && let Some(object) = page.object_mut(id)
+            && let Some(trimmed) = trim_to_panel(object.frame, panel)
+        {
+            object.frame = trimmed;
+            continue;
+        }
+        let frames: Vec<ObjectFrame> = ids
+            .iter()
+            .filter_map(|&id| page.object(id).map(|object| object.frame))
+            .collect();
+        let Some(bounds) = frames.iter().copied().reduce(union) else {
+            continue;
+        };
+        let dx = bounds.x.clamp(0.0, (panel.width - bounds.width).max(0.0)) - bounds.x;
+        let dy = bounds.y.clamp(0.0, (panel.height - bounds.height).max(0.0)) - bounds.y;
+        for &id in &ids {
+            if let Some(object) = page.object_mut(id) {
+                object.frame.x += dx;
+                object.frame.y += dy;
+            }
+        }
+    }
+}
+
+fn union(a: ObjectFrame, b: ObjectFrame) -> ObjectFrame {
+    let x = a.x.min(b.x);
+    let y = a.y.min(b.y);
+    ObjectFrame::new(
+        x,
+        y,
+        (a.x + a.width).max(b.x + b.width) - x,
+        (a.y + a.height).max(b.y + b.height) - y,
+    )
+}
+
+/// `None` when trimming would leave less than the minimum plot size, in
+/// which case the frame is moved back whole instead.
+fn trim_to_panel(frame: ObjectFrame, panel: ObjectFrame) -> Option<ObjectFrame> {
+    let x = frame.x.max(0.0);
+    let y = frame.y.max(0.0);
+    let width = (frame.x + frame.width).min(panel.width) - x;
+    let height = (frame.y + frame.height).min(panel.height) - y;
+    (width >= MIN_PLOT_AREA_PT && height >= MIN_PLOT_AREA_PT)
+        .then(|| ObjectFrame::new(x, y, width, height))
+}
+
 pub(crate) fn finish_content_drag(
     app: &mut PlotiumApp,
     ci: usize,
@@ -308,6 +377,7 @@ pub(crate) fn finish_content_drag(
         None => {
             // A stack member's dragged height becomes its share of the stack.
             let page = &mut app.doc.canvases[ci];
+            keep_inside_panel(page, &contents, drag.kind);
             if let Some(stack) = page.shared_x_stack_of(drag.object).map(|panel| panel.id)
                 && let Err(error) = page.reflow_shared_x_stack(stack)
             {
@@ -322,4 +392,68 @@ pub(crate) fn finish_content_drag(
         after,
     });
     app.rebuild_canvas(ci);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn panel_page(frames: &[ObjectFrame]) -> (PlotiumApp, Vec<ObjectId>) {
+        let (mut app, ids) = crate::ui::properties::fixture::contour_page(frames.len());
+        let page = &mut app.doc.canvases[0];
+        let panel = page.create_panel(
+            "Panel".to_owned(),
+            ObjectFrame::new(20.0, 20.0, 100.0, 60.0),
+        );
+        for (&id, &frame) in ids.iter().zip(frames) {
+            page.panel_mut(panel).unwrap().item_order.push(id);
+            page.object_mut(id).unwrap().frame = frame;
+        }
+        (app, ids)
+    }
+
+    fn frame_of(app: &PlotiumApp, id: ObjectId) -> ObjectFrame {
+        app.doc.canvases[0].object(id).unwrap().frame
+    }
+
+    #[test]
+    fn content_dropped_outside_its_panel_returns_inside() {
+        let (mut app, ids) = panel_page(&[ObjectFrame::new(400.0, -50.0, 80.0, 40.0)]);
+        keep_inside_panel(&mut app.doc.canvases[0], &ids, ObjectDragKind::Move);
+        assert_eq!(
+            frame_of(&app, ids[0]),
+            ObjectFrame::new(20.0, 0.0, 80.0, 40.0)
+        );
+    }
+
+    #[test]
+    fn a_dragged_group_returns_inside_without_changing_its_spacing() {
+        let (mut app, ids) = panel_page(&[
+            ObjectFrame::new(50.0, 0.0, 30.0, 30.0),
+            ObjectFrame::new(90.0, 0.0, 30.0, 30.0),
+        ]);
+        keep_inside_panel(&mut app.doc.canvases[0], &ids, ObjectDragKind::Move);
+        assert_eq!(
+            frame_of(&app, ids[0]),
+            ObjectFrame::new(30.0, 0.0, 30.0, 30.0)
+        );
+        assert_eq!(
+            frame_of(&app, ids[1]),
+            ObjectFrame::new(70.0, 0.0, 30.0, 30.0)
+        );
+    }
+
+    #[test]
+    fn a_resize_past_the_panel_edge_is_trimmed_not_moved() {
+        let (mut app, ids) = panel_page(&[ObjectFrame::new(-20.0, -20.0, 80.0, 70.0)]);
+        keep_inside_panel(
+            &mut app.doc.canvases[0],
+            &ids,
+            ObjectDragKind::Resize(ResizeHandle::TopLeft),
+        );
+        assert_eq!(
+            frame_of(&app, ids[0]),
+            ObjectFrame::new(0.0, 0.0, 60.0, 50.0)
+        );
+    }
 }
