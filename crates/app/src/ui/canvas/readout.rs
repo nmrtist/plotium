@@ -9,7 +9,7 @@
 //! [`PlotiumApp::property_readout`] and never resolves, measures or queues
 //! anything. A plot whose estimate has not arrived says so.
 
-use super::{HitZone, hit_zone, object_screen_rect, plot_rect, plot_under_cursor};
+use super::{HitZone, content_screen_rect, hit_zone, plot_rect, plot_under_cursor};
 use crate::ui::properties;
 use egui::{Align2, Color32, FontId};
 use plotium_core::properties::PropertyReadout;
@@ -52,7 +52,7 @@ pub(crate) fn paint_property_readouts(
         let Some(text) = properties::readout::aggregate_property_summary(&readouts) else {
             continue;
         };
-        let Some(frame) = object_screen_rect(app.session.board, canvas, object, rect) else {
+        let Some(frame) = content_screen_rect(app.session.board, canvas, object, rect) else {
             continue;
         };
         let frame = plot_rect(frame);

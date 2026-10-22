@@ -426,7 +426,9 @@ fn handle_escape(app: &mut PlotiumApp, now: f64) {
         return;
     }
 
-    if !matches!(app.session.ui.selection, Selection::None) {
+    if !matches!(app.session.ui.selection, Selection::None)
+        || !app.session.ui.hierarchical_selection.paths().is_empty()
+    {
         exit_to_page(app, "Selection cleared.");
         return;
     }
@@ -448,6 +450,9 @@ fn exit_to_page(app: &mut PlotiumApp, status: &str) {
     } else {
         app.session.ui.selection = Selection::None;
     }
+    // A Panel picked on another page survives a jump that only moves the active
+    // page, and Esc would otherwise report a clear it never makes.
+    app.session.ui.hierarchical_selection.clear();
     app.session.status = status.to_owned();
 }
 

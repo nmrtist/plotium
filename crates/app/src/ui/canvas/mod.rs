@@ -291,7 +291,8 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     else {
         return;
     };
-    let Some(outer) = object_screen_rect(app.session.board, &app.doc.canvases[ci], object_id, rect)
+    let Some(outer) =
+        content_screen_rect(app.session.board, &app.doc.canvases[ci], object_id, rect)
     else {
         return;
     };
@@ -584,7 +585,7 @@ fn canvas_cursor(app: &PlotiumApp, ci: usize, rect: egui::Rect, ui: &Ui) {
         }
     } else if app.session.tool.is_data_tool() {
         match data_edit_target(app, ci)
-            .and_then(|id| object_screen_rect(app.session.board, &app.doc.canvases[ci], id, rect))
+            .and_then(|id| content_screen_rect(app.session.board, &app.doc.canvases[ci], id, rect))
         {
             Some(frame) if plot_contains(frame, p) => egui::CursorIcon::Crosshair,
             _ => egui::CursorIcon::Default,

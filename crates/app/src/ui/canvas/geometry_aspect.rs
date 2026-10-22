@@ -23,7 +23,7 @@ pub(crate) fn preserve_aspect_frame(
 /// Data area a resize must leave inside a plot's axes, ticks and colour scale.
 /// Without it the fixed margins swallow the whole frame and the data collapses
 /// to a 1 pt sliver while the furniture keeps its size.
-const MIN_PLOT_AREA_PT: f32 = 24.0;
+pub(crate) const MIN_PLOT_AREA_PT: f32 = 24.0;
 
 /// The smallest frame a plot may be resized to. Margins are measured at the
 /// frame's current size, and a plot already smaller than the limit is never

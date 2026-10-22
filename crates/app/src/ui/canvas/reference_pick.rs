@@ -161,7 +161,7 @@ fn pick_plot(
     if di != resolved.dataset_index {
         return None;
     }
-    let outer = object_screen_rect(
+    let outer = content_screen_rect(
         app.session.board,
         &app.doc.canvases[ci],
         object_id,

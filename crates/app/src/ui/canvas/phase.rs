@@ -55,7 +55,7 @@ pub(crate) fn handle_phase_before_paint(
     else {
         return;
     };
-    let Some(outer) = object_screen_rect(
+    let Some(outer) = content_screen_rect(
         app.session.board,
         &app.doc.canvases[ci],
         object_id,
