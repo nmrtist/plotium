@@ -602,12 +602,29 @@ pub(super) fn handle_hierarchy_traversal(app: &mut PlotiumApp, ctx: &egui::Conte
 }
 
 pub(super) fn handle_delete_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) {
-    if ctx.egui_wants_keyboard_input() {
-        return;
-    }
     let delete =
         ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
     if !delete {
+        return;
+    }
+    // Selecting a dataset focuses its row; only that row's focus deletes data.
+    if matches!(
+        app.session.ui.selection_scope,
+        plotium_core::state::SelectionScope::DataList
+    ) && super::primary_sidebar::selection::list_row_focused(ctx)
+    {
+        let descriptor = commands::describe(app, commands::CommandId::DeleteDataset);
+        if descriptor.enabled {
+            commands::execute_without_clipboard(commands::CommandId::DeleteDataset, app, ctx);
+        } else {
+            // The gate's reason is generic; name what actually uses the data.
+            app.session.status = super::command_exec::dataset_delete_blocker(app)
+                .or(descriptor.disabled_reason.map(str::to_owned))
+                .unwrap_or_default();
+        }
+        return;
+    }
+    if ctx.egui_wants_keyboard_input() {
         return;
     }
     delete_selection(app, ctx);

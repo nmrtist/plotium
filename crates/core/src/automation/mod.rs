@@ -14,6 +14,8 @@ pub use table_read::*;
 pub use table_transform::*;
 pub use table_update::*;
 mod curve_bindings;
+mod dataset_delete;
+pub use dataset_delete::DATASET_DELETE;
 mod figure_edit;
 mod plot_creation;
 pub use figure_edit::*;

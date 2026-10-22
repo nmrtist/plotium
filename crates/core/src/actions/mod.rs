@@ -557,6 +557,12 @@ pub enum Action {
     InsertTableData {
         dataset: Box<Dataset>,
     },
+    /// Remove a dataset nothing draws from; undo restores it at `index` with
+    /// its original identity.
+    DeleteDataset {
+        index: usize,
+        dataset: Box<Dataset>,
+    },
     InsertDatasetWithCanvas {
         dataset_index: usize,
         canvas_index: usize,
@@ -633,6 +639,7 @@ impl Action {
         match self {
             Self::InstallScientificState { .. } => "apply scientific changes",
             Self::InsertTableData { .. } => "import table data",
+            Self::DeleteDataset { .. } => "delete dataset",
             Self::CreatePlot { .. } => "create native plot",
             Self::ReplacePanelState { .. } => "edit panel structure",
             Self::DeleteFigureTargets { .. } => "delete figure targets",
@@ -728,6 +735,7 @@ impl Action {
             | Self::InsertCanvas { .. }
             | Self::InstallScientificState { .. }
             | Self::InsertTableData { .. }
+            | Self::DeleteDataset { .. }
             | Self::InsertDatasetWithCanvas { .. }
             | Self::InsertObject { .. }
             | Self::DeleteObject { .. }

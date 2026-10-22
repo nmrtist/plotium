@@ -225,7 +225,7 @@ CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限
 输入 schema、结果约定、支持的操作、属性定义和输出限制。
 标准 MCP `tools/list` 也提供工具输入 schema。资源描述中的能力属于 **core** 的
 数据和渲染语义；资源列出某项能力，不代表此连接已开放该操作。
-这里可预检 `project.save`、`figure.export`、`resource.rename`、`figure.apply_theme`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
+这里可预检 `project.save`、`figure.export`、`resource.rename`、`dataset.delete`、`figure.apply_theme`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
 `data.import`／`data.transform` 模式、`table.patch`、`table.refresh`、`figure.edit`、`plot.create` 及 `plot.series.append`／`plot.series.bind`／`plot.series.materialize_default`。
 只读权限允许表格查询及既有属性预检，但拒绝导入／绑定／创建／版式编辑／处理／补丁／刷新预检和所有可撤销修改执行；保存和导出使用下文各自独立的逐次桌面授权，只读也可请求。
 
@@ -1127,7 +1127,11 @@ stdio 结束时关闭；其他工具仍使用原来的单次调用 transport，�
 将 `CANVAS_UUID` 换成发现返回的画布 ID；不接受面板、内容、当前选择或 Series。
 结果包含标准 MCP PNG **image 内容块**，以及 `ToolResult.value` 中的
 `target`、`render_revision`、`width_px`、`height_px` 和 `mime_type`。
-无需打开文件或自行渲染 SVG 文本。MCP 客户端须将图像内容交给 agent；纯文本
+无需打开文件或自行渲染 SVG 文本。点数超过预览所能显示的曲线以最小/最大包络
+绘制：每个像素列保留四对最小/最大值点，整个绘图区至少 2,048 对（标记则每个像素
+一个）；`downsampled` 以 `{target, source_points, drawn_points}` 列出每条这样的
+曲线，没有降采样时省略。放大后可见的数据点全部保留。
+导出始终绘制全部数据点。MCP 客户端须将图像内容交给 agent；纯文本
 客户端无法读取此预览。
 
 图像覆盖整页，使用原生版式、背景、面板裁剪、文字、曲线及项目内嵌栅格资产。
@@ -1389,6 +1393,10 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 也可将查询参数改为 `targets`。恢复默认值时，用同一 target 预检 `properties.reset`，
 参数为 `{"key":"series.line.stroke_width"}`。组件寻址仅支持所列显示属性，
 处理参数使用独立的 `processing.edit` 操作。`resource.rename` 仍须使用 `ids`。
+
+`dataset.delete` 的参数为 `{}`，在 `ids` 中给出 DatasetId。如果仍有图、投影、
+派生数据集或分析报告使用该数据集，预检会拒绝，并指出使用它的页面与面板、
+数据集或报告；请先删除这些内容。派生数据集需单独一次请求先删除，再删除其来源。一次撤销即可按原 ID 和原位置恢复全部被删除的数据集。
 
 工具结果同时提供结构化内容及 JSON 文本。项目读取与预检要求当前
 `expected_revision`；修改或撤销后重新获取状态。执行时重新检查保存的 revision

@@ -207,6 +207,7 @@ fn execute_inner(
         CommandId::AlignSpectra => super::align::open_align_spectra_dialog(app),
         CommandId::AlignTraces => super::trace_alignment::open_active_trace_alignment_dialog(app),
         CommandId::StackData => app.stack_selected_data(),
+        CommandId::DeleteDataset => delete_selected_datasets(app),
         CommandId::ExtractMassSpectrum => {
             app.set_tool(Tool::SelectRegion);
             reveal_group(app, ToolGroup::MassSpectrometry);
@@ -424,6 +425,29 @@ fn execute_panel_command(id: CommandId, app: &mut PlotiumApp) {
             }
         }
         Err(error) => app.session.status = error,
+    }
+}
+
+/// Why the selected datasets cannot be deleted: the first one still in use.
+pub(super) fn dataset_delete_blocker(app: &PlotiumApp) -> Option<String> {
+    app.session.ui.data_selection.iter().find_map(|&di| {
+        let dataset = app.doc.datasets.get(di)?;
+        app.check_dataset_deletable(dataset.resource_id()).err()
+    })
+}
+
+/// Each dataset is its own undo step, highest index first so the remaining
+/// indices stay valid.
+fn delete_selected_datasets(app: &mut PlotiumApp) {
+    if let Some(reason) = dataset_delete_blocker(app) {
+        app.session.status = reason;
+        return;
+    }
+    let mut selected = app.session.ui.data_selection.clone();
+    selected.sort_unstable_by(|a, b| b.cmp(a));
+    selected.dedup();
+    for di in selected {
+        app.delete_dataset(di);
     }
 }
 

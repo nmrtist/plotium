@@ -37,6 +37,11 @@ Double-click a dataset to open its data sheet. Click an analysis result to
 focus its dataset; double-click it to jump to the plot and the corresponding
 analysis tool.
 
+To delete a dataset, choose **Delete Dataset** from its context menu or the
+**Edit** menu, or select it in the Data list and press `Delete` or `Backspace`. A dataset that a plot, a derived dataset or
+an analysis report still uses is kept; the status bar names what uses it, so you
+can remove those first. Deletion can be undone.
+
 Projects saved with much older versions of Plotium may show some derived results
 as top-level datasets; they remain fully usable.
 

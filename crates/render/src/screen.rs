@@ -2,9 +2,8 @@ pub use crate::screen_stats::RenderStats;
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentViewport, OUTER_PAD, Projector, Rect,
     TICK_LABEL_PAD, axis_layout_placed, error_bar_segments, heatmap_cells, integral,
-    minor_tick_values, polygon_outline, projection_points,
-    screen_contours::paint_contours,
-    screen_lod::{line_columns, scaled_screen_line_points},
+    line_lod::scaled_line_points, minor_tick_values, polygon_outline, projection_points,
+    screen_contours::paint_contours, screen_lod::line_columns,
 };
 use egui::{Align2, Color32, FontId, Pos2, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure};

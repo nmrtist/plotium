@@ -401,6 +401,14 @@ impl PlotiumApp {
                 self.doc.datasets.push(dataset.as_ref().clone());
                 self.session.dataset_epoch += 1;
             }
+            Action::DeleteDataset { index, dataset } => {
+                let id = dataset.resource_id();
+                if self.doc.datasets.get(*index).map(Dataset::resource_id) != Some(id) {
+                    return Err(ActionApplyError::StaleTarget(format!("dataset {id}")));
+                }
+                self.doc.datasets.remove(*index);
+                self.forget_removed_dataset(*index, id);
+            }
             Action::InsertDatasetWithCanvas {
                 dataset_index,
                 canvas_index,

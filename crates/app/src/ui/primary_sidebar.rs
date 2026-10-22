@@ -235,6 +235,7 @@ enum BrowserEvent {
     SelectDataset(usize, SelectModifiers),
     OpenSheet(usize),
     StartRename(usize),
+    Delete,
     RenameCommit(usize, String),
     RenameCancel,
     Stack,
@@ -343,6 +344,19 @@ fn render_dataset_node(
             }
             if app.doc.datasets[di].lineage().is_some() && ui.button("Reveal sources").clicked() {
                 *event = Some(BrowserEvent::RevealSources(di));
+                ui.close();
+            }
+            let delete = crate::ui::commands::describe(app, crate::ui::commands::CommandId::DeleteDataset);
+            let in_use = app
+                .check_dataset_deletable(app.doc.datasets[di].resource_id())
+                .err()
+                .or(delete.disabled_reason.map(str::to_owned));
+            if ui
+                .add_enabled(delete.enabled, egui::Button::new(delete.label))
+                .on_disabled_hover_text(in_use.unwrap_or_default())
+                .clicked()
+            {
+                *event = Some(BrowserEvent::Delete);
                 ui.close();
             }
             ui.separator();
@@ -505,6 +519,11 @@ fn apply_browser_event(
                 focus: true,
             });
         }
+        Some(BrowserEvent::Delete) => crate::ui::commands::execute_without_clipboard(
+            crate::ui::commands::CommandId::DeleteDataset,
+            app,
+            ui.ctx(),
+        ),
         Some(BrowserEvent::Stack) => app.stack_selected_data(),
         Some(BrowserEvent::RevealSources(di)) => {
             app.focus_single(di);

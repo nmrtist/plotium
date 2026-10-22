@@ -389,3 +389,98 @@ fn tab_traversal_moves_delete_from_the_page_to_the_traversed_panel() {
     assert_eq!(app.doc.canvases.len(), 1);
     assert!(app.doc.canvases[0].panel(panel).is_none());
 }
+
+fn app_with_tables(count: usize) -> PlotiumApp {
+    use plotium_core::{data::*, state::*};
+    let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+    for _ in 0..count {
+        let columns = [("x", vec![0., 1.]), ("y", vec![1., 2.])]
+            .into_iter()
+            .map(|(name, values)| {
+                (
+                    ColumnSchema::new(name, LogicalType::Float64),
+                    ColumnChunk::optional_f64(values.into_iter().map(Some)),
+                )
+            })
+            .collect();
+        let table =
+            TableDataset::from_materialized(columns, vec![], None, vec![], "plotium.test.delete")
+                .unwrap();
+        app.doc.datasets.push(Dataset::Table(Box::new(table)));
+    }
+    app
+}
+
+fn backspace() -> egui::RawInput {
+    egui::RawInput {
+        events: vec![egui::Event::Key {
+            key: egui::Key::Backspace,
+            physical_key: Some(egui::Key::Backspace),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+        ..Default::default()
+    }
+}
+
+/// Focus a Data list row, as clicking it does, then press Backspace.
+fn backspace_on_data_row(app: &mut PlotiumApp) {
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::DataList;
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let row = ui.selectable_label(true, "Dataset");
+        super::primary_sidebar::selection::claim_list_keyboard_focus(ui, &row);
+    });
+    let _ = ctx.run_ui(backspace(), |ui| {
+        let _ = ui.selectable_label(true, "Dataset");
+        handle_delete_shortcut(app, ui.ctx());
+    });
+}
+
+#[test]
+fn delete_on_a_focused_data_row_deletes_the_selected_dataset_undoably() {
+    let mut app = app_with_tables(2);
+    let ids: Vec<_> = app.doc.datasets.iter().map(|d| d.resource_id()).collect();
+    app.focus_single(1);
+    backspace_on_data_row(&mut app);
+
+    assert_eq!(app.doc.datasets.len(), 1, "{}", app.session.status);
+    assert_eq!(app.doc.datasets[0].resource_id(), ids[0]);
+    app.undo();
+    assert_eq!(app.doc.datasets[1].resource_id(), ids[1]);
+}
+
+#[test]
+fn delete_without_a_focused_data_row_keeps_datasets() {
+    let mut app = app_with_tables(1);
+    app.focus_single(0);
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::DataList;
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(backspace(), |ui| handle_delete_shortcut(&mut app, ui.ctx()));
+    assert_eq!(app.doc.datasets.len(), 1);
+}
+
+#[test]
+fn data_list_delete_keeps_datasets_still_in_use() {
+    let mut app = app_with_tables(1);
+    let mut canvas = plotium_core::state::CanvasDocument::new("page".into(), [180.0, 120.0]);
+    let id = canvas.allocate_object_id();
+    let plot = app.build_plot_object(
+        0,
+        plotium_core::state::ObjectFrame::new(10.0, 10.0, 100.0, 80.0),
+        id,
+        "Plot".into(),
+    );
+    canvas.objects.push(plot);
+    app.doc.canvases.push(canvas);
+    app.focus_single(0);
+    backspace_on_data_row(&mut app);
+
+    assert_eq!(app.doc.datasets.len(), 1);
+    assert!(
+        app.session.status.contains("page \"page\""),
+        "{}",
+        app.session.status
+    );
+}

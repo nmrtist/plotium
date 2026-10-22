@@ -4,7 +4,7 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 24] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
     "analysis.diffusion.plot",
     "plot.field.create",
     "analysis.dosy.build",
@@ -16,6 +16,7 @@ pub(crate) const EDIT_OPERATIONS: [&str; 24] = [
     "project.save",
     "figure.export",
     "resource.rename",
+    "dataset.delete",
     "figure.apply_theme",
     "properties.set",
     "properties.set_many",
@@ -52,8 +53,8 @@ fn build_manifest() -> Value {
             "plotium_table_columns"=>(vec!["table.columns"],"ToolResult.value: {dataset_id,table_id,table_revision,snapshot_fingerprint,fields,columns,total_rows,diagnostics,inference,freshness,analyses,provenance?}","explicit DatasetId and table RevisionId"),
             "plotium_table_read_rows"=>(vec!["table.read_rows"],"ToolResult.value: {dataset_id,table_id,table_revision,revision,column_ids,offset,requested_rows,returned_rows,total_rows,next_offset,end,rows:[{row_id,values,sources?}]} ; typed 64-bit integer values are decimal strings","explicit DatasetId, table RevisionId and ColumnId projection"),
             "plotium_figure_diagnose"=>(vec!["figure.diagnose"],"ToolResult.value: {project_context,basis_revision,canvas,summary:{issues,by_code,by_severity},output,items,coverage,budget,truncated,continuation}; view issues and detail compact by default; output_page_pt; estimates and potential conflicts are labeled; does not modify project audit or dirty state","exact canvas and output.size_mm, optional exact content/Series and overlap_targets; or one-use cursor"),
-            "plotium_preview_plan"=>(vec!["render.preview_image"],"MCP PNG image plus ToolResult.value: {plan_id,basis_project_context,basis_revision,candidate:true,target,output,width_px,height_px,mime_type}; no render_revision","existing supported plan and one affected whole canvas"),
-            "plotium_render_preview"=>(vec!["render.preview_image"],"MCP PNG image content plus ToolResult.value: {target,render_revision,width_px,height_px,mime_type}","one exact whole-canvas TargetRef"),
+            "plotium_preview_plan"=>(vec!["render.preview_image"],"MCP PNG image plus ToolResult.value: {plan_id,basis_project_context,basis_revision,candidate:true,target,output,width_px,height_px,mime_type,downsampled?}; no render_revision; downsampled lists [{target,source_points,drawn_points}] for curves thinned to preview pixels; exports draw every point","existing supported plan and one affected whole canvas"),
+            "plotium_render_preview"=>(vec!["render.preview_image"],"MCP PNG image content plus ToolResult.value: {target,render_revision,width_px,height_px,mime_type,downsampled?}; downsampled lists [{target,source_points,drawn_points}] for curves thinned to preview pixels; exports draw every point","one exact whole-canvas TargetRef"),
             "plotium_export_status"=>(vec!["figure.export.status"],"{export:ExportReceipt,current_project_context,current_revision,matches_current_project}; non-auditing per-file results","opaque export_id; last 16 batches retained across reconnect/project changes within this desktop process"),
             "plotium_save_status"=>(vec!["project.save.status"],"{save:SaveReceipt,current_project_context,current_revision,current_dirty,current_path,matches_current_project}; no audit mutation","opaque save_id; retained across reconnect/project changes in this desktop process"),
             _=>unreachable!("all connection tools have discovery contracts"),

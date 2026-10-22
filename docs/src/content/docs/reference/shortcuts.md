@@ -98,7 +98,7 @@ Holding `Space` or dragging with the middle button uses the pan cursor instead.
 | `Space` | Add or remove the lead item in the active list |
 | `Ctrl` + `G` | Group the selected objects |
 | `Ctrl` + `Shift` + `G` | Ungroup |
-| `Delete` or `Backspace` | Delete the selected annotation objects, the selected panel and its contents, or the selected board pages; in Peaks or Integrate, delete the selected peak or region; in Symmetry review, delete the selected cross-peak mark |
+| `Delete` or `Backspace` | In the Data list, delete the selected datasets that nothing uses; otherwise delete the selected annotation objects, the selected panel and its contents, or the selected board pages; in Peaks or Integrate, delete the selected peak or region; in Symmetry review, delete the selected cross-peak mark |
 | `+` (or `=`) / `-` | Raise / lower the lowest contour level of the selected plot |
 | `F2` | Rename the selected dataset or canvas |
 | `Esc` | Cancel the active drag; further presses clear the Analysis Range and selections one at a time, then leave the active tool |

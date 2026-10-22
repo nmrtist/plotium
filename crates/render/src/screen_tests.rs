@@ -1,7 +1,8 @@
 use super::ScreenRenderDetail;
+use crate::line_lod::line_points;
 use crate::screen_lod::{
     FULL_MAX_LINE_COLUMNS, FULL_MIN_LINE_COLUMNS, contour_segment_budget, line_columns,
-    screen_contour_segments, screen_line_points,
+    screen_contour_segments,
 };
 
 #[test]
@@ -97,7 +98,7 @@ fn hidden_axis_text_keeps_screen_axis_and_tick_shapes() {
 fn long_trace_is_bounded_and_keeps_narrow_extrema() {
     let mut points: Vec<_> = (0..2_000_000).map(|index| [index as f64, 0.0]).collect();
     points[1_234_567][1] = -42.0;
-    let pooled = screen_line_points(&points, 0.0, 2_000_000.0, 2_000);
+    let pooled = line_points(&points, 0.0, 2_000_000.0, 2_000);
     assert!(pooled.points.len() <= 4_002);
     assert!(pooled.points.iter().any(|point| point[1] == -42.0));
 }
@@ -107,7 +108,7 @@ fn spectrum_sized_trace_is_pooled_to_the_screen_budget() {
     let points: Vec<_> = (0..32_768)
         .map(|index| [index as f64, (index % 7) as f64])
         .collect();
-    let drawn = screen_line_points(&points, 0.0, 32_768.0, FULL_MIN_LINE_COLUMNS);
+    let drawn = line_points(&points, 0.0, 32_768.0, FULL_MIN_LINE_COLUMNS);
     assert!(drawn.points.len() <= FULL_MIN_LINE_COLUMNS * 2 + 2);
     assert!(matches!(drawn.points, std::borrow::Cow::Owned(_)));
 }
@@ -117,7 +118,7 @@ fn short_trace_keeps_its_real_samples() {
     let points: Vec<_> = (0..2_000)
         .map(|index| [index as f64, (index % 7) as f64])
         .collect();
-    let drawn = screen_line_points(&points, 0.0, 2_000.0, FULL_MIN_LINE_COLUMNS);
+    let drawn = line_points(&points, 0.0, 2_000.0, FULL_MIN_LINE_COLUMNS);
     assert!(drawn.points.as_ref() == points.as_slice());
     assert!(matches!(drawn.points, std::borrow::Cow::Borrowed(_)));
 }
@@ -128,7 +129,7 @@ fn pooling_keeps_positive_and_negative_extrema() {
     points[4_321][1] = -17.0;
     points[12_345][1] = 23.0;
     let columns = line_columns(ScreenRenderDetail::Interactive, 320.0, 1.0);
-    let drawn = screen_line_points(&points, 0.0, 20_000.0, columns);
+    let drawn = line_points(&points, 0.0, 20_000.0, columns);
     assert!(drawn.points.iter().any(|point| point[1] == -17.0));
     assert!(drawn.points.iter().any(|point| point[1] == 23.0));
 }
@@ -136,7 +137,7 @@ fn pooling_keeps_positive_and_negative_extrema() {
 #[test]
 fn zoomed_view_keeps_only_visible_samples() {
     let points: Vec<_> = (0..100_000).map(|index| [index as f64, 1.0]).collect();
-    let drawn = screen_line_points(&points, 40_000.0, 41_000.0, FULL_MIN_LINE_COLUMNS);
+    let drawn = line_points(&points, 40_000.0, 41_000.0, FULL_MIN_LINE_COLUMNS);
     assert!(drawn.points.len() < 1_100);
     assert!(drawn.points.first().unwrap()[0] < 40_000.0);
     assert!(drawn.points.last().unwrap()[0] > 41_000.0);
@@ -147,7 +148,7 @@ fn descending_x_view_clips_like_nmr_ppm() {
     let points: Vec<_> = (0..100_000)
         .map(|index| [(100_000 - index) as f64, 1.0])
         .collect();
-    let drawn = screen_line_points(&points, 40_000.0, 41_000.0, FULL_MIN_LINE_COLUMNS);
+    let drawn = line_points(&points, 40_000.0, 41_000.0, FULL_MIN_LINE_COLUMNS);
     assert!(drawn.points.len() < 1_100);
     assert!(drawn.points.first().unwrap()[0] > 41_000.0);
     assert!(drawn.points.last().unwrap()[0] < 40_000.0);
@@ -160,7 +161,7 @@ fn non_monotonic_x_is_pooled_without_unsafe_clipping() {
         .collect();
     let first_x = points[0][0];
     points.last_mut().unwrap()[0] = first_x;
-    let drawn = screen_line_points(&points, 4_000.0, 5_000.0, FULL_MIN_LINE_COLUMNS);
+    let drawn = line_points(&points, 4_000.0, 5_000.0, FULL_MIN_LINE_COLUMNS);
     assert!(drawn.points.len() <= FULL_MIN_LINE_COLUMNS * 2 + 2);
     assert_eq!(drawn.points.first(), points.first());
     assert_eq!(drawn.points.last(), points.last());
@@ -326,7 +327,7 @@ fn log_x_pooling_keeps_detail_in_the_low_decades() {
         .collect();
     let mut x = plotium_figure::Axis::new("x", 1.0, 10_000.0);
     x.scale = plotium_figure::AxisScale::Log10;
-    let drawn = crate::screen_lod::scaled_screen_line_points(&points, &x, false, 1_000);
+    let drawn = crate::line_lod::scaled_line_points(&points, &x, false, 1_000);
     assert!(drawn.pooled);
     // The first decade holds 90 samples across a quarter of the columns.
     let first_decade = drawn.points.iter().filter(|p| p[0] < 10.0).count();
@@ -349,7 +350,7 @@ fn log_y_pooling_ignores_samples_without_a_position() {
         })
         .collect();
     let x = plotium_figure::Axis::new("x", 0.0, 10_000.0);
-    let drawn = crate::screen_lod::scaled_screen_line_points(&points, &x, true, 100);
+    let drawn = crate::line_lod::scaled_line_points(&points, &x, true, 100);
     assert!(drawn.pooled);
     let interior = &drawn.points[1..drawn.points.len() - 1];
     assert!(interior.iter().all(|p| p[1] > 0.0));

@@ -16,6 +16,7 @@ pub(crate) use projected::{
     clip_to_plot, error_bar_segments, finite_runs, is_finite_point, range_annotation_xs,
     stick_segment,
 };
+mod line_lod;
 mod log_ticks;
 pub mod rich_text;
 #[cfg(feature = "screen")]
