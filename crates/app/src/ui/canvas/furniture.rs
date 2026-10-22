@@ -231,7 +231,13 @@ fn plot_geometry(
     )?;
     let figure = app.doc.canvases[ci].object(object)?.plot()?.figure();
     let scale = app.session.board.zoom;
-    let layout = plotium_render::axis_layout(figure, outer.width / scale, outer.height / scale);
+    let placement = app.doc.canvases[ci].shared_x_stack_placement(object);
+    let layout = plotium_render::axis_layout_placed(
+        figure,
+        outer.width / scale,
+        outer.height / scale,
+        placement.as_ref(),
+    );
     let projector = plotium_render::Projector::new(figure, outer, &layout.margins.scaled(scale));
     Some((projector.plot, scale))
 }

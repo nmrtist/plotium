@@ -62,7 +62,7 @@ impl PlotiumApp {
             .doc
             .canvases
             .get(canvas)
-            .map(|page| page.linked_x_members(object).to_vec())
+            .map(|page| page.linked_x_members(object))
             .unwrap_or_default();
         if linked.len() < 2 {
             self.execute_action(Action::set_object_viewport(canvas, object, before, after));
@@ -107,7 +107,7 @@ impl PlotiumApp {
     pub fn sync_linked_x_viewports(&mut self, canvas: usize, object: ObjectId) {
         let Some((range, members)) = self.doc.canvases.get(canvas).and_then(|page| {
             let range = page.object(object)?.plot()?.viewport.view_x;
-            Some((range, page.linked_x_members(object).to_vec()))
+            Some((range, page.linked_x_members(object)))
         }) else {
             return;
         };

@@ -16,6 +16,7 @@ fn demo_document(fig: &Figure) -> Document<'_> {
             visible: true,
             title: None,
             y_title_clearance: 0.0,
+            stack: None,
         })],
     }
 }

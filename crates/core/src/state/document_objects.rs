@@ -50,12 +50,22 @@ pub struct XViewportLinkGroup {
 }
 
 impl CanvasDocument {
-    pub fn linked_x_members(&self, object: ObjectId) -> &[ObjectId] {
-        self.x_viewport_links
+    /// Plots whose horizontal viewport follows `object`: its explicit link
+    /// group joined with the plots of its shared-x stack, which are linked
+    /// without a stored record.
+    pub fn linked_x_members(&self, object: ObjectId) -> Vec<ObjectId> {
+        let mut members = self
+            .x_viewport_links
             .iter()
             .find(|group| group.members.contains(&object))
-            .map(|group| group.members.as_slice())
-            .unwrap_or(&[])
+            .map(|group| group.members.clone())
+            .unwrap_or_default();
+        for peer in self.shared_x_axis_peers(object) {
+            if !members.contains(&peer) {
+                members.push(peer);
+            }
+        }
+        members
     }
 
     pub fn validate_x_viewport_links(&self) -> Result<(), String> {

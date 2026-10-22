@@ -49,6 +49,16 @@ pub enum FigureEdit {
         text: String,
         visible: bool,
     },
+    /// Stack the plots of one Panel on a shared x axis, or return it to free layout.
+    PanelStack {
+        panel: TargetRef,
+        shared_x: bool,
+        gap_pt: Option<f32>,
+        /// Panels merged into `panel` before stacking, like the desktop
+        /// Stack with Shared X command.
+        #[serde(default)]
+        merge: Vec<TargetRef>,
+    },
     Align {
         panels: Vec<TargetRef>,
         edge: FigureAlign,
@@ -222,12 +232,14 @@ fn panel_id(page: &CanvasDocument, target: &TargetRef) -> Result<PanelId, String
         .find(|p| *target == TargetRef::resource(panel_resource(page, p)))
         .ok_or("Discover an exact Panel target on this canvas.")?;
     if p.locked
-        || p.layout != PanelLayout::Free
+        || !matches!(p.layout, PanelLayout::Free | PanelLayout::SharedXStack)
         || p.item_order
             .iter()
             .any(|id| page.object(*id).is_some_and(|o| o.locked))
     {
-        return Err("Panel and its contents must be unlocked, with free layout.".into());
+        return Err(
+            "Panel and its contents must be unlocked, with free or shared-x stack layout.".into(),
+        );
     }
     Ok(p.id)
 }
@@ -242,6 +254,7 @@ fn author_frame(page: &mut CanvasDocument, id: PanelId, f: ObjectFrame) -> Resul
         if !page.set_layout_frame(child, f) {
             return Err("Authoring frame target disappeared.".into());
         }
+        page.reflow_shared_x_stack(id)?;
     } else {
         page.panel_mut(id).ok_or("Panel missing.")?.frame = f;
     }
@@ -287,6 +300,12 @@ fn insert(
 ) -> Result<TargetRef, String> {
     text(name, 1024, true)?;
     let parent = parent_panel(page, parent)?;
+    if parent
+        .and_then(|id| page.panel(id))
+        .is_some_and(|p| p.layout != PanelLayout::Free)
+    {
+        return Err("New content needs a free-layout parent Panel.".into());
+    }
     let frame = frame(f)?;
     let id = page.next_object_id;
     page.next_object_id = id
@@ -375,6 +394,7 @@ impl PlotiumApp {
         let mut image_count = 0;
         let mut content_edits = Vec::new();
         let mut annotation_edits = Vec::new();
+        let mut panel_edits = Vec::new();
         for (edit_index, edit) in params.edits.iter().enumerate() {
             match edit {
                 FigureEdit::ContentDelete { .. }
@@ -456,6 +476,23 @@ impl PlotiumApp {
                     };
                     p.label.visible = *visible;
                     modified.push(target.clone());
+                }
+                FigureEdit::PanelStack {
+                    panel,
+                    shared_x,
+                    gap_pt,
+                    merge,
+                } => {
+                    let request = super::figure_edit_stack::StackRequest {
+                        target: panel,
+                        shared_x: *shared_x,
+                        gap_pt: *gap_pt,
+                        merge,
+                    };
+                    panel_edits.push(super::figure_edit_stack::apply(
+                        &mut page, &request, edit_index,
+                    )?);
+                    modified.push(panel.clone());
                 }
                 FigureEdit::Align { panels, edge } => {
                     let frames = panel_frames(&page, panels, 2)?;
@@ -611,7 +648,7 @@ impl PlotiumApp {
         }
         let panel_frames=page.panels.iter().map(|p|json!({"target":TargetRef::resource(panel_resource(&page,p)),"frame_pt":[p.frame.x,p.frame.y,p.frame.width,p.frame.height]})).collect::<Vec<_>>();
         let content_frames = super::figure_edit_content::final_frames(&page, &params.edits)?;
-        let result = json!({"canvas":params.canvas,"size_mm":page.size_mm,"size_preset":page.size_preset_id,"margin_mm":page.layout.margin_mm,"gutter_mm":page.layout.gutter_mm,"panel_frames":panel_frames,"content_edits":content_edits,"content_frames":content_frames,"annotation_edits":annotation_edits,"created":created,"modified":modified,"frame_contract":"Panel frames are page-relative pt; resizing proportionally scales child-local frames. Content frames are parent-local pt (page pt for canvas parent); content_frame changes only the specified item. No automatic reflow."});
+        let result = json!({"canvas":params.canvas,"size_mm":page.size_mm,"size_preset":page.size_preset_id,"margin_mm":page.layout.margin_mm,"gutter_mm":page.layout.gutter_mm,"panel_frames":panel_frames,"content_edits":content_edits,"content_frames":content_frames,"annotation_edits":annotation_edits,"panel_edits":panel_edits,"created":created,"modified":modified,"frame_contract":"Panel frames are page-relative pt; resizing proportionally scales child-local frames. Content frames are parent-local pt (page pt for canvas parent); content_frame changes only the specified item; in a shared-x stack its height sets its share and the stack reflows. No other automatic reflow."});
         Ok(FigureEditPlan {
             expected_revision: revision,
             canvas: params.canvas.clone(),

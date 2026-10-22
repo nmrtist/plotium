@@ -299,6 +299,7 @@ fn render_stats(
             visible: true,
             title: None,
             y_title_clearance: 0.0,
+            stack: None,
         })],
     };
     let mut stats = super::RenderStats::default();

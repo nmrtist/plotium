@@ -82,6 +82,7 @@ pub enum PanelLayoutDto {
     VerticalStack,
     HorizontalStack,
     Grid { rows: u32, cols: u32 },
+    SharedXStack,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

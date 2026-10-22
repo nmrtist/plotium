@@ -452,7 +452,11 @@ fn scale_slot(
 
 /// Why a scale property is disabled for `plot`. NMR spectra stay linear
 /// because their integral, phase and cursor tools measure in linear ppm.
-fn scale_unavailable(app: &PlotiumApp, id: PropertyId, plot: &PlotObject) -> Option<&'static str> {
+pub(crate) fn scale_unavailable(
+    app: &PlotiumApp,
+    id: PropertyId,
+    plot: &PlotObject,
+) -> Option<&'static str> {
     if !matches!(id, X_SCALE | Y_SCALE) {
         return None;
     }

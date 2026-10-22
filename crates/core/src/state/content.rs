@@ -177,6 +177,7 @@ pub fn document_item(
                 visible,
                 title: None,
                 y_title_clearance: 0.0,
+                stack: None,
             })
         }
         ContentKind::Text(text) => {
@@ -253,6 +254,7 @@ fn panel_letter_clearance(
 }
 
 pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentItem<'_>> {
+    let stacks = canvas.shared_x_stack_placements();
     let mut items: Vec<_> = canvas
         .objects
         .iter()
@@ -266,6 +268,7 @@ pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentIt
             if let plotium_render::DocumentItem::Plot(plot) = &mut item {
                 plot.y_title_clearance =
                     panel_letter_clearance(canvas, object.id, frame, plot.figure);
+                plot.stack = stacks.get(&object.id).copied();
             }
             item
         })

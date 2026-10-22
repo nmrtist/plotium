@@ -29,7 +29,17 @@ pub fn overlay_text_bounds(
     Some(Rect::new(x, frame.top, width, height))
 }
 pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
-    let layout = axis_layout(fig, size[0], size[1]);
+    figure_text_boxes_placed(fig, size, None)
+}
+
+/// Text boxes of a plot that may sit in a shared-x stack.
+pub fn figure_text_boxes_placed(
+    fig: &Figure,
+    size: [f32; 2],
+    stack: Option<&StackPlacement>,
+) -> Vec<TextBox> {
+    let layout = axis_layout_placed(fig, size[0], size[1], stack);
+    let xf = XFurniture::of(fig, stack);
     let proj = Projector::new(fig, Rect::new(0., 0., size[0], size[1]), &layout.margins);
     let plot = proj.plot;
     let ty = fig.typography;
@@ -59,7 +69,7 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
     };
     add(
         "title",
-        &fig.title,
+        if xf.show_title { &fig.title } else { "" },
         size[0] * 0.5,
         OUTER_PAD,
         ty.title_pt,
@@ -68,7 +78,7 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
         None,
     );
     let y_axis_x = proj.left_band.map_or(plot.left, |b| b.left);
-    if fig.x.show_tick_labels {
+    if xf.show_tick_labels {
         for (v, label) in layout.x_ticks.values.iter().zip(&layout.x_ticks.labels) {
             let (x, _) = proj.project([*v, fig.y.min]);
             add(
@@ -98,6 +108,9 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
     if fig.y.show_tick_labels {
         for (v, label) in layout.y_ticks.values.iter().zip(&layout.y_ticks.labels) {
             let (_, y) = proj.project([fig.x.min, *v]);
+            if !xf.shows_y_label_at(y - plot.top) {
+                continue;
+            }
             add(
                 &format!("axis.y.tick:{v}"),
                 label,
@@ -113,8 +126,16 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
             add(
                 "axis.y.multiplier",
                 &m,
-                y_axis_x,
-                plot.top - TICK_LABEL_PAD - ty.tick_pt,
+                if xf.y_multiplier_inside {
+                    y_axis_x + ty.tick_length_pt + TICK_LABEL_PAD
+                } else {
+                    y_axis_x
+                },
+                if xf.y_multiplier_inside {
+                    plot.top + TICK_LABEL_PAD
+                } else {
+                    plot.top - TICK_LABEL_PAD - ty.tick_pt
+                },
                 ty.tick_pt,
                 0.,
                 false,
@@ -123,8 +144,8 @@ pub fn figure_text_boxes(fig: &Figure, size: [f32; 2]) -> Vec<TextBox> {
         }
     }
     if fig.axis_frame != plotium_figure::AxisFrame::Hidden {
-        if fig.x.show_label {
-            let clearance = if fig.x.show_tick_labels {
+        if xf.show_label {
+            let clearance = if xf.show_tick_labels {
                 layout.x_ticks.multiplier_clearance(ty.tick_pt)
             } else {
                 0.

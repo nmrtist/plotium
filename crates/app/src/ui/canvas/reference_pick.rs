@@ -169,7 +169,13 @@ fn pick_plot(
     )?;
     let figure = object.plot()?.figure();
     let zoom = app.session.board.zoom;
-    let layout = plotium_render::axis_layout(figure, outer.width / zoom, outer.height / zoom);
+    let placement = app.doc.canvases[ci].shared_x_stack_placement(object_id);
+    let layout = plotium_render::axis_layout_placed(
+        figure,
+        outer.width / zoom,
+        outer.height / zoom,
+        placement.as_ref(),
+    );
     let plot = plotium_render::Projector::new(figure, outer, &layout.margins.scaled(zoom)).plot;
     Some((plot, PickGeometry::of(figure)))
 }

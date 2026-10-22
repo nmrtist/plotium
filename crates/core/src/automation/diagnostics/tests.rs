@@ -143,6 +143,7 @@ fn missing_data_and_unsupported_native_geometry_cannot_claim_clean() {
         visible: true,
         kind: SnapshotKind::Plot {
             figure: Box::new(f),
+            stack: None,
             selected_series: None,
             declared: vec![(SeriesId::new(1), true, "resolved".into())],
         },

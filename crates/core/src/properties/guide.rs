@@ -351,8 +351,10 @@ pub fn geometry(
     let plot = content
         .plot()
         .ok_or_else(|| PropertyError::UnknownTarget(address.target.describe()))?;
-    Ok(plotium_render::guide_geometry(
+    let stack = app.doc.canvases[canvas].shared_x_stack_placement(object);
+    Ok(plotium_render::guide_geometry_placed(
         plot.figure(),
         [content.frame.width, content.frame.height],
+        stack.as_ref(),
     ))
 }

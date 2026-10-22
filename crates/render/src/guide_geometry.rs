@@ -1,5 +1,7 @@
 //! Guide observations reuse the exact renderer layout, not a second estimator.
-use crate::{Figure, Projector, Rect, axis_layout, color_scale_rect, legend_entries, legend_rect};
+use crate::{
+    Figure, Projector, Rect, axis_layout_placed, color_scale_rect, legend_entries, legend_rect,
+};
 
 pub fn legend_entry_count(fig: &Figure) -> usize {
     legend_entries(fig).len()
@@ -20,7 +22,16 @@ pub struct GuideGeometry {
 /// Physical object-local points at scale 1, matching screen and vector exports.
 /// Bounds are renderer layout boxes; text widths use its existing estimate.
 pub fn guide_geometry(fig: &Figure, size: [f32; 2]) -> GuideGeometry {
-    let layout = axis_layout(fig, size[0], size[1]);
+    guide_geometry_placed(fig, size, None)
+}
+
+/// Guide geometry of a plot that may sit in a shared-x stack.
+pub fn guide_geometry_placed(
+    fig: &Figure,
+    size: [f32; 2],
+    stack: Option<&crate::StackPlacement>,
+) -> GuideGeometry {
+    let layout = axis_layout_placed(fig, size[0], size[1], stack);
     let plot = Projector::new(fig, Rect::new(0., 0., size[0], size[1]), &layout.margins).plot;
     let legend = legend_rect(fig, plot, 1.);
     let entries = legend_entry_count(fig);

@@ -881,6 +881,7 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `panel_delete` | `target: EXACT_PANEL_TARGET`; requires an originally empty panel |
 | `series_delete` | `target: EXACT_SERIES_TARGET`; removes a non-final explicit Series |
 | `panel_label` | `target`, `text`, `visible`; writes a native manual panel label, preserving its position/font |
+| `panel_stack` | `panel: EXACT_PANEL_TARGET`, `shared_x: true\|false`; optional `gap_pt` (0–144) and `merge: [EXACT_PANEL_TARGET,...]`, both only with `shared_x: true`. Stacks the panel's plots on one shared x axis or returns it to free layout |
 | `align` | `panels: [EXACT_PANEL_TARGET,...]`, `edge: left\|center\|right\|top\|middle\|bottom`; at least two panels |
 | `distribute` | `panels`, `axis: horizontal\|vertical`; at least three panels |
 | `grid` | `panels`, `rows`, `cols`; native Frame-basis cells in supplied target order |
@@ -917,6 +918,29 @@ moving preserves child-local coordinates; resizing scales all child-local frames
 proportionally, without changing curve IDs, bindings, styles, axis ranges or fonts.
 This differs from the free Panel inspector's container-only dimensions.
 New text/image frames are parent-local pt, or page pt for a canvas parent.
+
+`panel_stack` with `shared_x: true` needs at least two plots. `plot.create`
+places each new plot in its own Panel, so list the other plots' Panels in
+`merge`: they are merged into `panel` and their plots are stacked top to bottom
+in their page order, like **Stack with Shared X** on the desktop. Without
+`merge` the plots keep the Panel's content order. The stack fills the Panel's
+inner width;
+their heights keep the proportions of their current frames, so change one with
+`content_frame` to give it a larger share. The gap defaults to 0 pt when the
+stack is turned on. Only the bottom plot draws x tick labels and the x title,
+only the top plot draws a figure title, inner boundaries touch with inward x
+ticks, and the plot areas share left and right edges. Entering the stack writes
+one x range covering every member's data to each member (in its own coordinate
+unit), so members must already share an x scale; every member draws the bottom
+member's x direction without storing it. The plots share one x viewport, and
+later x range, x scale, x display unit and x thousands-separator edits on any
+member apply to all of them in one Undo step; the write is rejected when any
+member cannot take the value, and `applied` lists the member edits. `shared_x: false` returns the Panel to free layout and keeps
+the frames. The result lists each operation in `panel_edits` with `layout`,
+`gap_pt`, `members_top_to_bottom` and `merged_panels`. `plotium_document_inspect` reports every
+Panel's `layout` (`free`, `vertical_stack`, `horizontal_stack`, `grid` or
+`shared_x_stack`); a stack adds `shared_x_stack: {members_top_to_bottom,
+gap_pt}`. `plotium_figure_diagnose` and plan previews use the stacked geometry.
 
 Plot annotations are anchored in data coordinates, not page pt: the label is
 centred above its `at` point and follows the plot's axis ranges, zoom and pan,
@@ -967,7 +991,8 @@ gutter, but does not change saved grid preferences or simplify axes. Page size
 and margin edits alone never rearrange content. Non-target panels and loose
 content remain in place, including any resulting overlap or clipping.
 
-Panel layout-operation targets must be distinct, on this canvas, unlocked and free-layout;
+Panel layout-operation targets must be distinct, on this canvas, unlocked and
+use free or shared-x stack layout; new text and images need a free-layout parent;
 locked children reject a panel edit. Hidden explicit targets remain addressable. Turn off native Auto height before
 exact page/layout authoring.
 Dimensions must be finite/positive; page size is 10–1000 mm, margins/gutter are
@@ -1025,10 +1050,13 @@ Positions may extend beyond the panel or page and are not clamped or snapped.
 All components and converted bounds must be finite, and width/height must be at
 least 1 pt. This numeric minimum does not change the GUI drag minimum.
 
-Only the target item changes: its parent and siblings keep their frames/order;
+Only the target item changes (in a shared-x stack its siblings reflow to the
+new share): its parent and siblings otherwise keep their frames/order;
 plot bindings, Series identities, sources, units, manual axis ranges and styles,
 and text contents/fonts remain intact. The target and its parent must be unlocked;
-a parent must use Free layout and Auto height must be off. A locked sibling does
+a parent must use Free or Shared X Stack layout and Auto height must be off. In a
+shared-x stack only the height counts: it sets the item's share of the stack, and
+the stack reflows. A locked sibling does
 not block this edit. `geometry.frame_editable` and `frame_edit_error` report these
 native eligibility conditions, independent of connection modify permission.
 

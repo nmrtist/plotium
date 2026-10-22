@@ -734,6 +734,7 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 | `panel_delete` | `target: 完整 Panel 目标`；要求原始状态已为空 |
 | `series_delete` | `target: 完整 Series 目标`；删除非末条显式 Series |
 | `panel_label` | `target`、`text`、`visible`；写入原生手动面板标签，保留位置和字号 |
+| `panel_stack` | `panel: 完整面板目标`、`shared_x: true\|false`；可选 `gap_pt`（0–144）和 `merge: [完整面板目标,...]`，二者仅限 `shared_x: true`。把面板中的图堆叠到同一条共享 x 轴上，或恢复为自由布局 |
 | `align` | `panels: [完整面板目标,...]`、`edge: left\|center\|right\|top\|middle\|bottom`；至少两个面板 |
 | `distribute` | `panels`、`axis: horizontal\|vertical`；至少三个面板 |
 | `grid` | `panels`、`rows`、`cols`；按所给目标顺序分配原生 Frame-basis 网格格子 |
@@ -769,6 +770,24 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 子内容局部坐标，改尺寸按比例缩放全部子内容 frame，不改曲线身份、绑定、样式、
 轴范围或字号。这不同于自由 Panel inspector 仅修改容器尺寸的行为。
 新文字／图片 frame 使用父面板局部 pt；父目标为画布时则使用页面 pt。
+
+`panel_stack` 的 `shared_x: true` 要求至少有两张图。`plot.create` 会把每张新图
+放进各自的面板，因此请在 `merge` 中列出其他图所在的面板：它们会先合并到 `panel`，
+其中的图按页面上的上下位置从上到下堆叠，与桌面端 **Stack with Shared X** 相同。
+不传 `merge` 时保持面板内容顺序。堆叠填满面板内宽；高度
+保持当前 frame 的比例，用 `content_frame` 修改某张图的高度即可调整其所占比例。
+开启堆叠时间距默认为 0 pt。只有最下面的图绘制 x 刻度数字和 x 轴标题，只有
+最上面的图绘制图标题，内部边界紧贴且 x 刻度朝内，各绘图区共用左右边缘。进入堆叠
+时，会把覆盖所有成员数据的 x 范围（按各自坐标单位）写入每个成员，因此各成员须先
+使用相同的 x 刻度类型；所有成员绘制最下面成员的 x 方向，但不保存该方向。各图共享
+x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位或 x 千位分隔符，都会
+写到所有成员，并合为一次 Undo；若任一成员不能接受该值则拒绝写入，`applied` 会
+列出各成员的修改。`shared_x: false` 恢复为自由布局并保留各 frame。结果在 `panel_edits` 中列出
+每个操作的 `layout`、`gap_pt`、`members_top_to_bottom` 和 `merged_panels`。
+`plotium_document_inspect` 为每个面板返回 `layout`（`free`、`vertical_stack`、
+`horizontal_stack`、`grid` 或 `shared_x_stack`）；堆叠面板另含
+`shared_x_stack: {members_top_to_bottom, gap_pt}`。`plotium_figure_diagnose`
+和计划预览使用同一套堆叠几何。
 
 图内标注按数据坐标定位，而不是页面 pt：文字居中显示在 `at` 点上方，画布和所有
 导出中都跟随该图的轴范围、缩放和平移移动；锚点在可见范围外时随图一起裁切。
@@ -808,7 +827,8 @@ GUI 已有子集 Grid 按钮；使用当前页面边距／gutter，不修改已�
 轴文字。仅改页面尺寸／边距不重排内容。非目标面板和 loose 内容原位保留，即使
 因此重叠或裁切，也不自动移动或缩字号。
 
-面板目标须同属此画布、互不重复、未锁定且自由布局；锁定子内容也拒绝面板编辑。
+面板目标须同属此画布、互不重复、未锁定，且为自由布局或共享 x 轴堆叠布局；新建文字和图片
+要求父面板为自由布局；锁定子内容也拒绝面板编辑。
 明确指定的隐藏目标仍可寻址。精确页面／布局编辑须先在 GUI 关闭 Auto height。尺寸须有限且为正，页面每边 10–1000 mm；边距／gutter
 须非负并留出正空间。Grid 行列各 1–16、须容纳所有目标，且每格达到原生最小尺寸 1 pt。文字最多 16384 UTF-8
 字节、字号 1–72 pt；名称／手动标签最多 1024 字节且不得空白。每批 1–200 项，
@@ -851,7 +871,7 @@ pt；左上原点，X 向右、Y 向下。读取新增完整 `parent`、`frame_s
 `page_frame` 和 `geometry` 限制。位置允许超出面板／页面，不自动钳制或吸附。
 分量及换算边界须有限，宽高至少 1 pt；不改变 GUI 拖拽下限。
 
-只改目标内容：父级、兄弟 frame／顺序，plot 的绑定、Series 身份、来源、单位、
+只改目标内容（在共享 x 轴堆叠中，兄弟会按新比例重排）：其余情况下父级、兄弟 frame／顺序，plot 的绑定、Series 身份、来源、单位、
 手动轴范围和样式，以及文字内容／字号均保留。目标和父级须解锁，父面板须为 Free
 布局，Auto height 须关闭；无关兄弟锁定不阻止编辑。`geometry.frame_editable` 和
 `frame_edit_error` 返回原生限制，与连接修改权限独立。
