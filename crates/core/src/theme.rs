@@ -46,7 +46,8 @@ pub struct Theme {
     #[serde(default)]
     pub clear_marker_edges: bool,
     /// Marker fill and outline paired index-for-index with `trace_palette`.
-    /// Empty, or no paint at a position, keeps each curve's own marker paint.
+    /// Empty, or no paint at a position, clears marker fill and edge colour so
+    /// markers follow the curve colour; curves with hand-set colours keep theirs.
     #[serde(default)]
     pub marker_palette: Vec<Option<MarkerPaint>>,
     /// Journal column widths the typography is sized for. Built-in only, so a
@@ -367,7 +368,10 @@ impl PlotiumApp {
             for (i, encoding) in encodings.iter_mut().enumerate() {
                 match encoding {
                     plotium_figure::SeriesEncoding::Line(line) => {
-                        line.color = plotium_figure::ColorSource::Explicit(theme.trace_color(i));
+                        if !line.color_locked {
+                            line.color =
+                                plotium_figure::ColorSource::Explicit(theme.trace_color(i));
+                        }
                         // Sizing a curve without markers would only surprise
                         // the user when they later turn markers on.
                         if line.appearance.marker(line.kind) != plotium_figure::Marker::None
@@ -380,8 +384,15 @@ impl PlotiumApp {
                         if theme.clear_marker_edges {
                             line.appearance.marker_edge_width = None;
                         }
-                        if let Some(paint) = theme.marker_paint(i) {
-                            paint.paint(&mut line.appearance);
+                        if !line.color_locked {
+                            if let Some(paint) = theme.marker_paint(i) {
+                                paint.paint(&mut line.appearance);
+                            } else {
+                                // Leftover marker colours would clash with the
+                                // new line colour; markers follow it instead.
+                                line.appearance.marker_fill = None;
+                                line.appearance.marker_edge_color = None;
+                            }
                         }
                         if line.kind == plotium_figure::SeriesKind::Line
                             && let Some(width) = theme

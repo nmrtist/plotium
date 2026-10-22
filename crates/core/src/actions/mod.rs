@@ -27,6 +27,7 @@ mod transfer;
 mod zorder;
 
 pub use panel::PanelActionError;
+pub(crate) use panel::stack_panels;
 pub use processing_state::{ProcessingRebuild, ProcessingStateError};
 pub use zorder::*;
 

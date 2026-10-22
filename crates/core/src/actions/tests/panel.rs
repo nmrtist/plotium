@@ -399,7 +399,7 @@ fn y_titles_clear_only_letters_that_sit_over_their_column() {
         crate::state::document_items(&app.doc.canvases[0])
             .iter()
             .filter_map(|item| match item {
-                plotium_render::DocumentItem::Plot(plot) => Some(plot.y_title_clearance),
+                plotium_render::DocumentItem::Plot(plot) => Some(plot.y_title_clearance.below),
                 _ => None,
             })
             .collect()
@@ -442,6 +442,64 @@ fn y_titles_clear_only_letters_that_sit_over_their_column() {
 }
 
 #[test]
+fn short_wide_plots_move_right_of_a_letter_their_title_cannot_pass() {
+    let mut app = crate::actions::tests::sample_app();
+    let mut second = app.doc.canvases[0].objects[0].clone();
+    second.id = app.doc.canvases[0].allocate_object_id();
+    app.doc.canvases[0].objects.push(second);
+    let ids: Vec<_> = app.doc.canvases[0].objects.iter().map(|o| o.id).collect();
+    let heights = [60.0, 240.0];
+    for (index, id) in ids.iter().enumerate() {
+        let object = app.doc.canvases[0].object_mut(*id).unwrap();
+        object.frame = ObjectFrame::new(0.0, index as f32 * 300.0, 300.0, heights[index]);
+        let before = object.plot().unwrap().axis_overrides.clone();
+        let after = crate::state::AxisOverrides {
+            y_label: Some("Transmembrane voltage drop (V)".to_owned()),
+            ..before.clone()
+        };
+        app.execute_action(crate::actions::Action::set_axis_overrides(
+            0, *id, before, after,
+        ));
+        let (_, action) = app
+            .compose_panel_action(0, format!("p{index}"), &[*id], 0.0)
+            .unwrap();
+        app.execute_action(action);
+    }
+
+    let page = &app.doc.canvases[0];
+    let items = crate::state::document_items(page);
+    let plots: Vec<_> = items
+        .iter()
+        .filter_map(|item| match item {
+            plotium_render::DocumentItem::Plot(plot) => Some(plot),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(plots.len(), 2);
+    for (plot, id) in plots.iter().zip(&ids) {
+        // Editor geometry reads the same clearance the renderers receive.
+        assert_eq!(page.y_title_clearance(*id), plot.y_title_clearance);
+        assert!(plot.y_title_clearance.below > 0.0 && plot.y_title_clearance.beside > 0.0);
+    }
+
+    let area = |index: usize| {
+        let plot = plots[index];
+        plotium_render::y_title_area(plot.figure, plot.frame, plot.y_title_clearance, 1.0)
+    };
+    let (short, short_clearance) = area(0);
+    let letter_right = plots[0].frame.left + plots[0].y_title_clearance.beside;
+    assert!(short.left >= letter_right, "{short:?}");
+    assert!((short.right() - plots[0].frame.right()).abs() < 1e-3);
+    assert_eq!(short_clearance, 0.0);
+
+    // A tall plot still moves its title down instead.
+    let (tall, tall_clearance) = area(1);
+    assert_eq!(tall.left, plots[1].frame.left);
+    assert_eq!(tall.width, plots[1].frame.width);
+    assert_eq!(tall_clearance, plots[1].y_title_clearance.below);
+}
+
+#[test]
 fn hidden_canvas_letters_draw_nothing_and_reserve_no_title_space() {
     let mut app = crate::actions::tests::sample_app();
     let mut second = app.doc.canvases[0].objects[0].clone();
@@ -463,7 +521,7 @@ fn hidden_canvas_letters_draw_nothing_and_reserve_no_title_space() {
             _ => None,
         });
         let clearances = items.iter().filter_map(|item| match item {
-            plotium_render::DocumentItem::Plot(plot) => Some(plot.y_title_clearance),
+            plotium_render::DocumentItem::Plot(plot) => Some(plot.y_title_clearance.below),
             _ => None,
         });
         labels.zip(clearances).collect()

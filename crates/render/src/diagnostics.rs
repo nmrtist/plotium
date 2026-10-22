@@ -7,7 +7,7 @@ mod text;
 use crate::Rect;
 pub use curves::{CurveScan, CurveScanResult, scan_curve};
 pub use raster::raster_bounds;
-pub use text::{TextBox, figure_text_boxes, overlay_text_bounds};
+pub use text::{TextBox, figure_text_boxes, figure_text_boxes_placed, overlay_text_bounds};
 
 pub fn intersection(a: Rect, b: Rect) -> Option<Rect> {
     let l = a.left.max(b.left);

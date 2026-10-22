@@ -67,6 +67,7 @@ pub enum CommandId {
     DeletePanel,
     DuplicatePanel,
     MergePanels,
+    StackPanelsSharedX,
     SplitPanel,
     SetPanelLayout(plotium_core::state::PanelLayout),
     MoveContentToPanel(Option<plotium_core::state::PanelId>),
@@ -351,7 +352,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 }),
             "Select unlocked sibling content and an unlocked destination panel.",
         ),
-        CommandId::MergePanels => requires(
+        CommandId::MergePanels | CommandId::StackPanelsSharedX => requires(
             app.session
                 .ui
                 .hierarchical_selection

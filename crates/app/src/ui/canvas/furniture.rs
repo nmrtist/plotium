@@ -231,9 +231,8 @@ fn plot_geometry(
     )?;
     let figure = app.doc.canvases[ci].object(object)?.plot()?.figure();
     let scale = app.session.board.zoom;
-    let layout = plotium_render::axis_layout(figure, outer.width / scale, outer.height / scale);
-    let projector = plotium_render::Projector::new(figure, outer, &layout.margins.scaled(scale));
-    Some((projector.plot, scale))
+    let plot = plot_screen_box(&app.doc.canvases[ci], object, figure, outer, scale);
+    Some((plot, scale))
 }
 
 fn update_furniture_drag(app: &mut PlotiumApp, ci: usize, canvas_rect: egui::Rect, pointer: Pos2) {

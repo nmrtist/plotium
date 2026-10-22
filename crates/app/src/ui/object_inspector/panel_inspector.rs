@@ -58,7 +58,16 @@ pub(super) fn render(app: &mut PlotiumApp, ci: usize, id: PanelId, ui: &mut Ui) 
                 PanelLayout::Grid { rows: 2, cols: 2 },
                 "Grid 2 × 2",
             );
+            ui.selectable_value(
+                &mut after.layout,
+                PanelLayout::SharedXStack,
+                "Shared X Stack",
+            );
         });
+    // Stacked plots meet edge to edge unless the author opens a gap later.
+    if after.layout == PanelLayout::SharedXStack && before.layout != PanelLayout::SharedXStack {
+        after.layout_gap = 0.0;
+    }
     if let PanelLayout::Grid { rows, cols } = &mut after.layout {
         ui.horizontal(|ui| {
             ui.label("Rows");
@@ -178,6 +187,11 @@ pub(super) fn render(app: &mut PlotiumApp, ci: usize, id: PanelId, ui: &mut Ui) 
         let mut page = app.doc.canvases[ci].clone();
         if let Some(panel) = page.panel_mut(id) {
             *panel = after;
+            // A resized stack refills its new frame.
+            if let Err(error) = page.reflow_shared_x_stack(id) {
+                app.session.status = format!("Could not apply Shared X Stack: {error}");
+                return;
+            }
             app.execute_action(Action::ReplacePanelState {
                 canvas: ci,
                 before: state_before,
@@ -202,6 +216,7 @@ fn layout_label(layout: PanelLayout) -> &'static str {
         PanelLayout::VerticalStack => "Vertical Stack",
         PanelLayout::HorizontalStack => "Horizontal Stack",
         PanelLayout::Grid { .. } => "Grid",
+        PanelLayout::SharedXStack => "Shared X Stack",
     }
 }
 

@@ -204,6 +204,7 @@ impl PlotiumApp {
             }
         }
         transaction.ensure_single_storage()?;
+        transaction.fan_out_shared_x(self, &mut applied)?;
         Ok(transaction.into_commit(self, applied, skipped))
     }
 
@@ -262,6 +263,7 @@ impl PlotiumApp {
             }
         }
         transaction.ensure_single_storage()?;
+        transaction.fan_out_shared_x(self, &mut applied)?;
         Ok(transaction.into_commit(self, applied, skipped))
     }
 
@@ -353,6 +355,7 @@ impl PlotiumApp {
             }
         }
         transaction.ensure_single_storage()?;
+        transaction.fan_out_shared_x(self, &mut applied)?;
         Ok(transaction.into_commit(self, applied, skipped))
     }
 
@@ -547,6 +550,7 @@ impl PlotiumApp {
             }
         }
         transaction.ensure_single_storage()?;
+        transaction.fan_out_shared_x(self, &mut applied)?;
         Ok(transaction.into_commit(self, applied, skipped))
     }
 

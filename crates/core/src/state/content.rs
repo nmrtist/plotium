@@ -176,7 +176,8 @@ pub fn document_item(
                 geometry_generation: Some(plot.figure_geometry_generation()),
                 visible,
                 title: None,
-                y_title_clearance: 0.0,
+                y_title_clearance: Default::default(),
+                stack: None,
             })
         }
         ContentKind::Text(text) => {
@@ -219,20 +220,40 @@ pub fn document_item(
     }
 }
 
+impl CanvasDocument {
+    /// Panel-letter room around a plot's y-axis title, in page points. Editor
+    /// geometry passes it to [`plotium_render::y_title_area`] exactly as the
+    /// renderers do, so hit-testing matches the drawn plot.
+    pub fn y_title_clearance(&self, content: ContentId) -> plotium_render::YTitleClearance {
+        let Some(plot) = self.object(content).and_then(|object| object.plot()) else {
+            return Default::default();
+        };
+        let Some(frame) = self.content_page_frame(content) else {
+            return Default::default();
+        };
+        let stacked = self.shared_x_stack_placement(content).is_some();
+        panel_letter_clearance(self, content, frame, plot.figure(), stacked)
+    }
+}
+
 /// How far below its frame top a plot's y-axis title must start to clear the
 /// letter of its panel, when the letter sits over the upper half of the
-/// title's column. Moving the title down cannot clear a lower letter.
+/// title's column, and how far right the letter reaches. Moving the title down
+/// cannot clear a lower letter. A stacked plot reports no horizontal room:
+/// moving it right would break the stack's shared left edge.
 fn panel_letter_clearance(
     canvas: &CanvasDocument,
     content: ContentId,
     frame: ObjectFrame,
     figure: &plotium_figure::Figure,
-) -> f32 {
+    stacked: bool,
+) -> plotium_render::YTitleClearance {
+    let none = plotium_render::YTitleClearance::default();
     let Some(panel) = canvas.parent_panel(content).and_then(|id| canvas.panel(id)) else {
-        return 0.0;
+        return none;
     };
     if !canvas.panel_label_is_displayed(panel.id) {
-        return 0.0;
+        return none;
     }
     let letters = canvas.panel_label_text(panel).chars().count() as f32;
     let font = panel.label.font_size;
@@ -245,14 +266,17 @@ fn panel_letter_clearance(
         && right > frame.x
         && bottom > frame.y
         && top < frame.y + frame.height * 0.5;
-    if overlaps {
-        bottom - frame.y + font * 0.25
-    } else {
-        0.0
+    if !overlaps {
+        return none;
+    }
+    plotium_render::YTitleClearance {
+        below: bottom - frame.y + font * 0.25,
+        beside: if stacked { 0.0 } else { right - frame.x },
     }
 }
 
 pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentItem<'_>> {
+    let stacks = canvas.shared_x_stack_placements();
     let mut items: Vec<_> = canvas
         .objects
         .iter()
@@ -264,8 +288,14 @@ pub fn document_items(canvas: &CanvasDocument) -> Vec<plotium_render::DocumentIt
             let frame = canvas.content_page_frame(object.id).unwrap_or(object.frame);
             let mut item = document_item(object, frame, panel_visible && object.visible);
             if let plotium_render::DocumentItem::Plot(plot) = &mut item {
-                plot.y_title_clearance =
-                    panel_letter_clearance(canvas, object.id, frame, plot.figure);
+                plot.stack = stacks.get(&object.id).copied();
+                plot.y_title_clearance = panel_letter_clearance(
+                    canvas,
+                    object.id,
+                    frame,
+                    plot.figure,
+                    plot.stack.is_some(),
+                );
             }
             item
         })

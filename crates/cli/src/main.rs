@@ -11,6 +11,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 mod craft;
+mod export;
 mod tool;
 
 const HELP: &str = r#"plotium-cli - headless Plotium workflows
@@ -23,6 +24,7 @@ USAGE:
   plotium-cli tool describe <tool_id>
   plotium-cli tool run <input> --request <operation.json> [--output <project.plotium>]
   plotium-cli batch --workflow <workflow.json> --manifest <manifest.json>
+  plotium-cli export <project.plotium> --output-dir <dir> [--format pdf|svg|png|tiff|jpeg] [--canvas <name or id>]... [--dpi <n>] [--overwrite]
 
 COMMANDS:
   inspect   Detect, load and describe one supported dataset.
@@ -31,21 +33,24 @@ COMMANDS:
             canvas, and export it. If --format is omitted, infer it from output.
   tool      Discover or run one shared semantic operation and return JSON.
   batch     Execute a tool-based v1 DAG and atomically write its run manifest.
+  export    Export every canvas of a saved project, or each --canvas, without
+            modifying the project. The format defaults to pdf.
 
 OUTPUT:
   inspect writes a stable text report, or plotium.inspect.v1 JSON with --json.
   craft writes a plotium.craft.batch.v1 JSON report. Regions are specified in ppm.
   process writes one plotium.process.v1 JSON result to stdout.
   batch writes the same plotium.run-manifest.v1 JSON saved at --manifest.
+  export writes the figure.export tool result JSON to stdout.
   Operational diagnostics and errors are written only to stderr.
 
 STABLE EXIT CODES:
   0   Success or help.
   2   Invalid command-line usage or workflow definition.
-  3   Input detection/loading or workflow file reading failed.
+  3   Input detection/loading, project or workflow file reading failed.
   4   Scheme loading, compatibility or processing failed.
   5   Default canvas or figure construction failed.
-  6   Export or output writing failed.
+  6   Export or output writing failed, including any failed export target.
   7   Batch completed, but one or more inputs failed.
   70  Internal serialization failure.
 "#;
@@ -66,6 +71,7 @@ enum Status {
 #[derive(Clone, Debug, PartialEq)]
 enum Command {
     Tool(tool::ToolCommand),
+    Export(export::ExportCommand),
     Inspect {
         input: PathBuf,
         json: bool,
@@ -216,6 +222,7 @@ where
         Some("process") => parse_process(args),
         Some("batch") => parse_batch(args),
         Some("tool") => tool::parse(args),
+        Some("export") => export::parse(args),
         Some(value) => Err(ParseError::new(format!("unknown command: {value}"))),
         None => Err(ParseError::new("command is not valid Unicode")),
     }
@@ -436,6 +443,7 @@ fn main() -> std::process::ExitCode {
 fn run(command: Command) -> Status {
     match command {
         Command::Tool(command) => tool::run(command),
+        Command::Export(command) => export::run(command),
         Command::Inspect {
             input,
             json,

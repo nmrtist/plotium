@@ -274,7 +274,16 @@ pub(crate) fn finish_content_drag(
                 }
             }
         }
-        None => PanelState::of(&app.doc.canvases[ci]),
+        None => {
+            // A stack member's dragged height becomes its share of the stack.
+            let page = &mut app.doc.canvases[ci];
+            if let Some(stack) = page.shared_x_stack_of(drag.object).map(|panel| panel.id)
+                && let Err(error) = page.reflow_shared_x_stack(stack)
+            {
+                app.session.status = format!("Could not apply Shared X Stack: {error}");
+            }
+            PanelState::of(&app.doc.canvases[ci])
+        }
     };
     app.execute_action(Action::ReplacePanelState {
         canvas: ci,

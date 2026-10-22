@@ -100,14 +100,17 @@ be selected but not edited.
 
 Use the Panel inspector to control visibility, locking, clipping, labels, and
 layout. **Vertical Stack**, **Horizontal Stack**, and **Grid** arrange the
-contents using the selected gap, padding, and alignment. Automatic panel letters
+contents using the selected gap, padding, and alignment. **Shared X Stack**
+stacks plots on one x axis; see
+[Stack plots on a shared x axis](#stack-plots-on-a-shared-x-axis). Automatic panel letters
 appear only when a page has more than one visible Panel and follow reading order:
 rows from top to bottom, left to right within a row. They update as soon as you
 move or add a Panel. Choose **Locked auto** to keep a Panel's current
 letter, or clear **Participates in sequence** to leave it unlettered. A letter
 placed over an image automatically switches between black and white for
 contrast, and a plot's y-axis title moves down when needed so the letter never
-sits on it. Manual and locked labels remain
+sits on it; on a plot too short for that, the plot moves right of the letter
+instead. Manual and locked labels remain
 visible on a page with one Panel. To hide every letter on a page at once, clear
 **Show panel letters** in **Canvas settings**; the letters keep their sequence
 and return unchanged when you turn it back on, and axis titles no longer make
@@ -230,6 +233,53 @@ An axis that reaches 10¹⁵ or more, or whose largest value is below 0.001, kee
 the multiplier. Agents can set the same option through the
 `object.axes.x_thousands_separator` and `object.axes.y_thousands_separator`
 properties.
+
+## Stack plots on a shared x axis
+
+A Shared X Stack puts two or more plots in one Panel, one above the other, on a
+common x axis — for example an XRD pattern above its reference-card sticks, or
+several spectra kept apart. Each plot keeps its own y axis, legend and chart
+type.
+
+There are two ways in:
+
+- Select a Panel that holds two or more plots and choose **Shared X Stack** in
+  the Panel inspector's **Layout** list, the **Edit ▸ Panel** menu or the
+  command palette.
+- Select several Panels, each holding a plot, and run **Stack with Shared X**.
+  The Panels are merged into the first one and stacked top to bottom in their
+  page order, as one undoable step.
+
+In the stack:
+
+- The plots fill the Panel's width and touch at their inner edges. The gap
+  starts at 0 pt; raise **Gap** in the Panel inspector to separate them while
+  keeping them aligned.
+- Plot areas share one left and one right edge, so the y-axis titles line up
+  whatever the width of the tick numbers.
+- Only the bottom plot draws x tick numbers and the x-axis title, and only the
+  top plot draws a figure title. Where two plots meet, their x ticks point
+  inward; the bottom axis keeps the tick direction you chose. A ×10ⁿ multiplier
+  of a lower plot's y axis moves just inside its top-left corner, and a y tick
+  number that would sit on the shared edge is left out.
+- The plots share one x window. Entering the stack sets an x range covering all
+  of their data on every plot, so the plots must use the same x scale (linear
+  or logarithmic) first. Every plot follows the bottom plot's x direction: an
+  NMR spectrum, whose ppm axis runs right to left, stacked above an ascending
+  plot is drawn left to right.
+- Zooming or panning x on one plot moves all of them. Changing the x range,
+  logarithmic scale, x display unit or thousands separator on one plot changes
+  every plot in the stack in one undoable step; a change that one of the plots
+  cannot take, such as a logarithmic axis on an NMR spectrum, is refused.
+- The top-to-bottom order is the Panel's content order. Each plot's height sets
+  its share of the stack: drag a plot's bottom edge on the canvas to make it
+  taller or shorter than the others.
+- The whole stack is one Panel with one panel letter.
+
+The canvas, the Operation-history checks and every export use the same stacked
+geometry. To leave the stack, set the layout back to **Free** or **Vertical
+Stack**; each plot then draws its own x axis and x direction again. The shared
+x range stays until you set **X range** back to **Auto**.
 
 ## Stacked and multi-dataset plots
 
@@ -386,7 +436,8 @@ What you control directly:
   (89, 136 or 183 mm wide) adds a note to the status bar naming those widths;
   the canvas keeps its size. The
   line widths and marker sizes stay when you switch to a theme that does not
-  set them.
+  set them. Curve and marker colours you set by hand are kept when a theme is
+  re-applied; resetting a curve's colour returns it to theme colours.
 - **Save Canvas Style…** (View ▸ Canvas Theme, or **Save Style** in the
   Figure Ribbon tab's Style group) saves the active canvas's look as a named
   style: background, text colour and size, figure typography (including the

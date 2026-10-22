@@ -306,10 +306,12 @@ impl FigureDiagnosticScan {
             }
             SnapshotKind::Plot {
                 mut figure,
+                stack,
                 selected_series,
                 declared,
             } => {
-                let guide = plotium_render::guide_geometry(&figure, [frame.width, frame.height]);
+                let size = [frame.width, frame.height];
+                let guide = plotium_render::guide_geometry_placed(&figure, size, stack.as_ref());
                 let move_rect = |r| geometry::translate(r, frame.left, frame.top);
                 for (part, r) in [
                     ("guide.legend", guide.legend),
@@ -335,7 +337,7 @@ impl FigureDiagnosticScan {
                     );
                 }
                 self.text_font_coverage(&target);
-                for t in geometry::figure_text_boxes(&figure, [frame.width, frame.height]) {
+                for t in geometry::figure_text_boxes_placed(&figure, size, stack.as_ref()) {
                     self.box_observation(
                         &target,
                         &t.component,

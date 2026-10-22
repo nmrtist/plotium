@@ -303,9 +303,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
             .unwrap()
             .figure();
         let zoom = app.session.board.zoom;
-        let layout = plotium_render::axis_layout(fig, outer.width / zoom, outer.height / zoom);
-        let proj = plotium_render::Projector::new(fig, outer, &layout.margins.scaled(zoom));
-        proj.plot
+        plot_screen_box(&app.doc.canvases[ci], object_id, fig, outer, zoom)
     };
 
     if !furniture_consumed

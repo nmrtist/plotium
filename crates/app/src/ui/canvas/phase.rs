@@ -72,8 +72,7 @@ pub(crate) fn handle_phase_before_paint(
         return;
     };
     let zoom = app.session.board.zoom;
-    let layout = plotium_render::axis_layout(figure, outer.width / zoom, outer.height / zoom);
-    let plot = plotium_render::Projector::new(figure, outer, &layout.margins.scaled(zoom)).plot;
+    let plot = plot_screen_box(&app.doc.canvases[ci], object_id, figure, outer, zoom);
     let axis = app.doc.datasets[di].active_phase_axis(app.session.ui.phase_axis);
     let Some(pivot_ppm) = displayed_phase_pivot_ppm(app, di, axis) else {
         return;

@@ -310,6 +310,8 @@ impl PlotiumApp {
                         line.color = plotium_figure::ColorSource::Explicit(
                             table.default_curve_color(index, column.y_column_id),
                         );
+                        // An automatic colour is not the user's choice.
+                        line.color_locked = false;
                     }
                 }
                 expanded.push(series);

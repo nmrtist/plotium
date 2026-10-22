@@ -1,8 +1,8 @@
 pub use crate::screen_stats::RenderStats;
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentViewport, OUTER_PAD, Projector, Rect,
-    TICK_LABEL_PAD, axis_layout, error_bar_segments, heatmap_cells, integral, minor_tick_values,
-    polygon_outline, projection_points,
+    TICK_LABEL_PAD, axis_layout_placed, error_bar_segments, heatmap_cells, integral,
+    minor_tick_values, polygon_outline, projection_points,
     screen_contours::paint_contours,
     screen_lod::{line_columns, scaled_screen_line_points},
 };
@@ -80,7 +80,9 @@ struct ObjectExtras {
     /// Runtime identity for editor-only geometry caches.
     geometry_generation: Option<u64>,
     /// Screen-space clearance for the y-axis title below the frame top.
-    y_title_clearance: f32,
+    y_title_clearance: crate::YTitleClearance,
+    /// Unscaled shared-x stack placement.
+    stack: Option<crate::StackPlacement>,
 }
 
 fn paint_with_detail_and_stats_impl(
@@ -95,9 +97,18 @@ fn paint_with_detail_and_stats_impl(
     let ObjectExtras {
         geometry_generation,
         y_title_clearance,
+        stack,
     } = extras;
     let ty = fig.typography;
-    let layout = axis_layout(fig, outer.width / scale, outer.height / scale);
+    let frame = outer;
+    let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, scale);
+    let layout = axis_layout_placed(
+        fig,
+        outer.width / scale,
+        outer.height / scale,
+        stack.as_ref(),
+    );
+    let xf = crate::XFurniture::of(fig, stack.as_ref());
     let margins = layout.margins.scaled(scale);
     let proj = Projector::new(fig, outer, &margins);
     let plot = proj.plot;
@@ -106,19 +117,19 @@ fn paint_with_detail_and_stats_impl(
 
     painter.rect_filled(
         egui::Rect::from_min_size(
-            Pos2::new(outer.left, outer.top),
-            Vec2::new(outer.width, outer.height),
+            Pos2::new(frame.left, frame.top + xf.background_inset * scale),
+            Vec2::new(frame.width, frame.height - xf.background_inset * scale),
         ),
         0.0,
         col(fig.background),
     );
 
-    if !fig.title.trim().is_empty() {
+    if xf.show_title && !fig.title.trim().is_empty() {
         crate::rich_text::paint(
             painter,
             Pos2::new(
-                outer.left + outer.width / 2.0,
-                outer.top + (OUTER_PAD + ty.title_pt * 0.5) * scale,
+                frame.left + frame.width / 2.0,
+                frame.top + (OUTER_PAD + ty.title_pt * 0.5) * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.title,
@@ -154,7 +165,10 @@ fn paint_with_detail_and_stats_impl(
     let minor = ty.minor_tick_reach() * scale;
     for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
         let (px, _) = proj.project([xt, fig.y.min]);
-        let ends = [to_pos(px, plot.bottom()), to_pos(px, plot.bottom() + minor)];
+        let ends = [
+            to_pos(px, plot.bottom()),
+            to_pos(px, plot.bottom() + xf.minor_tick_reach * scale),
+        ];
         painter.line_segment(ends, axis_stroke);
     }
     for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
@@ -169,11 +183,11 @@ fn paint_with_detail_and_stats_impl(
         painter.line_segment(
             [
                 to_pos(px, plot.bottom()),
-                to_pos(px, plot.bottom() + ty.tick_reach() * scale),
+                to_pos(px, plot.bottom() + xf.tick_reach * scale),
             ],
             axis_stroke,
         );
-        if fig.x.show_tick_labels {
+        if xf.show_tick_labels {
             crate::rich_text::paint(
                 painter,
                 Pos2::new(
@@ -198,7 +212,7 @@ fn paint_with_detail_and_stats_impl(
             ],
             axis_stroke,
         );
-        if fig.y.show_tick_labels {
+        if fig.y.show_tick_labels && xf.shows_y_label_at((py - plot.top) / scale) {
             crate::rich_text::paint(
                 painter,
                 Pos2::new(y_tick_x, py),
@@ -213,16 +227,28 @@ fn paint_with_detail_and_stats_impl(
     if fig.y.show_tick_labels
         && let Some(multiplier) = y_ticks.multiplier()
     {
+        let (position, anchor) = if xf.y_multiplier_inside {
+            let inset = (ty.tick_length_pt + TICK_LABEL_PAD) * scale;
+            (
+                Pos2::new(y_axis_x + inset, plot.top + TICK_LABEL_PAD * scale),
+                Align2::LEFT_TOP,
+            )
+        } else {
+            (
+                Pos2::new(y_axis_x, plot.top - TICK_LABEL_PAD * scale),
+                Align2::LEFT_BOTTOM,
+            )
+        };
         crate::rich_text::paint(
             painter,
-            Pos2::new(y_axis_x, plot.top - TICK_LABEL_PAD * scale),
-            Align2::LEFT_BOTTOM,
+            position,
+            anchor,
             multiplier,
             crate::rich_text::plot_font(ty.tick_pt * scale, &ty),
             col(Color::AXIS),
         );
     }
-    if fig.x.show_tick_labels
+    if xf.show_tick_labels
         && let Some(multiplier) = x_ticks.multiplier()
     {
         crate::rich_text::paint(
@@ -238,8 +264,8 @@ fn paint_with_detail_and_stats_impl(
         );
     }
 
-    if !hidden_frame && fig.x.show_label {
-        let multiplier_clearance = if fig.x.show_tick_labels {
+    if !hidden_frame && xf.show_label {
+        let multiplier_clearance = if xf.show_tick_labels {
             x_ticks.multiplier_clearance(ty.tick_pt)
         } else {
             0.0
@@ -400,7 +426,12 @@ fn paint_with_detail_and_stats_impl(
                 ),
                 0.0,
                 axis_stroke,
-                StrokeKind::Inside,
+                // Stacked boxes share boundary lines, which must coincide.
+                if stack.is_some() {
+                    StrokeKind::Middle
+                } else {
+                    StrokeKind::Inside
+                },
             );
             if (y_axis_x - plot.left).abs() > f32::EPSILON {
                 painter.line_segment(
@@ -682,7 +713,8 @@ fn paint_document_object(
         detail,
         ObjectExtras {
             geometry_generation: object.geometry_generation,
-            y_title_clearance: object.y_title_clearance * viewport.zoom,
+            y_title_clearance: object.y_title_clearance.scaled(viewport.zoom),
+            stack: object.stack,
         },
         stats,
     );

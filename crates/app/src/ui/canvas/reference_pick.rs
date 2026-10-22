@@ -169,8 +169,7 @@ fn pick_plot(
     )?;
     let figure = object.plot()?.figure();
     let zoom = app.session.board.zoom;
-    let layout = plotium_render::axis_layout(figure, outer.width / zoom, outer.height / zoom);
-    let plot = plotium_render::Projector::new(figure, outer, &layout.margins.scaled(zoom)).plot;
+    let plot = plot_screen_box(&app.doc.canvases[ci], object_id, figure, outer, zoom);
     Some((plot, PickGeometry::of(figure)))
 }
 

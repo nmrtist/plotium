@@ -4,10 +4,10 @@
 
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OUTER_PAD, OverlayAlign,
-    OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head,
-    axis_layout, color_scale_rect, error_bar_segments, heatmap_cells, integral, legend_entries,
-    legend_entry_origin, legend_layout, legend_rect, minor_tick_values, polygon_outline,
-    projection_points, range_label_layout, renders_legend,
+    OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, YTitleClearance,
+    arrow_head, axis_layout_placed, color_scale_rect, error_bar_segments, heatmap_cells, integral,
+    legend_entries, legend_entry_origin, legend_layout, legend_rect, minor_tick_values,
+    polygon_outline, projection_points, range_label_layout, renders_legend,
 };
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure, SeriesKind};
 use std::collections::HashMap;
@@ -226,7 +226,13 @@ fn write_document_object(dc: &mut Dc, object: &DocumentObject<'_>) {
     if !object.visible {
         return;
     }
-    write_figure(dc, object.figure, object.frame, object.y_title_clearance);
+    write_figure(
+        dc,
+        object.figure,
+        object.frame,
+        object.y_title_clearance,
+        object.stack.as_ref(),
+    );
     if let Some(title) = &object.title {
         write_panel_letter(
             dc,
@@ -285,28 +291,48 @@ fn write_overlay(dc: &mut Dc, overlay: &DocumentOverlay<'_>) {
     }
 }
 
-fn write_figure(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) {
+fn write_figure(
+    dc: &mut Dc,
+    fig: &Figure,
+    outer: Rect,
+    y_title_clearance: YTitleClearance,
+    stack: Option<&crate::StackPlacement>,
+) {
     // Like the SVG plot group, all plot text takes the figure face.
     dc.plot_text = (fig.typography.typeface, fig.typography.font_weight);
-    write_figure_content(dc, fig, outer, y_title_clearance);
+    write_figure_content(dc, fig, outer, y_title_clearance, stack);
     dc.plot_text = Default::default();
 }
 
-fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearance: f32) {
+fn write_figure_content(
+    dc: &mut Dc,
+    fig: &Figure,
+    frame: Rect,
+    y_title_clearance: YTitleClearance,
+    stack: Option<&crate::StackPlacement>,
+) {
     let ty = fig.typography;
-    let layout = axis_layout(fig, outer.width, outer.height);
+    let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, 1.0);
+    let layout = axis_layout_placed(fig, outer.width, outer.height, stack);
+    let xf = crate::XFurniture::of(fig, stack);
     let margins = layout.margins;
     let proj = Projector::new(fig, outer, &margins);
     let plot = proj.plot;
 
-    dc.rect(outer, Some(fig.background), None);
+    let background = Rect::new(
+        frame.left,
+        frame.top + xf.background_inset,
+        frame.width,
+        frame.height - xf.background_inset,
+    );
+    dc.rect(background, Some(fig.background), None);
 
-    if !fig.title.trim().is_empty() {
+    if xf.show_title && !fig.title.trim().is_empty() {
         dc.text(
             &fig.title,
             (
-                outer.left + outer.width / 2.0,
-                outer.top + OUTER_PAD + ty.title_pt,
+                frame.left + frame.width / 2.0,
+                frame.top + OUTER_PAD + ty.title_pt,
             ),
             TextStyle::new(ty.title_pt, Color::BLACK, TA_CENTER),
         );
@@ -331,7 +357,7 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
     let minor = ty.minor_tick_reach();
     for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
         let (px, _) = proj.project([xt, fig.y.min]);
-        let end = (px, plot.bottom() + minor);
+        let end = (px, plot.bottom() + xf.minor_tick_reach);
         dc.line((px, plot.bottom()), end, Color::AXIS, ty.axis_line_pt);
     }
     for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
@@ -343,11 +369,11 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
         let (px, _) = proj.project([xt, fig.y.min]);
         dc.line(
             (px, plot.bottom()),
-            (px, plot.bottom() + ty.tick_reach()),
+            (px, plot.bottom() + xf.tick_reach),
             Color::AXIS,
             ty.axis_line_pt,
         );
-        if fig.x.show_tick_labels {
+        if xf.show_tick_labels {
             dc.text(
                 label,
                 (
@@ -367,7 +393,7 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
             Color::AXIS,
             ty.axis_line_pt,
         );
-        if fig.y.show_tick_labels {
+        if fig.y.show_tick_labels && xf.shows_y_label_at(py - plot.top) {
             dc.text(
                 label,
                 (y_tick_x, py),
@@ -378,13 +404,21 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
     if fig.y.show_tick_labels
         && let Some(multiplier) = y_ticks.multiplier()
     {
+        let position = if xf.y_multiplier_inside {
+            (
+                y_axis_x + ty.tick_length_pt + TICK_LABEL_PAD,
+                plot.top + TICK_LABEL_PAD + ty.tick_pt,
+            )
+        } else {
+            (y_axis_x, plot.top - TICK_LABEL_PAD)
+        };
         dc.text(
             &multiplier,
-            (y_axis_x, plot.top - TICK_LABEL_PAD),
+            position,
             TextStyle::new(ty.tick_pt, Color::AXIS, TA_LEFT),
         );
     }
-    if fig.x.show_tick_labels
+    if xf.show_tick_labels
         && let Some(multiplier) = x_ticks.multiplier()
     {
         dc.text(
@@ -394,8 +428,8 @@ fn write_figure_content(dc: &mut Dc, fig: &Figure, outer: Rect, y_title_clearanc
         );
     }
 
-    if !hidden_frame && fig.x.show_label {
-        let multiplier_clearance = if fig.x.show_tick_labels {
+    if !hidden_frame && xf.show_label {
+        let multiplier_clearance = if xf.show_tick_labels {
             x_ticks.multiplier_clearance(ty.tick_pt)
         } else {
             0.0

@@ -313,6 +313,13 @@ impl PropertyProvider for DisplayProvider {
         let SeriesEncoding::Line(line) = &mut sb.encoding else {
             unreachable!("encoding gate")
         };
+        // A hand-chosen colour survives re-theming; resetting the curve colour
+        // hands it back to the theme, while marker resets only drop their override.
+        match (d.id, op) {
+            (COLOR, EditOp::Reset) => line.color_locked = false,
+            (COLOR | MARKER_FILL | MARKER_EDGE_COLOR, EditOp::Set(_)) => line.color_locked = true,
+            _ => {}
+        }
         match (d.id, value) {
             (COLOR, PropertyValue::Color(color)) => line.color = ColorSource::Explicit(color),
             (STYLE, PropertyValue::Enum(v)) => {

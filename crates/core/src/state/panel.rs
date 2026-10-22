@@ -56,6 +56,10 @@ pub enum PanelLayout {
         rows: u32,
         cols: u32,
     },
+    /// Plots stacked top to bottom in `item_order`, sharing one x axis. Member
+    /// heights keep the proportions of their frames; everything else about the
+    /// stack (alignment, joined boundaries, x linking) is derived at runtime.
+    SharedXStack,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -320,11 +324,17 @@ impl CanvasDocument {
                 }
             }
         }
-        if let Some(panel) = self.panel_mut(panel_id) {
-            panel.frame = frame;
-            true
-        } else {
-            false
+        let Some(panel) = self.panel_mut(panel_id) else {
+            return false;
+        };
+        panel.frame = frame;
+        // Scaling keeps a stack's order and shares but scales its padding and
+        // gap; the reflow restores them. A panel too small for them keeps the
+        // scaled frames, which are still a valid layout. Callers that can
+        // report it reflow again and surface the error (MCP panel_frame, the
+        // Panel inspector, the end of a panel drag).
+        match self.reflow_shared_x_stack(panel_id) {
+            Ok(()) | Err(_) => true,
         }
     }
 

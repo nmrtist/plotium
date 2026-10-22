@@ -1,6 +1,6 @@
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, OUTER_PAD, OverlayAlign, OverlayKind,
-    OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head, axis_layout,
+    OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, arrow_head, axis_layout_placed,
     error_bar_segments, heatmap_cells, integral, minor_tick_values, polygon_outline,
     projection_points, range_label_layout,
 };
@@ -27,7 +27,7 @@ pub fn export(fig: &Figure) -> String {
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{font_family}">"#,
         font_family = crate::rich_text::SVG_FONT_FAMILY,
     );
-    write_figure(&mut s, fig, outer, "plot", None, 0.0);
+    write_figure(&mut s, fig, outer, "plot", None, Default::default(), None);
     let _ = write!(s, "</svg>");
     s
 }
@@ -54,6 +54,7 @@ fn write_document_object(
         &format!("{id}_clip"),
         omit_figure_background_matching,
         object.y_title_clearance,
+        object.stack.as_ref(),
     );
     if let Some(title) = &object.title {
         write_panel_letter(s, &title.text, title.position, title.font_size);
@@ -155,10 +156,11 @@ fn write_overlay(s: &mut String, overlay: &DocumentOverlay<'_>) {
 fn write_figure(
     s: &mut String,
     fig: &Figure,
-    outer: Rect,
+    frame: Rect,
     clip_id: &str,
     omit_background_matching: Option<plotium_figure::Color>,
-    y_title_clearance: f32,
+    y_title_clearance: crate::YTitleClearance,
+    stack: Option<&crate::StackPlacement>,
 ) {
     let ty = fig.typography;
     // Plot text inherits the figure face; explicitly bold text stays bold.
@@ -172,9 +174,11 @@ fn write_figure(
             ""
         },
     );
-    let w = outer.width;
-    let h = outer.height;
-    let layout = axis_layout(fig, outer.width, outer.height);
+    let w = frame.width;
+    let h = frame.height;
+    let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, 1.0);
+    let layout = axis_layout_placed(fig, outer.width, outer.height, stack);
+    let xf = crate::XFurniture::of(fig, stack);
     let margins = layout.margins;
     let proj = Projector::new(fig, outer, &margins);
     let plot = proj.plot;
@@ -184,17 +188,18 @@ fn write_figure(
             s,
             r#"<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{}"/>"#,
             fig.background.to_hex(),
-            x = outer.left,
-            y = outer.top
+            x = frame.left,
+            y = frame.top + xf.background_inset,
+            h = h - xf.background_inset,
         );
     }
 
-    if !fig.title.trim().is_empty() {
+    if xf.show_title && !fig.title.trim().is_empty() {
         let _ = write!(
             s,
             r#"<text x="{cx}" y="{y}" text-anchor="middle" font-size="{font}" fill="{col}">{title}</text>"#,
-            cx = outer.left + w / 2.0,
-            y = outer.top + OUTER_PAD + ty.title_pt,
+            cx = frame.left + w / 2.0,
+            y = frame.top + OUTER_PAD + ty.title_pt,
             font = ty.title_pt,
             col = plotium_figure::Color::BLACK.to_hex(),
             title = svg_content(&fig.title, ty.title_pt),
@@ -233,7 +238,12 @@ fn write_figure(
     let mut minor_path = String::new();
     for xt in minor_tick_values(&fig.x, &x_ticks, ty.minor_ticks) {
         let (px, _) = proj.project([xt, fig.y.min]);
-        let _ = write!(minor_path, "M{px:.2} {b:.2}v{minor}", b = plot.bottom());
+        let _ = write!(
+            minor_path,
+            "M{px:.2} {b:.2}v{minor}",
+            b = plot.bottom(),
+            minor = xf.minor_tick_reach,
+        );
     }
     for yt in minor_tick_values(&fig.y, &y_ticks, ty.minor_ticks) {
         let (_, py) = proj.project([fig.x.min, yt]);
@@ -256,10 +266,10 @@ fn write_figure(
             s,
             r#"<path d="M{px:.2} {b:.2}v{tick}" stroke="{axis}" stroke-width="{width}"/>"#,
             b = plot.bottom(),
-            tick = ty.tick_reach(),
+            tick = xf.tick_reach,
             width = ty.axis_line_pt,
         );
-        if fig.x.show_tick_labels {
+        if xf.show_tick_labels {
             let _ = write!(
                 s,
                 r#"<text x="{px:.2}" y="{y:.2}" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
@@ -279,7 +289,7 @@ fn write_figure(
             tick = ty.tick_reach(),
             width = ty.axis_line_pt,
         );
-        if fig.y.show_tick_labels {
+        if fig.y.show_tick_labels && xf.shows_y_label_at(py - plot.top) {
             let _ = write!(
                 s,
                 r#"<text x="{x:.2}" y="{y:.2}" text-anchor="end" font-size="{font}" fill="{axis}">{lab}</text>"#,
@@ -296,13 +306,21 @@ fn write_figure(
         let _ = write!(
             s,
             r#"<text x="{x:.2}" y="{y:.2}" text-anchor="start" font-size="{font}" fill="{axis}">{label}</text>"#,
-            x = y_axis_x,
-            y = plot.top - TICK_LABEL_PAD,
+            x = if xf.y_multiplier_inside {
+                y_axis_x + ty.tick_length_pt + TICK_LABEL_PAD
+            } else {
+                y_axis_x
+            },
+            y = if xf.y_multiplier_inside {
+                plot.top + TICK_LABEL_PAD + ty.tick_pt
+            } else {
+                plot.top - TICK_LABEL_PAD
+            },
             font = ty.tick_pt,
             label = svg_content(&multiplier, ty.tick_pt),
         );
     }
-    if fig.x.show_tick_labels
+    if xf.show_tick_labels
         && let Some(multiplier) = x_ticks.multiplier()
     {
         let _ = write!(
@@ -315,8 +333,8 @@ fn write_figure(
         );
     }
 
-    if !hidden_frame && fig.x.show_label {
-        let multiplier_clearance = if fig.x.show_tick_labels {
+    if !hidden_frame && xf.show_label {
+        let multiplier_clearance = if xf.show_tick_labels {
             x_ticks.multiplier_clearance(ty.tick_pt)
         } else {
             0.0
@@ -713,7 +731,7 @@ mod tests {
         fig.width = 24.0;
         fig.height = 24.0;
         let outer = Rect::new(0.0, 0.0, fig.width, fig.height);
-        let layout = axis_layout(&fig, fig.width, fig.height);
+        let layout = crate::axis_layout(&fig, fig.width, fig.height);
         assert!(layout.x_ticks.labels.is_empty() && layout.y_ticks.labels.is_empty());
         let plot = Projector::new(&fig, outer, &layout.margins).plot;
         let axis_path = format!(

@@ -63,6 +63,15 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
     }
 }
 
+/// The final x tick set for a plot area of `plot_width`, sized with the same
+/// conservative label widths as the first pass of [`axis_layout`].
+pub(crate) fn adaptive_x_ticks_for_plot(fig: &Figure, plot_width: f32) -> AxisTicks {
+    let initial = axis_ticks_for(&fig.x, MAX_X_TARGET);
+    let widest = widest_layout_label(&fig.x, &initial, fig.typography.tick_pt);
+    let gap = fig.typography.tick_pt * LABEL_GAP_FACTOR;
+    adaptive_x_ticks(fig, plot_width, gap, widest)
+}
+
 fn adaptive_x_ticks(fig: &Figure, plot_width: f32, gap: f32, widest: f32) -> AxisTicks {
     let slot_width = widest + gap;
     if !plot_width.is_finite() || slot_width <= 0.0 || plot_width < 2.0 * slot_width {

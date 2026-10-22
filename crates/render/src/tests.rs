@@ -727,3 +727,45 @@ fn y_title_moves_down_only_as_far_as_the_corner_letter_needs() {
     let squeezed = y_title_center(&fig, plot, outer, 80.0, 1.0);
     assert!(squeezed + half <= outer.bottom() - OUTER_PAD - fig.typography.label_pt + 1e-3);
 }
+
+#[test]
+fn y_title_too_long_to_pass_a_letter_moves_right_of_it_with_the_plot() {
+    let mut fig = Figure::new(
+        "",
+        Axis::new("Time (h)", 0.0, 1800.0),
+        Axis::new("Transmembrane voltage drop (V)", 0.5, 3.0),
+    );
+    fig.typography.label_pt = 7.0;
+    let letter = YTitleClearance {
+        below: 15.0,
+        beside: 12.0,
+    };
+    let title_left = |height: f32, clearance: YTitleClearance| {
+        let document = Document {
+            width: 300.0,
+            height,
+            background: Color::rgb(255, 255, 255),
+            items: vec![DocumentItem::Plot(DocumentObject {
+                id: "plot".into(),
+                frame: Rect::new(0.0, 0.0, 300.0, height),
+                figure: &fig,
+                geometry_generation: None,
+                visible: true,
+                title: None,
+                y_title_clearance: clearance,
+                stack: None,
+            })],
+        };
+        let out = svg::export_document(&document);
+        let end = out.find(") rotate(-90)").expect("rotated y title");
+        let start = out[..end].rfind("translate(").expect("title translate") + "translate(".len();
+        let x: f32 = out[start..end].split(',').next().unwrap().parse().unwrap();
+        x - fig.typography.label_pt * 0.5
+    };
+
+    let short = title_left(60.0, letter);
+    assert!(short >= letter.beside, "title column starts at {short}");
+    assert!((title_left(60.0, YTitleClearance::default()) - OUTER_PAD).abs() < 0.01);
+    // A tall plot keeps its title column and moves the title down instead.
+    assert!((title_left(240.0, letter) - OUTER_PAD).abs() < 0.01);
+}

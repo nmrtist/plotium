@@ -766,6 +766,7 @@ pub fn view_to_canvas(
         })
         .collect::<Result<Vec<_>>>()?;
     canvas.validate_structure().map_err(ProjectError::Invalid)?;
+    canvas.sync_shared_x_direction();
     Ok(canvas)
 }
 fn text_box_from(view_object: &ViewCanvasObject, panel: bool) -> TextBox {
