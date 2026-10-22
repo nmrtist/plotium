@@ -9,7 +9,10 @@
 //! [`PlotiumApp::property_readout`] and never resolves, measures or queues
 //! anything. A plot whose estimate has not arrived says so.
 
-use super::{HitZone, content_screen_rect, hit_zone, plot_rect, plot_under_cursor};
+use super::{
+    HitZone, content_screen_rect, hit_zone, last_wheel_was_trackpad, plot_rect, plot_under_cursor,
+    selected_plot_body,
+};
 use crate::ui::properties;
 use egui::{Align2, Color32, FontId};
 use plotium_core::properties::PropertyReadout;
@@ -115,9 +118,23 @@ pub(crate) fn paint_wheel_target_hint(
         egui::StrokeKind::Inside,
     );
 
+    let trackpad = last_wheel_was_trackpad(ui.ctx());
     let text = match zone {
+        HitZone::XAxis if trackpad => "Drag: zoom X · Double-click: reset X".to_owned(),
+        HitZone::YAxis if trackpad => "Drag: zoom Y · Double-click: reset Y".to_owned(),
         HitZone::XAxis => "Scroll: zoom X · Double-click: reset X".to_owned(),
         HitZone::YAxis => "Scroll: zoom Y · Double-click: reset Y".to_owned(),
+        HitZone::Plot if trackpad => {
+            let navigation = if selected_plot_body(app, ci, rect, pointer).is_some() {
+                "Swipe: pan · Pinch: zoom X+Y"
+            } else {
+                "Select the plot to swipe or pinch its data"
+            };
+            format!(
+                "{navigation} · Alt+drag: box zoom{}",
+                aspect_hint(app, ci, object)
+            )
+        }
         HitZone::Plot => {
             use properties::discovery::{CanvasStepTarget, canvas_step_target};
             let two_dimensional = app.doc.canvases[ci]
@@ -147,16 +164,10 @@ pub(crate) fn paint_wheel_target_hint(
                 }
                 CanvasStepTarget::None => "Alt+scroll: Y intensity".to_owned(),
             };
-            let aspect = if app.doc.canvases[ci]
-                .object(object)
-                .and_then(|object| object.plot())
-                .is_some_and(|plot| plot.figure().lock_aspect)
-            {
-                " · F1/F2 1:1"
-            } else {
-                ""
-            };
-            format!("{navigation} · {display} · Alt+drag: box zoom{aspect}")
+            format!(
+                "{navigation} · {display} · Alt+drag: box zoom{}",
+                aspect_hint(app, ci, object)
+            )
         }
         HitZone::None => return,
     };
@@ -174,4 +185,16 @@ pub(crate) fn paint_wheel_target_hint(
         Color32::from_black_alpha(if dark_mode { 170 } else { 28 }),
     );
     painter.galley(text_rect.min, galley, chrome.selection_stroke);
+}
+
+fn aspect_hint(app: &PlotiumApp, ci: usize, object: plotium_core::state::ObjectId) -> &'static str {
+    if app.doc.canvases[ci]
+        .object(object)
+        .and_then(|object| object.plot())
+        .is_some_and(|plot| plot.figure().lock_aspect)
+    {
+        " · F1/F2 1:1"
+    } else {
+        ""
+    }
 }

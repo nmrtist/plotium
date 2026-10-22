@@ -410,12 +410,25 @@ fn run_navigation_events_on(
     app: &mut PlotiumApp,
     pointer: Pos2,
     modifiers: egui::Modifiers,
+    events: Vec<egui::Event>,
+) -> (bool, std::time::Duration) {
+    run_navigation_events_at(ctx, app, pointer, modifiers, events, None)
+}
+
+#[cfg(target_os = "macos")]
+fn run_navigation_events_at(
+    ctx: &egui::Context,
+    app: &mut PlotiumApp,
+    pointer: Pos2,
+    modifiers: egui::Modifiers,
     mut events: Vec<egui::Event>,
+    time: Option<f64>,
 ) -> (bool, std::time::Duration) {
     let rect = egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0));
     events.insert(0, egui::Event::PointerMoved(pointer));
     let input = egui::RawInput {
         screen_rect: Some(rect),
+        time,
         modifiers,
         events,
         ..Default::default()
@@ -433,6 +446,10 @@ fn run_navigation_events_on(
 #[cfg(target_os = "macos")]
 #[path = "navigation_trackpad_regression_tests.rs"]
 mod trackpad_regressions;
+
+#[cfg(target_os = "macos")]
+#[path = "navigation_trackpad_target_tests.rs"]
+mod trackpad_targets;
 
 #[test]
 fn precise_scroll_with_two_axes_is_trackpad_pan() {
@@ -480,276 +497,6 @@ fn horizontal_non_precise_scroll_is_ignored() {
         classify_navigation_input(1.0, Vec2::new(24.0, 0.0), false),
         NavigationInput::None,
     );
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn point_scroll_over_plot_pans_viewport_without_moving_board() {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let before_viewport = plot_viewport(&app);
-    let before_board = app.session.board;
-
-    let (consumed, repaint_delay) = run_navigation_frame(
-        &mut app,
-        Pos2::new(100.0, 60.0),
-        Vec2::new(4.0, -3.0),
-        egui::Modifiers::NONE,
-    );
-
-    let after_viewport = plot_viewport(&app);
-    assert!(consumed);
-    assert_ne!(after_viewport.view_x, before_viewport.view_x);
-    assert_ne!(after_viewport.view_y, before_viewport.view_y);
-    assert!((after_viewport.view_x.span() - before_viewport.view_x.span()).abs() < 1e-12);
-    assert!((after_viewport.view_y.span() - before_viewport.view_y.span()).abs() < 1e-12);
-    assert_eq!(app.session.board, before_board);
-    assert!(repaint_delay > std::time::Duration::ZERO);
-    assert!(repaint_delay <= std::time::Duration::from_millis(200));
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn command_point_scroll_over_plot_pans_board_without_changing_viewport() {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let before_viewport = plot_viewport(&app);
-    let modifiers = egui::Modifiers {
-        command: true,
-        ..Default::default()
-    };
-
-    let (consumed, _) = run_navigation_frame(
-        &mut app,
-        Pos2::new(100.0, 60.0),
-        Vec2::new(4.0, -3.0),
-        modifiers,
-    );
-
-    assert!(consumed);
-    assert_eq!(plot_viewport(&app), before_viewport);
-    assert_eq!(app.session.board.world_center, [196.0, 153.0]);
-}
-
-#[cfg(target_os = "macos")]
-fn assert_modified_point_scroll_keeps_board_target_after_modifier_release(
-    modifiers: egui::Modifiers,
-) {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let before_viewport = plot_viewport(&app);
-    let ctx = egui::Context::default();
-    let pointer = Pos2::new(100.0, 60.0);
-    let (start_consumed, _) = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        modifiers,
-        vec![
-            mouse_wheel_with_phase(
-                egui::MouseWheelUnit::Point,
-                Vec2::ZERO,
-                egui::TouchPhase::Start,
-                modifiers,
-            ),
-            mouse_wheel_with(egui::MouseWheelUnit::Point, Vec2::new(4.0, -3.0), modifiers),
-        ],
-    );
-
-    assert!(start_consumed);
-    assert_eq!(plot_viewport(&app), before_viewport);
-    assert_eq!(app.session.board.world_center, [196.0, 153.0]);
-
-    let (move_consumed, _) = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        egui::Modifiers::NONE,
-        vec![mouse_wheel_with(
-            egui::MouseWheelUnit::Point,
-            Vec2::new(2.0, -2.0),
-            egui::Modifiers::NONE,
-        )],
-    );
-
-    assert!(move_consumed);
-    assert_eq!(plot_viewport(&app), before_viewport);
-    assert_eq!(app.session.board.world_center, [194.0, 155.0]);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn command_point_scroll_keeps_board_target_after_modifier_release() {
-    assert_modified_point_scroll_keeps_board_target_after_modifier_release(egui::Modifiers {
-        command: true,
-        ..Default::default()
-    });
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn control_point_scroll_keeps_board_target_after_modifier_release() {
-    assert_modified_point_scroll_keeps_board_target_after_modifier_release(egui::Modifiers {
-        ctrl: true,
-        ..Default::default()
-    });
-}
-
-#[cfg(target_os = "macos")]
-fn assert_board_gesture_finish_releases_target(finish_phase: egui::TouchPhase) {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let ctx = egui::Context::default();
-    let pointer = Pos2::new(100.0, 60.0);
-    let command = egui::Modifiers {
-        command: true,
-        ..Default::default()
-    };
-
-    let _ = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        command,
-        vec![
-            mouse_wheel_with_phase(
-                egui::MouseWheelUnit::Point,
-                Vec2::ZERO,
-                egui::TouchPhase::Start,
-                command,
-            ),
-            mouse_wheel_with(egui::MouseWheelUnit::Point, Vec2::new(4.0, -3.0), command),
-        ],
-    );
-    let before_viewport = plot_viewport(&app);
-    let _ = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        egui::Modifiers::NONE,
-        vec![mouse_wheel_with_phase(
-            egui::MouseWheelUnit::Point,
-            Vec2::ZERO,
-            finish_phase,
-            egui::Modifiers::NONE,
-        )],
-    );
-
-    let (consumed, _) = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        egui::Modifiers::NONE,
-        vec![mouse_wheel_with(
-            egui::MouseWheelUnit::Point,
-            Vec2::new(2.0, -2.0),
-            egui::Modifiers::NONE,
-        )],
-    );
-
-    assert!(consumed);
-    assert_ne!(plot_viewport(&app), before_viewport);
-    assert_eq!(app.session.board.world_center, [196.0, 153.0]);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn command_point_scroll_releases_board_target_on_end() {
-    assert_board_gesture_finish_releases_target(egui::TouchPhase::End);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn command_point_scroll_releases_board_target_on_cancel() {
-    assert_board_gesture_finish_releases_target(egui::TouchPhase::Cancel);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn point_scroll_over_blank_board_pans_both_axes() {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let before_viewport = plot_viewport(&app);
-
-    let (consumed, _) = run_navigation_frame(
-        &mut app,
-        Pos2::new(300.0, 200.0),
-        Vec2::new(4.0, -3.0),
-        egui::Modifiers::NONE,
-    );
-
-    assert!(consumed);
-    assert_eq!(plot_viewport(&app), before_viewport);
-    assert_eq!(app.session.board.world_center, [196.0, 153.0]);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn native_pinch_has_priority_over_command_point_scroll() {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let modifiers = egui::Modifiers {
-        command: true,
-        ..Default::default()
-    };
-
-    let (consumed, _) = run_navigation_events(
-        &mut app,
-        Pos2::new(100.0, 60.0),
-        modifiers,
-        vec![
-            mouse_wheel_with(egui::MouseWheelUnit::Point, Vec2::new(4.0, -3.0), modifiers),
-            egui::Event::Zoom(1.25),
-        ],
-    );
-
-    assert!(consumed);
-    assert!((app.session.board.zoom - 1.25).abs() < f32::EPSILON);
-    assert_eq!(app.session.board.world_center, [180.0, 132.0]);
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn native_pinch_does_not_inherit_board_target_from_point_gesture() {
-    let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
-    let ctx = egui::Context::default();
-    let pointer = Pos2::new(100.0, 60.0);
-    let command = egui::Modifiers {
-        command: true,
-        ..Default::default()
-    };
-    let _ = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        command,
-        vec![
-            mouse_wheel_with_phase(
-                egui::MouseWheelUnit::Point,
-                Vec2::ZERO,
-                egui::TouchPhase::Start,
-                command,
-            ),
-            mouse_wheel_with(egui::MouseWheelUnit::Point, Vec2::new(4.0, -3.0), command),
-        ],
-    );
-    let before_viewport = plot_viewport(&app);
-
-    let (consumed, _) = run_navigation_events_on(
-        &ctx,
-        &mut app,
-        pointer,
-        egui::Modifiers::NONE,
-        vec![egui::Event::Zoom(1.25)],
-    );
-
-    let after_viewport = plot_viewport(&app);
-    assert!(consumed);
-    assert!(after_viewport.view_x.span() < before_viewport.view_x.span());
-    assert!(after_viewport.view_y.span() < before_viewport.view_y.span());
-    assert_eq!(app.session.board.zoom, 1.0);
-    assert_eq!(app.session.board.world_center, [196.0, 153.0]);
 }
 
 #[test]

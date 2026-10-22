@@ -2,10 +2,12 @@ use super::*;
 
 #[path = "navigation_input.rs"]
 mod input;
-pub(crate) use input::sync_macos_trackpad_gesture;
 use input::*;
+pub(crate) use input::{last_wheel_was_trackpad, selected_plot_body, sync_macos_trackpad_gesture};
 
-/// Pan or zoom the hovered plot; Cmd/Ctrl targets the board. Returns whether consumed.
+/// Wheel navigation targets the hovered plot; trackpad swipes and pinches target
+/// the board unless over the selected plot's body. Cmd/Ctrl targets the board.
+/// Returns whether consumed.
 pub(crate) fn handle_navigation(
     app: &mut PlotiumApp,
     ci: usize,
@@ -14,7 +16,8 @@ pub(crate) fn handle_navigation(
 ) -> bool {
     let events = ui.input(|i| i.events.clone());
     let trackpad_gesture = macos_trackpad_gesture(ui.ctx(), &events, true);
-    let (hover, navigation_input, trackpad_board_target, delta, dbl) = ui.input(|i| {
+    note_wheel_device(ui.ctx(), &events, trackpad_gesture.active);
+    let (hover, navigation_input, delta, dbl) = ui.input(|i| {
         let native_pinch_delta = i
             .events
             .iter()
@@ -45,7 +48,6 @@ pub(crate) fn handle_navigation(
         (
             i.pointer.hover_pos(),
             navigation_input,
-            trackpad_gesture.board_target,
             i.pointer.delta(),
             i.pointer
                 .button_double_clicked(egui::PointerButton::Primary),
@@ -146,29 +148,9 @@ pub(crate) fn handle_navigation(
         return panning;
     };
 
-    let trackpad_target = if trackpad_gesture.active {
-        let state_id = egui::Id::new("plotium.trackpad_navigation_target");
-        ui.ctx().data_mut(|data| {
-            let mut target = data.get_temp::<TrackpadNavigationTarget>(state_id);
-            if trackpad_gesture.started || target.is_none() {
-                target = Some(if trackpad_board_target {
-                    TrackpadNavigationTarget::Board
-                } else if let Some((object, _, _)) = plot_under_cursor(app, ci, rect, p) {
-                    TrackpadNavigationTarget::Plot { canvas: ci, object }
-                } else {
-                    TrackpadNavigationTarget::Board
-                });
-            }
-            if trackpad_gesture.finished {
-                data.remove_temp::<TrackpadNavigationTarget>(state_id);
-            } else if let Some(target) = target {
-                data.insert_temp(state_id, target);
-            }
-            target
-        })
-    } else {
-        None
-    };
+    let trackpad_target = trackpad_target(ui.ctx(), trackpad_gesture, ci, now, p, || {
+        choose_trackpad_target(app, ci, rect, p, trackpad_gesture.board_target)
+    });
 
     let data_target = if command {
         None
@@ -210,6 +192,12 @@ pub(crate) fn handle_navigation(
                         ui.ctx()
                             .request_repaint_after(std::time::Duration::from_millis(200));
                     }
+                    Some(TrackpadNavigationTarget::BoardZoom) => {
+                        let factor = swipe_zoom_factor(ui.ctx(), delta);
+                        zoom_board_view(app, rect, p, factor);
+                        mark_workspace_navigation(ui.ctx(), now);
+                        ui.ctx().request_repaint();
+                    }
                     Some(TrackpadNavigationTarget::Board) | None => {
                         pan_board_view(app, delta);
                         mark_workspace_navigation(ui.ctx(), now);
@@ -219,7 +207,12 @@ pub(crate) fn handle_navigation(
                 return true;
             }
             NavigationInput::Pinch(zoom_delta) => {
-                match data_target {
+                let pinch_target = if command {
+                    None
+                } else {
+                    selected_plot_body(app, ci, rect, p)
+                };
+                match pinch_target {
                     Some((id, outer, plot)) => {
                         app.finish_pending_wheel_property(now, true);
                         let scale = (1.0 / f64::from(zoom_delta)).clamp(0.2, 5.0);

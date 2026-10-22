@@ -98,10 +98,11 @@ steps with a real dataset.
 Pan and zoom are always available, in any tool:
 
 - **Scroll wheel** — zoom the x axis of a 1D plot, or both axes of a 2D plot.
-- **Two-finger swipe on a macOS trackpad** — pan the plot under the pointer;
-  swipe over empty space to pan the board. Hold **Cmd** to pan the board while
-  the pointer is over a plot.
-- **Pinch** — zoom both axes, whatever the plot draws.
+- **Two-finger swipe on a macOS trackpad** — pan the board. Click a plot to
+  select it, then swipe over its data area to pan its data. Hold **Cmd** to
+  zoom the board instead.
+- **Pinch** — zoom the board; over the selected plot's data area, zoom both of
+  its axes.
 - **Alt + scroll wheel** — change what the plot shows rather than where you are
   looking: the y intensity of a 1D plot, the lowest contour level, or a
   heatmap's colour range. Hovering the plot names the setting it will change.

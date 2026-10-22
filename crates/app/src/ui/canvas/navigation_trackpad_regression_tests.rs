@@ -123,7 +123,7 @@ fn point_wheel_without_touch_start_over_y_axis_zooms_only_y() {
 #[test]
 fn trackpad_target_stays_on_plot_when_control_changes_mid_gesture() {
     let (mut app, _, _) = zoomed_plot_fixture();
-    app.session.viewport_mode = ViewportMode::Manual;
+    super::trackpad_targets::select_plot(&mut app);
     let ctx = egui::Context::default();
     let pointer = Pos2::new(100.0, 60.0);
     let before = plot_viewport(&app);
