@@ -339,10 +339,15 @@ fn paint_with_detail_and_stats_impl(
             poly.fill.b,
             (poly.opacity.clamp(0.0, 1.0) * 255.0).round() as u8,
         );
-        let stroke = poly
-            .stroke
-            .map(|(c, w)| Stroke::new(w * scale, col(c)))
-            .unwrap_or(Stroke::NONE);
+        let stroke = crate::shape_stroke::shape_stroke(
+            &outline,
+            poly.stroke,
+            poly.opacity,
+            fig.background,
+            scale,
+        )
+        .map(|(c, w)| Stroke::new(w * scale, col(c)))
+        .unwrap_or(Stroke::NONE);
         clipped.add(Shape::convex_polygon(pts, fill, stroke));
     }
 

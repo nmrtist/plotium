@@ -391,7 +391,7 @@ fn write_figure(
             continue;
         };
         let mut pts = String::new();
-        for (px, py) in outline {
+        for &(px, py) in &outline {
             let _ = write!(pts, "{px:.2},{py:.2} ");
         }
         let opacity = if poly.opacity < 1.0 {
@@ -399,7 +399,14 @@ fn write_figure(
         } else {
             String::new()
         };
-        let stroke = match poly.stroke {
+        let stroke = crate::shape_stroke::shape_stroke(
+            &outline,
+            poly.stroke,
+            poly.opacity,
+            fig.background,
+            1.0,
+        );
+        let stroke = match stroke {
             Some((c, w)) => format!(r#" stroke="{}" stroke-width="{w:.2}""#, c.to_hex()),
             None => String::new(),
         };

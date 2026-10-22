@@ -467,7 +467,14 @@ fn write_figure_content(
             };
             // GDI has no per-primitive alpha; pre-blend against the background.
             let fill = blend(poly.fill, poly.opacity.clamp(0.0, 1.0), fig.background);
-            dc.polygon(&outline, Some(fill), poly.stroke);
+            let stroke = crate::shape_stroke::shape_stroke(
+                &outline,
+                poly.stroke,
+                poly.opacity,
+                fig.background,
+                1.0,
+            );
+            dc.polygon(&outline, Some(fill), stroke);
         }
         for annotation in &fig.range_annotations {
             let Some((x0, x1)) = crate::range_annotation_xs(&proj, annotation) else {
