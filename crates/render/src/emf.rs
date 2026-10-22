@@ -315,9 +315,10 @@ fn write_figure_content(
     let (outer, y_title_clearance) = crate::y_title_area(fig, frame, y_title_clearance, 1.0);
     let layout = axis_layout_placed(fig, outer.width, outer.height, stack);
     let xf = crate::XFurniture::of(fig, stack);
-    let margins = layout.margins;
-    let proj = Projector::new(fig, outer, &margins);
+    let proj = Projector::new(fig, outer, &layout.margins);
     let plot = proj.plot;
+    let y_title_cy = crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0);
+    let y_title_left = crate::y_title_left(fig, &layout, &proj, outer, y_title_cy, stack, 1.0);
 
     let background = Rect::new(
         frame.left,
@@ -475,8 +476,8 @@ fn write_figure_content(
         dc.text(
             &fig.y.label,
             (
-                outer.left + OUTER_PAD + ty.label_pt * 0.5,
-                crate::y_title_center(fig, plot, outer, y_title_clearance, 1.0),
+                y_title_left + ty.label_pt * crate::rich_text::TOP_TO_BASELINE,
+                y_title_cy,
             ),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER).rotated(),
         );

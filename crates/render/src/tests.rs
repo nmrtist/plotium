@@ -710,7 +710,7 @@ fn y_title_too_long_to_pass_a_letter_moves_right_of_it_with_the_plot() {
         let end = out.find(") rotate(-90)").expect("rotated y title");
         let start = out[..end].rfind("translate(").expect("title translate") + "translate(".len();
         let x: f32 = out[start..end].split(',').next().unwrap().parse().unwrap();
-        x - fig.typography.label_pt * 0.5
+        x - fig.typography.label_pt * crate::rich_text::TOP_TO_BASELINE
     };
 
     let short = title_left(60.0, letter);

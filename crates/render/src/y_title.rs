@@ -1,7 +1,63 @@
 //! Placement of the rotated y-axis title around a panel letter.
 
-use crate::{OUTER_PAD, Rect, ticks};
+use crate::ticks::{self, AxisLayout};
+use crate::{AXIS_LABEL_GAP, OUTER_PAD, Projector, Rect, StackPlacement, XFurniture};
 use plotium_figure::{AxisFrame, Figure};
+
+/// Left edge of the rotated y-axis title's `label_pt`-wide lane, in output
+/// units. The lane sits [`AXIS_LABEL_GAP`] left of the widest y tick label,
+/// the same gap the x title keeps below the x tick labels, so a plot pushed
+/// right by a wide left-end x label keeps its title beside the y ticks.
+///
+/// A stack member measures from the stack's widest tick labels instead of its
+/// own, so the titles of one stack align. The lane falls back to the outer
+/// edge, where the left margin always reserves it, when the title would
+/// otherwise reach down into an x tick label row that sticks out under it.
+/// Rendered text and diagnostics all place the title through this.
+pub(crate) fn y_title_left(
+    fig: &Figure,
+    layout: &AxisLayout,
+    proj: &Projector,
+    outer: Rect,
+    centre: f32,
+    stack: Option<&StackPlacement>,
+    scale: f32,
+) -> f32 {
+    let ty = fig.typography;
+    let edge = outer.left + OUTER_PAD * scale;
+    let plot = proj.plot;
+    let y_axis_x = proj.left_band.map_or(plot.left, |band| band.left);
+    let tick_clearance = match stack {
+        Some(placement) => placement.y_tick_clearance,
+        None => layout.y_tick_clearance(fig),
+    };
+    let beside_ticks = y_axis_x - (tick_clearance + AXIS_LABEL_GAP + ty.label_pt) * scale;
+    if beside_ticks <= edge {
+        return edge;
+    }
+    let half = ticks::estimated_text_width(&fig.y.label, ty.label_pt) * 0.5 * scale;
+    let reaches_x_labels = centre + half > plot.bottom() + ty.tick_outset() * scale;
+    let x_labels_left = if XFurniture::of(fig, stack).show_tick_labels {
+        layout
+            .x_ticks
+            .values
+            .iter()
+            .zip(&layout.x_ticks.labels)
+            .map(|(&value, label)| {
+                let (x, _) = proj.project([value, fig.y.min]);
+                x - ticks::estimated_text_width(label, ty.tick_pt) * 0.5 * scale
+            })
+            .fold(f32::INFINITY, f32::min)
+    } else {
+        f32::INFINITY
+    };
+    let title_right = beside_ticks + (ty.label_pt + AXIS_LABEL_GAP) * scale;
+    if reaches_x_labels && x_labels_left < title_right {
+        edge
+    } else {
+        beside_ticks
+    }
+}
 
 /// Vertical centre of the rotated y-axis title: the middle of the plot, moved
 /// down just far enough that its top end clears `clearance` below the frame
@@ -76,3 +132,7 @@ pub fn y_title_area(
     );
     (area, 0.0)
 }
+
+#[cfg(test)]
+#[path = "y_title_tests.rs"]
+mod tests;

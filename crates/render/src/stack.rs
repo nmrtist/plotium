@@ -15,6 +15,11 @@ pub struct StackPlacement {
     pub left: f32,
     /// Right margin shared by every member.
     pub right: f32,
+    /// The widest y tick clearance among the members, from
+    /// [`AxisLayout::y_tick_clearance`]. Every member's y title sits this far
+    /// plus the title gap left of the shared plot edge, so the titles align
+    /// beside the widest tick labels.
+    pub y_tick_clearance: f32,
     /// Another member sits directly above: no top margin and no figure title.
     pub joined_above: bool,
     /// Another member sits directly below: no bottom margin, no x tick labels
@@ -43,7 +48,7 @@ pub fn axis_layout_placed(
     let plot = Projector::new(fig, outer, &first).plot;
     let x_ticks = adaptive_x_ticks_for_plot(fig, plot.width);
     let margins = placed_margins(
-        margins_for_ticks(fig, &x_ticks, &natural.y_ticks),
+        margins_for_ticks(fig, &x_ticks, &natural.y_ticks, outer_width),
         placement,
     );
     AxisLayout {
