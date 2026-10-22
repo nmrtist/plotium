@@ -143,3 +143,77 @@ fn workflow_errors_map_to_stable_exit_categories() {
     assert_eq!(Status::Usage as u8, 2);
     assert_eq!(Status::Export as u8, 6);
 }
+
+#[test]
+fn export_parser_defaults_to_pdf_and_repeats_canvas_selectors() {
+    assert_eq!(
+        parse(&[
+            "plotium-cli",
+            "export",
+            "figures.plotium",
+            "--canvas",
+            "Figure 1",
+            "--output-dir",
+            "out",
+            "--canvas",
+            "Figure 2",
+            "--dpi",
+            "300",
+            "--overwrite",
+        ]),
+        Ok(ParseOutcome::Command(Command::Export(
+            export::ExportCommand {
+                input: "figures.plotium".into(),
+                output_dir: "out".into(),
+                format: OutputFormat(ExportFormat::Pdf),
+                canvases: vec!["Figure 1".into(), "Figure 2".into()],
+                dpi: Some(300),
+                overwrite: true,
+            }
+        )))
+    );
+    let svg = parse(&[
+        "plotium-cli",
+        "export",
+        "figures.plotium",
+        "--output-dir",
+        "out",
+        "--format",
+        "svg",
+    ]);
+    assert!(matches!(
+        svg,
+        Ok(ParseOutcome::Command(Command::Export(
+            export::ExportCommand {
+                format: OutputFormat(ExportFormat::Svg),
+                ..
+            }
+        )))
+    ));
+    assert!(parse(&["plotium-cli", "export", "figures.plotium"]).is_err());
+    assert!(parse(&["plotium-cli", "export", "--output-dir", "out"]).is_err());
+    assert!(
+        parse(&[
+            "plotium-cli",
+            "export",
+            "a.plotium",
+            "--output-dir",
+            "out",
+            "--dpi",
+            "0"
+        ])
+        .is_err()
+    );
+    assert!(
+        parse(&[
+            "plotium-cli",
+            "export",
+            "a.plotium",
+            "--output-dir",
+            "out",
+            "--format",
+            "bmp"
+        ])
+        .is_err()
+    );
+}

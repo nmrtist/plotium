@@ -307,7 +307,7 @@ pub(super) fn execute_export(
             continue;
         };
         let canvas = &app.doc.canvases[index];
-        let safe_name = sanitize_file_name(&canvas.name);
+        let safe_name = canvas_export_stem(&canvas.name);
         let base = params.directory.join(safe_name);
         let expected = crate::export::export_output_paths(&base, format, 1);
         if !params.overwrite && expected.iter().any(|path| path.exists()) {
@@ -494,7 +494,9 @@ fn parse_export_format(value: &str) -> Option<ExportFormat> {
     }
 }
 
-fn sanitize_file_name(value: &str) -> String {
+/// The file stem `figure.export` writes for a canvas name, exposed so callers
+/// can detect two canvases that would export to the same file.
+pub fn canvas_export_stem(value: &str) -> String {
     let value = value
         .chars()
         .map(|ch| if "<>:\"/\\|?*".contains(ch) { '_' } else { ch })

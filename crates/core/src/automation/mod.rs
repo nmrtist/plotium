@@ -54,6 +54,7 @@ pub use science::{
 };
 pub use task_receipts::*;
 mod tool_executors;
+pub use tool_executors::canvas_export_stem;
 mod tools;
 mod types;
 mod workflow;
