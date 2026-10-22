@@ -1,5 +1,16 @@
 use super::*;
 
+#[cfg(test)]
+#[path = "tiling_geometry_tests.rs"]
+mod geometry_tests;
+
+#[derive(Clone, Copy, Debug)]
+enum TileSourceSpace {
+    Page,
+    Panel(PanelId),
+    Content(PanelId),
+}
+
 /// The document-level source of an automatic canvas tiling gesture. A one-item
 /// Panel and a loose object use the same source so changing page-scope selection
 /// can never change the resulting transfer semantics.
@@ -7,9 +18,10 @@ use super::*;
 pub(crate) struct TileTransferSource {
     pub(crate) canvas: usize,
     pub(crate) object: ObjectId,
+    /// The source footprint is always in page coordinates, even for a child drag.
     pub(crate) frame: ObjectFrame,
     pub(crate) start_pointer: [f32; 2],
-    pub(crate) panel: Option<PanelId>,
+    space: TileSourceSpace,
 }
 
 pub(crate) fn tile_source_for_object(
@@ -17,13 +29,27 @@ pub(crate) fn tile_source_for_object(
     drag: &ObjectDrag,
 ) -> Option<TileTransferSource> {
     (drag.kind == ObjectDragKind::Move && drag.others.is_empty()).then_some(())?;
+    let (frame, space) = match drag.space {
+        ObjectDragSpace::Page => (drag.before, TileSourceSpace::Page),
+        ObjectDragSpace::Panel(id) => {
+            let panel = app.doc.canvases.get(drag.canvas)?.panel(id)?;
+            (
+                ObjectFrame {
+                    x: panel.frame.x + drag.before.x,
+                    y: panel.frame.y + drag.before.y,
+                    ..drag.before
+                },
+                TileSourceSpace::Content(id),
+            )
+        }
+    };
     tile_source(
         app,
         drag.canvas,
         drag.object,
-        drag.before,
+        frame,
         drag.start_pointer,
-        None,
+        space,
     )
 }
 
@@ -41,7 +67,7 @@ pub(crate) fn tile_source_for_panel(
         panel.item_order[0],
         drag.before,
         drag.start_pointer,
-        Some(drag.panel),
+        TileSourceSpace::Panel(drag.panel),
     )
 }
 
@@ -51,7 +77,7 @@ fn tile_source(
     object: ObjectId,
     frame: ObjectFrame,
     start_pointer: [f32; 2],
-    panel: Option<PanelId>,
+    space: TileSourceSpace,
 ) -> Option<TileTransferSource> {
     let canvas = app.doc.canvases.get(canvas_index)?;
     let item = canvas.object(object)?;
@@ -65,7 +91,7 @@ fn tile_source(
         object,
         frame,
         start_pointer,
-        panel,
+        space,
     })
 }
 
@@ -73,12 +99,28 @@ pub(crate) fn restore_tile_source(app: &mut PlotiumApp, source: TileTransferSour
     let Some(canvas) = app.doc.canvases.get_mut(source.canvas) else {
         return;
     };
-    if let Some(panel) = source.panel {
-        if let Some(panel) = canvas.panel_mut(panel) {
-            panel.frame = source.frame;
+    match source.space {
+        TileSourceSpace::Panel(id) => {
+            if let Some(panel) = canvas.panel_mut(id) {
+                panel.frame = source.frame;
+            }
         }
-    } else {
-        canvas.set_layout_frame(source.object, source.frame);
+        TileSourceSpace::Content(id) => {
+            let Some(panel) = canvas.panel(id).map(|panel| panel.frame) else {
+                return;
+            };
+            if let Some(item) = canvas.object_mut(source.object) {
+                // Restoring a child must not move or scale its entire Panel.
+                item.frame = ObjectFrame {
+                    x: source.frame.x - panel.x,
+                    y: source.frame.y - panel.y,
+                    ..source.frame
+                };
+            }
+        }
+        TileSourceSpace::Page => {
+            canvas.set_layout_frame(source.object, source.frame);
+        }
     }
 }
 
@@ -141,9 +183,13 @@ pub(crate) fn update_tile_drop(
     }
     let existing_items: Vec<_> = existing_ids
         .iter()
-        .filter_map(|&id| layout_item(&app.doc.canvases[target], id))
+        .filter_map(|&id| layout_item(&app.doc.canvases[target], id, None))
         .collect();
-    let Some(newcomer_item) = layout_item(&app.doc.canvases[source.canvas], source.object) else {
+    let Some(newcomer_item) = layout_item(
+        &app.doc.canvases[source.canvas],
+        source.object,
+        Some(source.frame),
+    ) else {
         app.session.ui.tile_drop = None;
         return false;
     };
@@ -198,9 +244,13 @@ fn tile_cache_key(
     }
 }
 
-fn layout_item(canvas: &CanvasDocument, id: ObjectId) -> Option<plotium_core::layout::LayoutItem> {
+fn layout_item(
+    canvas: &CanvasDocument,
+    id: ObjectId,
+    frame: Option<ObjectFrame>,
+) -> Option<plotium_core::layout::LayoutItem> {
     let object = canvas.object(id)?;
-    let frame = canvas.layout_frame(id)?;
+    let frame = frame.or_else(|| canvas.layout_frame(id))?;
     match &object.kind {
         CanvasObjectKind::Plot(plot) => {
             Some(plotium_core::layout::layout_item(id, plot.figure(), frame))
@@ -347,7 +397,7 @@ mod tests {
             object: ObjectId::new(object),
             frame: ObjectFrame::new(0.0, 0.0, 10.0, 10.0),
             start_pointer: [0.0; 2],
-            panel: None,
+            space: TileSourceSpace::Page,
         }
     }
 

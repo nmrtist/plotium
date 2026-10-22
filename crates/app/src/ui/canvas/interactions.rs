@@ -328,7 +328,14 @@ pub(crate) fn handle_object_interactions(
             .hierarchical_selection
             .editing_panel()
             .filter(|(canvas, _)| *canvas == app.doc.canvases[ci].resource_id)
-            .map(|(_, panel)| panel);
+            .map(|(_, panel)| panel)
+            .filter(|&panel| {
+                alt || page_pos
+                    .and_then(|point| {
+                        hit_object(&app.doc.canvases[ci], point, app.session.board.zoom)
+                    })
+                    .is_none_or(|hit| app.doc.canvases[ci].parent_panel(hit.object) == Some(panel))
+            });
 
         // Page scope owns the Panel frame. This is deliberately checked before
         // content hit-testing so a child can never steal the parent drag.

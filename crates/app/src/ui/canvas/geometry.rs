@@ -1,7 +1,7 @@
 use super::*;
 #[path = "geometry_aspect.rs"]
 mod aspect;
-pub(crate) use aspect::{MIN_PLOT_AREA_PT, enforce_min_size, plot_min_size, preserve_aspect_frame};
+pub(crate) use aspect::{enforce_min_size, plot_min_size, preserve_aspect_frame};
 #[path = "geometry_panels.rs"]
 mod panels;
 pub(crate) use panels::{
@@ -189,17 +189,18 @@ impl BoardTransform {
     }
 
     pub fn canvas_editor_screen_rect(&self, canvas: &CanvasDocument) -> egui::Rect {
-        let mut bounds = self.page_screen_rect(canvas);
+        let page = self.page_screen_rect(canvas);
+        let mut bounds = page;
         for object in &canvas.objects {
-            let Some(frame) = self.object_screen_rect(canvas, object.id) else {
+            let Some(frame) = canvas.content_page_frame(object.id) else {
                 continue;
             };
-            bounds = bounds.union(plot_rect(frame));
+            bounds = bounds.union(egui::Rect::from_min_size(
+                page.min + egui::vec2(frame.x, frame.y) * self.zoom,
+                egui::vec2(frame.width, frame.height) * self.zoom,
+            ));
         }
-        // Empty Panels have no content frame to contribute above, but remain
-        // directly manipulable page objects and must not disappear from the
-        // editor's input/culling bounds when placed beyond the paper edge.
-        let page = self.page_screen_rect(canvas);
+        // Empty Panels remain manipulable beyond the paper edge too.
         for panel in &canvas.panels {
             let frame = panel.frame;
             let panel_rect = egui::Rect::from_min_size(
