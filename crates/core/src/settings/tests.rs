@@ -15,6 +15,7 @@ fn temp_settings(name: &str) -> PathBuf {
 fn missing_fields_take_defaults() {
     let settings: Settings = serde_json::from_str(r#"{"general":{}}"#).unwrap();
     assert!(settings.general.snap_enabled);
+    assert!(settings.general.paused_result_reminders);
     assert!(settings.general.equal_scale_homonuclear_2d_imports);
     assert_eq!(settings.general.project_backup_generations, 1);
     assert_eq!(settings.export.dpi, crate::export::DEFAULT_BITMAP_DPI);
@@ -230,4 +231,14 @@ fn mcp_preferences_default_off_and_persist_read_only_in_v1() {
     assert_eq!(restored.schema_version, 1);
     assert!(restored.agent.enabled);
     assert_eq!(restored.agent.access, super::AgentAccess::ReadOnly);
+}
+
+#[test]
+fn disabled_paused_result_reminders_round_trip() {
+    let mut settings = Settings::default();
+    settings.general.paused_result_reminders = false;
+    let serialized = serde_json::to_string(&settings).unwrap();
+    let restored: Settings = serde_json::from_str(&serialized).unwrap();
+    assert!(!restored.general.paused_result_reminders);
+    assert_eq!(restored.schema_version, SETTINGS_SCHEMA_VERSION);
 }

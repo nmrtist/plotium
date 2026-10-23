@@ -87,6 +87,14 @@ review them without resuming following. Updates to the object currently in view
 also show a brief, dismissible notification.
 Viewing a result marks that result as seen; **View latest** leaves older unseen
 results in the count. Resuming following clears the count.
+While following is paused, a notification also offers **Resume following**,
+**Dismiss**, and **Don't remind again**. Dismissing hides the current reminder
+without marking results as seen. Repeated changes to the same object do not
+reopen it; a new result object can trigger another reminder. The reminder closes
+automatically after about eight seconds. **Don't remind again** disables these
+reminders across restarts; restore them in **Preferences → General → Remind me
+about results while following is paused**. Result counts and error notifications
+remain available.
 Pausing immediately freezes the current view, including an unfinished automatic
 zoom. Resuming or viewing the latest result focuses the latest operation's results,
 without collecting earlier canvases. Viewing the latest result once does not turn following back on. Read-only requests

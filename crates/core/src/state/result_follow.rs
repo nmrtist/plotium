@@ -27,6 +27,7 @@ pub struct ResultFollow {
     acknowledged: Vec<(ResourceRef, ActivityId)>,
     pause_reason: Option<String>,
     bound_once: bool,
+    pause_epoch: u64,
 }
 
 impl Default for ResultFollow {
@@ -39,6 +40,7 @@ impl Default for ResultFollow {
             acknowledged: Vec::new(),
             pause_reason: None,
             bound_once: false,
+            pause_epoch: 0,
         }
     }
 }
@@ -104,6 +106,10 @@ impl ResultFollow {
         }
     }
 
+    pub fn pause_epoch(&self) -> u64 {
+        self.pause_epoch
+    }
+
     pub fn pause_reason(&self) -> Option<&str> {
         self.pause_reason.as_deref()
     }
@@ -111,6 +117,7 @@ impl ResultFollow {
     pub fn pause(&mut self, reason: &str) {
         if self.mode == ResultFollowMode::Following {
             self.mode = ResultFollowMode::Paused;
+            self.pause_epoch = self.pause_epoch.wrapping_add(1);
             self.pause_reason = Some(reason.to_owned());
         }
     }

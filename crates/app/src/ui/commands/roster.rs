@@ -79,6 +79,8 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::PauseResultFollow,
         CommandId::StopResultFollow,
         CommandId::ViewLatestResults,
+        CommandId::DismissPausedResults,
+        CommandId::DisablePausedResultReminders,
         CommandId::About,
         CommandId::SaveProcessingTemplate,
         CommandId::ApplyProcessingTemplate,

@@ -48,6 +48,9 @@ fn execute_inner(
         | CommandId::PauseResultFollow
         | CommandId::StopResultFollow
         | CommandId::ViewLatestResults => super::result_follow::execute(app, ctx, id),
+        CommandId::DismissPausedResults | CommandId::DisablePausedResultReminders => {
+            super::paused_results_notice::execute(app, ctx, id)
+        }
         CommandId::NewProject => {
             app.request_project_transition(ProjectTransition::New);
         }

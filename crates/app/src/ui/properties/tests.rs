@@ -314,7 +314,7 @@ fn migrated_preferences_keep_their_real_section_density() {
     for (section, expected, combination) in [
         (
             SettingsCategory::General.section_id(),
-            4,
+            5,
             "all catalog-backed General preferences",
         ),
         (

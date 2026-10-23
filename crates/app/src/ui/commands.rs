@@ -94,6 +94,8 @@ pub enum CommandId {
     PauseResultFollow,
     StopResultFollow,
     ViewLatestResults,
+    DismissPausedResults,
+    DisablePausedResultReminders,
     About,
     SaveProcessingTemplate,
     ApplyProcessingTemplate,
@@ -256,6 +258,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         | CommandId::PauseResultFollow
         | CommandId::StopResultFollow
         | CommandId::ViewLatestResults => super::result_follow::gate(app, id),
+        CommandId::DismissPausedResults | CommandId::DisablePausedResultReminders => {
+            super::paused_results_notice::gate(app, id)
+        }
         CommandId::RecomputeScientificTask(activity) => {
             super::scientific_task_feedback::recompute_gate(app, activity)
         }

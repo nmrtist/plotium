@@ -198,6 +198,10 @@ pub(super) fn command_identity(
         CommandId::FollowResults => plain("Follow AI Connection Results", Some(icon::PLAY)),
         CommandId::PauseResultFollow => plain("Pause Following Results", Some(icon::PAUSE)),
         CommandId::StopResultFollow => plain("Stop Following Results", Some(icon::STOP)),
+        CommandId::DismissPausedResults => plain("Dismiss Paused Results Reminder", None),
+        CommandId::DisablePausedResultReminders => {
+            plain("Don't Remind About Paused Results Again", None)
+        }
         CommandId::ViewLatestResults => plain("View Latest Results", Some(icon::ARROW_UP_RIGHT)),
         CommandId::OperationHistory => plain("Operation and Diagnostic History", None),
         CommandId::About => plain("About Plotium", None),
@@ -497,6 +501,8 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::PauseResultFollow => "view.pause_result_follow",
         CommandId::StopResultFollow => "view.stop_result_follow",
         CommandId::ViewLatestResults => "view.latest_results",
+        CommandId::DismissPausedResults => "view.dismiss_paused_results",
+        CommandId::DisablePausedResultReminders => "view.disable_paused_result_reminders",
         CommandId::OperationHistory => "help.history",
         CommandId::About => "help.about",
         CommandId::ClearRecentFiles => "file.clear_recent",

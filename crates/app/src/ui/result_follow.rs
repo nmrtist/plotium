@@ -178,6 +178,8 @@ pub(super) fn pause_for_command(app: &mut PlotiumApp, command: CommandId) {
     if !matches!(
         command,
         CommandId::FollowResults
+            | CommandId::DismissPausedResults
+            | CommandId::DisablePausedResultReminders
             | CommandId::PauseResultFollow
             | CommandId::StopResultFollow
             | CommandId::OperationHistory
@@ -466,7 +468,7 @@ fn result_dataset(app: &PlotiumApp, resource: &ResourceRef) -> Option<usize> {
         .and_then(|id| app.doc.dataset_index(id))
 }
 
-fn navigable(app: &PlotiumApp, resource: &ResourceRef) -> bool {
+pub(super) fn navigable(app: &PlotiumApp, resource: &ResourceRef) -> bool {
     direct_canvas(app, resource).is_some() || result_dataset(app, resource).is_some()
 }
 
