@@ -10,6 +10,8 @@ use super::commands::{self, CommandId};
 
 const WORKSPACE: &str = "plotium.result_follow.workspace";
 const EDITABLE_LAYERS: &str = "plotium.result_follow.editable_layers";
+const PAUSE_CONTROLS: &str = "plotium.result_follow.pause_controls";
+const PAUSE_GESTURE: &str = "plotium.result_follow.pause_gesture";
 const COLLECTION: &str = "plotium.result_follow.collection";
 
 #[derive(Clone, Default)]
@@ -20,8 +22,40 @@ struct Collection {
 
 pub(super) fn begin_frame(ctx: &Context) {
     ctx.data_mut(|data| {
-        data.insert_temp(egui::Id::new(EDITABLE_LAYERS), Vec::<egui::LayerId>::new())
+        data.insert_temp(egui::Id::new(EDITABLE_LAYERS), Vec::<egui::LayerId>::new());
+        data.insert_temp(
+            egui::Id::new(PAUSE_CONTROLS),
+            Vec::<(egui::Rect, egui::LayerId)>::new(),
+        );
     });
+}
+
+pub(super) fn pause(app: &mut PlotiumApp, reason: &str) {
+    if app.session.result_follow.mode() == ResultFollowMode::Following {
+        app.session.result_follow.pause(reason);
+        freeze(app);
+    }
+}
+
+fn freeze(app: &mut PlotiumApp) {
+    app.session.viewport_mode = plotium_core::state::ViewportMode::Manual;
+    app.session.board_reveal = None;
+}
+
+fn register_pause_control(ui: &Ui, response: &egui::Response, command: CommandId) {
+    if command == CommandId::PauseResultFollow {
+        ui.ctx().data_mut(|data| {
+            data.get_temp_mut_or_default::<Vec<(egui::Rect, egui::LayerId)>>(egui::Id::new(
+                PAUSE_CONTROLS,
+            ))
+            .push((response.rect, response.layer_id))
+        });
+    }
+}
+
+fn pause_gesture(ctx: &Context) -> bool {
+    ctx.data(|data| data.get_temp::<bool>(egui::Id::new(PAUSE_GESTURE)))
+        .is_some()
 }
 
 pub(super) fn register_editable_layer(ctx: &Context, layer: egui::LayerId) {
@@ -48,6 +82,11 @@ pub(crate) fn remember_workspace(ui: &Ui) {
 }
 
 pub(crate) fn pause_on_input(app: &mut PlotiumApp, ctx: &Context, input: &egui::RawInput) {
+    if !input.focused
+        || ctx.data(|data| data.get_temp::<bool>(egui::Id::new(PAUSE_GESTURE))) == Some(true)
+    {
+        ctx.data_mut(|data| data.remove::<bool>(egui::Id::new(PAUSE_GESTURE)));
+    }
     let workspace =
         ctx.data(|data| data.get_temp::<(egui::Rect, egui::LayerId)>(egui::Id::new(WORKSPACE)));
     let editors = ctx
@@ -58,6 +97,32 @@ pub(crate) fn pause_on_input(app: &mut PlotiumApp, ctx: &Context, input: &egui::
         top.is_some_and(|layer| editors.contains(&layer))
             || workspace.is_some_and(|(rect, layer)| rect.contains(pos) && top == Some(layer))
     };
+    let pause_controls = ctx
+        .data(|data| {
+            data.get_temp::<Vec<(egui::Rect, egui::LayerId)>>(egui::Id::new(PAUSE_CONTROLS))
+        })
+        .unwrap_or_default();
+    for event in &input.events {
+        if let egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            ..
+        } = event
+        {
+            if *pressed
+                && app.session.result_follow.mode() == ResultFollowMode::Following
+                && pause_controls.iter().any(|(rect, layer)| {
+                    rect.contains(*pos) && ctx.layer_id_at(*pos) == Some(*layer)
+                })
+            {
+                pause(app, "You paused following.");
+                ctx.data_mut(|data| data.insert_temp(egui::Id::new(PAUSE_GESTURE), false));
+            } else if !pressed && pause_gesture(ctx) {
+                ctx.data_mut(|data| data.insert_temp(egui::Id::new(PAUSE_GESTURE), true));
+            }
+        }
+    }
     let mut pointer = ctx.pointer_hover_pos();
     let focused = ctx
         .memory(|memory| memory.focused())
@@ -102,9 +167,7 @@ pub(crate) fn pause_on_input(app: &mut PlotiumApp, ctx: &Context, input: &egui::
         }
     }
     if manual {
-        app.session
-            .result_follow
-            .pause("You navigated or edited the workspace.");
+        pause(app, "You navigated or edited the workspace.");
     }
 }
 
@@ -130,9 +193,7 @@ pub(super) fn pause_for_command(app: &mut PlotiumApp, command: CommandId) {
             | CommandId::AgentConnections
             | CommandId::Preferences
     ) {
-        app.session
-            .result_follow
-            .pause("You opened, selected, or edited content.");
+        pause(app, "You opened, selected, or edited content.");
     }
 }
 
@@ -169,8 +230,11 @@ pub(super) fn execute(app: &mut PlotiumApp, ctx: &Context, command: CommandId) {
             let resources = available_results(app, false);
             open_collection(app, ctx, &resources, true);
         }
-        CommandId::PauseResultFollow => app.session.result_follow.pause("You paused following."),
-        CommandId::StopResultFollow => app.session.result_follow.stop(),
+        CommandId::PauseResultFollow => pause(app, "You paused following."),
+        CommandId::StopResultFollow => {
+            app.session.result_follow.stop();
+            freeze(app);
+        }
         CommandId::ViewLatestResults => {
             let resources = available_results(app, false);
             open_collection(app, ctx, &resources, true);
@@ -215,13 +279,14 @@ pub(super) fn button(app: &mut PlotiumApp, ui: &mut Ui) {
             .frame_when_inactive(false)
             .selected(mode == ResultFollowMode::Following),
     );
+    register_pause_control(ui, &response, command);
     let response = response.on_hover_text(tooltip);
     let response = if let Some(reason) = descriptor.disabled_reason {
         response.on_disabled_hover_text(reason)
     } else {
         response
     };
-    if response.clicked() {
+    if response.clicked() && !pause_gesture(ui.ctx()) {
         commands::execute_without_clipboard(command, app, ui.ctx());
     }
 }
@@ -252,12 +317,13 @@ pub(super) fn controls(app: &mut PlotiumApp, ui: &mut Ui) {
                 _ => "View latest",
             };
             let response = ui.add_enabled(descriptor.enabled, egui::Button::new(label));
+            register_pause_control(ui, &response, command);
             let response = if let Some(reason) = descriptor.disabled_reason {
                 response.on_disabled_hover_text(reason)
             } else {
                 response
             };
-            if response.clicked() {
+            if response.clicked() && !pause_gesture(ui.ctx()) {
                 commands::execute_without_clipboard(command, app, ui.ctx());
             }
         }
@@ -273,7 +339,8 @@ fn available_results(app: &PlotiumApp, unseen: bool) -> Vec<ResourceRef> {
     let Some(source) = app.session.result_follow.source() else {
         return Vec::new();
     };
-    app.session
+    let rows: Vec<_> = app
+        .session
         .background_activity
         .results()
         .iter()
@@ -281,7 +348,20 @@ fn available_results(app: &PlotiumApp, unseen: bool) -> Vec<ResourceRef> {
             row.source == Some(source)
                 && (!unseen || row.operation.0 > app.session.result_follow.cursor().0)
         })
-        .filter(|row| app.activity_result_available(&row.resource))
+        .filter(|row| app.activity_result_available(&row.resource) && navigable(app, &row.resource))
+        .collect();
+    let Some(operation) = rows.iter().map(|row| row.operation.0).max() else {
+        return Vec::new();
+    };
+    let rows: Vec<_> = rows
+        .into_iter()
+        .filter(|row| row.operation.0 == operation)
+        .collect();
+    let has_canvas = rows
+        .iter()
+        .any(|row| direct_canvas(app, &row.resource).is_some());
+    rows.into_iter()
+        .filter(|row| !has_canvas || direct_canvas(app, &row.resource).is_some())
         .map(|row| row.resource.clone())
         .collect()
 }
@@ -298,14 +378,31 @@ pub(crate) fn apply(app: &mut PlotiumApp, ui: &Ui) {
     app.session.result_follow.advance(latest);
 }
 
+fn direct_canvas(app: &PlotiumApp, resource: &ResourceRef) -> Option<CanvasId> {
+    CanvasId::try_from(resource)
+        .ok()
+        .or_else(|| {
+            (resource.kind.0 == plotium_core::automation::KIND_CANVAS_OBJECT)
+                .then(|| resource.parent_id.as_deref()?.parse::<CanvasId>().ok())
+                .flatten()
+        })
+        .filter(|id| app.doc.canvas_index(*id).is_some())
+}
+
+fn result_dataset(app: &PlotiumApp, resource: &ResourceRef) -> Option<usize> {
+    DatasetId::try_from(resource)
+        .ok()
+        .or_else(|| resource.parent_id.as_deref()?.parse::<DatasetId>().ok())
+        .and_then(|id| app.doc.dataset_index(id))
+}
+
+fn navigable(app: &PlotiumApp, resource: &ResourceRef) -> bool {
+    direct_canvas(app, resource).is_some() || result_dataset(app, resource).is_some()
+}
+
 fn result_frame(app: &PlotiumApp, resource: &ResourceRef) -> Option<BoardFrameId> {
-    let canvas = CanvasId::try_from(resource).ok().or_else(|| {
-        (resource.kind.0 == plotium_core::automation::KIND_CANVAS_OBJECT)
-            .then(|| resource.parent_id.as_deref()?.parse::<CanvasId>().ok())
-            .flatten()
-    });
-    if let Some(id) = canvas {
-        return app.doc.canvas_index(id).map(|_| BoardFrameId::Page(id));
+    if let Some(id) = direct_canvas(app, resource) {
+        return Some(BoardFrameId::Page(id));
     }
     let dataset = DatasetId::try_from(resource)
         .ok()
@@ -327,32 +424,23 @@ fn open_collection(app: &mut PlotiumApp, ctx: &Context, resources: &[ResourceRef
         .result_follow
         .source()
         .map(|source| (app.session.project_context, source));
-    let mut collection = ctx
+    let previous = ctx
         .data(|data| data.get_temp::<Collection>(key))
         .unwrap_or_default();
-    if collection.context != context {
-        collection = Collection {
-            context,
-            frames: Vec::new(),
-        };
-    }
-    collection
-        .frames
-        .retain(|id| plotium_core::state::board_frame_ref(app, *id).is_some());
-    let has_frames = resources
-        .iter()
-        .any(|resource| result_frame(app, resource).is_some());
-    let mut added = false;
+    let mut collection = Collection {
+        context,
+        frames: Vec::new(),
+    };
     for resource in resources {
         if let Some(frame) = result_frame(app, resource)
             && !collection.frames.contains(&frame)
         {
             collection.frames.push(frame);
-            added = true;
         }
     }
-    if has_frames && !collection.frames.is_empty() {
-        if added || force || app.session.view != PrimaryView::Canvas {
+    let changed = previous.context != collection.context || previous.frames != collection.frames;
+    if !collection.frames.is_empty() {
+        if changed || force || app.session.view != PrimaryView::Canvas {
             if let Some(index) = collection.frames.iter().find_map(|frame| match frame {
                 BoardFrameId::Page(id) => app.doc.canvas_index(*id),
                 _ => None,

@@ -20,26 +20,39 @@ fn app() -> PlotiumApp {
 }
 
 fn rename_canvas(app: &mut PlotiumApp, index: usize) {
+    rename_canvases(app, &[index]);
+}
+
+fn rename_canvases(app: &mut PlotiumApp, indices: &[usize]) {
+    let ids = indices
+        .iter()
+        .map(|index| app.doc.canvases[*index].resource_id.to_string())
+        .collect();
+    rename_resources(app, ids, ExecutionAuthority::ReversibleModify).unwrap();
+}
+
+fn rename_resources(
+    app: &mut PlotiumApp,
+    ids: Vec<String>,
+    authority: ExecutionAuthority,
+) -> Result<plotium_core::automation::ToolResult, plotium_core::automation::AutomationError> {
     let request = ToolRequest {
         tool_id: "resource.rename".into(),
         tool_version: 1,
-        parameters: serde_json::json!({"name": format!("Updated {index}")}),
-        targets: TargetSelector::Explicit {
-            ids: vec![app.doc.canvases[index].resource_id.to_string()],
-        },
+        parameters: serde_json::json!({"name": "Updated result"}),
+        targets: TargetSelector::Explicit { ids },
         expected_revision: DocumentRevision(app.doc.automation_revision),
         caller: CallerType::Agent,
     };
-    let plan = plan_tool(app, request).unwrap();
-    execute_tool(app, plan, ExecutionAuthority::ReversibleModify).unwrap();
+    let plan = plan_tool(app, request)?;
+    execute_tool(app, plan, authority)
 }
 
 #[test]
-fn simultaneous_results_form_one_collection_and_updates_preserve_view_and_selection() {
+fn one_operation_groups_its_results_and_repeated_target_updates_preserve_view() {
     let mut app = app();
     assert_eq!(app.doc.canvases.len(), 2);
-    rename_canvas(&mut app, 0);
-    rename_canvas(&mut app, 1);
+    rename_canvases(&mut app, &[0, 1]);
     app.session.primary_sidebar_visible = false;
     app.session.secondary_sidebar_visible = false;
     let ctx = crate::typography::test_context();
@@ -49,7 +62,7 @@ fn simultaneous_results_form_one_collection_and_updates_preserve_view_and_select
     app.session.viewport_mode = plotium_core::state::ViewportMode::Manual;
     app.session.ui.frame_selection.clear();
     let active = app.session.active_canvas;
-    rename_canvas(&mut app, 1);
+    rename_canvases(&mut app, &[0, 1]);
     let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
     assert!(app.session.ui.frame_selection.is_empty());
     assert_eq!(app.session.active_canvas, active);
@@ -284,4 +297,115 @@ fn focused_floating_editor_text_input_pauses_without_a_new_pointer_press() {
         },
     );
     assert_eq!(app.session.result_follow.mode(), ResultFollowMode::Paused);
+}
+
+#[test]
+fn switching_operation_target_follows_only_that_canvas_and_latest_does_not_show_history() {
+    let mut app = app();
+    let ctx = crate::typography::test_context();
+    rename_canvas(&mut app, 0);
+    let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
+    assert_eq!(app.session.active_canvas, Some(0));
+    rename_canvas(&mut app, 1);
+    let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
+    let expected = vec![BoardFrameId::Page(app.doc.canvases[1].resource_id)];
+    assert_eq!(app.session.active_canvas, Some(1));
+    assert_eq!(app.session.ui.frame_selection, expected);
+    let viewport = app.session.viewport_mode;
+    app.session.ui.frame_selection.clear();
+    rename_canvas(&mut app, 1);
+    let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
+    assert_eq!(app.session.viewport_mode, viewport);
+    assert!(app.session.ui.frame_selection.is_empty());
+    pause(&mut app, "Browsing");
+    app.activate_canvas(0);
+    commands::execute_without_clipboard(CommandId::ViewLatestResults, &mut app, &ctx);
+    assert_eq!(app.session.active_canvas, Some(1));
+    assert_eq!(app.session.ui.frame_selection, expected);
+    assert_eq!(app.session.result_follow.mode(), ResultFollowMode::Paused);
+    app.activate_canvas(0);
+    commands::execute_without_clipboard(CommandId::FollowResults, &mut app, &ctx);
+    assert_eq!(app.session.active_canvas, Some(1));
+    assert_eq!(app.session.ui.frame_selection, expected);
+}
+
+#[test]
+fn pause_control_press_freezes_camera_before_poll_and_release_does_not_resume() {
+    let mut app = app();
+    let ctx = crate::typography::test_context();
+    let _ = ctx.run_ui(Default::default(), |ui| {
+        begin_frame(ui.ctx());
+        button(&mut app, ui);
+    });
+    let position = ctx
+        .data(|data| {
+            data.get_temp::<Vec<(egui::Rect, egui::LayerId)>>(egui::Id::new(PAUSE_CONTROLS))
+        })
+        .unwrap()[0]
+        .0
+        .center();
+    app.session.viewport_mode =
+        plotium_core::state::ViewportMode::Fit(plotium_core::state::BoardFitTarget::AllFrames);
+    app.session.board_reveal = Some(BoardFrameId::Page(app.doc.canvases[0].resource_id));
+    let camera = app.session.board;
+    let active = app.session.active_canvas;
+    for pressed in [true, false] {
+        let input = egui::RawInput {
+            events: vec![
+                egui::Event::PointerMoved(position),
+                egui::Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: Default::default(),
+                },
+            ],
+            ..Default::default()
+        };
+        pause_on_input(&mut app, &ctx, &input);
+        if pressed {
+            rename_canvas(&mut app, 0);
+        }
+        let _ = ctx.run_ui(input, |ui| {
+            begin_frame(ui.ctx());
+            button(&mut app, ui);
+            apply(&mut app, ui);
+            super::super::canvas::consume_board_reveal(&mut app, ui.ctx());
+        });
+        assert_eq!(app.session.result_follow.mode(), ResultFollowMode::Paused);
+        assert_eq!(
+            app.session.viewport_mode,
+            plotium_core::state::ViewportMode::Manual
+        );
+        assert!(app.session.board_reveal.is_none());
+        assert_eq!(app.session.active_canvas, active);
+        assert_eq!(app.session.board.zoom, camera.zoom);
+        assert_eq!(app.session.board.world_center, camera.world_center);
+    }
+    assert!(pause_gesture(&ctx));
+    pause_on_input(&mut app, &ctx, &egui::RawInput::default());
+    assert!(!pause_gesture(&ctx));
+}
+
+#[test]
+fn explicit_operated_canvas_wins_over_input_dataset_and_later_failure_does_not_hide_it() {
+    let mut app = app();
+    rename_canvas(&mut app, 0);
+    let ids = vec![
+        app.doc.datasets[0].resource_id().to_string(),
+        app.doc.canvases[1].resource_id.to_string(),
+    ];
+    rename_resources(&mut app, ids, ExecutionAuthority::ReversibleModify).unwrap();
+    let resource = ResourceRef::from(app.doc.canvases[1].resource_id);
+    assert_eq!(available_results(&app, false), vec![resource.clone()]);
+    let denied = vec![app.doc.canvases[0].resource_id.to_string()];
+    assert!(rename_resources(&mut app, denied, ExecutionAuthority::Read).is_err());
+    assert_eq!(available_results(&app, false), vec![resource]);
+    let ctx = crate::typography::test_context();
+    let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
+    assert_eq!(app.session.active_canvas, Some(1));
+    assert_eq!(
+        app.session.ui.frame_selection,
+        vec![BoardFrameId::Page(app.doc.canvases[1].resource_id)]
+    );
 }

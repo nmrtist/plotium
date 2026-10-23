@@ -170,7 +170,7 @@ pub(super) fn results(app: &mut PlotiumApp, ui: &mut Ui) {
                 });
                 let response = ui.add_enabled(available, egui::Button::new(&name).frame(false));
                 if response.clicked() {
-                    app.session.result_follow.pause("You opened a result.");
+                    super::result_follow::pause(app, "You opened a result.");
                     open_result(app, ui, &row.resource);
                 }
                 if !available {
