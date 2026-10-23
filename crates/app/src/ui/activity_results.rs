@@ -2,13 +2,15 @@ use egui::{Context, Ui};
 use plotium_core::automation::{ProjectResourceProvider, ResourceProvider, ResourceRef};
 use plotium_core::operation::OperationOutcome;
 use plotium_core::state::{
-    ActivityChange, ActivityId, CanvasId, DatasetId, ObjectId, PlotiumApp, PrimaryView,
+    ActivityChange, ActivityId, BoardFrameId, CanvasId, DatasetId, ObjectId, PlotiumApp,
+    PrimaryView,
 };
 
 #[derive(Clone, Default)]
 struct NoticeState {
     seen_at: Option<f64>,
     dismissed: bool,
+    eligible: Option<bool>,
 }
 
 pub(super) struct ActivityNotice {
@@ -58,19 +60,27 @@ fn notice_id(app: &PlotiumApp, id: ActivityId) -> egui::Id {
 
 pub(super) fn notice(app: &PlotiumApp, ctx: &Context) -> Option<ActivityNotice> {
     let operations = app.session.background_activity.operations();
+    for operation in operations {
+        let key = notice_id(app, operation.id);
+        let mut state = ctx.data_mut(|data| data.get_temp::<NoticeState>(key).unwrap_or_default());
+        if state.eligible.is_none() {
+            state.eligible = Some(
+                operation.outcome != OperationOutcome::Success
+                    || operation.created > 0
+                    || app.session.background_activity.results().iter().any(|row| {
+                        row.operation == operation.id
+                            && (row.updates == 1
+                                || (row.source.is_none_or(|source| {
+                                    app.session.result_follow.source() == Some(source)
+                                }) && currently_viewed(app, &row.resource)))
+                    }),
+            );
+            ctx.data_mut(|data| data.insert_temp(key, state));
+        }
+    }
     let eligible = |operation: &&plotium_core::state::ActivityOperation| {
-        let dismissed = ctx
-            .data(|data| data.get_temp::<NoticeState>(notice_id(app, operation.id)))
-            .is_some_and(|state| state.dismissed);
-        !dismissed
-            && (operation.outcome != OperationOutcome::Success
-                || operation.created > 0
-                || app
-                    .session
-                    .background_activity
-                    .results()
-                    .iter()
-                    .any(|row| row.operation == operation.id && row.updates == 1))
+        ctx.data(|data| data.get_temp::<NoticeState>(notice_id(app, operation.id)))
+            .is_some_and(|state| !state.dismissed && state.eligible == Some(true))
     };
     let operation = operations
         .iter()
@@ -95,17 +105,78 @@ pub(super) fn notice(app: &PlotiumApp, ctx: &Context) -> Option<ActivityNotice> 
         outcome: operation.outcome,
         summary: super::scientific_task_feedback::notice_summary(app, operation.id).unwrap_or_else(
             || {
-                format!(
+                let summary = format!(
                     "{} · {} created, {} updated, {} failed, {} skipped",
                     operation.title,
                     operation.created,
                     operation.updated,
                     operation.failed,
                     operation.skipped
-                )
+                );
+                let names: Vec<_> = app
+                    .session
+                    .background_activity
+                    .results()
+                    .iter()
+                    .filter(|row| row.operation == operation.id)
+                    .map(|row| row.name.as_str())
+                    .take(2)
+                    .collect();
+                if names.is_empty() {
+                    summary
+                } else {
+                    format!("{summary} · {}", names.join(", "))
+                }
             },
         ),
     })
+}
+
+fn currently_viewed(app: &PlotiumApp, resource: &ResourceRef) -> bool {
+    if !app.activity_result_available(resource) {
+        return false;
+    }
+    let canvas = CanvasId::try_from(resource).ok().or_else(|| {
+        (resource.kind.0 == plotium_core::automation::KIND_CANVAS_OBJECT)
+            .then(|| resource.parent_id.as_deref()?.parse::<CanvasId>().ok())
+            .flatten()
+    });
+    let dataset = DatasetId::try_from(resource)
+        .ok()
+        .or_else(|| resource.parent_id.as_deref()?.parse::<DatasetId>().ok());
+    if app.session.view == PrimaryView::Data {
+        return dataset.is_some_and(|id| {
+            app.active_dataset()
+                .is_some_and(|index| app.doc.datasets[index].resource_id() == id)
+        });
+    }
+    let visible_canvas = |id| {
+        app.session.active_canvas.is_some_and(|index| {
+            app.doc
+                .canvases
+                .get(index)
+                .is_some_and(|canvas| canvas.resource_id == id)
+        }) || app
+            .session
+            .ui
+            .frame_selection
+            .contains(&BoardFrameId::Page(id))
+    };
+    canvas.is_some_and(visible_canvas)
+        || dataset.is_some_and(|id| {
+            app.session
+                .ui
+                .frame_selection
+                .contains(&BoardFrameId::Sheet(id))
+                || app.doc.canvases.iter().enumerate().any(|(index, canvas)| {
+                    visible_canvas(canvas.resource_id)
+                        && app
+                            .doc
+                            .page_dataset_indices(index)
+                            .iter()
+                            .any(|index| app.doc.datasets[*index].resource_id() == id)
+                })
+        })
 }
 
 pub(super) fn dismiss_notice(app: &PlotiumApp, ctx: &Context, id: ActivityId) {
@@ -171,7 +242,11 @@ pub(super) fn results(app: &mut PlotiumApp, ui: &mut Ui) {
                 let response = ui.add_enabled(available, egui::Button::new(&name).frame(false));
                 if response.clicked() {
                     super::result_follow::pause(app, "You opened a result.");
-                    open_result(app, ui, &row.resource);
+                    if open_result(app, ui, &row.resource) {
+                        app.session
+                            .result_follow
+                            .acknowledge(row.resource.clone(), row.operation);
+                    }
                 }
                 if !available {
                     response.on_disabled_hover_text(if descriptor.is_some() {

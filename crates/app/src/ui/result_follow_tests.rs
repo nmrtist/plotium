@@ -409,3 +409,87 @@ fn explicit_operated_canvas_wins_over_input_dataset_and_later_failure_does_not_h
         vec![BoardFrameId::Page(app.doc.canvases[1].resource_id)]
     );
 }
+
+#[test]
+fn paused_results_count_distinct_updates_and_view_latest_acknowledges_only_its_targets() {
+    let mut app = app();
+    let ctx = crate::typography::test_context();
+    rename_canvas(&mut app, 0);
+    let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
+    pause(&mut app, "Browsing");
+    assert_eq!(unseen_count(&app), 0);
+    rename_canvas(&mut app, 0);
+    rename_canvas(&mut app, 0);
+    assert_eq!(unseen_count(&app), 1);
+    rename_canvas(&mut app, 1);
+    assert_eq!(unseen_count(&app), 2);
+    let active = app.session.active_canvas;
+    let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
+    assert_eq!(app.session.active_canvas, active);
+    execute(&mut app, &ctx, CommandId::ViewLatestResults);
+    assert_eq!(app.session.result_follow.mode(), ResultFollowMode::Paused);
+    assert_eq!(app.session.active_canvas, Some(1));
+    assert_eq!(unseen_count(&app), 1);
+    rename_canvas(&mut app, 1);
+    assert_eq!(unseen_count(&app), 2);
+    execute(&mut app, &ctx, CommandId::FollowResults);
+    assert_eq!(unseen_count(&app), 0);
+    pause(&mut app, "Browsing again");
+    assert_eq!(unseen_count(&app), 0);
+}
+
+#[test]
+fn paused_count_excludes_empty_deleted_and_foreign_results_and_clears_at_boundaries() {
+    let mut app = app();
+    pause(&mut app, "Browsing");
+    rename_canvas(&mut app, 0);
+    assert_eq!(unseen_count(&app), 1);
+    app.doc
+        .canvases
+        .push(plotium_core::state::CanvasDocument::new(
+            "Empty".into(),
+            [100.0, 80.0],
+        ));
+    rename_canvas(&mut app, 2);
+    assert_eq!(unseen_count(&app), 1);
+    app.session.background_activity.execution_source = Some(ActivitySourceId::default());
+    rename_canvas(&mut app, 1);
+    assert_eq!(unseen_count(&app), 1);
+    app.doc.canvases.remove(0);
+    assert_eq!(unseen_count(&app), 0);
+    app.session
+        .result_follow
+        .synchronize(app.session.project_context, None);
+    assert_eq!(unseen_count(&app), 0);
+    assert_eq!(app.session.result_follow.mode(), ResultFollowMode::Off);
+}
+
+#[test]
+fn pausing_establishes_a_baseline_and_viewing_one_result_preserves_other_unread_results() {
+    let mut app = app();
+    rename_canvas(&mut app, 0);
+    pause(&mut app, "Browsing");
+    assert_eq!(unseen_count(&app), 0);
+    rename_canvas(&mut app, 0);
+    rename_canvas(&mut app, 1);
+    let row = app
+        .session
+        .background_activity
+        .results()
+        .front()
+        .unwrap()
+        .clone();
+    assert_eq!(unseen_count(&app), 2);
+    app.session
+        .result_follow
+        .acknowledge(row.resource.clone(), row.operation);
+    assert_eq!(unseen_count(&app), 1);
+    app.session
+        .result_follow
+        .acknowledge(row.resource, row.operation);
+    assert_eq!(unseen_count(&app), 1);
+    app.session
+        .result_follow
+        .advance(app.session.background_activity.latest_id());
+    assert_eq!(unseen_count(&app), 0);
+}

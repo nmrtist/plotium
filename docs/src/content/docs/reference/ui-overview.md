@@ -81,12 +81,23 @@ following is active, paused, or off. In **Results**, use **Pause**, **Resume**,
 Opening or selecting other content, panning, zooming, or editing pauses following;
 hovering and inspecting operation details do not. Resume following when you want
 new results to appear again, or stop following to keep browsing independently.
+While paused, a badge on the follow button counts new or updated results you have
+not viewed. Repeated changes to the same object count once. Open **Results** to
+review them without resuming following. Updates to the object currently in view
+also show a brief, dismissible notification.
+Viewing a result marks that result as seen; **View latest** leaves older unseen
+results in the count. Resuming following clears the count.
 Pausing immediately freezes the current view, including an unfinished automatic
 zoom. Resuming or viewing the latest result focuses the latest operation's results,
 without collecting earlier canvases. Viewing the latest result once does not turn following back on. Read-only requests
 and empty canvases do not move the workspace, and following does not cancel tasks.
 Changing projects or losing the AI connection stops following; resume it explicitly
 after the new project or connection is ready.
+
+A spinner on the AI connection button indicates a running scientific task.
+Hover for its operation, progress when available, and any risk of editing while
+it runs. This indicates known application work, not completion of the AI's
+overall task.
 
 Both Side Bars can be shown or hidden at any time: click the pair of layout
 buttons at the right end of the Ribbon's task row, press

@@ -81,8 +81,9 @@ fn result_link_resolves_stable_identity_after_reordering_and_rejects_deletion() 
 }
 
 #[test]
-fn success_notice_expires_and_repeated_update_does_not_reopen_it() {
+fn current_object_update_is_visible_while_paused_and_expires() {
     let mut app = app();
+    app.session.result_follow.pause("Inspecting data");
     rename(&mut app, "First update");
     let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(
@@ -105,20 +106,126 @@ fn success_notice_expires_and_repeated_update_does_not_reopen_it() {
             time: Some(5.0),
             ..Default::default()
         },
+        |_| {
+            assert!(
+                notice(&app, &ctx)
+                    .unwrap()
+                    .summary
+                    .contains("Another update")
+            )
+        },
+    );
+    let _ = ctx.run_ui(
+        egui::RawInput {
+            time: Some(9.0),
+            ..Default::default()
+        },
         |_| assert!(notice(&app, &ctx).is_none()),
     );
     assert_eq!(app.session.background_activity.results().len(), 1);
 }
 
 #[test]
-fn dismissed_notice_stays_dismissed_during_repeated_updates() {
+fn dismissing_one_update_does_not_hide_future_changes_to_current_object() {
     let mut app = app();
     rename(&mut app, "First update");
     let ctx = crate::typography::test_context();
     let id = notice(&app, &ctx).unwrap().id;
     dismiss_notice(&app, &ctx, id);
-    rename(&mut app, "Another update");
     assert!(notice(&app, &ctx).is_none());
+    rename(&mut app, "Another update");
+    assert_ne!(notice(&app, &ctx).unwrap().id, id);
+}
+
+#[test]
+fn offscreen_repeated_update_does_not_notify_when_later_opened() {
+    let mut app = app();
+    rename(&mut app, "First update");
+    let ctx = crate::typography::test_context();
+    let id = notice(&app, &ctx).unwrap().id;
+    dismiss_notice(&app, &ctx, id);
+    app.new_table_dataset();
+    rename(&mut app, "Offscreen update");
+    assert!(notice(&app, &ctx).is_none());
+    app.focus_single(0);
+    assert!(notice(&app, &ctx).is_none());
+}
+
+#[test]
+fn failure_keeps_priority_over_repeated_current_object_update() {
+    let mut app = app();
+    rename(&mut app, "First update");
+    let plan = rename_plan(&app, "Denied update");
+    assert!(execute_tool(&mut app, plan, ExecutionAuthority::Read).is_err());
+    rename(&mut app, "Updated while following is off");
+    app.session.result_follow.stop();
+    let ctx = crate::typography::test_context();
+    let failure = notice(&app, &ctx).unwrap();
+    assert_eq!(failure.outcome, OperationOutcome::Failure);
+    dismiss_notice(&app, &ctx, failure.id);
+    assert!(
+        notice(&app, &ctx)
+            .unwrap()
+            .summary
+            .contains("Updated while following is off")
+    );
+}
+
+#[test]
+fn late_update_from_previous_connection_does_not_reopen_success_notice() {
+    let mut app = app();
+    let source = plotium_core::state::ActivitySourceId::default();
+    app.session
+        .result_follow
+        .synchronize(app.session.project_context, Some(source));
+    app.session.background_activity.execution_source = Some(source);
+    rename(&mut app, "First update");
+    let ctx = crate::typography::test_context();
+    let id = notice(&app, &ctx).unwrap().id;
+    dismiss_notice(&app, &ctx, id);
+    app.session.result_follow.synchronize(
+        app.session.project_context,
+        Some(plotium_core::state::ActivitySourceId::default()),
+    );
+    rename(&mut app, "Old connection update");
+    assert!(notice(&app, &ctx).is_none());
+}
+
+#[test]
+fn current_canvas_updates_notify_without_changing_view_or_follow_mode() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.load_from(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../io/tests/fixtures/nmr/jcamp-ppm.dx"),
+    );
+    app.session.result_follow.stop();
+    let canvas = app.doc.canvases[app.session.active_canvas.unwrap()].resource_id;
+    let ctx = crate::typography::test_context();
+    for name in ["First canvas change", "Repeated canvas change"] {
+        let plan = plan_tool(
+            &app,
+            ToolRequest {
+                tool_id: "resource.rename".into(),
+                tool_version: 1,
+                parameters: serde_json::json!({"name": name}),
+                targets: TargetSelector::Explicit {
+                    ids: vec![canvas.to_string()],
+                },
+                expected_revision: DocumentRevision(app.doc.automation_revision),
+                caller: CallerType::Agent,
+            },
+        )
+        .unwrap();
+        execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify).unwrap();
+        let notice = notice(&app, &ctx).unwrap();
+        assert!(notice.summary.contains(name));
+        dismiss_notice(&app, &ctx, notice.id);
+    }
+    assert!(app.session.view == PrimaryView::Canvas);
+    assert_eq!(
+        app.session.result_follow.mode(),
+        plotium_core::state::ResultFollowMode::Off
+    );
 }
 
 #[test]

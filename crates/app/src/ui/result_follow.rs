@@ -32,6 +32,9 @@ pub(super) fn begin_frame(ctx: &Context) {
 
 pub(super) fn pause(app: &mut PlotiumApp, reason: &str) {
     if app.session.result_follow.mode() == ResultFollowMode::Following {
+        app.session
+            .result_follow
+            .advance(app.session.background_activity.latest_id());
         app.session.result_follow.pause(reason);
         freeze(app);
     }
@@ -229,6 +232,9 @@ pub(super) fn execute(app: &mut PlotiumApp, ctx: &Context, command: CommandId) {
             app.session.result_follow.resume();
             let resources = available_results(app, false);
             open_collection(app, ctx, &resources, true);
+            app.session
+                .result_follow
+                .advance(app.session.background_activity.latest_id());
         }
         CommandId::PauseResultFollow => pause(app, "You paused following."),
         CommandId::StopResultFollow => {
@@ -238,6 +244,19 @@ pub(super) fn execute(app: &mut PlotiumApp, ctx: &Context, command: CommandId) {
         CommandId::ViewLatestResults => {
             let resources = available_results(app, false);
             open_collection(app, ctx, &resources, true);
+            for resource in resources {
+                if let Some(row) = app
+                    .session
+                    .background_activity
+                    .results()
+                    .iter()
+                    .find(|row| row.resource == resource)
+                {
+                    app.session
+                        .result_follow
+                        .acknowledge(resource, row.operation);
+                }
+            }
         }
         _ => {}
     }
@@ -245,6 +264,7 @@ pub(super) fn execute(app: &mut PlotiumApp, ctx: &Context, command: CommandId) {
 
 pub(super) fn button(app: &mut PlotiumApp, ui: &mut Ui) {
     let mode = app.session.result_follow.mode();
+    let unseen = unseen_count(app);
     let (glyph, label, command) = match mode {
         ResultFollowMode::Following => (
             icon::PLAY_CIRCLE,
@@ -266,6 +286,9 @@ pub(super) fn button(app: &mut PlotiumApp, ui: &mut Ui) {
             label
         };
     let mut tooltip = format!("{label}\n{}", descriptor.label);
+    if unseen > 0 {
+        tooltip.push_str(&format!("\n{unseen} new or updated results since pausing"));
+    }
     if let Some(reason) = app.session.result_follow.pause_reason() {
         tooltip.push_str(&format!("\n{reason}"));
     }
@@ -280,6 +303,19 @@ pub(super) fn button(app: &mut PlotiumApp, ui: &mut Ui) {
             .selected(mode == ResultFollowMode::Following),
     );
     register_pause_control(ui, &response, command);
+    if unseen > 0 {
+        ui.painter().text(
+            response.rect.right_bottom() + egui::vec2(-2.0, -1.0),
+            egui::Align2::RIGHT_BOTTOM,
+            if unseen > 99 {
+                "99+".into()
+            } else {
+                unseen.to_string()
+            },
+            egui::FontId::proportional(9.0),
+            ui.visuals().warn_fg_color,
+        );
+    }
     let response = response.on_hover_text(tooltip);
     let response = if let Some(reason) = descriptor.disabled_reason {
         response.on_disabled_hover_text(reason)
@@ -293,6 +329,7 @@ pub(super) fn button(app: &mut PlotiumApp, ui: &mut Ui) {
 
 pub(super) fn controls(app: &mut PlotiumApp, ui: &mut Ui) {
     let mode = app.session.result_follow.mode();
+    let unseen = unseen_count(app);
     ui.horizontal_wrapped(|ui| {
         ui.label(match (mode, app.session.result_follow.source().is_some()) {
             (ResultFollowMode::Following, false) => "Waiting for AI connection",
@@ -300,6 +337,12 @@ pub(super) fn controls(app: &mut PlotiumApp, ui: &mut Ui) {
             (ResultFollowMode::Paused, _) => "Following paused",
             (ResultFollowMode::Off, _) => "Following off",
         });
+        if unseen > 0 {
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                format!("{unseen} new or updated results"),
+            );
+        }
         for command in [
             if mode == ResultFollowMode::Following {
                 CommandId::PauseResultFollow
@@ -346,7 +389,11 @@ fn available_results(app: &PlotiumApp, unseen: bool) -> Vec<ResourceRef> {
         .iter()
         .filter(|row| {
             row.source == Some(source)
-                && (!unseen || row.operation.0 > app.session.result_follow.cursor().0)
+                && (!unseen
+                    || app
+                        .session
+                        .result_follow
+                        .is_unseen(&row.resource, row.operation))
         })
         .filter(|row| app.activity_result_available(&row.resource) && navigable(app, &row.resource))
         .collect();
@@ -364,6 +411,29 @@ fn available_results(app: &PlotiumApp, unseen: bool) -> Vec<ResourceRef> {
         .filter(|row| !has_canvas || direct_canvas(app, &row.resource).is_some())
         .map(|row| row.resource.clone())
         .collect()
+}
+
+pub(super) fn unseen_count(app: &PlotiumApp) -> usize {
+    if app.session.result_follow.mode() != ResultFollowMode::Paused {
+        return 0;
+    }
+    let Some(source) = app.session.result_follow.source() else {
+        return 0;
+    };
+    app.session
+        .background_activity
+        .results()
+        .iter()
+        .filter(|row| {
+            row.source == Some(source)
+                && app
+                    .session
+                    .result_follow
+                    .is_unseen(&row.resource, row.operation)
+                && app.activity_result_available(&row.resource)
+                && navigable(app, &row.resource)
+        })
+        .count()
 }
 
 pub(crate) fn apply(app: &mut PlotiumApp, ui: &Ui) {

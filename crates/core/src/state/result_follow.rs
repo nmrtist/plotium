@@ -1,4 +1,5 @@
 use super::{ActivityId, ProjectContextId};
+use crate::automation::ResourceRef;
 
 /// Identity of one live AI connection, never stored in project data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -23,6 +24,7 @@ pub struct ResultFollow {
     source: Option<ActivitySourceId>,
     mode: ResultFollowMode,
     cursor: ActivityId,
+    acknowledged: Vec<(ResourceRef, ActivityId)>,
     pause_reason: Option<String>,
     bound_once: bool,
 }
@@ -34,6 +36,7 @@ impl Default for ResultFollow {
             source: None,
             mode: ResultFollowMode::Following,
             cursor: ActivityId(0),
+            acknowledged: Vec::new(),
             pause_reason: None,
             bound_once: false,
         }
@@ -42,6 +45,9 @@ impl Default for ResultFollow {
 
 impl ResultFollow {
     pub fn synchronize(&mut self, context: ProjectContextId, source: Option<ActivitySourceId>) {
+        if self.context != Some(context) || self.source != source {
+            self.acknowledged.clear();
+        }
         if self.bound_once && (self.context != Some(context) || self.source != source) {
             self.stop();
         }
@@ -67,6 +73,35 @@ impl ResultFollow {
 
     pub fn advance(&mut self, cursor: ActivityId) {
         self.cursor.0 = self.cursor.0.max(cursor.0);
+        self.acknowledged
+            .retain(|(_, operation)| operation.0 > self.cursor.0);
+    }
+
+    pub fn is_unseen(&self, resource: &ResourceRef, operation: ActivityId) -> bool {
+        operation.0 > self.cursor.0
+            && !self
+                .acknowledged
+                .iter()
+                .any(|(seen, through)| seen == resource && through.0 >= operation.0)
+    }
+
+    /// Viewing one result does not acknowledge other operations in the history.
+    pub fn acknowledge(&mut self, resource: ResourceRef, operation: ActivityId) {
+        if !self.is_unseen(&resource, operation) {
+            return;
+        }
+        if let Some((_, through)) = self
+            .acknowledged
+            .iter_mut()
+            .find(|(seen, _)| *seen == resource)
+        {
+            *through = operation;
+        } else {
+            self.acknowledged.push((resource, operation));
+        }
+        if self.acknowledged.len() > super::BACKGROUND_ACTIVITY_CAPACITY {
+            self.acknowledged.remove(0);
+        }
     }
 
     pub fn pause_reason(&self) -> Option<&str> {
