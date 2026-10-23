@@ -41,6 +41,7 @@ pub(crate) fn spectrum_arithmetic_window(app: &mut PlotiumApp, ctx: &egui::Conte
     let mut cancel = false;
     let modal =
         super::modal(ctx, "spectrum_arithmetic_modal", super::ModalKind::Dialog).show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.heading("Spectrum arithmetic");
             ui.separator();
             ui.label("Combine spectra or apply a constant; the result becomes a new dataset.");

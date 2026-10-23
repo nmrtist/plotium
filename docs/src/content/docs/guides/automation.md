@@ -228,6 +228,11 @@ The client should describe your project, and Plotium should show recent client
 activity. The robot turns green while the connection is active. Opening the
 Claude Desktop extension package alone does not confirm a working connection.
 
+New AI results appear in the workspace by default. Browsing or editing pauses
+following so incoming results do not interrupt your work; resume it when ready.
+Use Operation history to inspect results at any time. See
+[following results](/reference/ui-overview/#window-regions) for the controls and behavior.
+
 ### Try a task
 
 Use plain language in your AI client. For example:

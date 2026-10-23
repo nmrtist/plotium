@@ -206,6 +206,7 @@ fn render_chrome_controls(
         app.session.ui.ribbon_expanded = !app.session.ui.ribbon_expanded;
     }
     update_button(app, ui, compact_controls);
+    super::result_follow::button(app, ui);
     super::activity::history_button(app, clipboard, ui);
     super::ai_connection::button(app, clipboard, ui);
     let palette = commands::describe(app, CommandId::CommandPalette);

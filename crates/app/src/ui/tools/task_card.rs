@@ -230,7 +230,11 @@ struct DragOrigin {
     rect: egui::Rect,
 }
 
-pub(super) fn area(_host: &Ui, id: Id, pos: Pos2) -> Area {
+pub(super) fn area(host: &Ui, id: Id, pos: Pos2) -> Area {
+    crate::ui::result_follow::register_editable_layer(
+        host.ctx(),
+        egui::LayerId::new(Order::Middle, id),
+    );
     // Position and size are constrained together by the task-card gesture
     // model. Area's own constraint pass uses its previous-frame size, which
     // creates a visible one-frame correction whenever both change at once.

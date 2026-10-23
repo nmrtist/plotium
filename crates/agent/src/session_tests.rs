@@ -36,6 +36,48 @@ fn typography(session: &mut Session, app: &mut PlotiumApp, value: f64) -> Value 
 fn execute(session: &mut Session, app: &mut PlotiumApp, plan: &Value) -> Result<Value, Failure> {
     session.call(app, "plotium_execute", json!({"plan_id": plan["plan_id"]}))
 }
+
+#[test]
+fn connection_results_keep_session_identity_and_restore_invocation_context() {
+    let mut app = app();
+    app.new_table_dataset();
+    let id = app.doc.datasets[0].resource_id().to_string();
+    let outer = plotium_core::state::ActivitySourceId::default();
+    app.session.background_activity.execution_source = Some(outer);
+    let mut first = Session::default();
+    first.allow_modify = true;
+    let mut second = Session::default();
+    second.allow_modify = true;
+    assert_ne!(first.activity_source(), second.activity_source());
+    for (session, name) in [(&mut first, "First result"), (&mut second, "Second result")] {
+        let prepared = plan(
+            session,
+            &mut app,
+            "resource.rename",
+            json!({"name":name}),
+            json!([id]),
+        )
+        .unwrap();
+        execute(session, &mut app, &prepared).unwrap();
+        let activity = &app.session.background_activity;
+        assert_eq!(activity.execution_source, Some(outer));
+        assert_eq!(activity.results().len(), 1);
+        assert_eq!(
+            activity.results()[0].source,
+            Some(session.activity_source())
+        );
+        assert_eq!(
+            activity.operations().back().unwrap().source,
+            Some(session.activity_source())
+        );
+        assert!(session.call(&mut app, "unknown_tool", json!({})).is_err());
+        assert_eq!(
+            app.session.background_activity.execution_source,
+            Some(outer)
+        );
+    }
+}
+
 #[test]
 fn read_only_denial_is_audited_and_consumes_plan() {
     let mut app = app();

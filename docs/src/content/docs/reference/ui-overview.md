@@ -73,6 +73,18 @@ Recomputing is always an explicit action. A completed calculation can still
 carry scientific warnings, such as an unconverged fit or an empty result;
 review those warnings before using the result.
 
+AI results are followed by default: newly created results appear in the workspace
+as they become available. The follow button beside Operation history shows whether
+following is active, paused, or off. In **Results**, use **Pause**, **Resume**,
+**Stop following**, or **View latest**. Updates to a result already in view preserve its zoom.
+Opening or selecting other content, panning, zooming, or editing pauses following;
+hovering and inspecting operation details do not. Resume following when you want
+new results to appear again, or stop following to keep browsing independently.
+Viewing the latest result once does not turn following back on. Read-only requests
+and empty canvases do not move the workspace, and following does not cancel tasks.
+Changing projects or losing the AI connection stops following; resume it explicitly
+after the new project or connection is ready.
+
 Both Side Bars can be shown or hidden at any time: click the pair of layout
 buttons at the right end of the Ribbon's task row, press
 <kbd>Ctrl</kbd>+<kbd>B</kbd> (left) or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>

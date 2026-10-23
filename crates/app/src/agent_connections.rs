@@ -131,6 +131,12 @@ impl AgentConnections {
                 .session
                 .set_allow_modify(app.settings.agent.access == AgentAccess::ReadAndModify);
             connection.synchronize_project(app);
+            app.session.background_activity.execution_source =
+                Some(connection.session.activity_source());
+            app.session.result_follow.synchronize(
+                app.session.project_context,
+                Some(connection.session.activity_source()),
+            );
             if let Err(error) = connection.poll_diagnostic(app, blocked) {
                 app.session.status =
                     format!("AI request failed ({}): {}", error.code, error.message);
@@ -170,6 +176,14 @@ impl AgentConnections {
             }
             self.desktop_seen |= connection.activity().desktop_seen;
         }
+        app.session.background_activity.execution_source = None;
+        let source = self
+            .connection
+            .as_ref()
+            .map(|connection| connection.session.activity_source());
+        app.session
+            .result_follow
+            .synchronize(app.session.project_context, source);
         self.update_indicator(app, ctx, Instant::now());
         if app.settings.agent.enabled
             || self.cards.iter().any(|c| c.job.is_some())

@@ -257,6 +257,7 @@ pub fn execute_tool(
 /// The caller must finish on the original project, or discard on project close.
 pub struct PreparedToolRun {
     project_context: crate::state::ProjectContextId,
+    activity_source: Option<crate::state::ActivitySourceId>,
     plan: ToolPlan,
     start_table_revisions: BTreeMap<String, TableRevisionRecord>,
     started_unix_ms: u128,
@@ -267,6 +268,7 @@ impl PreparedToolRun {
     pub fn begin(app: &PlotiumApp, plan: &ToolPlan) -> Self {
         Self {
             project_context: app.session.project_context,
+            activity_source: app.session.background_activity.execution_source,
             plan: plan.clone(),
             start_table_revisions: typed_table_revisions(app, "input"),
             started_unix_ms: unix_ms(),
@@ -281,15 +283,17 @@ impl PreparedToolRun {
     ) -> Result<(), AutomationError> {
         let Self {
             project_context,
+            activity_source,
             plan,
             start_table_revisions,
             started_unix_ms,
             start_revision,
             started,
         } = self;
-        app.record_background_tool(
+        app.record_background_tool_from(
             project_context,
             plan.request.caller,
+            activity_source,
             &plan.request.tool_id,
             outcome.as_ref(),
         );

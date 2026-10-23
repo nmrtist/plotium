@@ -113,6 +113,11 @@ impl PlotiumApp {
         let settings = self.settings.clone();
         let save_include_view_snapshots = loaded.doc.save_include_view_snapshots;
         loaded.session.operation_history = std::mem::take(&mut self.session.operation_history);
+        loaded.session.result_follow = std::mem::take(&mut self.session.result_follow);
+        loaded
+            .session
+            .result_follow
+            .synchronize(loaded.session.project_context, None);
         loaded.session.ui.dismissed_feedback_order = self.session.ui.dismissed_feedback_order;
         self.session
             .external_saves

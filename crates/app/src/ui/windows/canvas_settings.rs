@@ -25,6 +25,7 @@ pub(in crate::ui) fn canvas_settings_window(app: &mut PlotiumApp, ctx: &egui::Co
         .resizable(false)
         .open(&mut open)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             super::canvas_size::size_section(app, ci, ui);
             crate::ui::properties::panel::canvas_size_section(app, &target, ui);
             crate::ui::properties::panel::canvas_margins_section(app, &target, ui);

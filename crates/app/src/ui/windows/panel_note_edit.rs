@@ -29,6 +29,7 @@ pub(in crate::ui) fn panel_note_edit_window(app: &mut PlotiumApp, ctx: &egui::Co
         .resizable(false)
         .open(&mut open)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             let Some(edit) = app.session.ui.panel_note_edit.as_mut() else {
                 return;
             };

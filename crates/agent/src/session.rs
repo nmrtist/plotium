@@ -26,6 +26,7 @@ pub use recovery::Failure;
 
 #[derive(Default)]
 pub struct Session {
+    activity_source: plotium_core::state::ActivitySourceId,
     pub allow_modify: bool,
     permission_epoch: u64,
     scientific_permission: TaskCancellation,
@@ -115,6 +116,10 @@ pub fn property_catalog() -> Value {
     json!({"properties": PROPERTIES.iter().filter_map(|id| property_definition_description(*id)).collect::<Vec<_>>()})
 }
 impl Session {
+    pub fn activity_source(&self) -> plotium_core::state::ActivitySourceId {
+        self.activity_source
+    }
+
     fn pending_plan_count(&self) -> usize {
         // Import/table-operation maps hold payloads for entries already in plans.
         self.plans.len() + self.saves.len() + self.exports.len()
@@ -143,7 +148,13 @@ impl Session {
                 || self.saves.contains_key(id)
                 || self.exports.contains_key(id)
         });
+        let previous = app
+            .session
+            .background_activity
+            .execution_source
+            .replace(self.activity_source);
         let result = self.call_inner(app, name, arguments.clone(), blocked);
+        app.session.background_activity.execution_source = previous;
         match result {
             Ok(mut value) => {
                 recovery::annotate(&mut value);

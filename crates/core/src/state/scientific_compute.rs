@@ -63,6 +63,7 @@ impl PlotiumApp {
             summary: json!({"method":if params.is_some(){"ilt"}else{"mono_exp"}}),
         };
         self.capture_task_field_versions(&mut receipt)?;
+        self.register_background_task(&receipt);
         self.session.scientific_tasks.register(receipt);
         use crate::automation::{CAP_DIFFUSION_INPUT, ProjectResourceProvider, ResourceProvider};
         let owner = dataset.to_string();

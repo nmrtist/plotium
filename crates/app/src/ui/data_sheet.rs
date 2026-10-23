@@ -63,6 +63,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         .max_size(maximum)
         .open(&mut open)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             if matches!(freshness.status, plotium_core::state::TableFreshnessState::Stale | plotium_core::state::TableFreshnessState::Unavailable) && app.doc.datasets[di].as_table().is_some() {
                 ui.colored_label(ui.visuals().warn_fg_color, &freshness.reason);
                 ui.separator();

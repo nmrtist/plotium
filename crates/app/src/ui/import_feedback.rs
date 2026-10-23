@@ -295,6 +295,9 @@ pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
                                         {
                                             let name = app.doc.datasets[dataset].display_name();
                                             if ui.link(format!("View {name}")).clicked() {
+                                                app.session
+                                                    .result_follow
+                                                    .pause("You opened an import result.");
                                                 app.cancel_import_open_intent();
                                                 open_target(app, ui, target);
                                             }

@@ -260,6 +260,7 @@ fn history_is_bounded_and_new_context_discards_old_rows() {
             context,
             ActivityOperation {
                 id: ActivityId(0),
+                source: None,
                 title: format!("Write {index}"),
                 tool_id: "resource.rename".into(),
                 task_id: None,

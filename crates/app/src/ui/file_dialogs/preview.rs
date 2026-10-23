@@ -36,6 +36,7 @@ pub(crate) fn table_import_preview_window(app: &mut PlotiumApp, ctx: &egui::Cont
         super::super::ModalKind::Dialog,
     )
     .show(ctx, |ui| {
+        crate::ui::result_follow::register_editor(ui);
         ui.set_width(720.0);
         ui.heading("Review table import");
         ui.label("Confirm the inferred schema before the table is added to the project.");

@@ -36,6 +36,7 @@ mod present;
 mod primary_sidebar;
 pub(crate) mod processing_templates;
 pub(crate) mod properties;
+pub(crate) mod result_follow;
 mod ribbon;
 mod ribbon_chrome;
 mod scientific_script;
@@ -87,6 +88,7 @@ pub fn render(
     ribbon_chrome: RibbonChrome,
 ) {
     let ctx = ui.ctx().clone();
+    result_follow::begin_frame(&ctx);
     let title = project_window_title(app);
     if last_window_title.as_deref() != Some(title.as_str()) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -176,6 +178,8 @@ pub fn render(
     activity::observe(app);
 
     import_feedback::apply_open_target(app, ui);
+    result_follow::apply(app, ui);
+    result_follow::remember_workspace(ui);
 
     let workspace_width = ui.available_width();
     sidebars::render(app, ui, dark, workspace_width);

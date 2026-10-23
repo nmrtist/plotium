@@ -58,6 +58,7 @@ fn save_as_window(app: &mut PlotiumApp, ctx: &egui::Context, name: &mut String) 
     let mut cancel = false;
     let modal =
         super::modal(ctx, "canvas_style_save_modal", super::ModalKind::Dialog).show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.heading("Save canvas style");
             ui.separator();
             ui.label(
@@ -138,6 +139,7 @@ fn browse_window(
     let mut close = false;
     let modal =
         super::modal(ctx, "canvas_style_browse_modal", super::ModalKind::Dialog).show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.set_width(520.0);
             ui.heading("Canvas styles");
             ui.separator();

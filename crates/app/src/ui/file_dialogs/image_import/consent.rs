@@ -15,6 +15,7 @@ pub(crate) fn large_image_consent_window(app: &mut PlotiumApp, ctx: &egui::Conte
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.label("This image exceeds 100 MP or an estimated 512 MiB when decoded.");
             ui.label("Plotium will embed the original and use a bounded proxy for editing.");
             ui.horizontal(|ui| {
