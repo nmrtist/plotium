@@ -64,6 +64,32 @@ impl PlotiumApp {
         };
         self.capture_task_field_versions(&mut receipt)?;
         self.session.scientific_tasks.register(receipt);
+        use crate::automation::{CAP_DIFFUSION_INPUT, ProjectResourceProvider, ResourceProvider};
+        let owner = dataset.to_string();
+        let recovery_targets = ProjectResourceProvider::new(self)
+            .descriptors()
+            .into_iter()
+            .find(|descriptor| {
+                descriptor.resource.parent_id.as_deref() == Some(owner.as_str())
+                    && descriptor
+                        .capabilities
+                        .iter()
+                        .any(|capability| capability.0 == CAP_DIFFUSION_INPUT)
+            })
+            .map(|descriptor| vec![descriptor.resource])
+            .unwrap_or_else(|| vec![ResourceRef::from(dataset)]);
+        self.session.scientific_tasks.set_recovery(&task_id, crate::automation::ScientificRecovery {
+            request: crate::automation::ToolRequest {
+                tool_id: crate::automation::DOSY_BUILD.into(),
+                tool_version: 1,
+                parameters: json!({"method":if params.is_some(){"ilt"}else{"mono_exp"},"params":params,"input":input}),
+                targets: crate::automation::TargetSelector::Explicit { ids: vec![dataset.to_string()] },
+                expected_revision: DocumentRevision(self.doc.automation_revision),
+                caller: crate::automation::CallerType::Human,
+            },
+            targets: recovery_targets,
+            desktop_region: None,
+        });
         let kind = if params.is_some() {
             ComputeKind::Ilt
         } else {
@@ -220,6 +246,8 @@ impl PlotiumApp {
             Some((TaskStatus::Failed, "permission_denied"))
         } else if receipt.project_context != self.session.project_context {
             Some((TaskStatus::Stale, "project_changed"))
+        } else if self.doc.dataset_index(dataset).is_none() {
+            Some((TaskStatus::Stale, "target_deleted"))
         } else if receipt.sources.iter().any(|source| {
             self.session
                 .compute
@@ -232,8 +260,6 @@ impl PlotiumApp {
             Some((TaskStatus::Stale, "source_version_changed"))
         } else if receipt.start_revision.0 != revision {
             Some((TaskStatus::Stale, "stale_revision"))
-        } else if self.doc.dataset_index(dataset).is_none() {
-            Some((TaskStatus::Stale, "target_deleted"))
         } else if matches!(done, Done::Cancelled { .. }) {
             Some((TaskStatus::Cancelled, "request_cancelled"))
         } else if matches!(done, Done::Failed { .. }) {
@@ -244,13 +270,13 @@ impl PlotiumApp {
             None
         };
         if let Some((status, code)) = failure {
-            self.session.status = format!("Scientific computation did not commit: {code}.");
+            self.session.status = crate::automation::task_failure_message(code).into();
             self.session.scientific_tasks.update(
                 &id,
                 status,
                 revision,
                 Some(code),
-                Some("Scientific computation did not commit.".into()),
+                None,
                 Value::Null,
             );
             return true;

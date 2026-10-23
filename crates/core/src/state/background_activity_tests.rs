@@ -262,6 +262,7 @@ fn history_is_bounded_and_new_context_discards_old_rows() {
                 id: ActivityId(0),
                 title: format!("Write {index}"),
                 tool_id: "resource.rename".into(),
+                task_id: None,
                 outcome: OperationOutcome::Success,
                 created: 1,
                 updated: 0,

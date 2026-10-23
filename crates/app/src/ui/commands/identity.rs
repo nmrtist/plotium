@@ -15,6 +15,7 @@ impl CommandId {
         match self {
             Self::OpenRecent(i) => format!("file.open_recent.{i}"),
             Self::RetryImportBatch(id) => format!("file.retry_import.{id}"),
+            Self::RecomputeScientificTask(id) => format!("analysis.recompute_task.{}", id.0),
             Self::NewCanvas(i) => format!("file.new_canvas.{i}"),
             Self::Export(f) => format!("file.export.{}", f.extension()),
             Self::ArrangeGrid(r, c) => format!("arrange.grid.{r}x{c}"),
@@ -69,6 +70,13 @@ pub(super) fn command_identity(
         CommandId::ImportResults => plain("Import Results", Some(icon::LIST_CHECKS)),
         CommandId::RetryImportBatch(id) => plain(
             &format!("Retry Failed Imports — Batch {id}"),
+            Some(icon::ARROWS_CLOCKWISE),
+        ),
+        CommandId::RecomputeScientificTask(id) => plain(
+            &format!(
+                "Recompute {}",
+                super::super::scientific_task_feedback::operation_title(app, id)
+            ),
             Some(icon::ARROWS_CLOCKWISE),
         ),
         CommandId::ImportImage => plain("Add Images…", Some(icon::IMAGES)),

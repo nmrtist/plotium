@@ -79,6 +79,9 @@ fn execute_inner(
                 super::import_feedback::open_results(app, ctx, Some(retry));
             }
         }
+        CommandId::RecomputeScientificTask(activity) => {
+            super::scientific_task_feedback::recompute(app, activity);
+        }
         CommandId::ImportImage => super::file_dialogs::import_images(app),
         CommandId::ImportImageFirstFrame => {
             super::file_dialogs::image_import::import_images_first_frame(app)

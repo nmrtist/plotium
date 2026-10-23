@@ -27,6 +27,7 @@ impl CommandId {
             | Self::RunCraft
             | Self::CraftComponentTable
             | Self::ApplyTheme(_) => CommandExecutionClass::ToolBacked,
+            Self::RecomputeScientificTask(_) => CommandExecutionClass::ToolBacked,
             _ => CommandExecutionClass::UiOnly,
         }
     }

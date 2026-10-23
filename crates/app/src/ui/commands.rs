@@ -42,6 +42,7 @@ pub enum CommandId {
     ImportTable,
     ImportResults,
     RetryImportBatch(plotium_core::state::ImportBatchId),
+    RecomputeScientificTask(plotium_core::state::ActivityId),
     ImportImage,
     ImportImageFirstFrame,
     ImportImageWithoutMetadata,
@@ -186,6 +187,7 @@ pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
                 .iter()
                 .map(|batch| CommandId::RetryImportBatch(batch.id)),
         )
+        .chain(super::scientific_task_feedback::commands(app))
         .map(|id| {
             debug_assert!(!id.stable_id().is_empty());
             describe(app, id)
@@ -246,6 +248,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // command can never be blocked by one requirement while explaining another.
     // `and_then` reports the first unmet requirement and skips the rest.
     let gate: Result<(), &'static str> = match id {
+        CommandId::RecomputeScientificTask(activity) => {
+            super::scientific_task_feedback::recompute_gate(app, activity)
+        }
         CommandId::RunScientificScript => requires(
             app.doc
                 .datasets

@@ -98,3 +98,41 @@ pub(super) fn activity(
     );
     Ok(())
 }
+
+pub(super) fn scientific_conflict(app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), String> {
+    use plotium_core::automation::{
+        CallerType, DocumentRevision, ExecutionAuthority, TargetSelector, ToolRequest,
+        execute_tool, plan_tool,
+    };
+    let dataset = app.doc.datasets[0].resource_id().to_string();
+    for (tool_id, parameters) in [
+        (
+            "processing.edit",
+            serde_json::json!({"edits": [{"op": "add", "axis": "direct", "kind": "Invert"}]}),
+        ),
+        (
+            "resource.rename",
+            serde_json::json!({"name": "Edited during calculation"}),
+        ),
+    ] {
+        let request = ToolRequest {
+            tool_id: tool_id.into(),
+            tool_version: 1,
+            parameters,
+            targets: TargetSelector::Explicit {
+                ids: vec![dataset.clone()],
+            },
+            expected_revision: DocumentRevision(app.doc.automation_revision),
+            caller: CallerType::Human,
+        };
+        let plan = plan_tool(app, request).map_err(|error| error.to_string())?;
+        execute_tool(app, plan, ExecutionAuthority::ReversibleModify)
+            .map_err(|error| error.to_string())?;
+    }
+    crate::ui::commands::execute_without_clipboard(
+        crate::ui::commands::CommandId::OperationHistory,
+        app,
+        ctx,
+    );
+    Ok(())
+}

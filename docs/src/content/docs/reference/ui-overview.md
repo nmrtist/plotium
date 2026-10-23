@@ -64,6 +64,15 @@ introduces the same regions in walkthrough form.
   tasks continue. Hover the button for the current status and result count.
   Errors and warnings also appear in the feedback banner.
 
+Scientific tasks in **Results** distinguish completion, failure, cancellation,
+and results that were **not applied**. Editing the project while a computation
+is running can prevent its result from being applied; the task explains the
+reason. Where available, **Recompute** starts a new calculation using current
+data. If it is unavailable, hover the button for the required next step.
+Recomputing is always an explicit action. A completed calculation can still
+carry scientific warnings, such as an unconverged fit or an empty result;
+review those warnings before using the result.
+
 Both Side Bars can be shown or hidden at any time: click the pair of layout
 buttons at the right end of the Ribbon's task row, press
 <kbd>Ctrl</kbd>+<kbd>B</kbd> (left) or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>

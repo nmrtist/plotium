@@ -1,7 +1,5 @@
 use egui::{Context, Ui};
-use plotium_core::automation::{
-    ProjectResourceProvider, ResourceProvider, ResourceRef, TaskStatus,
-};
+use plotium_core::automation::{ProjectResourceProvider, ResourceProvider, ResourceRef};
 use plotium_core::operation::OperationOutcome;
 use plotium_core::state::{
     ActivityChange, ActivityId, CanvasId, DatasetId, ObjectId, PlotiumApp, PrimaryView,
@@ -95,13 +93,17 @@ pub(super) fn notice(app: &PlotiumApp, ctx: &Context) -> Option<ActivityNotice> 
     Some(ActivityNotice {
         id: operation.id,
         outcome: operation.outcome,
-        summary: format!(
-            "{} · {} created, {} updated, {} failed, {} skipped",
-            operation.title,
-            operation.created,
-            operation.updated,
-            operation.failed,
-            operation.skipped
+        summary: super::scientific_task_feedback::notice_summary(app, operation.id).unwrap_or_else(
+            || {
+                format!(
+                    "{} · {} created, {} updated, {} failed, {} skipped",
+                    operation.title,
+                    operation.created,
+                    operation.updated,
+                    operation.failed,
+                    operation.skipped
+                )
+            },
         ),
     })
 }
@@ -121,18 +123,14 @@ pub(super) fn results(app: &mut PlotiumApp, ui: &mut Ui) {
             task.project_context == app.session.project_context && !task.status.terminal()
         })
         .collect();
-    if !active.is_empty() {
+    let has_active = !active.is_empty();
+    if has_active {
         ui.label(crate::typography::headline("Scientific tasks"));
         let registry = plotium_core::automation::ToolRegistry::built_in();
         for task in active {
             ui.horizontal_wrapped(|ui| {
                 ui.spinner();
-                let state = match task.status {
-                    TaskStatus::Queued => "Queued",
-                    TaskStatus::Running => "Running",
-                    TaskStatus::Committing => "Applying results",
-                    _ => unreachable!("only active receipts are listed"),
-                };
+                let state = task.status.label();
                 let title = registry
                     .get(&task.operation)
                     .map_or(task.operation.as_str(), |tool| tool.title.as_str());
@@ -142,11 +140,16 @@ pub(super) fn results(app: &mut PlotiumApp, ui: &mut Ui) {
                 }
             });
         }
+        ui.weak("Editing the project while a task runs can prevent its result from being applied. You can recompute using current data afterward.");
         ui.separator();
     }
     let rows = app.session.background_activity.results().clone();
     if rows.is_empty() && app.session.background_activity.operations().is_empty() {
-        ui.weak("No background results yet. Ask your connected assistant to create or update data or a figure.");
+        ui.weak(if has_active {
+            "No completed results yet. Wait for the running task to finish."
+        } else {
+            "No results yet. Run a scientific operation or ask your connected assistant to create or update data or a figure."
+        });
         return;
     }
     for row in rows.iter().rev() {
@@ -188,15 +191,21 @@ pub(super) fn results(app: &mut PlotiumApp, ui: &mut Ui) {
         ui.separator();
     }
     ui.label(crate::typography::headline("Recent operations"));
-    for operation in app.session.background_activity.operations().iter().rev() {
+    let operations = app.session.background_activity.operations().clone();
+    for operation in operations.iter().rev() {
         egui::CollapsingHeader::new(format!(
             "{} · {}",
             operation.title,
-            operation.outcome.as_str()
+            super::scientific_task_feedback::status_label(app, operation.id)
+                .unwrap_or(operation.outcome.as_str())
         ))
         .id_salt(operation.id)
         .default_open(operation.outcome != OperationOutcome::Success)
         .show(ui, |ui| {
+            if super::scientific_task_feedback::receipt(app, operation.id).is_some() {
+                super::scientific_task_feedback::details(app, ui, operation.id);
+                return;
+            }
             ui.weak(format!(
                 "{} created · {} updated · {} failed · {} skipped",
                 operation.created, operation.updated, operation.failed, operation.skipped
