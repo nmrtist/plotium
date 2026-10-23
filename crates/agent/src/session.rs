@@ -251,7 +251,7 @@ impl Session {
             }
         };
         if name == "plotium_execute" {
-            let args: Execute = decode(arguments)?;
+            let args = Execute::parse(arguments)?;
             if let Some(receipt) = app.session.scientific_tasks.for_plan(&args.plan_id) {
                 return Ok(json!(ToolResult {
                     tool_id: receipt.operation.clone(),
@@ -756,8 +756,10 @@ pub(crate) fn check_context(app: &PlotiumApp, arguments: &mut Value) -> Result<(
                 "invalid_parameters",
                 "expected_project_context is required; read plotium_get_state first",
             )
+            .at_field("expected_project_context")
         })?;
-    let expected: plotium_core::state::ProjectContextId = decode(context)?;
+    let expected: plotium_core::state::ProjectContextId =
+        decode(context).map_err(|e| e.at_field("expected_project_context"))?;
     if expected != app.session.project_context {
         return Err(project_changed());
     }

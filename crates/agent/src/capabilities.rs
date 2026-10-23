@@ -337,7 +337,9 @@ pub(crate) fn respond(arguments: Value) -> Result<Value, crate::session::Failure
     }
     let invalid = |message: String, field: &str, values: Vec<String>| {
         let mut failure = crate::session::Failure::new("invalid_parameters", message);
-        failure.details = Some(json!({ field: values }));
+        failure.details = Some(
+            json!({ field: values, "field": if field == "sections" {"section"} else {"key"} }),
+        );
         failure
     };
     let query: Query = serde_json::from_value(arguments)

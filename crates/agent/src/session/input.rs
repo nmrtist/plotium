@@ -2,12 +2,15 @@ use super::*;
 
 impl Plan {
     pub(super) fn parse(arguments: Value) -> Result<Self, Failure> {
+        field::<String>(&arguments, "tool_id")?;
+        field::<serde_json::Map<String, Value>>(&arguments, "parameters")?;
+        field::<DocumentRevision>(&arguments, "expected_revision")?;
         for key in ["ids", "targets"] {
             if arguments.get(key).is_some_and(|v| !v.is_array()) {
-                return Err(Failure::new(
-                    "invalid_parameters",
-                    format!("{key} must be an array"),
-                ));
+                return Err(
+                    Failure::new("invalid_parameters", format!("{key} must be an array"))
+                        .at_field(key),
+                );
             }
         }
         let args: Self = decode(arguments)?;
@@ -40,5 +43,21 @@ impl Plan {
             ));
         }
         Ok(args)
+    }
+}
+
+fn field<T: serde::de::DeserializeOwned>(arguments: &Value, key: &str) -> Result<(), Failure> {
+    let value = arguments.get(key).ok_or_else(|| {
+        Failure::new("invalid_parameters", format!("Missing field {key}")).at_field(key)
+    })?;
+    decode::<T>(value.clone())
+        .map(|_| ())
+        .map_err(|e| e.at_field(key))
+}
+
+impl Execute {
+    pub(super) fn parse(arguments: Value) -> Result<Self, Failure> {
+        field::<String>(&arguments, "plan_id")?;
+        decode(arguments)
     }
 }

@@ -1,5 +1,83 @@
 use super::*;
 
+#[test]
+fn invalid_contract_queries_and_plan_shapes_point_to_static_discovery() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    let mut session = Session::default();
+    for args in [
+        json!({"section":"missing"}),
+        json!({"section":"operation_constraints","key":"missing"}),
+    ] {
+        let e = session
+            .call(&mut app, "plotium_capabilities_get", args)
+            .unwrap_err()
+            .value();
+        assert_eq!(
+            e["error"]["recovery"]["next_action"]["tool"],
+            "plotium_capabilities_get"
+        );
+        assert_eq!(
+            e["error"]["recovery"]["next_action"]["arguments"],
+            json!({})
+        );
+        assert!(e["error"]["details"]["field"].is_string());
+    }
+    for (field, value) in [
+        ("parameters", Value::Null),
+        ("expected_revision", json!("bad")),
+    ] {
+        let mut args = json!({"expected_project_context":app.session.project_context,"expected_revision":0,
+            "tool_id":"resource.rename","ids":["document"],"parameters":{}});
+        args[field] = value;
+        let e = session
+            .call(&mut app, "plotium_plan", args)
+            .unwrap_err()
+            .value();
+        assert_eq!(e["error"]["details"]["field"], field);
+        assert_eq!(e["error"]["recovery"]["submission"], "not_submitted");
+        assert_eq!(e["error"]["recovery"]["committed"], false);
+        assert_eq!(e["error"]["recovery"]["replay_allowed"], false);
+        let action = &e["error"]["recovery"]["next_action"];
+        assert_eq!(
+            action["tool"],
+            if field == "parameters" {
+                "plotium_capabilities_get"
+            } else {
+                "plotium_get_state"
+            }
+        );
+        if field == "parameters" {
+            assert_eq!(
+                action["arguments"],
+                json!({"section":"operation_constraints","key":"resource.rename"})
+            );
+        }
+    }
+    let e = session
+        .call(&mut app, "plotium_execute", json!({"plan_id":null}))
+        .unwrap_err()
+        .value();
+    assert_eq!(e["error"]["details"]["field"], "plan_id");
+    assert!(e["error"]["recovery"]["committed"].is_null());
+    assert_eq!(e["error"]["recovery"]["replay_allowed"], false);
+    let args = json!({"expected_project_context":app.session.project_context,"expected_revision":0,
+        "target":document_root_target(),"view":"self","offset":1});
+    let e = session
+        .call(&mut app, "plotium_document_inspect", args)
+        .unwrap_err()
+        .value();
+    assert_eq!(e["error"]["code"], "invalid_parameters");
+    assert!(e["error"]["details"]["field"].is_null());
+    let e = Failure::from(AutomationError::InvalidParameters {
+        tool_id: "plot.create".into(),
+        message: "Invalid source".into(),
+    })
+    .for_request("plotium_plan", &json!({"tool_id":"plot.create"}))
+    .value();
+    assert_eq!(e["error"]["details"]["field"], "parameters");
+    assert_eq!(e["error"]["details"]["operation"], "plot.create");
+}
+
 fn save_plan(session: &mut Session, app: &mut PlotiumApp, path: &std::path::Path) -> Value {
     session
         .call(
