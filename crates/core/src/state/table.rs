@@ -175,12 +175,14 @@ impl DiffusionConstants {
 }
 
 /// Fixed board-frame metrics (pt) for a sheet's painted spreadsheet preview: a
-/// header row plus up to `SHEET_MAX_ROWS` value rows. Chosen so a typical sheet
-/// frame is comparable in board footprint to a small page.
+/// header row plus up to `SHEET_MAX_ROWS` value rows and `SHEET_MAX_COLS`
+/// columns. Chosen so a typical sheet frame is comparable in board footprint to
+/// a small page.
 pub const SHEET_COL_W_PT: f32 = 96.0;
 pub const SHEET_ROW_H_PT: f32 = 18.0;
 pub const SHEET_HEADER_H_PT: f32 = 22.0;
 pub const SHEET_MAX_ROWS: usize = 24;
+pub const SHEET_MAX_COLS: usize = 8;
 
 /// App-layer wrapper around an immutable typed table revision.
 #[derive(Clone)]
@@ -277,8 +279,18 @@ impl TableDataset {
             .unwrap_or(0)
     }
 
-    /// Columns drawn in the sheet preview: the x ruler plus one per data column.
+    /// Leading table columns drawn in the sheet preview.
     pub fn sheet_cols(&self) -> usize {
+        self.typed_column_count().min(SHEET_MAX_COLS)
+    }
+
+    /// Table columns beyond the preview; a trailing overflow column then
+    /// reports them.
+    pub fn hidden_cols(&self) -> usize {
+        self.typed_column_count().saturating_sub(SHEET_MAX_COLS)
+    }
+
+    fn typed_column_count(&self) -> usize {
         self.typed_state
             .envelope
             .revision
@@ -286,6 +298,16 @@ impl TableDataset {
             .schema
             .columns
             .len()
+    }
+
+    /// Identity of the immutable content this table currently shows.
+    pub fn snapshot_read(&self) -> plotium_data::SnapshotRead {
+        let revision = &self.typed_state.envelope.revision;
+        plotium_data::SnapshotRead {
+            table: revision.table_id,
+            revision: revision.id,
+            fingerprint: revision.snapshot.fingerprint,
+        }
     }
 
     /// Value rows actually painted, capped so a long table stays a tidy frame.
@@ -305,7 +327,8 @@ impl TableDataset {
 
     /// The sheet frame's size on the board (pt), from its column/row counts.
     pub fn sheet_size_pt(&self) -> [f32; 2] {
-        let cols = self.sheet_cols().max(1) as f32;
+        let overflow = usize::from(self.hidden_cols() > 0);
+        let cols = (self.sheet_cols() + overflow).max(1) as f32;
         let rows = self.visible_rows() as f32;
         let footer = if self.rows_overflow() {
             SHEET_ROW_H_PT
@@ -326,10 +349,12 @@ impl TableDataset {
 
     pub fn summary(&self) -> String {
         let snapshot = &self.typed_state.envelope.revision.snapshot;
+        let columns = snapshot.schema.columns.len();
+        let rows = snapshot.row_count;
         format!(
-            "{} columns · {} rows",
-            snapshot.schema.columns.len(),
-            snapshot.row_count,
+            "{columns} {} · {rows} {}",
+            if columns == 1 { "column" } else { "columns" },
+            if rows == 1 { "row" } else { "rows" },
         )
     }
 
