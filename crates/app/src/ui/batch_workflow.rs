@@ -100,7 +100,10 @@ impl AutomationUi {
             .id(egui::Id::new("automation_panel"))
             .open(&mut open)
             .default_size([760.0, 680.0])
-            .show(ctx, |ui| self.contents(app, ui));
+            .show(ctx, |ui| {
+                super::result_follow::register_editor(ui);
+                self.contents(app, ui);
+            });
         self.open = open;
     }
 

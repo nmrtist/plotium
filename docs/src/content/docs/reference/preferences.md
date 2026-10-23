@@ -10,6 +10,10 @@ saved preferences except your recent-files list. AI connection preferences are d
 
 ## General
 
+- **Remind me about results while following is paused** — show a brief
+  notification when new AI results arrive while following is paused. You can
+  resume following, dismiss the current reminder, or disable future reminders.
+  Disabling this leaves result counts and error notifications available.
 - **Object snapping** — snap plots and shapes to page and object guides, and
   snap whole pages and table sheets to nearby frame edges and the standard gap
   between frames. You can also toggle this from the **Arrange** tab. Hold `Alt` to

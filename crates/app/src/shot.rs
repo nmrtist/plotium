@@ -32,7 +32,10 @@ use plotium_io::xps::{
 use plotium_io::{AxisSource, Dim, Domain, NmrData, NmrData2D, PseudoAxis, PseudoKind, QuadMode};
 
 mod capture;
+mod scenes;
+use scenes::SCENES;
 mod craft_shot;
+mod follow_shot;
 mod thumbnail_shot;
 mod workspace_shot;
 
@@ -96,6 +99,7 @@ enum Op {
     RegionData,
     History(bool),
     ScientificConflict,
+    FollowResults(Option<bool>),
     XpsSetup,
     CraftSetup,
     PanelControls(bool),
@@ -133,103 +137,6 @@ const fn shot(settle: u32, name: &'static str) -> Scene {
     }
 }
 
-/// A zoom change and a window resize must never share a frame: eframe converts a
-/// requested inner size to physical pixels through the current zoom, and issuing
-/// both together races so the capture size depends on the pass's prior zoom. Set
-/// zoom in its own scene and let it settle before the next resize.
-const SCENES: &[Scene] = &[
-    act(2, Op::Zoom(0.75)),
-    act(2, Op::Resize(BASE_WINDOW[0], BASE_WINDOW[1])),
-    act(2, Op::Workspace(false)),
-    shot(4, "workspace_empty"),
-    act(2, Op::Workspace(true)),
-    shot(4, "workspace_overview"),
-    act(2, Op::ImportResults),
-    shot(30, "batch_import"),
-    act(2, Op::Setup),
-    shot(8, "band"),
-    act(2, Op::History(true)),
-    shot(30, "activity_results"),
-    act(2, Op::ScientificConflict),
-    shot(30, "scientific_conflict"),
-    act(2, Op::History(false)),
-    act(2, Op::LineFit),
-    shot(10, "fitted"),
-    act(2, Op::Thumbnails),
-    shot(8, "canvas_thumbnails"),
-    // The three widths bracket the Ribbon's width budget: 720 steps the
-    // low-priority groups down to their Small and Collapsed scales, 900
-    // catches the first Medium steps, and 1440 shows every group at Large.
-    // The Ribbon lays out by measured width, so these are the sizes where
-    // regressions appear.
-    act(2, Op::Zoom(1.0)),
-    act(2, Op::Resize(720.0, 700.0)),
-    shot(10, "ribbon_720"),
-    act(2, Op::Resize(900.0, 760.0)),
-    shot(12, "ribbon_900"),
-    // Every task tab at the in-between width, where group scaling does the
-    // most work. The state carries a fitted 1D spectrum, so contextual
-    // groups representative of the core workflow are present.
-    act(2, Op::RibbonTab(WorkflowTab::Data)),
-    shot(6, "ribbon_data_900"),
-    act(2, Op::RibbonTab(WorkflowTab::Process)),
-    shot(6, "ribbon_process_900"),
-    act(2, Op::RibbonTab(WorkflowTab::Figure)),
-    shot(6, "ribbon_figure_900"),
-    act(2, Op::RibbonTab(WorkflowTab::Arrange)),
-    shot(6, "ribbon_arrange_900"),
-    act(2, Op::RibbonTab(WorkflowTab::View)),
-    shot(6, "ribbon_view_900"),
-    act(2, Op::RibbonTab(WorkflowTab::Analyze)),
-    act(2, Op::Resize(1440.0, 900.0)),
-    shot(12, "ribbon_1440"),
-    act(2, Op::RegionResult),
-    shot(12, "region_result"),
-    act(2, Op::RegionData),
-    shot(6, "region_data"),
-    act(2, Op::SymmetrySetup),
-    act(2, Op::InspectCursor),
-    shot(6, "cursor_inspect"),
-    act(2, Op::DeltaCursor),
-    shot(6, "cursor_delta"),
-    act(18, Op::PinSymmetry),
-    shot(8, "symmetry_review"),
-    act(2, Op::Resize(1440.0, 900.0)),
-    act(2, Op::XpsSetup),
-    act(
-        2,
-        Op::XpsTab(plotium_core::state::XpsWorkbenchTab::Background),
-    ),
-    shot(8, "xps_background"),
-    act(
-        2,
-        Op::XpsTab(plotium_core::state::XpsWorkbenchTab::Components),
-    ),
-    shot(8, "xps_components"),
-    act(2, Op::Resize(720.0, 700.0)),
-    shot(10, "xps_components_narrow"),
-    act(2, Op::Resize(1440.0, 900.0)),
-    act(
-        2,
-        Op::XpsTab(plotium_core::state::XpsWorkbenchTab::Diagnostics),
-    ),
-    shot(8, "xps_diagnostics"),
-    act(2, Op::CraftSetup),
-    shot(8, "craft_results"),
-    act(2, Op::PanelControls(false)),
-    shot(8, "panel_controls_collapsed"),
-    act(2, Op::Resize(720.0, 700.0)),
-    shot(8, "panel_controls_narrow"),
-    act(2, Op::Resize(1440.0, 900.0)),
-    act(2, Op::PanelControls(true)),
-    shot(8, "panel_controls_expanded"),
-    Scene {
-        settle: 4,
-        op: None,
-        shot: None,
-    },
-];
-
 pub struct ShotDriver {
     dir: PathBuf,
     /// Palettes still to replay; one full pass over `SCENES` each.
@@ -245,6 +152,7 @@ pub struct ShotDriver {
     expected: usize,
     started_at: Instant,
     failed: bool,
+    follow_capture: Option<follow_shot::Capture>,
 }
 
 impl ShotDriver {
@@ -263,6 +171,7 @@ impl ShotDriver {
             saved: 0,
             started_at: Instant::now(),
             failed: false,
+            follow_capture: None,
         })
     }
 
@@ -297,6 +206,9 @@ impl ShotDriver {
         }
 
         self.step(app, ctx);
+        if let Some(capture) = &self.follow_capture {
+            capture.refresh(app);
+        }
         if self.failed {
             return;
         }
@@ -326,6 +238,9 @@ impl ShotDriver {
         }
 
         let scene = SCENES[self.scene_idx];
+        if let Some(Op::FollowResults(paused)) = scene.op {
+            self.follow_capture = paused.map(|paused| follow_shot::Capture::new(app, paused));
+        }
         if let Some(op) = scene.op
             && let Err(error) = run_op(op, app, ctx)
         {
@@ -404,6 +319,7 @@ fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), Strin
         Op::RegionResult => region_result(app),
         Op::History(open) => workspace_shot::activity(app, ctx, open)?,
         Op::ScientificConflict => workspace_shot::scientific_conflict(app, ctx)?,
+        Op::FollowResults(_) => {}
         Op::RegionData => {
             app.session.ui.sheet_open = Some(1);
             app.session.ui.curve_fit_task_collapsed = true;

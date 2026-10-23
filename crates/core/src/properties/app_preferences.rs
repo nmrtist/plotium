@@ -13,6 +13,8 @@ use crate::state::PlotiumApp;
 use crate::update::{UpdateChannel, UpdateChannelSetting};
 use plotium_figure::Color;
 
+pub const PAUSED_RESULT_REMINDERS: PropertyId =
+    PropertyId("settings.general.paused_result_reminders");
 pub const SNAP_ENABLED: PropertyId = PropertyId("settings.general.snap_enabled");
 pub const EQUAL_SCALE_HOMONUCLEAR_2D_IMPORTS: PropertyId =
     PropertyId("settings.general.equal_scale_homonuclear_2d_imports");
@@ -101,6 +103,13 @@ const fn app_definition(
 }
 
 pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
+    app_definition(
+        PAUSED_RESULT_REMINDERS,
+        ValueSchema::Bool,
+        DefaultPolicy::Fixed(PropertyValue::Bool(true)),
+        "Remind me about results while following is paused",
+        &["paused results", "result reminders"],
+    ),
     app_definition(
         SNAP_ENABLED,
         ValueSchema::Bool,
@@ -310,6 +319,7 @@ fn resolved_schema(definition: &'static PropertyDefinition) -> ResolvedSchema {
 fn value_of(app: &PlotiumApp, id: PropertyId) -> Result<PropertyValue, PropertyError> {
     let settings = &app.settings;
     Ok(match id {
+        PAUSED_RESULT_REMINDERS => PropertyValue::Bool(settings.general.paused_result_reminders),
         SNAP_ENABLED => PropertyValue::Bool(settings.general.snap_enabled),
         EQUAL_SCALE_HOMONUCLEAR_2D_IMPORTS => {
             PropertyValue::Bool(settings.general.equal_scale_homonuclear_2d_imports)
@@ -380,6 +390,9 @@ fn write_value(
     value: PropertyValue,
 ) -> Result<(), PropertyError> {
     match (id, value) {
+        (PAUSED_RESULT_REMINDERS, PropertyValue::Bool(value)) => {
+            settings.general.paused_result_reminders = value
+        }
         (SNAP_ENABLED, PropertyValue::Bool(value)) => settings.general.snap_enabled = value,
         (EQUAL_SCALE_HOMONUCLEAR_2D_IMPORTS, PropertyValue::Bool(value)) => {
             settings.general.equal_scale_homonuclear_2d_imports = value

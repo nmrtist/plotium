@@ -91,6 +91,7 @@ fn save_as_window(
         super::ModalKind::Dialog,
     )
     .show(ctx, |ui| {
+        crate::ui::result_follow::register_editor(ui);
         ui.heading("Save processing template");
         ui.separator();
         ui.label("Save this dataset's processing pipeline as a reusable template.");
@@ -196,6 +197,7 @@ fn browse_window(
     let mut close = false;
     let modal = super::modal(ctx, "processing_template_browse_modal", super::ModalKind::Dialog)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.set_width(560.0);
             ui.heading("Apply processing template");
             ui.separator();

@@ -53,6 +53,8 @@ fn default_auto_check() -> bool {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GeneralSettings {
+    #[serde(default = "default_paused_result_reminders")]
+    pub paused_result_reminders: bool,
     #[serde(default = "default_snap_enabled")]
     pub snap_enabled: bool,
     /// Use equal data units per screen unit for eligible homonuclear 2D NMR
@@ -376,6 +378,7 @@ impl Default for GeneralSettings {
     fn default() -> Self {
         Self {
             snap_enabled: default_snap_enabled(),
+            paused_result_reminders: true,
             equal_scale_homonuclear_2d_imports: default_equal_scale_homonuclear_2d_imports(),
             keep_empty_source_canvas: false,
             project_backup_generations: default_project_backup_generations(),
@@ -427,4 +430,8 @@ fn default_ilt_lambda() -> f64 {
 
 fn default_export_dpi() -> u16 {
     crate::export::DEFAULT_BITMAP_DPI
+}
+
+fn default_paused_result_reminders() -> bool {
+    true
 }

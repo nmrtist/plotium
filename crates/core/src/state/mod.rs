@@ -46,10 +46,12 @@ mod app_impl_symmetry;
 mod app_impl_xps;
 mod app_state;
 mod background_activity;
+mod result_follow;
 pub use background_activity::{
     ActivityChange, ActivityId, ActivityOperation, ActivityResult, BACKGROUND_ACTIVITY_CAPACITY,
     BackgroundActivity,
 };
+pub use result_follow::{ActivitySourceId, ResultFollow, ResultFollowMode};
 mod series_binding_style;
 mod status_history;
 pub use status_history::{StatusHistory, StatusMessage};

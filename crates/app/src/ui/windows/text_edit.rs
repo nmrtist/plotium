@@ -27,6 +27,7 @@ pub(in crate::ui) fn text_edit_window(app: &mut PlotiumApp, ctx: &egui::Context)
         .resizable(false)
         .open(&mut open)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             let Some(edit) = app.session.ui.text_edit.as_mut() else {
                 return;
             };

@@ -19,6 +19,7 @@ pub(crate) fn window(app: &mut PlotiumApp, ctx: &egui::Context) {
     let mut cancel = false;
     let modal = super::super::modal(ctx, "nmr_sampling_import", super::super::ModalKind::Dialog)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.set_width(520.0);
             ui.heading("Import NMR with sampling table");
             ui.label(draft.path.display().to_string());

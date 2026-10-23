@@ -78,6 +78,7 @@ impl PlotiumApp {
                 status: "Open data or a project to begin.".into(),
                 operation_history: OperationHistory::default(),
                 background_activity: Default::default(),
+                result_follow: Default::default(),
                 status_history: super::StatusHistory::default(),
                 project_load_warnings: Vec::new(),
                 recent_files: {

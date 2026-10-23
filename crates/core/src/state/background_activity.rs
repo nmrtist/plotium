@@ -21,6 +21,7 @@ pub enum ActivityChange {
 #[derive(Clone, Debug)]
 pub struct ActivityOperation {
     pub id: ActivityId,
+    pub source: Option<super::ActivitySourceId>,
     pub title: String,
     pub tool_id: String,
     pub task_id: Option<TaskId>,
@@ -38,6 +39,7 @@ pub struct ActivityResult {
     pub name: String,
     pub change: ActivityChange,
     pub operation: ActivityId,
+    pub source: Option<super::ActivitySourceId>,
     pub title: String,
     pub updates: usize,
 }
@@ -45,15 +47,21 @@ pub struct ActivityResult {
 /// Runtime activity belongs to one open project, independently of provenance.
 #[derive(Default)]
 pub struct BackgroundActivity {
+    /// Invocation context only; asynchronous work captures this before leaving the thread.
+    pub execution_source: Option<super::ActivitySourceId>,
     context: Option<ProjectContextId>,
     next_id: u64,
     operations: VecDeque<ActivityOperation>,
     results: VecDeque<ActivityResult>,
-    pending: BTreeMap<TaskId, (ProjectContextId, String)>,
+    pending: BTreeMap<TaskId, Option<super::ActivitySourceId>>,
     observed_tasks: BTreeSet<TaskId>,
 }
 
 impl BackgroundActivity {
+    pub fn latest_id(&self) -> ActivityId {
+        ActivityId(self.next_id)
+    }
+
     pub fn operations(&self) -> &VecDeque<ActivityOperation> {
         &self.operations
     }
@@ -99,6 +107,7 @@ impl BackgroundActivity {
                     ActivityChange::Updated
                 },
                 operation: operation.id,
+                source: operation.source,
                 title: operation.title.clone(),
                 updates: previous.map_or(1, |row| row.updates.saturating_add(1)),
             });
@@ -114,6 +123,20 @@ impl BackgroundActivity {
 }
 
 impl PlotiumApp {
+    pub(crate) fn register_background_task(&mut self, receipt: &TaskReceipt) {
+        if let Some(source) = self.session.background_activity.execution_source {
+            if self.session.background_activity.context != Some(receipt.project_context) {
+                self.session.background_activity.clear();
+                self.session.background_activity.pending.clear();
+                self.session.background_activity.context = Some(receipt.project_context);
+            }
+            self.session
+                .background_activity
+                .pending
+                .insert(receipt.task_id.clone(), Some(source));
+        }
+    }
+
     pub fn activity_result_available(&self, resource: &ResourceRef) -> bool {
         let exists = ProjectResourceProvider::new(self)
             .inspect(&resource.id)
@@ -129,6 +152,23 @@ impl PlotiumApp {
         &mut self,
         context: ProjectContextId,
         caller: CallerType,
+        tool_id: &str,
+        outcome: Result<&ToolResult, &AutomationError>,
+    ) {
+        self.record_background_tool_from(
+            context,
+            caller,
+            self.session.background_activity.execution_source,
+            tool_id,
+            outcome,
+        );
+    }
+
+    pub(crate) fn record_background_tool_from(
+        &mut self,
+        context: ProjectContextId,
+        caller: CallerType,
+        source: Option<super::ActivitySourceId>,
         tool_id: &str,
         outcome: Result<&ToolResult, &AutomationError>,
     ) {
@@ -176,12 +216,13 @@ impl PlotiumApp {
             self.session
                 .background_activity
                 .pending
-                .insert(receipt.task_id, (context, tool_id.into()));
+                .insert(receipt.task_id, source);
             self.poll_background_activity();
             return;
         }
         let mut operation = ActivityOperation {
             id: ActivityId(0),
+            source,
             title: descriptor.title.clone(),
             tool_id: tool_id.into(),
             task_id: None,
@@ -272,10 +313,14 @@ impl PlotiumApp {
                     .background_activity
                     .pending
                     .get(&receipt.task_id);
-                Some((receipt.clone(), pending.is_some()))
+                Some((
+                    receipt.clone(),
+                    pending.is_some(),
+                    pending.copied().flatten(),
+                ))
             })
             .collect::<Vec<_>>();
-        for (receipt, background) in ready {
+        for (receipt, background, source) in ready {
             let id = receipt.task_id.clone();
             let context = receipt.project_context;
             let tool = receipt.operation.clone();
@@ -318,7 +363,13 @@ impl PlotiumApp {
                     },
                 )))
             };
-            self.record_background_tool(context, CallerType::Agent, &tool, outcome.as_ref());
+            self.record_background_tool_from(
+                context,
+                CallerType::Agent,
+                source,
+                &tool,
+                outcome.as_ref(),
+            );
             if let Some(operation) = self.session.background_activity.operations.back_mut() {
                 operation.task_id = Some(id);
                 if matches!(receipt.status, TaskStatus::Cancelled | TaskStatus::Stale)
@@ -334,3 +385,7 @@ impl PlotiumApp {
 #[cfg(test)]
 #[path = "background_activity_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "activity_source_tests.rs"]
+mod source_tests;

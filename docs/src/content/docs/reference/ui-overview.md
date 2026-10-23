@@ -73,6 +73,40 @@ Recomputing is always an explicit action. A completed calculation can still
 carry scientific warnings, such as an unconverged fit or an empty result;
 review those warnings before using the result.
 
+AI results are followed by default: the workspace focuses on the canvas affected by
+the latest completed operation. Results from one operation that affects multiple
+canvases are shown together. The follow button beside the AI connection button shows whether
+following is active, paused, or off. In **Results**, use **Pause**, **Resume**,
+**Stop following**, or **View latest**. Updates to a canvas already in view preserve its zoom.
+Opening or selecting other content, panning, zooming, or editing pauses following;
+hovering and inspecting operation details do not. Resume following when you want
+new results to appear again, or stop following to keep browsing independently.
+While paused, a badge on the follow button counts new or updated results you have
+not viewed. Repeated changes to the same object count once. Open **Results** to
+review them without resuming following. Updates to the object currently in view
+also show a brief, dismissible notification.
+Viewing a result marks that result as seen; **View latest** leaves older unseen
+results in the count. Resuming following clears the count.
+While following is paused, a notification also offers **Resume following**,
+**Dismiss**, and **Don't remind again**. Dismissing hides the current reminder
+without marking results as seen. Repeated changes to the same object do not
+reopen it; a new result object can trigger another reminder. The reminder closes
+automatically after about eight seconds. **Don't remind again** disables these
+reminders across restarts; restore them in **Preferences → General → Remind me
+about results while following is paused**. Result counts and error notifications
+remain available.
+Pausing immediately freezes the current view, including an unfinished automatic
+zoom. Resuming or viewing the latest result focuses the latest operation's results,
+without collecting earlier canvases. Viewing the latest result once does not turn following back on. Read-only requests
+and empty canvases do not move the workspace, and following does not cancel tasks.
+Changing projects or losing the AI connection stops following; resume it explicitly
+after the new project or connection is ready.
+
+A spinner on the AI connection button indicates a running scientific task.
+Hover for its operation, progress when available, and any risk of editing while
+it runs. This indicates known application work, not completion of the AI's
+overall task.
+
 Both Side Bars can be shown or hidden at any time: click the pair of layout
 buttons at the right end of the Ribbon's task row, press
 <kbd>Ctrl</kbd>+<kbd>B</kbd> (left) or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>

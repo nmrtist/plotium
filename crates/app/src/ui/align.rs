@@ -44,6 +44,7 @@ pub(crate) fn align_spectra_window(app: &mut PlotiumApp, ctx: &egui::Context) {
     let mut cancel = false;
     let modal =
         super::modal(ctx, "align_spectra_modal", super::ModalKind::Dialog).show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.heading("Align spectra");
             ui.separator();
             ui.label(

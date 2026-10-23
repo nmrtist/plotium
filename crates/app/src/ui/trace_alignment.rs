@@ -105,6 +105,7 @@ pub(crate) fn trace_alignment_window(app: &mut PlotiumApp, ctx: &egui::Context) 
         280.0_f32.min(available.y),
     ));
     let modal = super::modal(ctx, "trace_alignment_modal", super::ModalKind::Dialog).show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
         ui.set_min_size(size);
         ui.set_max_size(size);
         ui.heading("Align traces");

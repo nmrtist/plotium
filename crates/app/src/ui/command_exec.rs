@@ -41,8 +41,16 @@ fn execute_inner(
     if !commands::describe(app, id).enabled {
         return;
     }
+    super::result_follow::pause_for_command(app, id);
     app.cancel_import_open_intent();
     match id {
+        CommandId::FollowResults
+        | CommandId::PauseResultFollow
+        | CommandId::StopResultFollow
+        | CommandId::ViewLatestResults => super::result_follow::execute(app, ctx, id),
+        CommandId::DismissPausedResults | CommandId::DisablePausedResultReminders => {
+            super::paused_results_notice::execute(app, ctx, id)
+        }
         CommandId::NewProject => {
             app.request_project_transition(ProjectTransition::New);
         }

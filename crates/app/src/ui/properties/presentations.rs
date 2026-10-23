@@ -679,6 +679,12 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         uses_canvas_length_unit: false,
     },
     preference_entry(
+        app_preferences::PAUSED_RESULT_REMINDERS,
+        "Remind me about results while following is paused",
+        &[LocalizedText("paused results")],
+        GENERAL_PREFERENCES_HOME,
+    ),
+    preference_entry(
         app_preferences::SNAP_ENABLED,
         "Object snapping",
         &[LocalizedText("snap to guides")],

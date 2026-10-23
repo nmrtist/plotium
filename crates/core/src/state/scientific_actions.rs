@@ -59,6 +59,7 @@ impl PlotiumApp {
             return Err(format!("{} is already running", kind.label()));
         }
         self.capture_task_field_versions(&mut receipt)?;
+        self.register_background_task(&receipt);
         self.session.scientific_tasks.register(receipt);
         match self.session.compute.enqueue_scientific(dataset, work) {
             Ok(generation) => self.session.scientific_tasks.bind(

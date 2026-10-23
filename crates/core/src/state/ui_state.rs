@@ -643,6 +643,7 @@ pub struct Session {
     pub status: String,
     pub operation_history: OperationHistory,
     pub background_activity: super::BackgroundActivity,
+    pub result_follow: super::ResultFollow,
     pub status_history: super::StatusHistory,
     /// Non-fatal resource failures collected while opening the current project.
     pub project_load_warnings: Vec<String>,

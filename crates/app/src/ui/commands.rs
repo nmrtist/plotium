@@ -90,6 +90,12 @@ pub enum CommandId {
     CommandPalette,
     CheckUpdates,
     OperationHistory,
+    FollowResults,
+    PauseResultFollow,
+    StopResultFollow,
+    ViewLatestResults,
+    DismissPausedResults,
+    DisablePausedResultReminders,
     About,
     SaveProcessingTemplate,
     ApplyProcessingTemplate,
@@ -249,6 +255,13 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // command can never be blocked by one requirement while explaining another.
     // `and_then` reports the first unmet requirement and skips the rest.
     let gate: Result<(), &'static str> = match id {
+        CommandId::FollowResults
+        | CommandId::PauseResultFollow
+        | CommandId::StopResultFollow
+        | CommandId::ViewLatestResults => super::result_follow::gate(app, id),
+        CommandId::DismissPausedResults | CommandId::DisablePausedResultReminders => {
+            super::paused_results_notice::gate(app, id)
+        }
         CommandId::RecomputeScientificTask(activity) => {
             super::scientific_task_feedback::recompute_gate(app, activity)
         }

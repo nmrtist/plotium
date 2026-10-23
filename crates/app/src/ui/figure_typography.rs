@@ -17,6 +17,7 @@ pub(super) fn figure_typography_window(app: &mut PlotiumApp, ctx: &egui::Context
         .resizable(false)
         .open(&mut open)
         .show(ctx, |ui| {
+            crate::ui::result_follow::register_editor(ui);
             ui.label(
                 egui::RichText::new(
                     "Point sizes of every plot's axis text, axis lines and ticks in this \

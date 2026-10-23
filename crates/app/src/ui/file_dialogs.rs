@@ -577,6 +577,7 @@ pub(crate) fn processing_scheme_window(app: &mut PlotiumApp, ctx: &egui::Context
                 super::ModalKind::Dialog,
             )
             .show(ctx, |ui| {
+                crate::ui::result_follow::register_editor(ui);
                 ui.heading("Pending processing changes");
                 ui.separator();
                 ui.label("Resolve the paused processing edit before loading a scheme.");
@@ -620,6 +621,7 @@ pub(crate) fn processing_scheme_window(app: &mut PlotiumApp, ctx: &egui::Context
                 super::ModalKind::Dialog,
             )
             .show(ctx, |ui| {
+                crate::ui::result_follow::register_editor(ui);
                 ui.set_width(560.0);
                 ui.heading("Apply processing scheme");
                 ui.separator();
