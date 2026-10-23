@@ -21,6 +21,15 @@ input keeps the editor open with a red outline and an explanation on hover.
 Click a row number to select the whole row; **Ctrl+C** copies the selected
 cell or row. The status bar shows the table size and the current selection.
 
+The sheet takes the keyboard only after you click a cell, row number, or column
+header; the selected cell's outline turns from grey to the accent color. While
+it does, **Delete** or **Backspace** clears the selected cell (a column that
+does not allow empty values explains why instead), and **Ctrl+V** starts
+editing the selected cell with a single value from the clipboard. Pasting
+several cells at once is not supported yet. **Ctrl+Shift+V** still pastes a
+new table. Click the board or press **Esc** to give the keys back to the board
+and tools.
+
 While a cell edit is unfinished, AI assistants can read the committed data but
 must wait before making changes. Use **Apply** to commit the input or **Discard**
 to cancel it. If the table changes or becomes unavailable during editing, the

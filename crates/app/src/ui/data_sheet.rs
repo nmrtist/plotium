@@ -3,10 +3,13 @@ use super::*;
 mod cell;
 mod column_menu;
 mod draft;
+mod focus;
 mod grid;
 mod relationship;
 mod transform;
 mod typed;
+
+pub(super) use focus::grid_has_focus;
 
 pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
     let requested_sheet = app.session.ui.table_cell_edit.as_ref().and_then(|edit| {
@@ -58,6 +61,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
                 .position(|dataset| dataset.resource_id().to_string() == provenance.source_resource)
         });
     let mut freeze_source = None;
+    let mut notice = None;
     let catalog = app
         .doc
         .datasets
@@ -140,6 +144,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
                         catalog: &catalog,
                         transform_running: app.session.table_transform_job.is_some()
                             || app.session.table_refresh_job.is_some(),
+                        notice: &mut notice,
                     },
                 );
             }
@@ -198,6 +203,9 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         && let Err(error) = app.start_table_refresh(dataset, inputs, 256 * 1024 * 1024)
     {
         app.session.status = error;
+    }
+    if let Some(notice) = notice {
+        app.session.status = notice;
     }
     if let Some(source) = freeze_source {
         app.request_region_table_operation(source, false);

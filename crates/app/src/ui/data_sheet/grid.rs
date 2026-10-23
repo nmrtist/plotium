@@ -11,7 +11,7 @@ use plotium_core::data::{
 
 use plotium_core::state::{TableCellEditDraft, TableDataset};
 
-use super::cell;
+use super::{cell, focus};
 
 #[derive(Clone, Default)]
 pub(super) struct SheetState {
@@ -27,6 +27,18 @@ pub(super) struct SheetState {
 pub(super) struct GridOutcome {
     pub edit: Option<(RowId, ColumnId, LiteralValue, LiteralValue)>,
     pub error: Option<String>,
+    /// One-shot feedback for the app status line.
+    pub notice: Option<String>,
+}
+
+/// A keyboard or clipboard request to edit the selected cell.
+#[derive(Debug, PartialEq)]
+pub(super) struct EditRequest {
+    pub row: usize,
+    pub column: ColumnId,
+    pub seed: Option<String>,
+    /// Apply the seed immediately instead of opening the editor (Delete).
+    pub commit: bool,
 }
 
 /// What to do with the editor buffer once it is parsed.
@@ -53,20 +65,29 @@ pub(super) fn typed_table_grid(
     let editable = table.provenance.is_none();
     let mut outcome = GridOutcome::default();
     sanitize_state(state, schema, row_count);
-    if let Some((index, column, seed)) = keyboard_navigation(
+    let had_focus = focus::grid_has_focus(ui.ctx());
+    // A draft whose target changed shows no editor here; the grid must still
+    // navigate and release focus instead of waiting on an editor it cannot show.
+    let editor_shown = draft
+        .as_ref()
+        .is_some_and(|edit| edit.validate_target(table).is_ok());
+    if let Some(request) = keyboard_navigation(
         ui,
         schema,
         row_count,
         state,
         editable && draft.is_none(),
-        draft.is_some(),
+        editor_shown,
+        &mut outcome.notice,
     ) {
+        let index = request.row;
         let mut cache = None;
         if let Some(batch) = batch_for_row(reader, chunks, index, &mut cache, &mut outcome.error) {
             let local = index - usize::try_from(batch.row_start).unwrap_or(usize::MAX);
-            if let Some((_, values)) = batch.columns.iter().find(|(id, _)| *id == column)
-                && let Some(column) = schema.column(column)
-                && let Err(error) = start_edit(
+            if let Some((_, values)) = batch.columns.iter().find(|(id, _)| *id == request.column)
+                && let Some(column) = schema.column(request.column)
+            {
+                match start_edit(
                     state,
                     draft,
                     table,
@@ -74,21 +95,25 @@ pub(super) fn typed_table_grid(
                     batch.row_ids[local],
                     &values.value(local).unwrap_or(ScalarValue::Null),
                     column,
-                    seed,
-                )
-            {
-                outcome.error = Some(error);
+                    request.seed,
+                ) {
+                    Ok(()) if request.commit => commit_seed(draft, column, &mut outcome),
+                    Ok(()) => {}
+                    Err(error) => outcome.error = Some(error),
+                }
             }
         }
         state.scroll_to = Some(index);
     }
-    let copy_requested = ui.ctx().input(|input| {
-        input
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::Copy))
-    }) && draft.is_none()
-        && no_widget_focused(ui);
+    let copy_requested = had_focus
+        && !editor_shown
+        && ui.ctx().input(|input| {
+            input
+                .events
+                .iter()
+                .any(|event| matches!(event, Event::Copy))
+        });
+    let top_left = ui.cursor().min;
     let row_height = ui.spacing().interact_size.y + 2.0;
     let header_height = row_height * 2.0 - 4.0;
     let gutter_width = 12.0 + 9.0 * (row_count.max(1).ilog10() as f32 + 1.0);
@@ -122,6 +147,9 @@ pub(super) fn typed_table_grid(
                         ui.weak(detail);
                     });
                 });
+                if response.clicked() {
+                    focus::claim(&response.ctx);
+                }
                 if editable {
                     response.context_menu(|ui| column_menu(ui, column.id));
                 }
@@ -183,6 +211,7 @@ pub(super) fn typed_table_grid(
                     if response.clicked() {
                         state.cell = Some((index, *column_id));
                         state.row = None;
+                        focus::claim(&response.ctx);
                     }
                     if editable
                         && draft.is_none()
@@ -195,7 +224,27 @@ pub(super) fn typed_table_grid(
                 }
             });
         });
+    let rect = egui::Rect::from_min_max(top_left, ui.min_rect().max);
+    focus::maintain(ui, rect);
     outcome
+}
+
+/// Delete applies an empty seed through the same parse and commit path as a
+/// typed edit, so a non-nullable column reports why in the open editor.
+fn commit_seed(
+    draft: &mut Option<TableCellEditDraft>,
+    column: &plotium_core::data::ColumnSchema,
+    outcome: &mut GridOutcome,
+) {
+    let Some(edit) = draft.as_mut() else { return };
+    match cell::parse_typed_cell(&edit.text, column) {
+        Ok(after) => {
+            // The grid keeps the keyboard; the transient editor must not take it.
+            edit.take_focus = false;
+            outcome.edit = Some((edit.row, edit.column, edit.original.clone(), after));
+        }
+        Err(error) => edit.error = Some(error),
+    }
 }
 
 /// Selection may expire when a transform replaces the table; the shared
@@ -213,12 +262,9 @@ fn sanitize_state(state: &mut SheetState, schema: &TableSchema, row_count: usize
     }
 }
 
-fn no_widget_focused(ui: &Ui) -> bool {
-    ui.ctx().memory(|memory| memory.focused().is_none())
-}
-
-/// Arrow-key navigation, plus Enter/F2 and type-to-edit when editing is
-/// allowed. Returns Some((row, column, seed_text)) when an edit should start.
+/// Arrow-key navigation, Escape to hand the keyboard back, plus Enter/F2,
+/// type-to-edit, Delete and single-value paste when editing is allowed. Keys
+/// are read only while the grid holds focus.
 fn keyboard_navigation(
     ui: &mut Ui,
     schema: &TableSchema,
@@ -226,11 +272,16 @@ fn keyboard_navigation(
     state: &mut SheetState,
     editable: bool,
     editing: bool,
-) -> Option<(usize, ColumnId, Option<String>)> {
-    if editing || row_count == 0 || schema.columns.is_empty() {
+    notice: &mut Option<String>,
+) -> Option<EditRequest> {
+    if editing || !focus::grid_has_focus(ui.ctx()) {
         return None;
     }
-    if !no_widget_focused(ui) {
+    if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape)) {
+        focus::release(ui.ctx());
+        return None;
+    }
+    if row_count == 0 || schema.columns.is_empty() {
         return None;
     }
     let (mut row, column) = state.cell?;
@@ -240,6 +291,7 @@ fn keyboard_navigation(
         .position(|candidate| candidate.id == column)?;
     let mut moved = false;
     let mut start = None;
+    let mut commit = false;
     ui.input_mut(|input| {
         let steps: [(Key, isize, isize); 4] = [
             (Key::ArrowUp, -1, 0),
@@ -278,6 +330,27 @@ fn keyboard_navigation(
                         .retain(|event| !matches!(event, Event::Text(_)));
                 }
             }
+            if start.is_none()
+                && let Some(index) = input
+                    .events
+                    .iter()
+                    .position(|event| matches!(event, Event::Paste(_)))
+                && let Event::Paste(text) = input.events.remove(index)
+            {
+                let value = text.trim_end_matches(['\r', '\n']);
+                if value.contains(['\r', '\n', '\t']) {
+                    *notice = Some("Pasting multiple cells is not supported yet.".to_owned());
+                } else {
+                    start = Some(Some(value.to_owned()));
+                }
+            }
+            if start.is_none()
+                && (input.consume_key(Modifiers::NONE, Key::Delete)
+                    || input.consume_key(Modifiers::NONE, Key::Backspace))
+            {
+                start = Some(Some(String::new()));
+                commit = true;
+            }
         }
     });
     let column = schema.columns[column_index].id;
@@ -286,7 +359,12 @@ fn keyboard_navigation(
         state.row = None;
         state.scroll_to = Some(row);
     }
-    start.map(|seed| (row, column, seed))
+    start.map(|seed| EditRequest {
+        row,
+        column,
+        seed,
+        commit,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -369,6 +447,7 @@ fn gutter_cell(
     if response.clicked() {
         state.row = (!selected).then_some(index);
         state.cell = None;
+        focus::claim(&response.ctx);
     }
     if selected
         && copy_requested
@@ -425,7 +504,15 @@ fn ui_selection_stroke(row: &mut egui_extras::TableRow<'_, '_>, rect: egui::Rect
         egui::Order::Middle,
         egui::Id::new("plotium_typed_grid_selection"),
     ));
-    let stroke = row.response().ctx.global_style().visuals.selection.stroke;
+    let ctx = &row.response().ctx;
+    let visuals = &ctx.global_style().visuals;
+    // Accent only while the grid owns the keyboard; grey shows the selection
+    // without implying that typing will reach it.
+    let stroke = if focus::grid_has_focus(ctx) {
+        visuals.selection.stroke
+    } else {
+        egui::Stroke::new(visuals.selection.stroke.width, visuals.weak_text_color())
+    };
     painter.rect_stroke(rect, 1.0, stroke, StrokeKind::Inside);
 }
 
@@ -447,9 +534,16 @@ fn editor_cell(
     let mut cancel = false;
     let error = edit.error.clone();
     let take_focus = std::mem::take(&mut edit.take_focus);
+    // Auto ids shift when the edit starts mid-frame or the table scrolls to
+    // it, and a changed id drops keyboard focus from the editor.
+    let editor_id = egui::Id::new(("plotium_data_sheet_editor", edit.row, edit.column));
     let (rect, _) = row.col(|ui| {
         let response = ui.add(
             egui::TextEdit::singleline(text)
+                .id(editor_id)
+                // Tab commits and moves right; egui focus traversal would hand
+                // the keyboard to the next focusable table cell instead.
+                .lock_focus(true)
                 .desired_width(f32::INFINITY)
                 .margin(egui::vec2(2.0, 0.0)),
         );
@@ -480,6 +574,11 @@ fn editor_cell(
             commit = Some(CommitMove::Right);
         } else if response.lost_focus() {
             commit = Some(CommitMove::Stay);
+        }
+        // Keyboard exits hand the keyboard back to the grid so navigation
+        // continues; a click elsewhere keeps its new target.
+        if (response.has_focus() || response.lost_focus()) && (escape || enter || tab) {
+            focus::claim(ui.ctx());
         }
         if let Some(error) = &error {
             response.on_hover_text(error);

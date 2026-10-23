@@ -89,7 +89,8 @@ impl ClipboardTablePaste {
 }
 
 fn take_table_paste_shortcut(ctx: &Context) -> bool {
-    if ctx.egui_wants_keyboard_input() {
+    // The focused data sheet takes plain paste; Shift still pastes a new table.
+    if ctx.egui_wants_keyboard_input() && !super::data_sheet::grid_has_focus(ctx) {
         return false;
     }
     ctx.input_mut(|input| {
