@@ -155,6 +155,9 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
         outputs: tool_outputs(&descriptor.id),
         required_authority: descriptor.effect.required_authority(),
     };
+    if plan.request.tool_id == DATASET_DELETE {
+        super::dataset_delete::actions(app, &plan)?;
+    }
     if plan.request.tool_id == DIFFUSION_SET_INPUT {
         super::science::validate_input_update(app, &plan)?;
     }
@@ -497,6 +500,7 @@ pub(super) fn execute_planned_tool(
         IMAGE_PREVIEW => ImagePreviewSnapshot::capture(app, &plan)?.render()?,
         "results.compare" => execute_compare(app, &plan)?,
         "resource.rename" => execute_rename(app, &plan)?,
+        DATASET_DELETE => super::dataset_delete::execute(app, &plan)?,
         "figure.apply_theme" => execute_theme(app, &plan)?,
         FIELD_PLOT_CREATE | DIFFUSION_PLOT_CREATE => super::scientific_plot::execute(app, &plan)?,
         PLOT_CREATE => super::plot_creation::execute(app, &plan)?,

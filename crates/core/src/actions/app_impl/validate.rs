@@ -238,6 +238,23 @@ pub(super) fn validate_action(
             shape.datasets += 1;
             shape.inserted.push(id);
         }
+        Action::DeleteDataset { index, dataset } => {
+            // Composites delete in descending index order, so each index
+            // still addresses the live document.
+            let id = dataset.resource_id();
+            if app
+                .doc
+                .datasets
+                .get(*index)
+                .map(crate::state::Dataset::resource_id)
+                != Some(id)
+            {
+                return Err(ActionApplyError::StaleTarget(format!("dataset {id}")));
+            }
+            app.check_dataset_deletable(id)
+                .map_err(ActionApplyError::InvalidValue)?;
+            shape.datasets = shape.datasets.saturating_sub(1);
+        }
         Action::InsertDatasetWithCanvas {
             dataset_index,
             canvas_index,

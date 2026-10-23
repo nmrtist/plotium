@@ -74,6 +74,7 @@ pub(super) fn validate_parameters(
         CURVE_BIND => parse::<CurveBindParams>(tool, value).map(drop),
         CURVE_MATERIALIZE => parse::<CurveMaterializeParams>(tool, value).map(drop),
         "resource.rename" => parse::<RenameParams>(tool, value).map(drop),
+        DATASET_DELETE => parse::<EmptyParams>(tool, value).map(drop),
         "figure.apply_theme" => parse::<ThemeParams>(tool, value).map(drop),
         "processing.apply_scheme" => parse::<SchemeParams>(tool, value).map(drop),
         TABLE_PATCH => parse::<TablePatchParams>(tool, value).map(drop),
@@ -362,7 +363,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
         tool!(
             "render.preview_image",
             "Preview canvas image",
-            "Render an exact canvas snapshot to bounded in-memory PNG",
+            "Render an exact canvas snapshot to bounded in-memory PNG; curves denser than the preview pixels are thinned and listed in downsampled",
             ImagePreviewParams,
             [KIND_CANVAS],
             [CAP_RENDER],
@@ -446,6 +447,16 @@ fn descriptors() -> Vec<ToolDescriptor> {
             RenameParams,
             [],
             [CAP_RENAME],
+            EffectLevel::Reversible,
+            true
+        ),
+        tool!(
+            "dataset.delete",
+            "Delete dataset",
+            "Delete datasets that no plot, projection, derived dataset or report uses; one Undo restores them with their IDs",
+            EmptyParams,
+            [KIND_DATASET],
+            [],
             EffectLevel::Reversible,
             true
         ),

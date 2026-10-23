@@ -395,30 +395,15 @@ impl PlotiumApp {
             Action::InsertTableData { dataset } => {
                 if let Some(index) = self.doc.dataset_index(dataset.resource_id()) {
                     self.doc.datasets.remove(index);
-                    self.session.dataset_epoch += 1;
                     // The import itself never changes selection. Undo must also
                     // clear a sheet the human opened on the imported resource.
-                    if self.session.ui.sheet_open == Some(index) {
-                        self.session.ui.sheet_open = None;
-                    }
-                    self.session
-                        .ui
-                        .data_selection
-                        .retain(|selected| *selected != index);
-                    for selected in &mut self.session.ui.data_selection {
-                        if *selected > index {
-                            *selected -= 1;
-                        }
-                    }
-                    if let Some(sheet) = self.session.ui.sheet_open.as_mut()
-                        && *sheet > index
-                    {
-                        *sheet -= 1;
-                    }
-                    self.session.ui.frame_selection.retain(|frame| {
-                        *frame != crate::state::BoardFrameId::Sheet(dataset.resource_id())
-                    });
+                    self.forget_removed_dataset(index, dataset.resource_id());
                 }
+            }
+            Action::DeleteDataset { index, dataset } => {
+                let index = (*index).min(self.doc.datasets.len());
+                self.doc.datasets.insert(index, dataset.as_ref().clone());
+                self.shift_for_inserted_dataset(index);
             }
             Action::InsertDatasetWithCanvas {
                 dataset_index,

@@ -2,7 +2,13 @@ use super::*;
 use crate::curve_style::{MarkerPaint, dash_pattern, marker_polygon, marker_segments};
 use plotium_figure::{LineStyle, Marker, Series, SeriesKind};
 
-pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
+pub(super) fn write(
+    s: &mut String,
+    proj: &Projector<'_>,
+    series: &Series,
+    index: usize,
+    lod: Option<&mut super::preview::PreviewLod>,
+) {
     if series.points.is_empty() {
         return;
     }
@@ -11,8 +17,18 @@ pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
         super::sticks::write(s, proj, series);
         return;
     }
-    let points: Vec<_> = series.points.iter().map(|p| proj.project(*p)).collect();
+    let mut drawn = 0;
+    let mut thinned = false;
     if series.kind == SeriesKind::Line {
+        let reduced = lod
+            .as_deref()
+            .and_then(|lod| lod.line(proj, &series.points));
+        thinned = reduced.as_ref().is_some_and(|(_, pooled)| *pooled);
+        let line = reduced
+            .as_ref()
+            .map_or(series.points.as_slice(), |(points, _)| points);
+        drawn = line.len();
+        let points: Vec<_> = line.iter().map(|p| proj.project(*p)).collect();
         for run in crate::finite_runs(&points).filter(|run| run.len() >= 2) {
             stroke(s, run, series);
         }
@@ -21,9 +37,27 @@ pub(super) fn write(s: &mut String, proj: &Projector<'_>, series: &Series) {
     if marker != Marker::None {
         let paint = MarkerPaint::new(series.appearance, series.color, series.width);
         let r = series.appearance.marker_radius(series.width);
-        for p in points.into_iter().filter(|p| crate::is_finite_point(*p)) {
+        let mut points: Vec<_> = series
+            .points
+            .iter()
+            .map(|p| proj.project(*p))
+            .filter(|p| crate::is_finite_point(*p))
+            .collect();
+        let deduped = lod
+            .as_deref()
+            .is_some_and(|lod| lod.markers(proj, &mut points));
+        if series.kind != SeriesKind::Line {
+            thinned = deduped;
+            drawn = points.len();
+        }
+        for p in points {
             marker_at(s, p, marker, r, &paint);
         }
+    }
+    if let Some(lod) = lod
+        && thinned
+    {
+        lod.record(index, series, drawn);
     }
 }
 pub(super) fn stroke(s: &mut String, points: &[(f32, f32)], series: &Series) {

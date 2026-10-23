@@ -207,6 +207,25 @@ impl ImagePreviewSnapshot {
         self.candidate = Some(identity);
         self
     }
+    /// Name each thinned curve by its plot and, for bound curves, its Series.
+    fn downsampled_targets(
+        &self,
+        records: &[plotium_render::svg::PreviewDownsample],
+    ) -> Vec<Value> {
+        records
+            .iter()
+            .filter_map(|record| {
+                let object = self.canvas.objects.get(record.item)?;
+                let target = TargetRef {
+                    resource: canvas_object_ref(self.canvas.resource_id, object.id),
+                    component: record
+                        .origin
+                        .map(|origin| ComponentRef::Series(crate::state::SeriesId::new(origin.0))),
+                };
+                Some(json!({"target":target,"source_points":record.source_points,"drawn_points":record.drawn_points}))
+            })
+            .collect()
+    }
     pub fn render(self) -> Result<ToolResult, AutomationError> {
         self.render_cancellable(|| false)
     }
@@ -263,13 +282,18 @@ impl ImagePreviewSnapshot {
             prepare_render_document(&self.canvas, &self.assets, MissingImagePolicy::Block)
                 .map_err(|e| AutomationError::PreviewAsset(e.to_string()))?;
         check()?;
-        let svg = plotium_render::svg::export_document(&document);
+        let [w, h] = self.canvas.size_pt();
+        let preview = plotium_render::svg::export_document_preview(
+            &document,
+            self.max_edge as f32 / w.max(h),
+        );
+        let downsampled = self.downsampled_targets(&preview.downsampled);
+        let svg = preview.svg;
         check_budget(
             svg.len() as u64,
             PREVIEW_SVG_BYTES as u64,
             "rendered SVG exceeds 8 MiB",
         )?;
-        let [w, h] = self.canvas.size_pt();
         let mut options = RasterOptions::new(72);
         options.target_width_mm = Some(w / w.max(h) * self.max_edge as f32 * 25.4 / 72.0);
         options.limits = RasterLimits {
@@ -293,6 +317,9 @@ impl ImagePreviewSnapshot {
         check()?;
         let mut value = json!({"target":self.target,"width_px":raster.width(),"height_px":raster.height(),
             "mime_type":"image/png","png_base64":base64::engine::general_purpose::STANDARD.encode(png)});
+        if !downsampled.is_empty() {
+            value["downsampled"] = json!(downsampled);
+        }
         if let Some(identity) = self.candidate {
             value["plan_id"] = json!(identity.plan_id);
             value["basis_project_context"] = json!(identity.project_context);

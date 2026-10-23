@@ -16,11 +16,18 @@ pub(super) fn select_modifiers(ui: &Ui) -> SelectModifiers {
 
 const LIST_FOCUS_KEY: &str = "plotium.primary_sidebar.list_focus";
 
-pub(super) fn claim_list_keyboard_focus(ui: &Ui, response: &Response) {
+pub(crate) fn claim_list_keyboard_focus(ui: &Ui, response: &Response) {
     response.request_focus();
     ui.ctx().data_mut(|data| {
         data.insert_temp(Id::new(LIST_FOCUS_KEY), response.id);
     });
+}
+
+/// Whether keyboard focus sits on the sidebar list row that last claimed it,
+/// rather than on a text field.
+pub(crate) fn list_row_focused(ctx: &egui::Context) -> bool {
+    let focused = ctx.memory(|memory| memory.focused());
+    focused.is_some() && focused == ctx.data(|data| data.get_temp::<Id>(Id::new(LIST_FOCUS_KEY)))
 }
 
 pub(super) fn select_canvas_range(app: &mut PlotiumApp, clicked: usize, additive: bool) {

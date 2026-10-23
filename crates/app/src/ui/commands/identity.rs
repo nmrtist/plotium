@@ -210,6 +210,7 @@ pub(super) fn command_identity(
         CommandId::AlignSpectra => plain("Align Spectra…", Some(icon::ARROWS_LEFT_RIGHT)),
         CommandId::AlignTraces => plain("Align Traces…", Some(icon::ARROWS_LEFT_RIGHT)),
         CommandId::StackData => plain("Stack Selected Data", Some(icon::STACK)),
+        CommandId::DeleteDataset => plain("Delete Dataset", Some(icon::TRASH)),
         CommandId::ExtractMassSpectrum => plain("Extract Mass Spectrum", Some(icon::WAVE_SAWTOOTH)),
         CommandId::SelectRange => (
             "Analysis Range".into(),
@@ -504,6 +505,7 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::AlignSpectra => "process.align_spectra",
         CommandId::AlignTraces => "analysis.align_traces",
         CommandId::StackData => "data.stack",
+        CommandId::DeleteDataset => "data.delete",
         CommandId::ExtractMassSpectrum => "analysis.extract_mass_spectrum",
         CommandId::SelectRange => "analysis.select_range",
         CommandId::ClearRange => "analysis.clear_range",

@@ -14,6 +14,7 @@ pub fn export_document(document: &Document<'_>) -> String {
         [document.width, document.height],
         true,
         false,
+        None,
     )
 }
 
@@ -25,6 +26,7 @@ pub fn export_document_for_bounds(document: &Document<'_>) -> String {
         [document.width, document.height],
         false,
         true,
+        None,
     )
 }
 
@@ -34,15 +36,16 @@ pub fn export_document_page(
     view_box: Rect,
     physical_size: [f32; 2],
 ) -> String {
-    export_document_with_page(document, Some(view_box), physical_size, true, false)
+    export_document_with_page(document, Some(view_box), physical_size, true, false, None)
 }
 
-fn export_document_with_page(
+pub(super) fn export_document_with_page(
     document: &Document<'_>,
     view_box: Option<Rect>,
     physical_size: [f32; 2],
     include_page_background: bool,
     omit_redundant_figure_background: bool,
+    mut lod: Option<&mut super::preview::PreviewLod>,
 ) -> String {
     let w = document.width;
     let h = document.height;
@@ -75,6 +78,7 @@ fn export_document_with_page(
                 &mut s,
                 object,
                 omit_redundant_figure_background.then_some(document.background),
+                lod.as_deref_mut().map(|lod| lod.at_item(item_index)),
             ),
             DocumentItem::Overlay(overlay) => {
                 if overlay.visible {

@@ -100,6 +100,7 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
                 Command(CommandId::DeselectAll),
                 Command(CommandId::Group),
                 Command(CommandId::Ungroup),
+                Command(CommandId::DeleteDataset),
                 Submenu(
                     "Panel",
                     vec![

@@ -20,7 +20,7 @@ pub(super) fn paint(
     }
     if series.kind == SeriesKind::Line && series.points.len() >= 2 {
         let columns = line_columns(detail, proj.plot.width, painter.ctx().pixels_per_point());
-        let visible = scaled_screen_line_points(
+        let visible = scaled_line_points(
             &series.points,
             &proj.fig.x,
             !proj.y_axis().effective_scale().is_linear(),

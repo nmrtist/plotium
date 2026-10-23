@@ -100,6 +100,7 @@ pub enum CommandId {
     AlignSpectra,
     AlignTraces,
     StackData,
+    DeleteDataset,
     ExtractMassSpectrum,
     SelectRange,
     ClearRange,
@@ -456,6 +457,16 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             app.stackable_selection().is_some(),
             "Select at least two compatible datasets. Trace collections such as electrophysiology require compatible axes and units.",
         ),
+        CommandId::DeleteDataset => requires(
+            !app.session.ui.data_selection.is_empty(),
+            "Select a dataset in the Data list before deleting it.",
+        )
+        .and_then(|()| {
+            requires(
+                super::command_exec::dataset_delete_blocker(app).is_none(),
+                "Remove the curves, panels, derived datasets or reports that use the selected data before deleting it.",
+            )
+        }),
         CommandId::ExtractMassSpectrum => requires(
             dataset().is_some_and(|dataset| {
                 dataset.tool_groups().contains(&ToolGroup::MassSpectrometry)

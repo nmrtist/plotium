@@ -85,6 +85,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::AlignSpectra,
         CommandId::AlignTraces,
         CommandId::StackData,
+        CommandId::DeleteDataset,
         CommandId::ExtractMassSpectrum,
         CommandId::SelectRange,
         CommandId::ClearRange,

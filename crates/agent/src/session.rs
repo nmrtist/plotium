@@ -489,17 +489,17 @@ impl Session {
                 return Ok(value);
             }
             let targets = selector(args.ids, args.targets)?;
-            if args.tool_id == "resource.rename"
+            if matches!(args.tool_id.as_str(), "resource.rename" | DATASET_DELETE)
                 && matches!(targets, TargetSelector::Components { .. })
             {
                 return Err(Failure::new(
                     "invalid_parameters",
-                    "Rename requires resource ids",
+                    "Rename and dataset deletion require resource ids",
                 ));
             }
             if !matches!(
                 args.tool_id.as_str(),
-                "resource.rename" | "figure.apply_theme"
+                "resource.rename" | "figure.apply_theme" | DATASET_DELETE
             ) {
                 check_property(&args.parameters)?;
             }

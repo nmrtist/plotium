@@ -375,3 +375,119 @@ fn svg_overflow_and_invalid_canvas_size_are_explicit() {
         Err(AutomationError::PreviewBudget(_))
     ));
 }
+
+fn dense_line_app(rows: usize) -> PlotiumApp {
+    let mut app = PlotiumApp::new();
+    let x = plotium_data::ColumnSchema::new("Time (s)", plotium_data::LogicalType::Float64);
+    let y = plotium_data::ColumnSchema::new("Signal (a.u.)", plotium_data::LogicalType::Float64);
+    let (xi, yi) = (x.id, y.id);
+    let xs: Vec<f64> = (0..rows).map(|i| i as f64 * 1e-3).collect();
+    let ys: Vec<f64> = xs
+        .iter()
+        .map(|x| (x * 37.0).sin() + (x * 0.5).cos())
+        .collect();
+    let table = TableDataset::from_materialized(
+        vec![
+            (
+                x,
+                plotium_data::ColumnChunk::all_valid(plotium_data::ColumnValues::Float64(xs)),
+            ),
+            (
+                y,
+                plotium_data::ColumnChunk::all_valid(plotium_data::ColumnValues::Float64(ys)),
+            ),
+        ],
+        vec![],
+        Some(xi),
+        vec![TableSeriesBinding {
+            value_column: yi,
+            uncertainty_column: None,
+            fit: None,
+        }],
+        "plotium.test.dense",
+    )
+    .unwrap();
+    app.doc.datasets.push(Dataset::Table(Box::new(table)));
+    let dataset = &app.doc.datasets[0];
+    let revision = &dataset.as_table().unwrap().typed_state.envelope.revision;
+    let params = PlotCreateParams {
+        parent: document_root_target(),
+        name: "Dense".into(),
+        canvas: Some(NewPlotCanvas {
+            name: "Dense preview".into(),
+            size_mm: Some([180., 120.]),
+            size_preset: None,
+        }),
+        panel_name: None,
+        panel_frame_pt: None,
+        series: vec![NewCurve {
+            y_axis: Default::default(),
+            kind: CurveKind::Line,
+            source: TableCurveSource {
+                dataset_id: dataset.resource_id(),
+                field_id: dataset.default_field_id().unwrap(),
+                table_id: revision.table_id,
+                table_revision: revision.id,
+                x_column_id: xi,
+                y_column_id: yi,
+                y_error_column_id: None,
+            },
+        }],
+    };
+    let plan = app
+        .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &params)
+        .unwrap();
+    app.commit_curve_bindings(plan).unwrap();
+    app
+}
+
+#[test]
+fn dense_line_preview_is_thinned_while_export_keeps_every_point() {
+    const ROWS: usize = 620_000;
+    let app = dense_line_app(ROWS);
+    let figure = app.doc.canvases[0].objects[0].plot().unwrap().figure();
+    assert_eq!(figure.series[0].points.len(), ROWS);
+    let full = crate::state::render_document_svg(&app.doc.canvases[0]);
+    assert!(full.len() > PREVIEW_SVG_BYTES, "{}", full.len());
+
+    let canvas = &app.doc.canvases[0];
+    let document =
+        prepare_render_document(canvas, &app.doc.assets, MissingImagePolicy::Block).unwrap();
+    let [w, h] = canvas.size_pt();
+    let thinned = plotium_render::svg::export_document_preview(
+        &document,
+        PREVIEW_DEFAULT_EDGE as f32 / w.max(h),
+    );
+    eprintln!(
+        "dense SVG: full {} bytes, preview {} bytes",
+        full.len(),
+        thinned.svg.len()
+    );
+    assert!(thinned.svg.len() < PREVIEW_SVG_BYTES / 16);
+
+    let started = std::time::Instant::now();
+    let result = snapshot(&app, PREVIEW_DEFAULT_EDGE)
+        .unwrap()
+        .render()
+        .unwrap();
+    eprintln!("dense preview rendered in {:?}", started.elapsed());
+    let [record] = result.value["downsampled"].as_array().unwrap().as_slice() else {
+        panic!("{}", result.value["downsampled"]);
+    };
+    let plot = &app.doc.canvases[0].objects[0];
+    assert_eq!(
+        record["target"]["resource"]["local_id"],
+        json!(plot.id.to_string())
+    );
+    assert!(record["target"]["component"].is_object());
+    assert_eq!(record["source_points"], json!(ROWS));
+    assert!(record["drawn_points"].as_u64().unwrap() <= 2 * 4 * PREVIEW_DEFAULT_EDGE as u64);
+    assert!(!pixels(&result).is_empty());
+}
+
+#[test]
+fn sparse_preview_omits_downsampled() {
+    let app = fixture();
+    let result = snapshot(&app, 480).unwrap().render().unwrap();
+    assert!(result.value.get("downsampled").is_none());
+}

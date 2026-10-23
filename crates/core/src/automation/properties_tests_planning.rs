@@ -86,6 +86,7 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
                         | DOSY_BUILD
                         | ANALYSIS_RESULTS_INSPECT
                         | TOOL_SET_MANY
+                        | DATASET_DELETE
                 ))
             .count()
             - 7,

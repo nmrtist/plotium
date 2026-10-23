@@ -64,6 +64,7 @@ mod craft;
 mod craft_fields;
 mod cursors;
 mod data_import;
+mod dataset_delete;
 mod dataset_identity;
 pub use data_import::{
     DataImports, ImportBatch, ImportBatchId, ImportDiscovery, ImportItem, ImportOpenTarget,

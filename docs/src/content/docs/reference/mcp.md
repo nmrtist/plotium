@@ -271,7 +271,7 @@ contracts, supported operations, property definitions and limits. Standard MCP
 `tools/list` also lists tool input schemas. Resource descriptors describe **core** data and
 rendering capabilities; a capability listed on a resource
 does not make that operation callable through this connection. Only
-`project.save`, `figure.export`, `resource.rename`, `figure.apply_theme`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
+`project.save`, `figure.export`, `resource.rename`, `dataset.delete`, `figure.apply_theme`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
 `data.import` / `data.transform` modes, `table.patch`, `table.refresh`, `figure.edit`, `plot.create` and `plot.series.append` / `plot.series.bind` / `plot.series.materialize_default` below can be planned here. Read-only access allows table reads
 and existing property preflight, but refuses import/binding/creation/figure-edit/transform/patch/refresh preflight and all reversible edit execution. Saving and exporting use separate per-request desktop authorization, also in Read only mode.
 
@@ -1386,7 +1386,12 @@ Replace `CANVAS_UUID` with the discovered canvas ID; do not pass a panel,
 content item, selection or Series. The response contains a standard MCP PNG
 **image content block**, plus `ToolResult.value` metadata: `target`,
 `render_revision`, `width_px`, `height_px` and `mime_type`. It does not require
-opening a file or rendering SVG text. The MCP client must deliver image content
+opening a file or rendering SVG text. A curve with more points than the preview
+can show is drawn as a min/max envelope of four point pairs per pixel column, at
+least 2,048 pairs across the plot (markers: one per pixel), and `downsampled`
+lists each such curve as `{target, source_points, drawn_points}`; it is omitted
+when nothing was thinned. A zoomed-in curve keeps every visible point.
+Exports always draw every point. The MCP client must deliver image content
 to its agent; a text-only client cannot consume this preview.
 
 The image covers the whole page with its native layout, background, panel clips,
@@ -1710,6 +1715,12 @@ To reset it, plan `properties.reset` with `{"key":"series.line.stroke_width"}`
 and the same target. Component addressing supports only the listed display
 properties; processing parameters use the separate `processing.edit` operation. `resource.rename` requires
 `ids`.
+
+`dataset.delete` takes `{}` and DatasetIds in `ids`. Preflight refuses a dataset
+that a plot, projection, derived dataset or analysis report still uses and names
+the page and panel, dataset or report using it; delete those first. Delete a
+derived dataset in its own request before deleting its sources. One Undo restores
+every deleted dataset with its original ID and position.
 
 Tool responses include structured content and its JSON text representation.
 Project reads and preflight require the current `expected_revision`; fetch the
