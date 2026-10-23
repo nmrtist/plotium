@@ -249,10 +249,14 @@ fn tool_result_budget_and_discovery_are_explicit() {
         .find(|v| v["name"] == "plotium_render_preview")
         .unwrap();
     assert_eq!(t["required_permission"], "read");
-    assert_eq!(
-        state["connection_capabilities"]["limits"]["image_preview"]["png_bytes"],
-        PREVIEW_PNG_BYTES
-    );
+    let limits = s
+        .call(
+            &mut app,
+            "plotium_capabilities_get",
+            json!({"section":"limits","key":"image_preview"}),
+        )
+        .unwrap();
+    assert_eq!(limits["contract"]["png_bytes"], PREVIEW_PNG_BYTES);
     let response = crate::protocol::image_result(
         json!({"value":{"png_base64":"x".repeat(PREVIEW_RESPONSE_BYTES)}}),
         &serde_json::from_value(json!(1)).unwrap(),

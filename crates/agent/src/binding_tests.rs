@@ -137,10 +137,27 @@ fn binding_schema_uses_exact_embedded_targets_without_changing_old_selectors() {
         .find(|t| t.name == "plotium_plan")
         .unwrap();
     let schema = serde_json::to_value(&plan.input_schema).unwrap();
-    assert_eq!(schema["oneOf"].as_array().unwrap().len(), 13);
-    let constraints = crate::capabilities::manifest();
+    assert_eq!(schema["oneOf"].as_array().unwrap().len(), 3);
+    let omitted = schema["oneOf"][2]["properties"]["tool_id"]["enum"]
+        .as_array()
+        .unwrap();
+    for (id, materialize) in [(CURVE_BIND, false), (CURVE_MATERIALIZE, true)] {
+        assert!(omitted.contains(&serde_json::json!(id)));
+        let served = crate::capabilities::respond(
+            serde_json::json!({"section":"operation_constraints","key":id}),
+        )
+        .unwrap();
+        assert_eq!(
+            served["contract"]["schema"],
+            plotium_core::automation::curve_binding_schema(materialize)
+        );
+    }
+    let constraint = crate::capabilities::respond(
+        serde_json::json!({"section":"operation_constraints","key":CURVE_BIND}),
+    )
+    .unwrap();
     assert_eq!(
-        constraints["operation_constraints"][CURVE_BIND]["preflight_permission"],
+        constraint["contract"]["preflight_permission"],
         "reversible_modify"
     );
 }

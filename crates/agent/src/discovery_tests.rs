@@ -182,18 +182,21 @@ fn static_definitions_and_connection_gate_are_the_same_supported_subset() {
     assert_eq!(catalog["properties"][0]["schema"]["min"], 0.05);
     assert_eq!(catalog["properties"][2]["schema"]["type"], "int");
     assert_eq!(catalog["properties"][2]["schema"]["max"], 256);
-    let manifest = capabilities::manifest();
-    let plan = manifest["tools"]
+    let plan = crate::protocol::definitions()
+        .into_iter()
+        .find(|t| t.name == "plotium_plan")
+        .unwrap();
+    assert_eq!(
+        plan.input_schema["properties"]["tool_id"]["enum"],
+        json!(capabilities::EDIT_OPERATIONS)
+    );
+    let indexed = capabilities::manifest()["tools"]
         .as_array()
         .unwrap()
         .iter()
         .find(|t| t["name"] == "plotium_plan")
         .unwrap();
-    assert_eq!(
-        plan["input_schema"]["properties"]["tool_id"]["enum"],
-        json!(capabilities::EDIT_OPERATIONS)
-    );
-    assert!(plan.get("currently_permitted").is_none());
+    assert!(indexed.get("currently_permitted").is_none());
     let mut app = fixture();
     let context = app.session.project_context;
     let mut s = Session::default();

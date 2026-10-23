@@ -2,20 +2,6 @@ use plotium_core::state::{ObjectId, PlotiumApp, Tool};
 
 use super::{CommandExecutionClass, CommandId};
 
-/// Every (tab, group) pair the Ribbon placement tables can produce, so layout
-/// tests stay exhaustive as placements evolve.
-#[cfg(test)]
-pub(in crate::ui) fn ribbon_group_pairs() -> Vec<(plotium_core::state::WorkflowTab, &'static str)> {
-    let mut pairs: Vec<_> = super::roster::command_ids(0)
-        .into_iter()
-        .filter_map(super::ribbon_placement)
-        .map(|placement| (placement.tab, placement.group))
-        .collect();
-    pairs.sort_by_key(|&(tab, group)| (tab as u8, group));
-    pairs.dedup();
-    pairs
-}
-
 impl CommandId {
     pub(super) fn tool_target(self) -> Option<Tool> {
         match self {

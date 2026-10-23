@@ -31,8 +31,9 @@ fn dispatch(
 
 #[test]
 fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
-    let contract = manifest();
-    assert_eq!(fingerprint(), fingerprint_of(contract));
+    let discovery = discovery();
+    let contract = contract(&discovery.index, &discovery.sections);
+    assert_eq!(fingerprint(), fingerprint_of(&contract));
     assert_eq!(fingerprint().len(), 71);
     let mut reversed = serde_json::Map::new();
     for (key, value) in contract.as_object().unwrap().iter().rev() {
@@ -40,12 +41,13 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
     }
     assert_eq!(fingerprint(), fingerprint_of(&Value::Object(reversed)));
     for path in [
-        "/tools/0/input_schema/properties/selection_limit/maximum",
+        "/tools/0/inputSchema/properties/selection_limit/maximum",
         "/tools/0/annotations/readOnlyHint",
-        "/operation_constraints/data.import/schema",
-        "/property_definitions/properties/0/schema/min",
-        "/limits/document_page_max",
-        "/recovery_contract/unknown",
+        "/sections/operation_constraints/data.import/schema",
+        "/sections/limits/document_page_max",
+        "/sections/tools/plotium_get_state/result_contract",
+        "/properties/properties/0/schema/min",
+        "/index/recovery_contract/unknown",
     ] {
         let mut changed = contract.clone();
         *changed.pointer_mut(path).unwrap() = json!("changed");
@@ -55,9 +57,128 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
         fingerprint_of(&json!([1, 2])),
         fingerprint_of(&json!([2, 1]))
     );
-    let encoded = serde_json::to_string(contract).unwrap();
+    let encoded = serde_json::to_string(&contract).unwrap();
     assert!(!encoded.contains("currently_permitted"));
     assert!(!encoded.contains("allow_reversible_modify"));
+}
+
+#[test]
+fn index_is_compact_and_names_every_detail_section() {
+    let index = respond(json!({})).unwrap();
+    assert!(serde_json::to_vec(&index).unwrap().len() <= 8 * 1024);
+    let caps = &index["connection_capabilities"];
+    for key in [
+        "property_definitions",
+        "supported_properties",
+        "operation_constraints",
+        "limits",
+    ] {
+        assert!(caps.get(key).is_none(), "{key}");
+    }
+    for tool in caps["tools"].as_array().unwrap() {
+        for key in [
+            "description",
+            "input_schema",
+            "output_schema",
+            "annotations",
+        ] {
+            assert!(tool.get(key).is_none(), "{key}");
+        }
+    }
+    let sections = caps["sections"].as_object().unwrap();
+    assert_eq!(sections.keys().collect::<Vec<_>>(), {
+        let mut names = SECTIONS.to_vec();
+        names.sort();
+        names
+    });
+    assert_eq!(
+        sections["operation_constraints"]["key_bytes"]
+            .as_object()
+            .unwrap()
+            .len(),
+        EDIT_OPERATIONS.len()
+    );
+    let plan = crate::protocol::definitions()
+        .into_iter()
+        .find(|tool| tool.name == "plotium_plan")
+        .unwrap();
+    assert!(serde_json::to_vec(&plan.input_schema).unwrap().len() <= 4 * 1024);
+}
+
+#[test]
+fn every_section_and_key_is_served() {
+    for section in SECTIONS {
+        let listed = &manifest()["sections"][section];
+        let keys: Vec<String> = match section {
+            "operation_constraints" => listed["key_bytes"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect(),
+            "limits" => serde_json::from_value(listed["keys"].clone()).unwrap(),
+            "scientific_operations" => manifest()["scientific_operations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|o| o["id"].as_str().unwrap().to_owned())
+                .collect(),
+            "tools" => manifest()["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["name"].as_str().unwrap().to_owned())
+                .collect(),
+            _ => Vec::new(),
+        };
+        if listed["key"] != "required" {
+            let whole = respond(json!({ "section": section })).unwrap();
+            assert_eq!(whole["capability_fingerprint"], fingerprint());
+            assert_eq!(
+                serde_json::to_vec(&whole["contract"]).unwrap().len(),
+                listed["bytes"].as_u64().unwrap() as usize
+            );
+        }
+        for key in &keys {
+            let detail = respond(json!({ "section": section, "key": key })).unwrap();
+            assert_eq!(detail["key"], json!(key));
+            assert!(!detail["contract"].is_null(), "{section}/{key}");
+        }
+    }
+    for id in EDIT_OPERATIONS {
+        let detail = respond(json!({"section":"operation_constraints","key":id})).unwrap();
+        assert!(detail["contract"]["schema"].is_object(), "{id}");
+        assert!(detail["contract"]["execute_permission"].is_string(), "{id}");
+    }
+}
+
+#[test]
+fn unknown_sections_and_keys_list_valid_values() {
+    let error = respond(json!({"section":"property_definitions"})).unwrap_err();
+    assert_eq!(error.code, "invalid_parameters");
+    assert_eq!(error.details.unwrap()["sections"], json!(SECTIONS));
+    let error =
+        respond(json!({"section":"operation_constraints","key":"plot.delete"})).unwrap_err();
+    assert_eq!(error.code, "invalid_parameters");
+    assert!(
+        error.details.unwrap()["keys"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("figure.edit"))
+    );
+    let error = respond(json!({"section":"operation_constraints"})).unwrap_err();
+    assert_eq!(
+        error.details.unwrap()["keys"].as_array().unwrap().len(),
+        EDIT_OPERATIONS.len()
+    );
+    let error = respond(json!({"section":"guide_contract","key":"limits"})).unwrap_err();
+    assert_eq!(error.details.unwrap()["keys"], json!([]));
+    let error = respond(json!({"key":"figure.edit"})).unwrap_err();
+    assert_eq!(error.details.unwrap()["sections"], json!(SECTIONS));
+    assert_eq!(
+        respond(json!({"section":7})).unwrap_err().code,
+        "invalid_parameters"
+    );
 }
 
 #[test]
@@ -313,6 +434,8 @@ fn discovery_and_state_reject_invalid_arguments_even_while_busy() {
     for (name, args) in [
         ("plotium_capabilities_get", json!({"allow_modify":true})),
         ("plotium_capabilities_get", json!({"expected_revision":0})),
+        ("plotium_capabilities_get", json!({"section":"unknown"})),
+        ("plotium_capabilities_get", json!({"key":"figure.edit"})),
         ("plotium_get_state", json!({"selection_limit":0})),
         ("plotium_get_state", json!({"selection_limit":51})),
         ("plotium_get_state", json!({"selection_limit":null})),

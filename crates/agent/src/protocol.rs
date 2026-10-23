@@ -15,7 +15,7 @@ impl ServerHandler for Handler {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("Plotium", env!("CARGO_PKG_VERSION")))
-            .with_instructions("Discover static contracts with plotium_capabilities_get as needed. Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. Never replay a tool call after a disconnection.")
+            .with_instructions("Read the plotium_capabilities_get index for static contracts and fetch detail sections as needed. Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. Never replay a tool call after a disconnection.")
     }
     async fn list_tools(
         &self,
@@ -124,12 +124,12 @@ pub(crate) fn definitions() -> Vec<Tool> {
     document["required"] = json!(["expected_revision", "target", "view"]);
     let mut tools: Vec<Tool> = [
         ("plotium_get_state", "Read latest availability, revision, project counts, a bounded selection page, a bounded page of values the user set by hand (hand_edits: keep them; property writes skip them unless override_hand_edits is true because the user asked), permissions and capability fingerprint, including while busy. Each call observes current state; pages are not a frozen selection snapshot. Use plotium_capabilities_get for static contracts. Queries do not modify project state.", json!({"selection_offset":{"type":"integer","minimum":0},"selection_limit":{"type":"integer","minimum":1,"maximum":50,"default":16},"hand_edits_offset":{"type":"integer","minimum":0},"hand_edits_limit":{"type":"integer","minimum":1,"maximum":50,"default":16}}), json!([])),
-        ("plotium_capabilities_get", "Discover complete static tool, operation, property and limit contracts with a stable fingerprint. Callable while busy; cached capabilities and annotations never authorize execution or retry. Read current permissions from plotium_get_state.", json!({}), json!([])),
+        ("plotium_capabilities_get", "Read a compact index of static tool, operation and contract summaries with a stable fingerprint; sections lists each detail section, its keys and sizes. Fetch one detail with {section,key?}, such as an operation schema with {section:\"operation_constraints\",key:<tool_id>}. Callable while busy; cached capabilities and annotations never authorize execution or retry. Read current permissions from plotium_get_state.", json!({"section":{"enum":crate::capabilities::SECTIONS},"key":{"type":"string","minLength":1}}), json!([])),
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
         ("plotium_properties_list", "List supported display property definitions: schema, units, scope and static applicability. For 1-200 exact target/key/value writes use properties.set_many through plotium_plan, atomically with one Undo. Reuse full targets returned by plot.create. Does not create a run record.", json!({}), json!([])),
         ("plotium_properties_inspect", "Read property values, defaults, bounds and applicability.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "key": key}), json!(["expected_revision", "key"])),
-        ("plotium_plan", "Preflight a supported edit on resource IDs or exact series targets. Returns a one-use opaque plan_id; at most 32 pending plans.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "tool_id": {"enum": crate::capabilities::EDIT_OPERATIONS}, "parameters": {"type": "object", "description": "Core arguments: rename {name}; dataset.delete {} on DatasetIds (refused, naming the users, while a plot, projection, derived dataset or report uses one; delete a derived dataset in its own request first; one Undo restores the IDs); figure.apply_theme {theme_id} on canvas ids (built-in id or saved style name; see operation_constraints); properties.set {key,value,override_hand_edits?}; properties.set_many {writes:[{target,key,value}],override_hand_edits?} (1..=200 exact targets, one atomic Undo step, omit top-level ids/targets); properties.reset {key,override_hand_edits?}; property writes skip values the user set by hand (skip_reason hand_set) unless override_hand_edits is true because the user asked for that change; property-write plans return only counts and the targets that will not be written, and their execute results add summary {succeeded,skipped,failed,by_reason} and list only targets and writes that did not succeed; data.import {paths,sampling_declaration?} for native datasets/default canvases, or {mode:table_data_only,paths,header?,format?,schema?,schema_path?}; plot.series.bind {edits:[{target,source:{dataset_id,field_id,table_id,table_revision,x_column_id,y_column_id,y_error_column_id}}]}; plot.series.materialize_default {edits:[{target,retain_y_column_id,table_revision}]}. plot.series.append {plot:TargetRef,series:[{kind,source:TableCurveSource}]} appends to an existing explicit-coordinate plot. plot.create {parent:TargetRef,name,canvas?:{name,size_mm|size_preset},panel_name?,series:[{kind:line|scatter|bar|box|violin,source:TableCurveSource}]} (x may be text categories). data.transform {mode:table_data_only,name,plan:RelPlanV1,memory_limit_bytes?} requires one DatasetId in ids. figure.edit {canvas:TargetRef,edits:[{op:page|panel_frame|panel_label|panel_stack|align|distribute|grid|text_create|text_set|image_create|content_frame|image_replace|content_delete|panel_delete|series_delete,...}]} uses exact targets inside edits; discover complete schema in operation_constraints. Import, figure, creation and binding edits omit top-level ids/targets. table.patch {table_revision,edits:[{row_id,column_id,value:{kind,value?}}]} and table.refresh {table_revision,memory_limit_bytes?} each require exactly one DatasetId in ids. Full schemas are in plotium_capabilities_get.connection_capabilities.operation_constraints."}}), json!(["expected_revision", "tool_id", "parameters"])),
+        ("plotium_plan", "Preflight a supported edit on resource IDs or exact series targets. Returns a one-use opaque plan_id; at most 32 pending plans.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "tool_id": {"enum": crate::capabilities::EDIT_OPERATIONS}, "parameters": {"type": "object", "description": "Operation arguments. Fetch the exact schema with plotium_capabilities_get {section:\"operation_constraints\",key:<tool_id>}. resource.rename {name}; dataset.delete {}; figure.apply_theme {theme_id}; properties.set {key,value,override_hand_edits?}; properties.reset {key,override_hand_edits?}; properties.set_many {writes:[{target,key,value}]}; data.import {paths,...}; data.transform {mode:table_data_only,name,plan}; table.patch {table_revision,edits}; table.refresh {table_revision}; plot.create {parent,name,series}; plot.series.append {plot,series}; plot.series.bind/materialize_default {edits}; figure.edit {canvas,edits}; project.save {path}; figure.export {canvas,outputs}. Property writes skip values the user set by hand unless override_hand_edits is true because the user asked."}}), json!(["expected_revision", "tool_id", "parameters"])),
         ("plotium_execute", "Submit a saved plan once. Edits require reversible-modify permission. project.save queues separate per-request desktop file authorization; poll plotium_save_status for completion. figure.export requests separate desktop authorization; poll plotium_export_status for per-file completion. External writes are not undoable.", json!({"plan_id": {"type": "string"}}), json!(["plan_id"])),
     ].into_iter().map(|(name, description, properties, required)| {
         let mut schema = json!({"type": "object", "properties": properties, "required": required, "additionalProperties": false});
@@ -138,33 +138,13 @@ pub(crate) fn definitions() -> Vec<Tool> {
                 {"required":["ids"], "not":{"required":["targets"]}},
                 {"required":["targets"], "not":{"required":["ids"]}}
             ]);
-            if name == "plotium_plan" {
-                schema["allOf"] = json!([{"if":{"properties":{"tool_id":{"enum":["resource.rename","figure.apply_theme","dataset.delete"]}}},"then":{"required":["ids"],"not":{"required":["targets"]}}}]);
-            }
         }
         if name == "plotium_plan" {
-            schema["oneOf"][0]["properties"] = json!({"tool_id":{"not":{"enum":["data.import","plot.series.bind","plot.series.materialize_default","plot.create","plot.series.append","figure.edit"]}}});
-            schema["oneOf"][1]["properties"] = json!({"tool_id":{"not":{"enum":["data.import","plot.series.bind","plot.series.materialize_default","plot.create","plot.series.append","figure.edit"]}}});
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":"data.import"},"parameters":plotium_core::automation::data_import_schema()}}));
-            for index in 0..2 { schema["oneOf"][index]["properties"]["tool_id"]["not"]["enum"].as_array_mut().expect("local exclusions").push(json!("project.save")); }
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":"project.save"},"parameters":crate::session::save::schema()}}));
-            for index in 0..2 { schema["oneOf"][index]["properties"]["tool_id"]["not"]["enum"].as_array_mut().expect("local exclusions").push(json!("figure.export")); }
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":"figure.export"},"parameters":plotium_core::export::figure_export_schema()}}));
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":"figure.edit"},"parameters":plotium_core::automation::figure_edit_schema()}}));
-            for (id, params) in [("table.patch", plotium_core::automation::table_patch_schema()), ("table.refresh", plotium_core::automation::table_refresh_schema())] {
-                for index in 0..2 { schema["oneOf"][index]["properties"]["tool_id"]["not"]["enum"].as_array_mut().expect("local exclusions").push(json!(id)); }
-                schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters","ids"],"not":{"required":["targets"]},"properties":{"tool_id":{"const":id},"ids":{"type":"array","minItems":1,"maxItems":1,"items":{"type":"string","format":"uuid"}},"parameters":params}}));
-            }
-            let transform = plotium_core::automation::table_transform_schema();
-            schema["$defs"] = transform["$defs"].clone();
-            schema["oneOf"][0]["properties"]["tool_id"]["not"]["enum"].as_array_mut().expect("local exclusions").push(json!("data.transform"));
-            schema["oneOf"][1]["properties"]["tool_id"]["not"]["enum"].as_array_mut().expect("local exclusions").push(json!("data.transform"));
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters","ids"],"not":{"required":["targets"]},"properties":{"tool_id":{"const":"data.transform"},"ids":{"type":"array","minItems":1,"maxItems":1,"items":{"type":"string","format":"uuid"}},"parameters":transform}}));
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":"plot.create"},"parameters":plotium_core::automation::plot_create_schema()}}));
-            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":"plot.series.append"},"parameters":plotium_core::automation::curve_append_schema()}}));
-            for (id,materialize) in [(plotium_core::automation::CURVE_BIND,false),(plotium_core::automation::CURVE_MATERIALIZE,true)] {
-                schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"required":["tool_id","parameters"],"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"const":id},"parameters":plotium_core::automation::curve_binding_schema(materialize)}}));
-            }
+            use crate::capabilities::{NO_SELECTOR, SINGLE_DATASET};
+            schema["oneOf"][0]["properties"] = json!({"tool_id":{"not":{"enum":NO_SELECTOR}}});
+            schema["oneOf"][1]["properties"] = json!({"tool_id":{"enum":["properties.set","properties.reset"]}});
+            schema["oneOf"].as_array_mut().expect("local alternatives").push(json!({"not":{"anyOf":[{"required":["ids"]},{"required":["targets"]}]},"properties":{"tool_id":{"enum":NO_SELECTOR}}}));
+            schema["allOf"] = json!([{"if":{"properties":{"tool_id":{"enum":SINGLE_DATASET}}},"then":{"properties":{"ids":{"maxItems":1}}}}]);
         }
         Tool::new(name, description, schema.as_object().expect("local schema is an object").clone())
     }).collect();
@@ -338,10 +318,10 @@ mod tests {
             assert_eq!(schema["oneOf"][1]["required"], json!(["targets"]));
             assert_eq!(schema["oneOf"][1]["not"], json!({"required":["ids"]}));
             if tool.name == "plotium_plan" {
-                assert_eq!(schema["oneOf"].as_array().unwrap().len(), 13);
+                assert_eq!(schema["oneOf"].as_array().unwrap().len(), 3);
                 assert_eq!(
-                    schema["oneOf"][2]["properties"]["parameters"]["properties"]["mode"]["const"],
-                    "table_data_only"
+                    schema["oneOf"][2]["properties"]["tool_id"]["enum"],
+                    json!(crate::capabilities::NO_SELECTOR)
                 );
             } else {
                 assert_eq!(schema["oneOf"].as_array().unwrap().len(), 2);
@@ -362,7 +342,14 @@ mod tests {
                 false
             );
             if tool.name == "plotium_plan" {
-                assert_eq!(schema["allOf"][0]["then"]["required"], json!(["ids"]));
+                assert_eq!(
+                    schema["oneOf"][1]["properties"]["tool_id"]["enum"],
+                    json!(["properties.set", "properties.reset"])
+                );
+                assert_eq!(
+                    schema["allOf"][0]["then"]["properties"]["ids"]["maxItems"],
+                    1
+                );
             }
         }
     }

@@ -116,7 +116,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 
 ### 工具 annotations 与客户端审批
 
-每个工具都在 `tools/list` 和 `connection_capabilities.tools` 中提供 MCP
+每个工具都在 `tools/list` 中提供 MCP
 `annotations`，不随当前 **Access** 设置变化。`readOnlyHint` 表示是否改变环境；
 `destructiveHint` 区分可能破坏性写入与仅追加操作；`idempotentHint` 表示相同参数的
 重复调用是否产生额外影响；`openWorldHint` 表示是否与外部实体交互，包括本地输入／
@@ -163,9 +163,35 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 忙碌时 `project`、`selection` 与 `hand_edits` 为 `null`；仍可读取可用性、权限、能力指纹
 和保存回执 ID。
 
-调用 `plotium_capabilities_get {}` 获取
-`{capability_fingerprint,connection_capabilities}`。指纹是完整静态发现契约按规范 JSON
-对象键顺序计算的 SHA-256。按响应中的指纹缓存契约；状态中的指纹不同时重新发现。
+调用 `plotium_capabilities_get {}` 获取精简索引
+`{capability_fingerprint,connection_capabilities}`。索引列出各工具的操作和所需权限、
+按预检与执行权限分组的可编辑操作、科学操作、恢复／revision／属性批量契约、文档根和
+`sections`。工具说明、输入 schema 和 annotations 见 `tools/list`；属性定义见
+`plotium_properties_list`。
+
+`sections` 列出每个详情分区的字节大小及是否接受 `key`。用 `{"section":...,"key":...}`
+读取单项详情，返回 `{capability_fingerprint,section,key,contract}`：
+
+| 分区 | key | 内容 |
+| --- | --- | --- |
+| `tools` | 可选，工具名 | 各工具的结果约定和目标规则 |
+| `operation_constraints` | 必填，操作 id | 单个可编辑操作的 schema、权限和结果约定 |
+| `scientific_operations` | 必填，操作 id | 完整核心描述符和所需权限 |
+| `guide_contract` | 无 | 图例和色标定位规则 |
+| `candidate_preview` | 无 | 未提交计划的预览约定 |
+| `limits` | 可选，限制名 | 连接预算 |
+
+例如读取 `figure.edit` 的 schema：
+
+```json
+{"section":"operation_constraints","key":"figure.edit"}
+```
+
+未知分区或 key 返回 `invalid_parameters`，`error.details.sections` 或
+`error.details.keys` 列出有效值。
+
+指纹是完整静态发现契约（索引、全部分区、MCP 工具定义和属性目录）按规范 JSON
+对象键顺序计算的 SHA-256。按响应中的指纹缓存索引和已读取的分区；状态中的指纹不同时重新发现。
 若读取状态后、能力查询完成前状态已变化，以能力响应随附的指纹标识该契约。
 项目编辑、项目切换、选择或权限变化均不改变静态能力。
 
@@ -182,7 +208,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 可直接从欢迎页导入原生数据或表格。空闲时 `project` 返回数据集和画布数量，即使尚未导入数据；
 忙碌时 `project` 与 `selection` 均为 `null`。规划操作前请检查 `availability`。
 查询不会新增文档审计记录或未保存修改。
-所有状态下均可通过 `plotium_capabilities_get {}` 发现完整连接能力。
+所有状态下均可通过 `plotium_capabilities_get {}` 发现连接能力。
 
 启用 **读取并修改**，从状态复制 `project_context` 和 `revision`，再调用 `plotium_plan`：
 
@@ -198,7 +224,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 请使用实际绝对路径。原生导入接受桌面加载器支持的明确数据文件及原子采集目录，
 例如 Bruker 采集或处理数据目录；可读取采集必需的伴随文件，不递归批量发现或扫描相邻实验。
 此操作不支持 ZIP 归档、项目文件或新格式。可选 `sampling_declaration` 沿用核心导入约定。
-完整共享 schema 位于 `connection_capabilities.operation_constraints["data.import"].schema`。
+完整共享 schema 可用
+`plotium_capabilities_get {"section":"operation_constraints","key":"data.import"}` 读取。
 
 预检在后台完成，`import.items[].metadata` 返回各输入的格式、维度、警告、失败原因和拟创建的
 数据集／画布 ID。预检不创建资源或修改文档。调用 `plotium_execute {"plan_id":"PLAN_ID"}`
@@ -221,9 +248,9 @@ CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限
 ## 不依赖名称发现结构
 
 先用 `{}` 调用 `plotium_get_state` 获取当前上下文、revision 和权限。需要静态契约时，
-调用 `plotium_capabilities_get {}`；其 `connection_capabilities` 描述当前连接的工具、
-输入 schema、结果约定、支持的操作、属性定义和输出限制。
-标准 MCP `tools/list` 也提供工具输入 schema。资源描述中的能力属于 **core** 的
+调用 `plotium_capabilities_get {}`；其索引描述当前连接的工具、支持的操作及其权限，
+结果约定、操作 schema 和限制按分区读取。标准 MCP `tools/list` 提供工具输入 schema，
+`plotium_properties_list` 提供属性定义。资源描述中的能力属于 **core** 的
 数据和渲染语义；资源列出某项能力，不代表此连接已开放该操作。
 这里可预检 `project.save`、`figure.export`、`resource.rename`、`dataset.delete`、`figure.apply_theme`、`properties.set`、`properties.set_many`、`properties.reset`，以及下述受限的
 `data.import`／`data.transform` 模式、`table.patch`、`table.refresh`、`figure.edit`、`plot.create` 及 `plot.series.append`／`plot.series.bind`／`plot.series.materialize_default`。
@@ -373,7 +400,7 @@ offset 等于总量时返回空的结束页，大于总量时失败。非法 lim
 
 每次读取都检查两个 revision。人工编辑、Undo/Redo 会使旧文档 revision 失效，
 须重新读状态并重启分页，不能混读。无效 ID 不回退当前选择。只读连接可查询
-已有表格，但不可导入。预算和导入权限条件可从 `connection_capabilities` 发现。
+已有表格，但不可导入。预算见 `limits` 能力分区，导入权限条件见索引。
 
 ## 派生表格而不修改源数据
 
@@ -384,7 +411,7 @@ offset 等于总量时返回空的结束页，大于总量时失败。非法 lim
 1. 读取 `plotium_get_state`，再用 DatasetId 和表 revision 调用
    `plotium_table_columns`。复制实际 ColumnId、`table_id`、`table_revision`
    和 `snapshot_fingerprint`；名称和 `source_column_id` 不能作为身份。
-2. 从 `connection_capabilities.operation_constraints["data.transform"].schema`
+2. 用 `plotium_capabilities_get {"section":"operation_constraints","key":"data.transform"}`
    发现原生计划格式。`ids` 恰好指定一个 DatasetId，模式为 `table_data_only`。
    叶节点必须固定该数据集的当前快照；为 `operation_id` 和每个计算列的 `id`
    提供新的 UUID。
@@ -475,8 +502,8 @@ DatasetId、TableId、revision、fingerprint、原始 RowId 和从零开始的 `
 每个连接同时最多一个处理预检。参数最多 64 KiB、64 个关系／表达式节点、深度 16
 （JSON 嵌套最多 48 层）。内存预算默认和上限均为 512 MiB，含义是 reference 执行器
 **求值后检查的物化结果估算**，不是进程峰值内存限制。最多保留四个待提交结果，共享
-512 MiB 预留预算，每项按请求声明的预算计费。完整响应最多 256 KiB；准备结果摘要最多 128 KiB，为请求和计划外层预留空间。限制也可从
-`connection_capabilities.limits.table_transform` 发现。预算失败返回
+512 MiB 预留预算，每项按请求声明的预算计费。完整响应最多 256 KiB；准备结果摘要最多 128 KiB，为请求和计划外层预留空间。限制也可用
+`plotium_capabilities_get {"section":"limits","key":"table_transform"}` 发现。预算失败返回
 `transform_budget_exceeded`，取消返回 `request_cancelled`，均不留下派生表或成功执行
 结果。修正输入或预算后重新规划。后续更新使用下述独立的单元格补丁及显式刷新操作。
 
@@ -540,7 +567,7 @@ CSV/TSV。准备返回 `update:{status:"prepared",output,before_table_revision,c
 1–536870912；仍表示物化结果估算，不是峰值内存。补丁／处理／刷新共享一个后台
 预检、四个待执行候选及 512 MiB 预留上限，每个补丁预留 64 KiB。准备摘要最多
 128 KiB，完整响应最多 256 KiB；schema 和限制见 `operation_constraints` 与
-`limits.table_update`。
+`limits`（`table_update`）能力分区。
 
 两项操作的预检和执行都要求 **Read and modify**；候选采用前重验权限、文档／表
 revision 及当前输入。取消、切换项目、停止连接或输入过期丢弃未提交结果，失败执行
@@ -663,7 +690,7 @@ GUI 保存重开保留原生绑定和单位；MCP `project.save` 需桌面单独
 可以要求 Agent：“导入这个 CSV，时间单位为 s，电流和误差单位为 mA，
 创建一张可编辑折线图并显示对称 Y 误差。查看预览，再只把该曲线线宽改为
 1.5 pt 并再次预览。”提供绝对输入路径和明确单位。完整导入、创建参数可从
-`plotium_capabilities_get` 的连接能力清单及 `plotium_plan` 工具 schema 发现。
+`plotium_capabilities_get` 的 `operation_constraints` 分区发现。
 
 仅数据导入后，从实际导入结果或列元数据读取 DatasetId、FieldId、TableId、
 表 revision 和 ColumnId。通过 `plotium_plan` 规划 `plot.create`，不传顶层
@@ -761,8 +788,8 @@ Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision�
 ## 原子编辑页面、面板、文字与本地图片
 
 以 `parameters: {canvas: 完整画布目标, edits: [...]}` 预检 `figure.edit`，不传顶层
-`ids`／`targets`。完整带 `op` 标签的 schema 由
-`connection_capabilities.operation_constraints["figure.edit"].schema` 提供。
+`ids`／`targets`。完整带 `op` 标签的 schema 可用
+`plotium_capabilities_get {"section":"operation_constraints","key":"figure.edit"}` 读取。
 一个批次按编辑顺序修改同一画布，合为一次 Undo／Redo：
 
 | `op` | 必需字段及含义 |
@@ -1154,7 +1181,7 @@ stdio 结束时关闭；其他工具仍使用原来的单次调用 transport，�
 探测的资产页 RGBA8 合计 64 MiB、中间 SVG 8 MiB、PNG 4 MiB、JSON-RPC 预览响应
 6 MiB（包含请求 ID）。同一资产编码数据只计一次，同一资产页解码只计一次。
 这些限制约束负载和图像缓冲区，不代表整个进程的内存上限。所有引用资产均校验，包括隐藏项。
-发现信息 `connection_capabilities.limits.image_preview` 也提供这些预算。
+`plotium_capabilities_get {"section":"limits","key":"image_preview"}` 也提供这些预算。
 
 资产缺失、损坏或图片页不可用时返回 `preview_asset_unavailable`，不会以占位图
 或缺图结果报告成功。超过预算返回 `preview_budget_exceeded`，不静默降质；输出
@@ -1277,7 +1304,7 @@ Guide 写入在提交前验证全部显式目标；存在但不适用的目标�
 形状错误、非有限或越界值返回 `invalid_parameters`。查询仍报告不适用目标。
 只读连接可以查询及预检，execute 需要可撤销修改权限；context/revision 变化、撤权、
 busy 和过期计划保留原有单次生命周期。查询不追加项目审计记录，也不改变 dirty、
-edit generation、automation revision 或 Undo 历史。能力发现见 `connection_capabilities.guide_contract`。
+edit generation、automation revision 或 Undo 历史。能力发现见 `plotium_capabilities_get {"section":"guide_contract"}`。
 
 ## 精确修改显示，不重建图对象
 
@@ -1541,8 +1568,9 @@ Plotium 会把它记为手动设置。`plotium_get_state` 在 `hand_edits` 中�
 ## 为画布套用主题或已保存的风格
 
 `figure.apply_theme` 用 Plotium 的内置主题（例如 `nature`）或在 Plotium 中保存的画布
-风格整体重设画布样式。`theme_id` 可以填 `plotium_capabilities_get` 返回的
-`operation_constraints["figure.apply_theme"].builtin_themes` 中的内置主题 id，也可以填
+风格整体重设画布样式。`theme_id` 可以填
+`plotium_capabilities_get {"section":"operation_constraints","key":"figure.apply_theme"}`
+返回的 `builtin_themes` 中的内置主题 id，也可以填
 已保存风格的名称。已保存的风格不在固定的能力说明里：未知的 `theme_id` 会在预检时以
 `invalid_parameters` 失败，`error.details.themes` 列出当前可用的全部内置主题和已保存
 风格。预检时把画布 id 放在顶层 `ids`：
@@ -1704,7 +1732,7 @@ worker 原子确认授权并进入安装后，停止不保证取消这次原文�
 预算：一个运行批次，共享待执行计划最多 32 个；路径最多 4096 字节；PNG 单边
 16,384、总计 16,777,216 像素；引用的嵌入资产 16 MiB、解码后 RGBA 64 MiB、
 SVG 8 MiB、逐文件编码结果 64 MiB。不查找外部资产、不替换成占位图。
-完整 schema 和限制可从 `connection_capabilities` 发现。
+完整 schema 和限制可从 `limits` 与 `operation_constraints` 能力分区发现。
 
 桌面进程保留最近 16 批导出回执，跨重连及项目切换有效，退出应用即丢失。
 响应丢失后先查原 `export_id`，不重放导出。重启或 `unknown_export` 时先检查

@@ -507,9 +507,12 @@ fn exact_values_and_freshness_are_readable_after_patch_refresh_and_undo() {
         app.doc.table_freshness(id).status,
         TableFreshnessState::Current
     );
-    let caps = crate::capabilities::manifest();
+    let constraint = crate::capabilities::respond(
+        serde_json::json!({"section":"operation_constraints","key":TABLE_PATCH}),
+    )
+    .unwrap();
     assert_eq!(
-        caps["operation_constraints"][TABLE_PATCH]["schema"]["properties"]["edits"]["maxItems"],
+        constraint["contract"]["schema"]["properties"]["edits"]["maxItems"],
         1000
     );
 }

@@ -16,6 +16,8 @@ pub(super) use helpers::chart_plot_target;
 use helpers::{has_active_plot, requires, selected_paths_unlocked};
 mod ribbon;
 mod roster;
+#[cfg(test)]
+pub(super) use ribbon::ribbon_group_pairs;
 use ribbon::ribbon_placement;
 pub(crate) use ribbon::stack_row;
 pub use ribbon::{Applicability, RibbonPlacement};
@@ -201,9 +203,6 @@ pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
         })
         .collect()
 }
-
-#[cfg(test)]
-pub(super) use helpers::ribbon_group_pairs;
 
 pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let has_canvas = app.session.active_canvas.is_some();

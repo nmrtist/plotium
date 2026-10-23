@@ -149,10 +149,13 @@ fn scientific_discovery_is_core_derived_and_cancel_requires_modify() {
     let operations = manifest["scientific_operations"].as_array().unwrap();
     for id in [PROCESSING_EDIT, REGIONS_EXTRACT, DIFFUSION_FIT, DOSY_BUILD] {
         let descriptor = ToolRegistry::built_in().get(id).cloned().unwrap();
-        let operation = operations
-            .iter()
-            .find(|o| o["descriptor"]["id"] == id)
-            .unwrap();
+        let indexed = operations.iter().find(|o| o["id"] == id).unwrap();
+        assert_eq!(indexed["title"], json!(descriptor.title));
+        assert_eq!(indexed["required_permission"], "reversible_modify");
+        let operation =
+            crate::capabilities::respond(json!({"section":"scientific_operations","key":id}))
+                .unwrap()["contract"]
+                .take();
         assert_eq!(operation["descriptor"], json!(descriptor));
         assert!(operation.get("currently_permitted").is_none());
         assert_eq!(operation["required_permission"], "reversible_modify");

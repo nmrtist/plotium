@@ -320,11 +320,7 @@ impl Session {
             return Ok(json!(result));
         }
         if name == "plotium_capabilities_get" {
-            let _: Empty = decode(arguments)?;
-            return Ok(
-                json!({"capability_fingerprint":crate::capabilities::fingerprint(),
-                "connection_capabilities":crate::capabilities::manifest()}),
-            );
+            return crate::capabilities::respond(arguments);
         }
         if name == "plotium_get_state" {
             return self.get_state(app, arguments, blocked);
@@ -429,7 +425,7 @@ impl Session {
             if !crate::capabilities::EDIT_OPERATIONS.contains(&args.tool_id.as_str()) {
                 return Err(Failure::new(
                     "unsupported_operation",
-                    "Discover supported operations in connection_capabilities.editable_operations",
+                    "Discover supported operations in connection_capabilities.editable_operations[].operations",
                 ));
             }
             if is_native_curve_tool(&args.tool_id)
@@ -637,10 +633,6 @@ impl Session {
         Ok(json!(execute_tool(app, plan, ExecutionAuthority::Read)?))
     }
 }
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Empty {}
-
 pub fn ensure_not_busy(app: &PlotiumApp) -> Result<(), Failure> {
     ensure_project_ready(app)?;
     ensure_table_edit_finished(app)

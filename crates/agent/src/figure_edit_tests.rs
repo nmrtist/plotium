@@ -17,24 +17,24 @@ fn figure_edit_permissions_discovery_single_use_revision_context_and_busy_are_en
     );
     s.allow_modify = true;
     let state = s
-        .call(&mut a, "plotium_capabilities_get", json!({}))
+        .call(
+            &mut a,
+            "plotium_capabilities_get",
+            json!({"section":"operation_constraints","key":FIGURE_EDIT}),
+        )
         .unwrap();
-    assert_eq!(
-        state["connection_capabilities"]["operation_constraints"][FIGURE_EDIT]["schema"],
-        figure_edit_schema()
-    );
+    assert_eq!(state["contract"]["schema"], figure_edit_schema());
     let tool = crate::protocol::definitions()
         .into_iter()
         .find(|t| t.name == "plotium_plan")
         .unwrap();
     let alternatives = &tool.input_schema["oneOf"];
-    assert!(
-        alternatives
+    assert!(alternatives.as_array().unwrap().iter().any(|v| {
+        v["properties"]["tool_id"]["enum"]
             .as_array()
-            .unwrap()
-            .iter()
-            .any(|v| v["properties"]["tool_id"]["const"] == FIGURE_EDIT)
-    );
+            .is_some_and(|ids| ids.contains(&json!(FIGURE_EDIT)))
+            && v["not"]["anyOf"].is_array()
+    }));
     let p = args(&a);
     let planned = s.call(&mut a, "plotium_plan", p).unwrap();
     assert!(a.doc.canvases[0].objects.is_empty());
