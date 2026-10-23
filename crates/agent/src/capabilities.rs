@@ -32,8 +32,42 @@ pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
     "plot.series.materialize_default",
 ];
 
-fn build_manifest() -> Value {
-    let tools=crate::protocol::definitions().iter().map(|tool|{
+/// Detail sections served by `plotium_capabilities_get {section,key?}`.
+pub(crate) const SECTIONS: [&str; 6] = [
+    "tools",
+    "operation_constraints",
+    "scientific_operations",
+    "guide_contract",
+    "candidate_preview",
+    "limits",
+];
+/// Sections whose entries are large enough that only one is returned per call.
+const KEY_REQUIRED: [&str; 2] = ["operation_constraints", "scientific_operations"];
+const KEYED: [&str; 4] = [
+    "tools",
+    "operation_constraints",
+    "scientific_operations",
+    "limits",
+];
+/// Operations that name their targets inside parameters and omit ids/targets.
+pub(crate) const NO_SELECTOR: [&str; 11] = [
+    "data.import",
+    "project.save",
+    "figure.export",
+    "figure.edit",
+    "plot.create",
+    "plot.series.append",
+    "plot.series.bind",
+    "plot.series.materialize_default",
+    "plot.field.create",
+    "analysis.diffusion.plot",
+    "properties.set_many",
+];
+/// Table operations that take exactly one DatasetId in ids.
+pub(crate) const SINGLE_DATASET: [&str; 3] = ["table.patch", "table.refresh", "data.transform"];
+
+fn tool_index() -> Vec<Value> {
+    crate::protocol::definitions().iter().map(|tool|{
         let (operations,result,targets)=match tool.name.as_ref(){
             "plotium_tasks_get"=>(vec!["tasks.get"],"{task:TaskReceipt}; retained in the application process; task_not_found never authorizes replay","TaskId; callable while busy or after project change"),
             "plotium_tasks_list"=>(vec!["tasks.list"],"{tasks:TaskReceipt[]}; retained in the application process","offset/limit; callable while busy or after project change"),
@@ -42,7 +76,7 @@ fn build_manifest() -> Value {
             "plotium_diffusion_inspect"=>(vec!["diffusion.inspect"],"ToolResult.value: {resolution_source,increment_count,input:DiffusionInputReport,field_requirement,executable,acquisition_evidence}","one dataset or field ID"),
             "plotium_processing_inspect"=>(vec!["processing.inspect"],"ToolResult.value: {dataset,axes:[{axis,pipeline,pending_apply}]}","one dataset ID"),
             "plotium_get_state"=>(vec!["state.get"],"{project_context,revision,availability,project:{dataset_count,canvas_count},selection:{items,total,next_offset},hand_edits:{items:[{target,key,label,value}],total,next_offset},permissions,capability_fingerprint,save_state}; latest state per call, not a frozen selection snapshot","application; project, selection and hand_edits are null while busy"),
-            "plotium_capabilities_get"=>(vec!["capabilities.get"],"{capability_fingerprint,connection_capabilities}; immutable contracts, not current authorization","static; no project or revision required; callable while busy"),
+            "plotium_capabilities_get"=>(vec!["capabilities.get"],"{} returns {capability_fingerprint,connection_capabilities:index}; {section,key?} returns {capability_fingerprint,section,key?,contract}; immutable contracts, not current authorization","static; no project or revision required; callable while busy"),
             "plotium_resources_search"=>(vec!["resources.search"],"ToolResult.value: FrozenTargetSet","ResourceQuery"),
             "plotium_resources_inspect"=>(vec!["resources.inspect"],"ToolResult.value: ResourceDescriptor[]","explicit resource IDs"),
             "plotium_properties_list"=>(vec!["properties.list"],"{properties:[{id,label,scope,schema,access,applicability}]}","static; no target"),
@@ -59,15 +93,52 @@ fn build_manifest() -> Value {
             "plotium_save_status"=>(vec!["project.save.status"],"{save:SaveReceipt,current_project_context,current_revision,current_dirty,current_path,matches_current_project}; no audit mutation","opaque save_id; retained across reconnect/project changes in this desktop process"),
             _=>unreachable!("all connection tools have discovery contracts"),
         };
-        json!({"name":tool.name,"description":tool.description,"operations":operations,"input_schema":tool.input_schema,"output_schema":tool.output_schema,"annotations":tool.annotations,
+        let mut entry = json!({"name":tool.name,"operations":operations,
             "result_contract":result,"targets":targets,
-            "required_permission":if tool.name=="plotium_execute"{"operation_specific: reversible_modify or per_request_desktop_save/export_authorization"}else if tool.name=="plotium_plan"{"operation_specific: read or reversible_modify"}else if matches!(tool.name.as_ref(),"plotium_preview_plan"|"plotium_tasks_cancel") {"reversible_modify"} else{"read"}})
-    }).collect::<Vec<_>>();
-    json!({"tools":tools,"editable_operations":EDIT_OPERATIONS,
-        "operation_constraints":{"figure.apply_theme":theme_constraint(),"plot.field.create":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"analysis.diffusion.plot":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"figure.export":{"schema":plotium_core::export::figure_export_schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_export_authorization","result_contract":"plan returns export_id and per-file preflight; execute requests independent desktop consent. Poll plotium_export_status. Each file reports success/failure independently; no automatic retry or Undo for disk effects."},"project.save":{"schema":crate::session::save::schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_save_authorization","result_contract":"plan returns save_id; execute queues a desktop authorization prompt, not a completed save. Poll plotium_save_status. Existing targets require explicit replacement confirmation. Saving is not undoable."},"plot.series.append":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_append_schema(),"result_contract":"binding_plan.appended contains frozen new Series targets; existing bindings are retained; 200 total curves and shared binding row/plan/response budgets apply."},"table.patch":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_patch_schema()},"table.refresh":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_refresh_schema()},"figure.edit":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::figure_edit_schema(),"result_contract":"ToolPlan.figure_plan/result and ToolResult.value contain proposed created/modified exact targets, size_mm, margins/gutter, panel_frames final content_frames and ordered content_edits with requested/effective frames, parent/page coordinates and asset changes. annotation_edits list each annotation op with its plot target, op, plot-local annotation_id and resulting annotation. panel_edits list each panel_stack op with its layout, gap_pt, members_top_to_bottom and merged_panels. content_frame edits only that item, not its panel (in a shared-x stack the siblings reflow to its new height share); image_replace changes only its asset reference. Frozen native assets commit once atomically; one Undo/Redo restores content and IDs. Deletion-only plans report deleted_targets, deletions, remaining_series, parent/group/viewport_link/selection changes, retained_asset_ids and native auto_height changes. Reject duplicates, overlaps, nonempty panels, last Series, default/dynamic bindings and mixing deletion with other edits. Source datasets/assets remain; empty parents remain. Selection-effect changes require new preflight. No automatic reflow."},"plot.create":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::plot_create_schema(),"result_contract":"ToolPlan.binding_plan contains creation {parent,canvas,panel,plot,created,size_mm,frame_pt,panel_frame_pt,coordinate_units,series_defaults}, and bindings [{target,source,diagnostics}]. ToolResult.value contains creation {canvas,panel,plot,size_mm,size_preset?,frame_pt,panel_frame_pt,coordinate_units,series_defaults} and bindings [{target,diagnostics:{total_rows,plotted_rows,missing_xy,non_finite_xy,missing_error}}]; ToolResult.targets lists every created target. Preflight IDs are proposed, not committed. One Undo removes only created content; Redo restores the same IDs. After response loss query proposed IDs/current revision before creating again."},"data.transform":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_transform_schema()},"plot.series.bind":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(false)},"plot.series.materialize_default":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(true)},"data.import":{"schema":plotium_core::automation::data_import_schema(),"native_from_welcome":true,"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"}},
-        "scientific_operations":plotium_core::automation::ToolRegistry::built_in().descriptors().filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")).map(|d|json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}})).collect::<Vec<_>>(),
-        "property_batch":{"operation":"properties.set_many","writes_min":1,"writes_max":200,"atomic":true,"undo_steps":1,"selectors":"exact target/key/value per write; omit top-level ids/targets","target_source":"plot.create ToolResult.value.bindings[].target and value.creation.plot; preserve full resource and component identity","unsupported_property":"error.details.write_index and key identify the rejected write"},
-        "recovery_contract":{"location":"error.recovery or receipt.recovery","unknown":"null plan_consumed/committed and unknown submission/completion are not evidence of non-execution","retryable":"false: follow next_action, never replay the failed request","authorization":"recovery actions and annotations grant no permissions; file requests require fresh exact-path desktop consent"},
+            "required_permission":if tool.name=="plotium_execute"{"operation_specific: reversible_modify or per_request_desktop_save/export_authorization"}else if tool.name=="plotium_plan"{"operation_specific: read or reversible_modify"}else if matches!(tool.name.as_ref(),"plotium_preview_plan"|"plotium_tasks_cancel") {"reversible_modify"} else{"read"}});
+        // plan and execute accept every editable operation; the index lists them once.
+        if matches!(tool.name.as_ref(), "plotium_plan" | "plotium_execute") {
+            entry.as_object_mut().expect("local entry").remove("operations");
+        }
+        entry
+    }).collect()
+}
+
+fn operation_constraints() -> serde_json::Map<String, Value> {
+    let Value::Object(mut constraints) = json!({"figure.apply_theme":theme_constraint(),"plot.field.create":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"analysis.diffusion.plot":{"schema":plotium_core::automation::scientific_plot_schema(),"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"},"figure.export":{"schema":plotium_core::export::figure_export_schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_export_authorization","result_contract":"plan returns export_id and per-file preflight; execute requests independent desktop consent. Poll plotium_export_status. Each file reports success/failure independently; no automatic retry or Undo for disk effects."},"project.save":{"schema":crate::session::save::schema(),"preflight_permission":"read","execute_permission":"per_request_desktop_save_authorization","result_contract":"plan returns save_id; execute queues a desktop authorization prompt, not a completed save. Poll plotium_save_status. Existing targets require explicit replacement confirmation. Saving is not undoable."},"plot.series.append":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_append_schema(),"result_contract":"binding_plan.appended contains frozen new Series targets; existing bindings are retained; 200 total curves and shared binding row/plan/response budgets apply."},"table.patch":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_patch_schema()},"table.refresh":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_refresh_schema()},"figure.edit":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::figure_edit_schema(),"result_contract":"ToolPlan.figure_plan/result and ToolResult.value contain proposed created/modified exact targets, size_mm, margins/gutter, panel_frames final content_frames and ordered content_edits with requested/effective frames, parent/page coordinates and asset changes. annotation_edits list each annotation op with its plot target, op, plot-local annotation_id and resulting annotation. panel_edits list each panel_stack op with its layout, gap_pt, members_top_to_bottom and merged_panels. content_frame edits only that item, not its panel (in a shared-x stack the siblings reflow to its new height share); image_replace changes only its asset reference. Frozen native assets commit once atomically; one Undo/Redo restores content and IDs. Deletion-only plans report deleted_targets, deletions, remaining_series, parent/group/viewport_link/selection changes, retained_asset_ids and native auto_height changes. Reject duplicates, overlaps, nonempty panels, last Series, default/dynamic bindings and mixing deletion with other edits. Source datasets/assets remain; empty parents remain. Selection-effect changes require new preflight. No automatic reflow."},"plot.create":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::plot_create_schema(),"result_contract":"ToolPlan.binding_plan contains creation {parent,canvas,panel,plot,created,size_mm,frame_pt,panel_frame_pt,coordinate_units,series_defaults}, and bindings [{target,source,diagnostics}]. ToolResult.value contains creation {canvas,panel,plot,size_mm,size_preset?,frame_pt,panel_frame_pt,coordinate_units,series_defaults} and bindings [{target,diagnostics:{total_rows,plotted_rows,missing_xy,non_finite_xy,missing_error}}]; ToolResult.targets lists every created target. Preflight IDs are proposed, not committed. One Undo removes only created content; Redo restores the same IDs. After response loss query proposed IDs/current revision before creating again."},"data.transform":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::table_transform_schema()},"plot.series.bind":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(false)},"plot.series.materialize_default":{"preflight_permission":"reversible_modify","execute_permission":"reversible_modify","schema":plotium_core::automation::curve_binding_schema(true)},"data.import":{"schema":plotium_core::automation::data_import_schema(),"native_from_welcome":true,"preflight_permission":"reversible_modify","execute_permission":"reversible_modify"}})
+    else {
+        unreachable!("literal object")
+    };
+    let registry = plotium_core::automation::ToolRegistry::built_in();
+    for id in EDIT_OPERATIONS {
+        if constraints.contains_key(id) {
+            continue;
+        }
+        let schema = &registry
+            .get(id)
+            .expect("editable operations are registered")
+            .parameter_schema;
+        // Scientific edits start background work at preflight, so planning them needs modify.
+        let scientific = id.starts_with("processing.")
+            || id.starts_with("diffusion.")
+            || id.starts_with("analysis.");
+        constraints.insert(id.into(), json!({"schema":schema,"preflight_permission":if scientific {"reversible_modify"} else {"read"},"execute_permission":"reversible_modify"}));
+    }
+    constraints["dataset.delete"]["result_contract"] = json!(
+        "Refused at preflight, naming the users, while a plot, projection, derived dataset or report uses a dataset; delete a derived dataset in its own request first. One Undo restores the datasets and their IDs."
+    );
+    constraints
+}
+
+fn sections() -> serde_json::Map<String, Value> {
+    let scientific = plotium_core::automation::ToolRegistry::built_in().descriptors().filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")).map(|d|(d.id.clone(),json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}}))).collect::<serde_json::Map<_,_>>();
+    let tools = tool_index().into_iter().map(|mut tool| {
+        let name = tool["name"].as_str().expect("tool names are strings").to_owned();
+        let entry = tool.as_object_mut().expect("local entry");
+        entry.remove("name");
+        (name, json!({"result_contract":entry.remove("result_contract"),"targets":entry.remove("targets")}))
+    }).collect::<serde_json::Map<_,_>>();
+    let Value::Object(sections) = json!({"tools":tools,"operation_constraints":operation_constraints(),"scientific_operations":scientific,
         "candidate_preview":plotium_core::automation::plan_preview_contract(),
         "guide_contract": {"targets":"ids: explicit plot object IDs; no Series components",
             "write_policy":"strict_all_targets; existing non-guide property skip behavior is unchanged",
@@ -77,11 +148,65 @@ fn build_manifest() -> Value {
             "geometry":"properties_inspect guide_geometry uses object_local_pt at scale 1; layout text widths are estimates; fits_plot reports size fit, not clipping or collision diagnostics",
             "position_applicability":"categorical legend content independent of guide visibility; retained custom origins remain readable/resettable without content; not free-positioned colorbars",
             "limits":{"targets":200,"title_utf8_bytes":16384,"response_bytes":262144}},
-        "property_definitions":crate::session::property_catalog(),
-        "supported_properties":crate::session::PROPERTIES.iter().map(|id|id.as_str()).collect::<Vec<_>>(),
+        "limits":{"figure_diagnostic":plotium_core::automation::figure_diagnostic_limits(),"figure_export":{"outputs":8,"dpi_max":2400,"png_edge":16384,"png_pixels":16777216,"asset_bytes":16777216,"decoded_asset_bytes":67108864,"svg_bytes":8388608,"output_bytes":67108864,"in_flight":1,"receipts":16},"table_update":plotium_core::automation::table_update_limits(),"figure_edit":{"max_edits":200,"max_deletion_targets":200,"deletion_curve_rows":2000000,"max_panels":200,"grid_rows_cols_max":16,"max_images":8,"image_file_bytes":1048576,"image_batch_bytes":4194304,"image_decoded_bytes":4194304,"text_utf8_bytes":16384},"plot_creation":{"max_plots":1,"max_series":200,"max_curve_rows":2000000,"pending_curve_rows_shared_with_bindings":2000000,"response_bytes":256*1024},"table_transform":plotium_core::automation::table_transform_limits(),"curve_binding":{"max_edits":200,"max_curve_rows":2000000,"pending_curve_rows":2000000,"response_bytes":256*1024,"diagnostic_rows":20},"document_page_default":DOCUMENT_PAGE_DEFAULT,"document_page_max":DOCUMENT_PAGE_MAX,"document_response_bytes":DOCUMENT_RESPONSE_BYTES,"pending_plans":32,"image_preview":plotium_core::automation::image_preview_limits(),"table_read":plotium_core::automation::table_read_limits(),"native_import":plotium_core::automation::native_import_limits(),"table_import":plotium_core::automation::table_import_limits()}})
+    else {
+        unreachable!("literal object")
+    };
+    sections
+}
+
+fn size(value: &Value) -> usize {
+    serde_json::to_vec(value).map_or(0, |bytes| bytes.len())
+}
+
+fn build_index(sections: &serde_json::Map<String, Value>) -> Value {
+    let constraints = &sections["operation_constraints"];
+    // Grouped by permission pair: most operations share one of a few pairs.
+    let mut operations: Vec<Value> = Vec::new();
+    for id in EDIT_OPERATIONS {
+        let (preflight, execute) = (
+            &constraints[id]["preflight_permission"],
+            &constraints[id]["execute_permission"],
+        );
+        match operations.iter_mut().find(|group| &group["preflight_permission"] == preflight && &group["execute_permission"] == execute) {
+            Some(group) => group["operations"].as_array_mut().expect("local group").push(json!(id)),
+            None => operations.push(json!({"preflight_permission":preflight,"execute_permission":execute,"operations":[id]})),
+        }
+    }
+    let tools = tool_index()
+        .into_iter()
+        .map(|mut tool| {
+            let entry = tool.as_object_mut().expect("local entry");
+            entry.remove("result_contract");
+            entry.remove("targets");
+            tool
+        })
+        .collect::<Vec<_>>();
+    let scientific = sections["scientific_operations"].as_object().expect("local section").values().map(|entry| {
+        let d = &entry["descriptor"];
+        json!({"id":d["id"],"title":d["title"],"effect":d["effect"],"required_permission":entry["required_permission"]})
+    }).collect::<Vec<_>>();
+    let listing = SECTIONS.iter().map(|name| {
+        let detail = &sections[*name];
+        let mut entry = json!({"bytes":size(detail),"key":if KEY_REQUIRED.contains(name) {"required"} else if KEYED.contains(name) {"optional"} else {"none"}});
+        let entries = detail.as_object().expect("sections are objects");
+        // Keys repeat ids the index already lists, so only the large schemas show per-key sizes.
+        match *name {
+            "operation_constraints" => entry["key_bytes"] = entries.iter().map(|(key, value)| (key.clone(), json!(size(value)))).collect::<serde_json::Map<_,_>>().into(),
+            "scientific_operations" => entry["keys"] = json!("scientific_operations[].id"),
+            "tools" => entry["keys"] = json!("tools[].name"),
+            "limits" => entry["keys"] = json!(entries.keys().collect::<Vec<_>>()),
+            _ => {}
+        }
+        (name.to_string(), entry)
+    }).collect::<serde_json::Map<_,_>>();
+    json!({"tools":tools,"editable_operations":operations,"scientific_operations":scientific,
+        "sections":listing,
+        "properties":"Property definitions and ids are listed by plotium_properties_list.",
+        "property_batch":{"operation":"properties.set_many","writes_min":1,"writes_max":200,"atomic":true,"undo_steps":1,"selectors":"exact target/key/value per write; omit top-level ids/targets","target_source":"plot.create ToolResult.value.bindings[].target and value.creation.plot; preserve full resource and component identity","unsupported_property":"error.details.write_index and key identify the rejected write"},
+        "recovery_contract":{"location":"error.recovery or receipt.recovery","unknown":"null plan_consumed/committed and unknown submission/completion are not evidence of non-execution","retryable":"false: follow next_action, never replay the failed request","authorization":"recovery actions and annotations grant no permissions; file requests require fresh exact-path desktop consent"},
         "resource_capabilities":"Core resource capabilities describe data/rendering semantics, not operations exposed by this connection. Only the operations above can be called here.",
         "document_root":document_root_target(),
-        "limits":{"figure_diagnostic":plotium_core::automation::figure_diagnostic_limits(),"figure_export":{"outputs":8,"dpi_max":2400,"png_edge":16384,"png_pixels":16777216,"asset_bytes":16777216,"decoded_asset_bytes":67108864,"svg_bytes":8388608,"output_bytes":67108864,"in_flight":1,"receipts":16},"table_update":plotium_core::automation::table_update_limits(),"figure_edit":{"max_edits":200,"max_deletion_targets":200,"deletion_curve_rows":2000000,"max_panels":200,"grid_rows_cols_max":16,"max_images":8,"image_file_bytes":1048576,"image_batch_bytes":4194304,"image_decoded_bytes":4194304,"text_utf8_bytes":16384},"plot_creation":{"max_plots":1,"max_series":200,"max_curve_rows":2000000,"pending_curve_rows_shared_with_bindings":2000000,"response_bytes":256*1024},"table_transform":plotium_core::automation::table_transform_limits(),"curve_binding":{"max_edits":200,"max_curve_rows":2000000,"pending_curve_rows":2000000,"response_bytes":256*1024,"diagnostic_rows":20},"document_page_default":DOCUMENT_PAGE_DEFAULT,"document_page_max":DOCUMENT_PAGE_MAX,"document_response_bytes":DOCUMENT_RESPONSE_BYTES,"pending_plans":32,"image_preview":plotium_core::automation::image_preview_limits(),"table_read":plotium_core::automation::table_read_limits(),"native_import":plotium_core::automation::native_import_limits(),"table_import":plotium_core::automation::table_import_limits()},
         "revision_contract":"Fetch get_state after edits or Undo. Revision-bound reads and plans reject stale revisions; execute rechecks permission and revision. Queries do not append project run records or change dirty state, edit generation or revision."})
 }
 
@@ -168,28 +293,110 @@ pub(crate) fn check_theme(
 }
 
 struct Discovery {
-    manifest: Value,
+    index: Value,
+    sections: serde_json::Map<String, Value>,
     fingerprint: String,
 }
 
 fn discovery() -> &'static Discovery {
     static DISCOVERY: std::sync::OnceLock<Discovery> = std::sync::OnceLock::new();
     DISCOVERY.get_or_init(|| {
-        let manifest = build_manifest();
-        let fingerprint = fingerprint_of(&manifest);
+        let sections = sections();
+        let index = build_index(&sections);
+        let fingerprint = fingerprint_of(&contract(&index, &sections));
         Discovery {
-            manifest,
+            index,
+            sections,
             fingerprint,
         }
     })
 }
 
+/// Everything an agent may cache under one fingerprint: the index, every
+/// detail section, the MCP tool definitions and the property catalog.
+fn contract(index: &Value, sections: &serde_json::Map<String, Value>) -> Value {
+    json!({"index":index,"sections":sections,"tools":crate::protocol::definitions(),"properties":crate::session::property_catalog()})
+}
+
+#[cfg(test)]
 pub(crate) fn manifest() -> &'static Value {
-    &discovery().manifest
+    &discovery().index
 }
 
 pub(crate) fn fingerprint() -> &'static str {
     &discovery().fingerprint
+}
+
+/// Answer `plotium_capabilities_get`: the index, or one detail section entry.
+pub(crate) fn respond(arguments: Value) -> Result<Value, crate::session::Failure> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Query {
+        section: Option<String>,
+        key: Option<String>,
+    }
+    let invalid = |message: String, field: &str, values: Vec<String>| {
+        let mut failure = crate::session::Failure::new("invalid_parameters", message);
+        failure.details = Some(json!({ field: values }));
+        failure
+    };
+    let query: Query = serde_json::from_value(arguments)
+        .map_err(|e| crate::session::Failure::new("invalid_parameters", e.to_string()))?;
+    let discovery = discovery();
+    let Some(section) = query.section else {
+        if query.key.is_some() {
+            return Err(invalid(
+                "key requires section; choose a section from error.details.sections".into(),
+                "sections",
+                SECTIONS.map(String::from).to_vec(),
+            ));
+        }
+        return Ok(
+            json!({"capability_fingerprint":discovery.fingerprint,"connection_capabilities":discovery.index}),
+        );
+    };
+    let Some(detail) = discovery.sections.get(&section) else {
+        return Err(invalid(
+            format!(
+                "Unknown capability section \"{section}\"; choose one from error.details.sections"
+            ),
+            "sections",
+            SECTIONS.map(String::from).to_vec(),
+        ));
+    };
+    let keys = || match detail {
+        Value::Object(entries) if KEYED.contains(&section.as_str()) => {
+            entries.keys().cloned().collect()
+        }
+        _ => Vec::new(),
+    };
+    let contract = match &query.key {
+        None if KEY_REQUIRED.contains(&section.as_str()) => {
+            return Err(invalid(
+                format!("Section \"{section}\" requires a key; choose one from error.details.keys"),
+                "keys",
+                keys(),
+            ));
+        }
+        None => detail.clone(),
+        Some(key) => match detail.get(key) {
+            Some(entry) if KEYED.contains(&section.as_str()) => entry.clone(),
+            _ => {
+                return Err(invalid(
+                    format!(
+                        "Unknown key \"{key}\" for section \"{section}\"; valid keys are in error.details.keys"
+                    ),
+                    "keys",
+                    keys(),
+                ));
+            }
+        },
+    };
+    let mut response = json!({"capability_fingerprint":discovery.fingerprint,"section":section,"contract":contract});
+    if let Some(key) = query.key {
+        response["key"] = json!(key);
+    }
+    Ok(response)
 }
 
 fn fingerprint_of(contract: &Value) -> String {

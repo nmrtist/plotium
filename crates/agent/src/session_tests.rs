@@ -445,8 +445,12 @@ fn apply_theme_lists_themes_restyles_canvas_and_undoes_in_one_step() {
     let mut app = app();
     let mut session = Session::default();
     let caps = session
-        .call(&mut app, "plotium_capabilities_get", json!({}))
-        .unwrap()["connection_capabilities"]["operation_constraints"]["figure.apply_theme"]
+        .call(
+            &mut app,
+            "plotium_capabilities_get",
+            json!({"section":"operation_constraints","key":"figure.apply_theme"}),
+        )
+        .unwrap()["contract"]
         .clone();
     assert!(
         caps["builtin_themes"]
