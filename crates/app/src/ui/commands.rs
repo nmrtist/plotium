@@ -243,6 +243,10 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // command can never be blocked by one requirement while explaining another.
     // `and_then` reports the first unmet requirement and skips the rest.
     let gate: Result<(), &'static str> = match id {
+        CommandId::NewProject | CommandId::OpenProject | CommandId::CloseProject | CommandId::Quit => requires(
+            app.session.ui.table_cell_edit.is_none(),
+            "Apply or discard the unfinished cell edit before leaving this project.",
+        ),
         CommandId::FollowResults
         | CommandId::PauseResultFollow
         | CommandId::StopResultFollow

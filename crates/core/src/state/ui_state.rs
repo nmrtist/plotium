@@ -2,11 +2,14 @@ use super::*;
 #[path = "ui_state_nmr_import.rs"]
 mod nmr_import;
 use crate::actions::PendingWheelPropertyEdit;
+#[path = "ui_state_table_edit.rs"]
+mod table_edit;
 use crate::operation::{OperationHistory, OperationId, OperationReport};
 pub use nmr_import::NmrImportDraft;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+pub use table_edit::TableCellEditDraft;
 #[path = "ui_state_xps.rs"]
 mod xps;
 pub use xps::{PropertyTextEditState, XpsWorkbenchTab};
@@ -187,6 +190,7 @@ pub struct UiState {
     /// The continuous property-catalog control currently being dragged, if any.
     pub property_gesture: Option<crate::actions::PendingPropertyGesture>,
     pub property_text_edits: Vec<PropertyTextEditState>,
+    pub table_cell_edit: Option<TableCellEditDraft>,
     pub inspector_edit: Option<PendingInspectorEdit>,
     pub series_presentation_edit: Option<PendingSeriesPresentationEdit>,
     /// Pre-edit snapshot for a plot-local axis text/range gesture.
@@ -437,6 +441,7 @@ impl Default for UiState {
             processing_session: None,
             property_gesture: None,
             property_text_edits: Vec::new(),
+            table_cell_edit: None,
             inspector_edit: None,
             series_presentation_edit: None,
             axis_overrides_before: None,

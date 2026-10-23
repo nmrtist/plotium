@@ -3,7 +3,7 @@
 //! (RowId, revisions, patches) never appears in the UI.
 
 use egui::Ui;
-use plotium_core::state::{DatasetId, TableDataset, TableEditDelta};
+use plotium_core::state::{DatasetId, TableDataset};
 
 use super::grid::{self, SheetState};
 use super::transform::TableSheetContext;
@@ -12,11 +12,13 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
     let TableSheetContext {
         dataset,
         commit,
+        draft,
         transform,
         refresh,
         catalog,
         transform_running,
     } = context;
+    let apply = super::draft::controls(ui, draft, Some(table));
     let typed = &table.typed_state;
     let snapshot = &typed.envelope.revision.snapshot;
     let editable = table.provenance.is_none();
@@ -49,15 +51,8 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
         .ctx()
         .data_mut(|data| data.get_temp::<SheetState>(state_id))
         .unwrap_or_default();
-    let outcome = grid::typed_table_grid(
-        ui,
-        &snapshot.schema,
-        row_count,
-        &snapshot.row_id_chunks,
-        &reader,
-        &mut state,
-        editable,
-        &mut |ui, column| {
+    let outcome =
+        grid::typed_table_grid(ui, table, &reader, &mut state, draft, &mut |ui, column| {
             super::column_menu::column_header_menu(
                 ui,
                 table,
@@ -66,8 +61,7 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
                 transform_running,
                 transform,
             );
-        },
-    );
+        });
     status_bar(
         ui,
         table,
@@ -77,12 +71,16 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
         editable,
     );
     ui.ctx().data_mut(|data| data.insert_temp(state_id, state));
-    if let Some((row, column, before, after)) = outcome.edit {
-        let mut delta = TableEditDelta::new_dataset(table);
-        delta.record_typed_value(row, column, before, after);
-        delta.finish_dataset(table);
-        if !delta.is_empty() {
-            *commit = Some(delta);
+    if (apply || outcome.edit.is_some())
+        && let Some(edit) = draft.as_mut()
+    {
+        match super::draft::prepare(edit, table) {
+            Ok(Some(delta)) => *commit = Some(delta),
+            Ok(None) => *draft = None,
+            Err(error) => {
+                edit.error = Some(error);
+                edit.take_focus = true;
+            }
         }
     }
 }

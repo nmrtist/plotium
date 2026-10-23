@@ -44,13 +44,16 @@ impl Session {
                 "Resolve recovery or save operation and retry",
             ))
         } else {
-            ensure_not_busy(app).err()
+            ensure_project_ready(app).err()
         };
         let read_reason = busy.clone();
-        let modify_reason = read_reason.clone().or_else(|| {
-            (!self.allow_modify)
-                .then(|| Failure::new("permission_denied", "Switch to Read and modify"))
-        });
+        let modify_reason = read_reason
+            .clone()
+            .or_else(|| ensure_table_edit_finished(app).err())
+            .or_else(|| {
+                (!self.allow_modify)
+                    .then(|| Failure::new("permission_denied", "Switch to Read and modify"))
+            });
         let (project, selection, hand_edits) = if busy.is_some() {
             (Value::Null, Value::Null, Value::Null)
         } else {

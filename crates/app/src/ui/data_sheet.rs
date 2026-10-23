@@ -2,12 +2,41 @@ use super::*;
 
 mod cell;
 mod column_menu;
+mod draft;
 mod grid;
 mod relationship;
 mod transform;
 mod typed;
 
 pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
+    let requested_sheet = app.session.ui.table_cell_edit.as_ref().and_then(|edit| {
+        app.session
+            .ui
+            .sheet_open
+            .and_then(|index| app.doc.datasets.get(index))
+            .map(|dataset| dataset.resource_id())
+            .filter(|dataset| *dataset != edit.dataset)
+    });
+    if let Some(edit) = &app.session.ui.table_cell_edit {
+        if let Some(index) = app
+            .doc
+            .datasets
+            .iter()
+            .position(|dataset| dataset.resource_id() == edit.dataset)
+        {
+            app.session.ui.sheet_open = Some(index);
+        } else {
+            app.session.ui.sheet_open = None;
+            egui::Window::new("Data sheet — Unfinished cell edit")
+                .id(egui::Id::new("plotium_data_sheet"))
+                .collapsible(false)
+                .show(ctx, |ui| {
+                    super::result_follow::register_editor(ui);
+                    draft::controls(ui, &mut app.session.ui.table_cell_edit, None);
+                });
+            return;
+        }
+    }
     let Some(di) = app.session.ui.sheet_open else {
         return;
     };
@@ -57,6 +86,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         (available.y * 0.8).max(240.0),
     );
     egui::Window::new(title)
+        .id(egui::Id::new("plotium_data_sheet"))
         .collapsible(false)
         .resizable(true)
         .default_size([620.0, 380.0])
@@ -104,6 +134,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
                     transform::TableSheetContext {
                         dataset: di,
                         commit: &mut commit,
+                        draft: &mut app.session.ui.table_cell_edit,
                         transform: &mut transform,
                         refresh: &mut refresh,
                         catalog: &catalog,
@@ -113,22 +144,45 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
                 );
             }
         });
+    if commit.is_none()
+        && (requested_sheet.is_some() || !open)
+        && let Some(edit) = app.session.ui.table_cell_edit.as_mut()
+        && let Some(table) = app.doc.datasets[di].as_table()
+    {
+        match draft::prepare(edit, table) {
+            Ok(Some(delta)) => commit = Some(delta),
+            Ok(None) => app.session.ui.table_cell_edit = None,
+            Err(error) => edit.error = Some(error),
+        }
+    }
     if let Some(delta) = commit {
         let typed_diagnostic = delta.typed_diagnostic.clone();
-        app.session.status = if let Some(error) = typed_diagnostic {
-            error
+        let result = if let Some(error) = typed_diagnostic {
+            Err(error)
         } else if let Some(after) = delta.typed_state(true) {
             match app.commit_table_revision(
                 app.doc.datasets[di].resource_id(),
                 delta.before_revision,
                 after,
             ) {
-                Ok(()) => "Edited data table.".to_owned(),
-                Err(error) => error,
+                Ok(()) => Ok(()),
+                Err(error) => Err(error),
             }
         } else {
-            "The cell edit could not be prepared.".to_owned()
+            Err("The cell edit could not be prepared.".to_owned())
         };
+        match result {
+            Ok(()) => {
+                app.session.ui.table_cell_edit = None;
+                app.session.status = "Edited data table.".to_owned();
+            }
+            Err(error) => {
+                if let Some(edit) = app.session.ui.table_cell_edit.as_mut() {
+                    edit.error = Some(error.clone());
+                }
+                app.session.status = error;
+            }
+        }
     }
     if let Some(request) = transform
         && let Err(error) = app.start_table_transform(
@@ -148,8 +202,24 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
     if let Some(source) = freeze_source {
         app.request_region_table_operation(source, false);
     }
+    if app.session.ui.table_cell_edit.is_none()
+        && let Some(requested) = requested_sheet
+    {
+        app.session.ui.sheet_open = app
+            .doc
+            .datasets
+            .iter()
+            .position(|dataset| dataset.resource_id() == requested);
+    }
     if !open {
-        app.session.ui.sheet_open = None;
+        if let Some(edit) = app.session.ui.table_cell_edit.as_mut() {
+            if edit.error.is_none() {
+                edit.error =
+                    Some("Apply or discard this cell edit before closing the data sheet.".into());
+            }
+        } else {
+            app.session.ui.sheet_open = None;
+        }
     }
 }
 

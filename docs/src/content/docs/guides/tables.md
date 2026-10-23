@@ -21,6 +21,13 @@ input keeps the editor open with a red outline and an explanation on hover.
 Click a row number to select the whole row; **Ctrl+C** copies the selected
 cell or row. The status bar shows the table size and the current selection.
 
+While a cell edit is unfinished, AI assistants can read the committed data but
+must wait before making changes. Use **Apply** to commit the input or **Discard**
+to cancel it. If the table changes or becomes unavailable during editing, the
+sheet preserves your text and explains the conflict. **Copy draft** lets you
+keep the input before discarding it and reopening the cell.
+Finish or discard the edit before leaving the project.
+
 Every edit is undoable; undo and redo step back and forth through the table's
 edit history rather than replacing the whole table each time. Text, Boolean,
 date, and empty cells edit exactly the way numbers do.
