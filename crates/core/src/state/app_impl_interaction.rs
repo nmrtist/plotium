@@ -56,7 +56,8 @@ impl PlotiumApp {
                 }
             }
             Interaction::Furniture(drag) => match drag.target {
-                FurnitureTarget::Legend { before, .. } => {
+                FurnitureTarget::Legend { before, .. }
+                | FurnitureTarget::PlotLabel { before, .. } => {
                     self.set_axis_overrides_value(drag.canvas, drag.object, &before);
                 }
                 FurnitureTarget::RegionLabel {

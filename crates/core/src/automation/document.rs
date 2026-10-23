@@ -198,28 +198,7 @@ impl Node<'_> {
                         out["coordinate_units"] = json!(p.binding.coordinates);
                         out["chart_id"] = json!(p.chart.type_id);
                         out["chart_column"] = json!(p.chart.column);
-                        out["annotations"] = json!(
-                            p.axis_overrides
-                                .annotations
-                                .items
-                                .iter()
-                                .map(crate::state::annotation_reading)
-                                .chain(
-                                    p.axis_overrides
-                                        .annotations
-                                        .reference_lines
-                                        .iter()
-                                        .map(crate::state::reference_line_reading)
-                                )
-                                .chain(
-                                    p.axis_overrides
-                                        .annotations
-                                        .arrows
-                                        .iter()
-                                        .map(crate::state::arrow_reading)
-                                )
-                                .collect::<Vec<_>>()
-                        );
+                        out["annotations"] = json!(crate::state::annotation_readings(c, o.id));
                     }
                     ContentKind::Text(text) => {
                         out["text"] = json!(text.text);

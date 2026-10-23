@@ -1,5 +1,5 @@
 use super::*;
-use crate::Margins;
+use crate::{Margins, Projector};
 use plotium_figure::{Axis, Color, ReferenceLine, Series};
 
 fn line(orientation: ReferenceOrientation, value: f64, label: &str) -> ReferenceLine {
@@ -11,6 +11,7 @@ fn line(orientation: ReferenceOrientation, value: f64, label: &str) -> Reference
         line_style: LineStyle::Dashed,
         label: label.into(),
         label_size: None,
+        label_position: None,
     }
 }
 
@@ -29,7 +30,8 @@ fn layouts(fig: &Figure) -> (Rect, Vec<Laid>) {
     let margins = Margins::for_figure(fig);
     let proj = Projector::new(fig, outer, &margins);
     let plot = proj.plot;
-    let items = layout(fig, &proj, plot, 1.0)
+    let labels = crate::label_layout(fig, plot, 1.0);
+    let items = layout(fig, plot, &labels)
         .into_iter()
         .map(|l| (l.start, l.end, l.label.map(|label| (label.x, label.anchor))))
         .collect();

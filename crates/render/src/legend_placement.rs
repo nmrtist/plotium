@@ -85,20 +85,44 @@ pub(crate) fn coverage(fig: &Figure, plot: Rect, zones: &[Rect]) -> Vec<usize> {
     scores
 }
 
-/// Visit every projected sample (as a zero-length segment) and drawn segment.
+/// Visit every projected sample (as a zero-length segment) and drawn segment,
+/// author text anchors and arrows included.
 pub(crate) fn for_each_segment(
     fig: &Figure,
     plot: Rect,
     mut add_segment: impl FnMut((f32, f32), (f32, f32)),
 ) {
-    let project = |p: [f64; 2], side: YAxisSide| {
-        let tx = fig.x.normalize(p[0]) as f32;
-        let ty = fig.y_axis(side).normalize(p[1]) as f32;
-        (
-            plot.left + tx * plot.width,
-            plot.top + (1.0 - ty) * plot.height,
-        )
+    for_each_data_segment(fig, plot, &mut add_segment);
+    let placed = |p: [f64; 2]| {
+        Some(project(fig, plot, p, YAxisSide::Left)).filter(|q| crate::is_finite_point(*q))
     };
+    for p in fig.text_annotations().filter_map(|a| placed(a.at)) {
+        add_segment(p, p);
+    }
+    for arrow in &fig.author_arrows {
+        if let (Some(from), Some(to)) = (placed(arrow.from), placed(arrow.to)) {
+            add_segment(from, to);
+        }
+    }
+}
+
+/// Output position of data point `p` measured on the axis of `side`.
+pub(crate) fn project(fig: &Figure, plot: Rect, p: [f64; 2], side: YAxisSide) -> (f32, f32) {
+    let tx = fig.x.normalize(p[0]) as f32;
+    let ty = fig.y_axis(side).normalize(p[1]) as f32;
+    (
+        plot.left + tx * plot.width,
+        plot.top + (1.0 - ty) * plot.height,
+    )
+}
+
+/// Visit the samples and segments of series and error bars.
+pub(crate) fn for_each_data_segment(
+    fig: &Figure,
+    plot: Rect,
+    mut add_segment: impl FnMut((f32, f32), (f32, f32)),
+) {
+    let project = |p: [f64; 2], side: YAxisSide| project(fig, plot, p, side);
     // A point is drawn only where it has a finite position; on a log axis
     // zero and negative values have none.
     let placed = |p: [f64; 2], side| Some(project(p, side)).filter(|q| crate::is_finite_point(*q));
@@ -162,20 +186,6 @@ pub(crate) fn for_each_segment(
             placed(high, bar.y_axis),
         ) {
             add_segment(low, high);
-        }
-    }
-    for p in fig
-        .text_annotations()
-        .filter_map(|a| placed(a.at, YAxisSide::Left))
-    {
-        add_segment(p, p);
-    }
-    for arrow in &fig.author_arrows {
-        if let (Some(from), Some(to)) = (
-            placed(arrow.from, YAxisSide::Left),
-            placed(arrow.to, YAxisSide::Left),
-        ) {
-            add_segment(from, to);
         }
     }
 }

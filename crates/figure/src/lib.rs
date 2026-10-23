@@ -18,7 +18,9 @@ pub use polygon::Polygon;
 mod reference_line;
 mod typeface;
 pub use display::*;
-pub use reference_line::{ReferenceLine, ReferenceOrientation};
+pub use reference_line::{
+    ReferenceLabelPosition, ReferenceLabelSide, ReferenceLine, ReferenceOrientation,
+};
 pub use typeface::{FontWeight, Typeface};
 
 pub use colormap::ColormapId;
@@ -419,6 +421,11 @@ pub struct Annotation {
     pub size: f32,
     #[serde(default, skip_serializing_if = "TextAnchor::is_point")]
     pub anchor: TextAnchor,
+    /// Pinned offset of an author label from its projected anchor, in pt with
+    /// x right and y up; `None` lets the renderer place it clear of data.
+    /// Builder labels always sit at their anchor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset_pt: Option<[f32; 2]>,
 }
 
 /// Arrowhead placement and fill for an [`ArrowAnnotation`].

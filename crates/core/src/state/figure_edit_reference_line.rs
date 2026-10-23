@@ -1,4 +1,5 @@
 //! Reference-line kind of the plot annotation edits in a figure transaction.
+use super::plot_label_placement::request_placement;
 use super::*;
 use plotium_figure::{LineStyle, ReferenceOrientation};
 use serde::{Deserialize, Serialize};
@@ -159,6 +160,9 @@ pub(super) fn apply(
             text,
             at,
             font_pt,
+            offset_pt,
+            placement,
+            override_hand_edits,
             ..
         } => {
             let Some(line) = annotations.reference_line_mut(*annotation_id) else {
@@ -174,11 +178,25 @@ pub(super) fn apply(
             if text.is_some() || at.is_some() {
                 return Err(not_text.into());
             }
-            if fields.is_empty() && font_pt.is_none() {
+            if offset_pt.is_some() {
                 return Err(
-                    "Reference line edit requires orientation, value, label, font_pt or line."
+                    "offset_pt applies to text annotations; a reference label takes placement \"auto\"."
                         .into(),
                 );
+            }
+            if fields.is_empty() && font_pt.is_none() && placement.is_none() {
+                return Err(
+                    "Reference line edit requires orientation, value, label, font_pt, line or placement."
+                        .into(),
+                );
+            }
+            if let Some(PlacementRequest::Auto) = placement {
+                request_placement(
+                    &mut line.label_placement,
+                    LabelPlacement::Auto,
+                    *annotation_id,
+                    *override_hand_edits,
+                )?;
             }
             update(line, &fields, *font_pt)?;
             Ok(Some(*annotation_id))
@@ -190,6 +208,18 @@ pub(super) fn apply(
     }
 }
 
-pub(crate) fn reference_line_reading(line: &PlotReferenceLine) -> Value {
-    json!({"id":line.id,"kind":"reference_line","orientation":line.orientation,"value":line.value,"label":line.label,"font_pt":line.font_size,"line":{"color":line.color.to_hex(),"width_pt":reference_line_width_bound(line.width),"style":line.line_style},"anchor_space":"data"})
+pub(crate) fn reference_line_reading(
+    line: &PlotReferenceLine,
+    drawn: Option<&plotium_render::ReferenceLabelBox>,
+) -> Value {
+    let mut reading = json!({"id":line.id,"kind":"reference_line","orientation":line.orientation,"value":line.value,"label":line.label,"font_pt":line.font_size,"line":{"color":line.color.to_hex(),"width_pt":reference_line_width_bound(line.width),"style":line.line_style},"anchor_space":"data"});
+    if !line.label.is_empty()
+        && let (Some(out), Value::Object(placement)) = (
+            reading.as_object_mut(),
+            reference_placement_reading(line.orientation, line.label_placement, drawn),
+        )
+    {
+        out.extend(placement);
+    }
+    reading
 }

@@ -383,7 +383,8 @@ fn write_figure(
             label = svg_content(&label.text, fig.typography.tick_pt),
         );
     }
-    crate::reference_lines::write_svg(s, fig, &proj, plot);
+    let labels = crate::label_layout(fig, plot, 1.0);
+    crate::reference_lines::write_svg(s, fig, plot, &labels);
     for contour in &fig.contours {
         let mut path = String::new();
         for seg in &contour.segments {
@@ -425,12 +426,7 @@ fn write_figure(
         );
     }
     arrows::write(s, &proj, fig);
-    for a in fig.text_annotations() {
-        let (px, py) = proj.project(a.at);
-        if !crate::is_finite_point((px, py)) {
-            continue;
-        }
-        let at = crate::text_place::place(a.anchor, (px, py), a.size, 1.0);
+    for (a, at) in crate::label_placement::drawn_texts(fig, plot, &labels, 1.0) {
         let anchor = match at.align {
             crate::text_place::TextAlign::Center => "middle",
             crate::text_place::TextAlign::Start => "start",

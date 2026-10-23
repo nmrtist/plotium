@@ -8,6 +8,8 @@ pub mod contour;
 mod curve_style;
 pub mod diagnostics;
 pub mod integral;
+mod label_placement;
+pub use label_placement::{LabelLayout, ReferenceLabelBox, TextLabelBox, label_layout};
 mod projected;
 mod reference_lines;
 mod shape_stroke;

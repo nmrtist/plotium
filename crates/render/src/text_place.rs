@@ -38,6 +38,22 @@ pub(crate) fn place(anchor: TextAnchor, (x, y): (f32, f32), size: f32, scale: f3
     }
 }
 
+/// Box of a placed text `width` wide and one `size` high.
+pub(crate) fn bounds(at: PlacedText, width: f32, size: f32) -> crate::Rect {
+    let left = match at.align {
+        TextAlign::Center => at.x - 0.5 * width,
+        TextAlign::Start => at.x,
+        TextAlign::End => at.x - width,
+    };
+    // A baseline-placed text rises one font size above its baseline.
+    let top = if at.middle {
+        at.y - 0.5 * size
+    } else {
+        at.y - size
+    };
+    crate::Rect::new(left, top, width, size)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

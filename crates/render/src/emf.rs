@@ -513,7 +513,8 @@ fn write_figure_content(
                 ),
             );
         }
-        reference_lines::write(dc, fig, &proj, plot);
+        let labels = crate::label_layout(fig, plot, 1.0);
+        reference_lines::write(dc, fig, plot, &labels);
         for contour in &fig.contours {
             let segs: Vec<[(f32, f32); 2]> = contour
                 .segments
@@ -538,12 +539,7 @@ fn write_figure_content(
             );
         }
         arrows::write(dc, &proj, fig);
-        for a in fig.text_annotations() {
-            let (px, py) = proj.project(a.at);
-            if !crate::is_finite_point((px, py)) {
-                continue;
-            }
-            let at = crate::text_place::place(a.anchor, (px, py), a.size, 1.0);
+        for (a, at) in crate::label_placement::drawn_texts(fig, plot, &labels, 1.0) {
             let align = match at.align {
                 crate::text_place::TextAlign::Center => TA_CENTER,
                 crate::text_place::TextAlign::Start => TA_LEFT,

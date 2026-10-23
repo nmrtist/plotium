@@ -1,4 +1,5 @@
 //! Data-anchored plot annotation edits inside a native figure transaction.
+use super::plot_label_placement::request_placement;
 use super::*;
 use crate::automation::{TargetRef, canvas_object_ref};
 use serde_json::{Value, json};
@@ -39,67 +40,129 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
         .aux_line_pt
         .filter(|width| (0.1..=20.0).contains(width));
     let missing = || "Discover an exact annotation id on this plot.".to_owned();
-    if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit, aux_line_pt)? {
-        let reading = annotations
-            .arrow(id)
-            .map(super::figure_edit_arrow::arrow_reading);
-        plot.set_annotations(annotations);
-        return Ok(json!({"target":target,"op":op,"annotation_id":id,"annotation":reading}));
-    }
-    if let Some(id) = super::figure_edit_reference_line::apply(&mut annotations, edit, aux_line_pt)?
+    let id = if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit, aux_line_pt)?
     {
-        let reading = annotations
-            .reference_line(id)
-            .map(super::figure_edit_reference_line::reference_line_reading);
-        plot.set_annotations(annotations);
-        return Ok(json!({"target":target,"op":op,"annotation_id":id,"annotation":reading}));
-    }
-    let id = match edit {
-        FigureEdit::AnnotationCreate {
-            text, at, font_pt, ..
-        } => match (text, at, font_pt) {
-            (Some(text), Some(at), Some(font_pt)) => {
-                annotations.add_text(*at, text.clone(), *font_pt)?
+        id
+    } else if let Some(id) =
+        super::figure_edit_reference_line::apply(&mut annotations, edit, aux_line_pt)?
+    {
+        id
+    } else {
+        match edit {
+            FigureEdit::AnnotationCreate {
+                text, at, font_pt, ..
+            } => match (text, at, font_pt) {
+                (Some(text), Some(at), Some(font_pt)) => {
+                    annotations.add_text(*at, text.clone(), *font_pt)?
+                }
+                _ => return Err("A text annotation requires text, at and font_pt.".into()),
+            },
+            FigureEdit::AnnotationSet {
+                annotation_id: id,
+                text,
+                at,
+                font_pt,
+                offset_pt,
+                placement,
+                override_hand_edits,
+                ..
+            } => {
+                if text.is_none()
+                    && at.is_none()
+                    && font_pt.is_none()
+                    && offset_pt.is_none()
+                    && placement.is_none()
+                {
+                    return Err(
+                        "Annotation edit requires text, at, font_pt, offset_pt or placement."
+                            .into(),
+                    );
+                }
+                let id = *id;
+                let annotation = annotations.get_mut(id).ok_or_else(missing)?;
+                if let Some(text) = text {
+                    annotation.text.clone_from(text);
+                }
+                if let Some(at) = at {
+                    annotation.at = *at;
+                }
+                if let Some(pt) = font_pt {
+                    annotation.font_size = *pt;
+                }
+                let requested = match (offset_pt, placement) {
+                    (Some(_), Some(_)) => {
+                        return Err("Pass offset_pt or placement, not both.".into());
+                    }
+                    (Some(offset), None) => Some(LabelPlacement::Fixed(*offset)),
+                    (None, Some(PlacementRequest::Auto)) => Some(LabelPlacement::Auto),
+                    (None, None) => None,
+                };
+                if let Some(requested) = requested {
+                    request_placement(
+                        &mut annotation.placement,
+                        requested,
+                        id,
+                        *override_hand_edits,
+                    )?;
+                }
+                annotation.validate()?;
+                id
             }
-            _ => return Err("A text annotation requires text, at and font_pt.".into()),
-        },
-        FigureEdit::AnnotationSet {
-            annotation_id: id,
-            text,
-            at,
-            font_pt,
-            ..
-        } => {
-            if text.is_none() && at.is_none() && font_pt.is_none() {
-                return Err("Annotation edit requires text, at or font_pt.".into());
+            FigureEdit::AnnotationDelete {
+                annotation_id: id, ..
+            } => {
+                annotations.remove(*id).ok_or_else(missing)?;
+                *id
             }
-            let id = *id;
-            let annotation = annotations.get_mut(id).ok_or_else(missing)?;
-            if let Some(text) = text {
-                annotation.text.clone_from(text);
-            }
-            if let Some(at) = at {
-                annotation.at = *at;
-            }
-            if let Some(pt) = font_pt {
-                annotation.font_size = *pt;
-            }
-            annotation.validate()?;
-            id
+            _ => return Err("Not an annotation edit.".into()),
         }
-        FigureEdit::AnnotationDelete {
-            annotation_id: id, ..
-        } => {
-            annotations.remove(*id).ok_or_else(missing)?;
-            *id
-        }
-        _ => return Err("Not an annotation edit.".into()),
     };
-    let reading = annotations.get(id).map(annotation_reading);
     plot.set_annotations(annotations);
+    let reading = annotation_readings(page, object)
+        .into_iter()
+        .find(|reading| reading["id"] == json!(id));
     Ok(json!({"target":target,"op":op,"annotation_id":id,"annotation":reading}))
 }
 
-pub(crate) fn annotation_reading(annotation: &PlotAnnotation) -> Value {
-    json!({"id":annotation.id,"kind":"text","text":annotation.text,"at":annotation.at,"font_pt":annotation.font_size,"anchor_space":"data"})
+/// Every annotation of a plot with its label placement as drawn at the
+/// plot's page size.
+pub(crate) fn annotation_readings(page: &CanvasDocument, object: ObjectId) -> Vec<Value> {
+    let Some(plot) = page.object(object).and_then(ContentItem::plot) else {
+        return Vec::new();
+    };
+    let annotations = &plot.axis_overrides.annotations;
+    let layout = super::plot_label_layout(page, object).unwrap_or_default();
+    let texts =
+        annotations.items.iter().enumerate().map(|(index, a)| {
+            annotation_reading(a, layout.texts.get(index).and_then(Option::as_ref))
+        });
+    let lines = annotations
+        .reference_lines
+        .iter()
+        .enumerate()
+        .map(|(index, line)| {
+            super::reference_line_reading(
+                line,
+                layout.reference.get(index).and_then(Option::as_ref),
+            )
+        });
+    let arrows = annotations
+        .arrows
+        .iter()
+        .map(super::figure_edit_arrow::arrow_reading);
+    texts.chain(lines).chain(arrows).collect()
+}
+
+pub(crate) fn annotation_reading(
+    annotation: &PlotAnnotation,
+    drawn: Option<&plotium_render::TextLabelBox>,
+) -> Value {
+    let mut reading = json!({"id":annotation.id,"kind":"text","text":annotation.text,"at":annotation.at,"font_pt":annotation.font_size,"anchor_space":"data"});
+    if let (Some(out), Value::Object(placement)) = (
+        reading.as_object_mut(),
+        super::text_placement_reading(annotation.placement, drawn),
+    ) {
+        out.extend(placement);
+    }
+    reading
 }

@@ -4,7 +4,7 @@
 //! absolutely from the grab state every frame so nothing accumulates drift, and
 //! `before` snapshots the dataset so the gesture commits as one undoable step.
 
-use super::{AxisOverrides, DatasetId, ObjectId, Region, RegionId};
+use super::{AnnotationId, AxisOverrides, DatasetId, ObjectId, Region, RegionId};
 use crate::{Integral2D, IntegralResult};
 use plotium_processing::craft::{CraftRegion, CraftRegionId};
 
@@ -52,6 +52,14 @@ pub enum FurnitureTarget {
         dataset: DatasetId,
         region: RegionId,
         before: Vec<Region>,
+        grab_offset: [f32; 2],
+    },
+    /// An author text annotation or a reference-line label.
+    PlotLabel {
+        before: Box<AxisOverrides>,
+        annotation: AnnotationId,
+        /// Pointer minus the label's reference point when the drag began: the
+        /// text's baseline centre, or a reference label's box centre.
         grab_offset: [f32; 2],
     },
 }

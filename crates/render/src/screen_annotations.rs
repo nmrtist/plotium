@@ -60,11 +60,11 @@ pub(crate) fn paint(
 pub(crate) fn paint_reference_lines(
     painter: &egui::Painter,
     figure: &Figure,
-    projector: &Projector,
     plot: Rect,
     scale: f32,
+    labels: &crate::LabelLayout,
 ) {
-    for item in crate::reference_lines::layout(figure, projector, plot, scale) {
+    for item in crate::reference_lines::layout(figure, plot, labels) {
         let line = item.line;
         let color = Color32::from_rgb(line.color.r, line.color.g, line.color.b);
         let stroke = Stroke::new(line.width * scale, color);
@@ -90,7 +90,7 @@ pub(crate) fn paint_reference_lines(
                     TextAnchor::Center => Align2::CENTER_TOP,
                     TextAnchor::Right => Align2::RIGHT_TOP,
                 },
-                label.text,
+                &line.label,
                 crate::rich_text::plot_font(label.size, &figure.typography),
                 color,
             );

@@ -1,10 +1,11 @@
 use super::dto::RangeDto;
 use crate::state::{
-    AnnotationId, AxisOverrides, PlotAnnotation, PlotAnnotations, PlotArrow, PlotReferenceLine,
+    AnnotationId, AxisOverrides, LabelPlacement, PlotAnnotation, PlotAnnotations, PlotArrow,
+    PlotReferenceLine,
 };
 use plotium_figure::{
     AxisBreak, AxisFrame, AxisScale, GuideLayout, GuidePlacement, GuideVisibility, LineStyle,
-    ReferenceOrientation,
+    ReferenceLabelPosition, ReferenceOrientation,
 };
 use serde::{Deserialize, Serialize};
 
@@ -108,10 +109,28 @@ struct PlotReferenceLineDto {
     label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     font_size: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label_position: Option<ReferenceLabelPosition>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    label_hand_placed: bool,
+}
+
+/// A label placement as its stored pinned value and whether a hand set it.
+fn placement_parts<T: Copy>(placement: LabelPlacement<T>) -> (Option<T>, bool) {
+    (placement.pinned(), placement.is_hand())
+}
+
+fn placement_of<T>(pinned: Option<T>, hand: bool) -> LabelPlacement<T> {
+    match pinned {
+        None => LabelPlacement::Auto,
+        Some(value) if hand => LabelPlacement::Hand(value),
+        Some(value) => LabelPlacement::Fixed(value),
+    }
 }
 
 impl PlotReferenceLineDto {
     fn from_line(line: &PlotReferenceLine) -> Self {
+        let (label_position, label_hand_placed) = placement_parts(line.label_placement);
         Self {
             id: line.id,
             orientation: line.orientation,
@@ -121,6 +140,8 @@ impl PlotReferenceLineDto {
             line_style: line.line_style,
             label: line.label.clone(),
             font_size: line.font_size,
+            label_position,
+            label_hand_placed,
         }
     }
 
@@ -134,6 +155,7 @@ impl PlotReferenceLineDto {
             line_style: self.line_style,
             label: self.label.clone(),
             font_size: self.font_size,
+            label_placement: placement_of(self.label_position, self.label_hand_placed),
         }
     }
 }
@@ -146,6 +168,11 @@ struct PlotAnnotationDto {
     text: String,
     font_size: f32,
     color: [u8; 3],
+    /// Pinned text offset from the anchor in pt, x right and y up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    offset_pt: Option<[f32; 2]>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    hand_placed: bool,
 }
 
 impl PlotAnnotationsDto {
@@ -155,12 +182,17 @@ impl PlotAnnotationsDto {
             items: annotations
                 .items
                 .iter()
-                .map(|a| PlotAnnotationDto {
-                    id: a.id,
-                    at: a.at,
-                    text: a.text.clone(),
-                    font_size: a.font_size,
-                    color: [a.color.r, a.color.g, a.color.b],
+                .map(|a| {
+                    let (offset_pt, hand_placed) = placement_parts(a.placement);
+                    PlotAnnotationDto {
+                        id: a.id,
+                        at: a.at,
+                        text: a.text.clone(),
+                        font_size: a.font_size,
+                        color: [a.color.r, a.color.g, a.color.b],
+                        offset_pt,
+                        hand_placed,
+                    }
                 })
                 .collect(),
             reference_lines: annotations
@@ -195,6 +227,7 @@ impl PlotAnnotationsDto {
                     text: a.text.clone(),
                     font_size: a.font_size,
                     color: plotium_figure::Color::rgb(a.color[0], a.color[1], a.color[2]),
+                    placement: placement_of(a.offset_pt, a.hand_placed),
                 })
                 .collect(),
             reference_lines: self

@@ -15,6 +15,10 @@ enum FurnitureHit {
         region: RegionId,
         rect: PlotRect,
     },
+    PlotLabel {
+        object: ObjectId,
+        label: super::plot_labels::LabelHit,
+    },
 }
 
 impl FurnitureHit {
@@ -22,7 +26,8 @@ impl FurnitureHit {
         match self {
             Self::Legend { object, .. }
             | Self::ColorScale { object, .. }
-            | Self::RegionLabel { object, .. } => *object,
+            | Self::RegionLabel { object, .. }
+            | Self::PlotLabel { object, .. } => *object,
         }
     }
 }
@@ -60,6 +65,13 @@ pub(crate) fn handle_furniture_interactions(
         }
         if released || !down {
             finish_furniture_drag(app);
+            // egui reports a double-click on the release that ends this drag.
+            if double_clicked
+                && let Some(pointer) = pointer
+                && let Some(hit) = furniture_hit(app, ci, canvas_rect, pointer)
+            {
+                reset_furniture_position(app, ci, hit);
+            }
         }
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
         return true;
@@ -114,6 +126,18 @@ pub(crate) fn handle_furniture_interactions(
             }
         }
         FurnitureHit::ColorScale { .. } => return true,
+        FurnitureHit::PlotLabel { label, .. } => {
+            let before = app.doc.canvases[ci]
+                .object(object)
+                .and_then(|object| object.plot())
+                .map(|plot| plot.axis_overrides.clone())
+                .unwrap_or_default();
+            FurnitureTarget::PlotLabel {
+                before: Box::new(before),
+                annotation: label.annotation,
+                grab_offset: [pointer.x - label.origin[0], pointer.y - label.origin[1]],
+            }
+        }
         FurnitureHit::RegionLabel {
             dataset,
             region,
@@ -177,6 +201,17 @@ fn furniture_hit(
             && rect_contains(rect, pointer, 3.0)
         {
             return Some(FurnitureHit::ColorScale { object: object.id });
+        }
+        // Labels are clipped to the plot, so only its inside can grab one.
+        if rect_contains(plot, pointer, 0.0)
+            && let Some(label) = super::plot_labels::label_hit(plot_object, plot, scale, |rect| {
+                rect_contains(rect, pointer, 3.0)
+            })
+        {
+            return Some(FurnitureHit::PlotLabel {
+                object: object.id,
+                label,
+            });
         }
         let Some(dataset) = object.dataset() else {
             continue;
@@ -268,6 +303,28 @@ fn update_furniture_drag(app: &mut PlotiumApp, ci: usize, canvas_rect: egui::Rec
             overrides.set_legend_position(position);
             app.set_axis_overrides_value(ci, object, &overrides);
         }
+        FurnitureTarget::PlotLabel {
+            annotation,
+            grab_offset,
+            ..
+        } => {
+            let Some(overrides) = app.doc.canvases[ci]
+                .object(object)
+                .and_then(|object| object.plot())
+                .and_then(|plot_object| {
+                    super::plot_labels::moved_label(
+                        plot_object,
+                        plot,
+                        scale,
+                        annotation,
+                        [pointer.x - grab_offset[0], pointer.y - grab_offset[1]],
+                    )
+                })
+            else {
+                return;
+            };
+            app.set_axis_overrides_value(ci, object, &overrides);
+        }
         FurnitureTarget::RegionLabel {
             dataset,
             region,
@@ -316,6 +373,26 @@ fn finish_furniture_drag(app: &mut PlotiumApp) {
             app.session.status =
                 "Moved legend. Double-click it to restore automatic placement.".into();
         }
+        FurnitureTarget::PlotLabel { before, .. } => {
+            let Some(after) = app.doc.canvases[drag.canvas]
+                .object(drag.object)
+                .and_then(|object| object.plot())
+                .map(|plot| plot.axis_overrides.clone())
+            else {
+                return;
+            };
+            if after == *before {
+                return;
+            }
+            app.execute_action(Action::set_axis_overrides(
+                drag.canvas,
+                drag.object,
+                *before,
+                after,
+            ));
+            app.session.status =
+                "Moved label. Double-click it to restore automatic placement.".into();
+        }
         FurnitureTarget::RegionLabel {
             dataset, before, ..
         } => {
@@ -362,6 +439,20 @@ fn reset_furniture_position(app: &mut PlotiumApp, ci: usize, hit: FurnitureHit) 
             after.guide_placement = None;
             app.execute_action(Action::set_axis_overrides(ci, object, before, after));
             app.session.status = "Restored automatic colour-scale placement.".into();
+        }
+        FurnitureHit::PlotLabel { object, label } => {
+            let Some(plot_object) = app.doc.canvases[ci]
+                .object(object)
+                .and_then(|object| object.plot())
+            else {
+                return;
+            };
+            let before = plot_object.axis_overrides.clone();
+            let after = super::plot_labels::auto_label(plot_object, label.annotation);
+            if after != before {
+                app.execute_action(Action::set_axis_overrides(ci, object, before, after));
+            }
+            app.session.status = "Restored automatic label placement.".into();
         }
         FurnitureHit::RegionLabel {
             dataset, region, ..

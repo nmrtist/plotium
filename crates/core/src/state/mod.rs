@@ -82,12 +82,11 @@ mod curve_service;
 mod figure_delete;
 mod figure_edit;
 mod figure_edit_annotation;
-pub(crate) use figure_edit_annotation::annotation_reading;
+pub(crate) use figure_edit_annotation::annotation_readings;
 mod figure_edit_reference_line;
 pub(crate) use figure_edit_reference_line::reference_line_reading;
 pub use figure_edit_reference_line::{AnnotationKind, ReferenceLineStyleEdit};
 mod figure_edit_arrow;
-pub(crate) use figure_edit_arrow::arrow_reading;
 mod figure_edit_content;
 mod figure_edit_image;
 mod figure_edit_stack;
@@ -137,6 +136,7 @@ mod peaks2d;
 mod plot_annotations;
 mod plot_arrows;
 mod plot_interaction;
+mod plot_label_placement;
 mod plot_object;
 mod plot_reference_lines;
 mod pseudo_map_field;
@@ -246,6 +246,13 @@ pub use peaks2d::*;
 pub use plot_annotations::*;
 pub use plot_arrows::*;
 pub use plot_interaction::*;
+pub use plot_label_placement::{
+    HAND_PLACED_LABEL_KEY, LabelPlacement, MAX_LABEL_OFFSET_PT, PlacementRequest,
+};
+pub(crate) use plot_label_placement::{
+    hand_placed_label_readings, plot_label_layout, reference_placement_reading,
+    text_placement_reading,
+};
 pub use plot_object::*;
 pub use plot_reference_lines::*;
 pub(crate) use pseudo_map_field::{DOSY_GRID_COLS, DOSY_GRID_ROWS, dosy_scalar_grid};
@@ -353,6 +360,8 @@ mod figure_delete_asset_tests;
 mod figure_delete_tests;
 #[cfg(test)]
 mod figure_edit_annotation_tests;
+#[cfg(test)]
+mod figure_edit_label_placement_tests;
 #[cfg(test)]
 mod figure_edit_reference_line_tests;
 #[cfg(test)]

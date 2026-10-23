@@ -57,6 +57,7 @@ mod panel_notes;
 mod panel_selection;
 mod peaks;
 mod phase;
+mod plot_labels;
 mod readout;
 mod reference_pick;
 mod regions;
