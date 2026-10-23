@@ -116,7 +116,7 @@ fn handle_root_close(app: &mut PlotiumApp, ctx: &egui::Context, macos: bool, res
         }
         return;
     }
-    if app.doc.dirty {
+    if app.doc.dirty || app.session.ui.table_cell_edit.is_some() {
         ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         if app.session.ui.project_transition.is_none() {
             app.request_project_transition(plotium_core::state::ProjectTransition::Quit);

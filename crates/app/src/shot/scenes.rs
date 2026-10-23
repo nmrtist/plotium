@@ -13,6 +13,8 @@ pub(super) const SCENES: &[Scene] = &[
     shot(4, "workspace_overview"),
     act(2, Op::ImportResults),
     shot(30, "batch_import"),
+    act(2, Op::TableDraftConflict),
+    shot(6, "table_edit_conflict"),
     act(2, Op::Setup),
     shot(8, "band"),
     act(2, Op::History(true)),

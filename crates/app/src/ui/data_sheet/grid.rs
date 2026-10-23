@@ -9,6 +9,8 @@ use plotium_core::data::{
     TableSchema,
 };
 
+use plotium_core::state::{TableCellEditDraft, TableDataset};
+
 use super::cell;
 
 #[derive(Clone, Default)]
@@ -17,19 +19,8 @@ pub(super) struct SheetState {
     pub cell: Option<(usize, ColumnId)>,
     /// Whole-row selection from the row-number gutter.
     pub row: Option<usize>,
-    pub edit: Option<EditState>,
     /// Row to scroll into view after keyboard navigation.
     scroll_to: Option<usize>,
-}
-
-#[derive(Clone)]
-pub(super) struct EditState {
-    pub row: usize,
-    pub column: ColumnId,
-    /// None until the first render seeds the buffer from the cell value.
-    pub text: Option<String>,
-    pub error: Option<String>,
-    take_focus: bool,
 }
 
 #[derive(Default)]
@@ -49,30 +40,54 @@ enum CommitMove {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn typed_table_grid(
     ui: &mut Ui,
-    schema: &TableSchema,
-    row_count: usize,
-    chunks: &[ChunkDescriptor],
+    table: &TableDataset,
     reader: &SnapshotReader<'_>,
     state: &mut SheetState,
-    editable: bool,
+    draft: &mut Option<TableCellEditDraft>,
     column_menu: &mut dyn FnMut(&mut Ui, ColumnId),
 ) -> GridOutcome {
+    let snapshot = &table.typed_state.envelope.revision.snapshot;
+    let schema = &snapshot.schema;
+    let chunks = &snapshot.row_id_chunks;
+    let row_count = usize::try_from(snapshot.row_count).unwrap_or(usize::MAX);
+    let editable = table.provenance.is_none();
     let mut outcome = GridOutcome::default();
     sanitize_state(state, schema, row_count);
-    if !editable {
-        state.edit = None;
-    }
-    if let Some((row, column, seed)) = keyboard_navigation(ui, schema, row_count, state, editable) {
-        // Type-to-edit seeds the buffer with the typed character(s).
-        start_edit(state, row, column, seed);
-        state.scroll_to = Some(row);
+    if let Some((index, column, seed)) = keyboard_navigation(
+        ui,
+        schema,
+        row_count,
+        state,
+        editable && draft.is_none(),
+        draft.is_some(),
+    ) {
+        let mut cache = None;
+        if let Some(batch) = batch_for_row(reader, chunks, index, &mut cache, &mut outcome.error) {
+            let local = index - usize::try_from(batch.row_start).unwrap_or(usize::MAX);
+            if let Some((_, values)) = batch.columns.iter().find(|(id, _)| *id == column)
+                && let Some(column) = schema.column(column)
+                && let Err(error) = start_edit(
+                    state,
+                    draft,
+                    table,
+                    index,
+                    batch.row_ids[local],
+                    &values.value(local).unwrap_or(ScalarValue::Null),
+                    column,
+                    seed,
+                )
+            {
+                outcome.error = Some(error);
+            }
+        }
+        state.scroll_to = Some(index);
     }
     let copy_requested = ui.ctx().input(|input| {
         input
             .events
             .iter()
             .any(|event| matches!(event, Event::Copy))
-    }) && state.edit.is_none()
+    }) && draft.is_none()
         && no_widget_focused(ui);
     let row_height = ui.spacing().interact_size.y + 2.0;
     let header_height = row_height * 2.0 - 4.0;
@@ -140,18 +155,19 @@ pub(super) fn typed_table_grid(
                 let row_id = batch.row_ids[local];
                 for ((column_id, values), column) in batch.columns.iter().zip(&schema.columns) {
                     let value = values.value(local).unwrap_or(ScalarValue::Null);
-                    let editing = state
-                        .edit
-                        .as_ref()
-                        .is_some_and(|edit| edit.row == index && edit.column == *column_id);
+                    let editing = draft.as_ref().is_some_and(|edit| {
+                        edit.row == row_id
+                            && edit.column == *column_id
+                            && edit.validate_target(table).is_ok()
+                    });
                     if editing {
                         editor_cell(
                             &mut row,
                             state,
                             schema,
                             row_count,
-                            row_id,
-                            &value,
+                            index,
+                            draft,
                             column,
                             &mut outcome,
                         );
@@ -168,8 +184,13 @@ pub(super) fn typed_table_grid(
                         state.cell = Some((index, *column_id));
                         state.row = None;
                     }
-                    if editable && response.double_clicked() {
-                        start_edit(state, index, *column_id, None);
+                    if editable
+                        && draft.is_none()
+                        && response.double_clicked()
+                        && let Err(error) =
+                            start_edit(state, draft, table, index, row_id, &value, column, None)
+                    {
+                        outcome.error = Some(error);
                     }
                 }
             });
@@ -177,8 +198,8 @@ pub(super) fn typed_table_grid(
     outcome
 }
 
-/// Drop selection and edit state that no longer maps onto the current
-/// schema or row count (e.g. after a transform replaced the table).
+/// Selection may expire when a transform replaces the table; the shared
+/// draft must survive until it is committed or explicitly discarded.
 fn sanitize_state(state: &mut SheetState, schema: &TableSchema, row_count: usize) {
     let column_exists = |id: &ColumnId| schema.columns.iter().any(|column| column.id == *id);
     if state
@@ -189,13 +210,6 @@ fn sanitize_state(state: &mut SheetState, schema: &TableSchema, row_count: usize
     }
     if state.row.is_some_and(|row| row >= row_count) {
         state.row = None;
-    }
-    if state
-        .edit
-        .as_ref()
-        .is_some_and(|edit| edit.row >= row_count || !column_exists(&edit.column))
-    {
-        state.edit = None;
     }
 }
 
@@ -211,8 +225,9 @@ fn keyboard_navigation(
     row_count: usize,
     state: &mut SheetState,
     editable: bool,
+    editing: bool,
 ) -> Option<(usize, ColumnId, Option<String>)> {
-    if state.edit.is_some() || row_count == 0 || schema.columns.is_empty() {
+    if editing || row_count == 0 || schema.columns.is_empty() {
         return None;
     }
     if !no_widget_focused(ui) {
@@ -274,16 +289,34 @@ fn keyboard_navigation(
     start.map(|seed| (row, column, seed))
 }
 
-fn start_edit(state: &mut SheetState, row: usize, column: ColumnId, seed: Option<String>) {
-    state.cell = Some((row, column));
+#[allow(clippy::too_many_arguments)]
+fn start_edit(
+    state: &mut SheetState,
+    draft: &mut Option<TableCellEditDraft>,
+    table: &TableDataset,
+    index: usize,
+    row: RowId,
+    value: &ScalarValue,
+    column: &plotium_core::data::ColumnSchema,
+    seed: Option<String>,
+) -> Result<(), String> {
+    let original = cell::scalar_to_literal(value)?;
+    let original_text = cell::typed_cell_text(value, &column.logical_type);
+    state.cell = Some((index, column.id));
     state.row = None;
-    state.edit = Some(EditState {
+    *draft = Some(TableCellEditDraft {
+        dataset: table.resource_id,
+        table: table.typed_state.envelope.revision.table_id,
+        revision: table.typed_state.envelope.revision.id,
         row,
-        column,
-        text: seed,
+        column: column.id,
+        original,
+        text: seed.unwrap_or_else(|| original_text.clone()),
+        original_text,
         error: None,
         take_focus: true,
     });
+    Ok(())
 }
 
 /// Locate and cache the batch containing `index`; None when reading failed.
@@ -336,7 +369,6 @@ fn gutter_cell(
     if response.clicked() {
         state.row = (!selected).then_some(index);
         state.cell = None;
-        state.edit = None;
     }
     if selected
         && copy_requested
@@ -403,15 +435,14 @@ fn editor_cell(
     state: &mut SheetState,
     schema: &TableSchema,
     row_count: usize,
-    row_id: RowId,
-    value: &ScalarValue,
+    index: usize,
+    draft: &mut Option<TableCellEditDraft>,
     column: &plotium_core::data::ColumnSchema,
     outcome: &mut GridOutcome,
 ) {
-    let index = state.edit.as_ref().map(|edit| edit.row).unwrap_or_default();
-    let edit = state.edit.as_mut().unwrap();
-    let original = cell::typed_cell_text(value, &column.logical_type);
-    let text = edit.text.get_or_insert_with(|| original.clone());
+    let edit = draft.as_mut().unwrap();
+    let original = edit.original_text.clone();
+    let text = &mut edit.text;
     let mut commit = None;
     let mut cancel = false;
     let error = edit.error.clone();
@@ -468,22 +499,15 @@ fn editor_cell(
         );
     }
     if cancel {
-        state.edit = None;
+        *draft = None;
         return;
     }
     let Some(step) = commit else { return };
-    let edit = state.edit.as_mut().unwrap();
-    let text = edit.text.clone().unwrap_or_default();
+    let edit = draft.as_mut().unwrap();
+    let text = edit.text.clone();
     if text != original {
         match cell::parse_typed_cell(&text, column) {
-            Ok(after) => match cell::scalar_to_literal(value) {
-                Ok(before) => outcome.edit = Some((row_id, edit.column, before, after)),
-                Err(error) => {
-                    edit.error = Some(error);
-                    edit.take_focus = true;
-                    return;
-                }
-            },
+            Ok(after) => outcome.edit = Some((edit.row, edit.column, edit.original.clone(), after)),
             Err(error) => {
                 edit.error = Some(error);
                 edit.take_focus = true;
@@ -491,7 +515,9 @@ fn editor_cell(
             }
         }
     }
-    state.edit = None;
+    if outcome.edit.is_none() {
+        *draft = None;
+    }
     let next = match step {
         CommitMove::Stay => Some((index, column.id)),
         CommitMove::Down => (index + 1 < row_count).then_some((index + 1, column.id)),
@@ -514,93 +540,5 @@ fn editor_cell(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn two_column_schema() -> TableSchema {
-        TableSchema::new(vec![
-            plotium_core::data::ColumnSchema::new("x", plotium_core::data::LogicalType::Float64),
-            plotium_core::data::ColumnSchema::new("y", plotium_core::data::LogicalType::Float64),
-        ])
-        .unwrap()
-    }
-
-    fn key_event(key: Key) -> Event {
-        Event::Key {
-            key,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: Modifiers::NONE,
-        }
-    }
-
-    #[test]
-    fn read_only_grid_keeps_arrow_navigation_without_starting_an_edit() {
-        let ctx = egui::Context::default();
-        let schema = two_column_schema();
-        let first = schema.columns[0].id;
-        let second = schema.columns[1].id;
-        let mut state = SheetState {
-            cell: Some((0, first)),
-            ..Default::default()
-        };
-        let input = egui::RawInput {
-            events: vec![
-                key_event(Key::ArrowRight),
-                key_event(Key::F2),
-                Event::Text("7".to_owned()),
-            ],
-            ..Default::default()
-        };
-        let mut edit_request = None;
-
-        let _ = ctx.run_ui(input, |ui| {
-            edit_request = keyboard_navigation(ui, &schema, 3, &mut state, false);
-        });
-
-        assert_eq!(state.cell, Some((0, second)));
-        assert!(state.edit.is_none());
-        assert!(edit_request.is_none());
-    }
-
-    #[test]
-    fn editable_grid_still_supports_type_to_edit() {
-        let ctx = egui::Context::default();
-        let schema = two_column_schema();
-        let first = schema.columns[0].id;
-        let mut state = SheetState {
-            cell: Some((0, first)),
-            ..Default::default()
-        };
-        let input = egui::RawInput {
-            events: vec![Event::Text("7".to_owned())],
-            ..Default::default()
-        };
-        let mut edit_request = None;
-
-        let _ = ctx.run_ui(input, |ui| {
-            edit_request = keyboard_navigation(ui, &schema, 3, &mut state, true);
-        });
-
-        assert_eq!(edit_request, Some((0, first, Some("7".to_owned()))));
-    }
-
-    #[test]
-    fn ten_million_row_lookup_lands_on_the_intersecting_chunk() {
-        let chunks = (0..153)
-            .map(|index| ChunkDescriptor {
-                row_start: index * 65_536,
-                row_count: if index == 152 { 38_528 } else { 65_536 },
-                codec: plotium_core::data::ARROW_IPC_CODEC_V1.into(),
-                byte_hash: plotium_core::data::ContentHash::of(&index.to_le_bytes()),
-                logical_fingerprint: plotium_core::data::ContentHash::of(
-                    &(index + 1).to_le_bytes(),
-                ),
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(batch_containing_row(&chunks, 8_765_420), Some(133));
-        assert_eq!(batch_containing_row(&chunks, 0), Some(0));
-        assert_eq!(batch_containing_row(&chunks, 10_000_000), None);
-    }
-}
+#[path = "grid_tests.rs"]
+mod tests;

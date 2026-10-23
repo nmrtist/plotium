@@ -243,8 +243,10 @@ impl Session {
                     "busy",
                     "Resolve recovery or save operation and retry",
                 ))
-            } else {
+            } else if matches!(name, "plotium_plan" | "plotium_execute") {
                 ensure_not_busy(app)
+            } else {
+                ensure_project_ready(app)
             }
         };
         if name == "plotium_execute" {
@@ -640,6 +642,21 @@ impl Session {
 struct Empty {}
 
 pub fn ensure_not_busy(app: &PlotiumApp) -> Result<(), Failure> {
+    ensure_project_ready(app)?;
+    ensure_table_edit_finished(app)
+}
+
+fn ensure_table_edit_finished(app: &PlotiumApp) -> Result<(), Failure> {
+    if app.session.ui.table_cell_edit.is_some() {
+        return Err(Failure::new(
+            "busy",
+            "Apply or discard the current table cell edit and retry",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn ensure_project_ready(app: &PlotiumApp) -> Result<(), Failure> {
     let ui = &app.session.ui;
     if app.compute_busy()
         || app.session.data_imports.is_pending()
@@ -694,7 +711,7 @@ impl Session {
                 "Resolve recovery or save operation and retry",
             ));
         }
-        ensure_not_busy(app)?;
+        ensure_project_ready(app)?;
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Args {

@@ -36,6 +36,7 @@ mod scenes;
 use scenes::SCENES;
 mod craft_shot;
 mod follow_shot;
+mod table_shot;
 mod thumbnail_shot;
 mod workspace_shot;
 
@@ -80,6 +81,7 @@ impl Theme {
 enum Op {
     Workspace(bool),
     ImportResults,
+    TableDraftConflict,
     /// Reset zoom and window size, then load the synthetic FID and arm a fit.
     Setup,
     /// Fit the FID band and frame the result.
@@ -306,6 +308,7 @@ fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), Strin
     match op {
         Op::Workspace(content) => workspace_shot::setup(app, content),
         Op::ImportResults => workspace_shot::imports(app),
+        Op::TableDraftConflict => table_shot::conflict(app)?,
         Op::Setup => {
             workspace_shot::setup(app, false);
             setup(app);

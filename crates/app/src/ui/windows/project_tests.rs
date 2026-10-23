@@ -14,6 +14,59 @@ fn commands(output: &egui::FullOutput) -> &[egui::ViewportCommand] {
 }
 
 #[test]
+fn native_close_and_restart_preserve_a_clean_projects_unfinished_cell_edit() {
+    use plotium_core::data::LiteralValue;
+    use plotium_core::state::TableCellEditDraft;
+
+    for (macos, restarting) in [(false, false), (true, true)] {
+        let ctx = egui::Context::default();
+        let mut app = app(false);
+        app.new_table_dataset();
+        app.doc.dirty = false;
+        let table = app.doc.datasets[0].as_table().unwrap();
+        let revision = &table.typed_state.envelope.revision;
+        app.session.ui.table_cell_edit = Some(TableCellEditDraft {
+            dataset: table.resource_id,
+            table: revision.table_id,
+            revision: revision.id,
+            row: table.typed_rows(1, &[]).unwrap().row_ids[0],
+            column: revision.snapshot.schema.columns[0].id,
+            original: LiteralValue::Null,
+            original_text: "0".into(),
+            text: "unfinished".into(),
+            error: None,
+            take_focus: false,
+        });
+        for id in [
+            crate::ui::commands::CommandId::NewProject,
+            crate::ui::commands::CommandId::OpenProject,
+            crate::ui::commands::CommandId::CloseProject,
+            crate::ui::commands::CommandId::Quit,
+        ] {
+            let descriptor = crate::ui::commands::describe(&app, id);
+            assert!(!descriptor.enabled);
+            assert!(
+                descriptor
+                    .disabled_reason
+                    .unwrap()
+                    .contains("Apply or discard")
+            );
+        }
+        let output = ctx.run_ui(Default::default(), |ui| {
+            handle_root_close(&mut app, ui.ctx(), macos, restarting);
+        });
+        assert!(commands(&output).contains(&egui::ViewportCommand::CancelClose));
+        assert!(!commands(&output).contains(&egui::ViewportCommand::Close));
+        assert!(!app.session.allow_close);
+        assert!(app.session.ui.project_transition.is_none());
+        let draft = app.session.ui.table_cell_edit.as_ref().unwrap();
+        assert_eq!(draft.text, "unfinished");
+        assert!(draft.error.as_ref().unwrap().contains("Apply or discard"));
+        assert!(!app.doc.dirty);
+    }
+}
+
+#[test]
 fn macos_window_close_retains_clean_and_dirty_workspaces_without_quitting() {
     for dirty in [false, true] {
         let ctx = egui::Context::default();

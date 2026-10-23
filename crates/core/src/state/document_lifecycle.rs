@@ -58,6 +58,18 @@ impl PlotiumApp {
     }
 
     pub fn request_project_transition(&mut self, target: ProjectTransition) {
+        if let Some(edit) = self.session.ui.table_cell_edit.as_mut() {
+            let message = "Apply or discard the unfinished cell edit before leaving this project.";
+            edit.error = Some(message.into());
+            self.session.status = message.into();
+            self.session.ui.project_transition = None;
+            self.session.ui.sheet_open = self
+                .doc
+                .datasets
+                .iter()
+                .position(|dataset| dataset.resource_id() == edit.dataset);
+            return;
+        }
         self.session.external_exports.revoke();
         self.session
             .external_saves

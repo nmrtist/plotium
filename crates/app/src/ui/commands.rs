@@ -202,19 +202,8 @@ pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
         .collect()
 }
 
-/// Every (tab, group) pair the Ribbon placement tables can produce, so layout
-/// tests stay exhaustive as placements evolve.
 #[cfg(test)]
-pub(super) fn ribbon_group_pairs() -> Vec<(plotium_core::state::WorkflowTab, &'static str)> {
-    let mut pairs: Vec<_> = command_ids(0)
-        .into_iter()
-        .filter_map(ribbon_placement)
-        .map(|placement| (placement.tab, placement.group))
-        .collect();
-    pairs.sort_by_key(|&(tab, group)| (tab as u8, group));
-    pairs.dedup();
-    pairs
-}
+pub(super) use helpers::ribbon_group_pairs;
 
 pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let has_canvas = app.session.active_canvas.is_some();
@@ -255,6 +244,10 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // command can never be blocked by one requirement while explaining another.
     // `and_then` reports the first unmet requirement and skips the rest.
     let gate: Result<(), &'static str> = match id {
+        CommandId::NewProject | CommandId::OpenProject | CommandId::CloseProject | CommandId::Quit => requires(
+            app.session.ui.table_cell_edit.is_none(),
+            "Apply or discard the unfinished cell edit before leaving this project.",
+        ),
         CommandId::FollowResults
         | CommandId::PauseResultFollow
         | CommandId::StopResultFollow
