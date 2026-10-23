@@ -16,6 +16,8 @@ pub(super) use helpers::chart_plot_target;
 use helpers::{has_active_plot, requires, selected_paths_unlocked};
 mod ribbon;
 mod roster;
+#[cfg(test)]
+pub(super) use ribbon::ribbon_group_pairs;
 use ribbon::ribbon_placement;
 pub(crate) use ribbon::stack_row;
 pub use ribbon::{Applicability, RibbonPlacement};
@@ -200,20 +202,6 @@ pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
             describe(app, id)
         })
         .collect()
-}
-
-/// Every (tab, group) pair the Ribbon placement tables can produce, so layout
-/// tests stay exhaustive as placements evolve.
-#[cfg(test)]
-pub(super) fn ribbon_group_pairs() -> Vec<(plotium_core::state::WorkflowTab, &'static str)> {
-    let mut pairs: Vec<_> = command_ids(0)
-        .into_iter()
-        .filter_map(ribbon_placement)
-        .map(|placement| (placement.tab, placement.group))
-        .collect();
-    pairs.sort_by_key(|&(tab, group)| (tab as u8, group));
-    pairs.dedup();
-    pairs
 }
 
 pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
