@@ -129,8 +129,8 @@ Scientific processing and task interfaces are described below. Preferences, new 
 
 ### Tool annotations and client approval
 
-Every tool advertises MCP `annotations` in `tools/list` and in
-`connection_capabilities.tools`, independently of the current **Access** setting.
+Every tool advertises MCP `annotations` in `tools/list`, independently of the
+current **Access** setting.
 `readOnlyHint` describes environment changes; `destructiveHint` distinguishes
 potentially destructive writes from additive ones; `idempotentHint` describes
 whether repeating identical arguments has additional effects; `openWorldHint`
@@ -191,10 +191,40 @@ editing; see [Values the user set by hand](#values-the-user-set-by-hand).
 While busy, `project`, `selection` and `hand_edits` are `null`; availability,
 permissions, the capability fingerprint and save receipt IDs remain readable.
 
-Call `plotium_capabilities_get {}` to obtain
-`{capability_fingerprint,connection_capabilities}`. The fingerprint is SHA-256 of
-the complete static discovery contract with canonical JSON object ordering. Cache
-that contract under its returned fingerprint; fetch it again when the state
+Call `plotium_capabilities_get {}` to obtain a compact index,
+`{capability_fingerprint,connection_capabilities}`. The index lists each tool's
+operations and required permission, the editable operations grouped by preflight
+and execute permission, the scientific operations, the recovery, revision and
+property-batch contracts, the document root and `sections`. Tool descriptions,
+input schemas and annotations are in `tools/list`; property definitions are in
+`plotium_properties_list`.
+
+`sections` names each detail section with its size in bytes and whether it takes a
+`key`. Fetch one detail with `{"section":...,"key":...}`, which returns
+`{capability_fingerprint,section,key,contract}`:
+
+| Section | Key | Contract |
+| --- | --- | --- |
+| `tools` | optional tool name | result contract and target rules per tool |
+| `operation_constraints` | required operation id | schema, permissions and result contract of one editable operation |
+| `scientific_operations` | required operation id | full core descriptor and required permission |
+| `guide_contract` | none | legend and colorbar placement rules |
+| `candidate_preview` | none | uncommitted plan preview contract |
+| `limits` | optional limit name | connection budgets |
+
+For example, read the `figure.edit` schema with:
+
+```json
+{"section":"operation_constraints","key":"figure.edit"}
+```
+
+An unknown section or key fails with `invalid_parameters`; `error.details.sections`
+or `error.details.keys` lists the valid values.
+
+The fingerprint is SHA-256 of the complete static discovery contract (index, every
+section, the MCP tool definitions and the property catalog) with canonical JSON
+object ordering. Cache the index and fetched sections under the returned
+fingerprint; fetch it again when the state
 fingerprint differs. If state changes before discovery completes, use the
 fingerprint returned with the discovered contract. Project edits, project changes,
 selection changes and permission changes do not change static capabilities.
@@ -236,8 +266,8 @@ acquisition directories supported by the desktop loader, such as Bruker acquisit
 or processed-data directories. It reads required companions without recursive batch
 discovery or scanning adjacent experiments. ZIP archives, project files and new
 formats are outside this operation. Optional `sampling_declaration` uses the core
-import contract. Discover the shared schema in
-`connection_capabilities.operation_constraints["data.import"].schema`.
+import contract. Discover the shared schema with
+`plotium_capabilities_get {"section":"operation_constraints","key":"data.import"}`.
 
 Preflight runs in the background and returns per-input format, dimensions,
 warnings, failures and proposed dataset/canvas IDs in `import.items[].metadata`.
@@ -265,10 +295,11 @@ CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and li
 ## Discover structure without relying on names
 
 Start with `plotium_get_state {}` for current context, revision and permissions.
-Call `plotium_capabilities_get {}` when you need static contracts. Its
-`connection_capabilities` describes this connection's tools, input schemas, result
-contracts, supported operations, property definitions and limits. Standard MCP
-`tools/list` also lists tool input schemas. Resource descriptors describe **core** data and
+Call `plotium_capabilities_get {}` when you need static contracts. Its index
+describes this connection's tools, supported operations and their permissions;
+fetch result contracts, operation schemas and limits by section. Standard MCP
+`tools/list` lists tool input schemas, and `plotium_properties_list` lists property
+definitions. Resource descriptors describe **core** data and
 rendering capabilities; a capability listed on a resource
 does not make that operation callable through this connection. Only
 `project.save`, `figure.export`, `resource.rename`, `dataset.delete`, `figure.apply_theme`, `properties.set`, `properties.set_many`, `properties.reset` and the restricted
@@ -448,8 +479,8 @@ requests fail rather than being silently clamped.
 Both revisions must still match on every read. Human edits, including Undo/Redo,
 invalidate old document revisions: read state and restart rather than mixing
 pages. Invalid IDs never use the current selection. Read-only connections can
-query existing tables but cannot import them. Limits and the import permission
-condition appear in `connection_capabilities`.
+query existing tables but cannot import them. Limits appear in the `limits`
+capability section and the import permission condition in the index.
 
 ## Derive a table without changing its source
 
@@ -461,8 +492,8 @@ curve.” Table processing creates one native table, not a plot. Rebinding uses
 1. Read `plotium_get_state`, then `plotium_table_columns` with the DatasetId
    and table revision. Copy the actual ColumnIds, `table_id`, `table_revision`
    and `snapshot_fingerprint`; names and `source_column_id` are not identities.
-2. Discover the native plan schema in
-   `connection_capabilities.operation_constraints["data.transform"].schema`.
+2. Discover the native plan schema with
+   `plotium_capabilities_get {"section":"operation_constraints","key":"data.transform"}`.
    Supply one DatasetId in `ids` and `mode: "table_data_only"`. The leaf must
    pin exactly that dataset's current snapshot. Supply fresh UUIDs for
    `operation_id` and each computed column's `id`.
@@ -571,8 +602,8 @@ executor's **materialized-result estimate**, checked after evaluation, not a
 peak-process-memory limit. At most four prepared transforms share a 512 MiB
 reservation budget, charged at each request's declared budget. Complete
 responses are limited to 256 KiB; the prepared output summary is limited to
-128 KiB, leaving room for the request and plan envelope. Limits are discoverable in
-`connection_capabilities.limits.table_transform`. Budget failure returns
+128 KiB, leaving room for the request and plan envelope. Limits are discoverable with
+`plotium_capabilities_get {"section":"limits","key":"table_transform"}`. Budget failure returns
 `transform_budget_exceeded`; cancellation returns `request_cancelled`. Neither
 leaves a derived table or a successful execution result. Plan again after fixing
 the input or budget. Use the separate cell-patch and explicit refresh operations below for subsequent updates.
@@ -649,8 +680,8 @@ budget, then 512 MiB; valid range is 1–536870912. This remains the executor's
 materialized-result estimate, not a peak-memory limit. Patches, transforms and
 refreshes share one background preflight, four prepared candidates and a 512 MiB
 reservation limit; each patch reserves 64 KiB. Prepared summaries are at most
-128 KiB and complete responses at most 256 KiB. Discover schemas and limits in
-`operation_constraints` and `limits.table_update`.
+128 KiB and complete responses at most 256 KiB. Discover schemas and limits in the
+`operation_constraints` and `limits` (`table_update`) capability sections.
 
 Both operations require **Read and modify** for preparation and execution.
 Permission, document/table revisions and current inputs are rechecked before a
@@ -798,7 +829,7 @@ Ask the agent: “Import this CSV, use time in s and current/error in mA, and cr
 one editable line plot with symmetric Y error bars. Preview it, then change only
 that curve's line width to 1.5 pt and preview again.” Supply an absolute input path
 and explicit units. The agent can discover the complete import and creation
-schemas through `plotium_capabilities_get` and the `plotium_plan` tool schema.
+schemas through the `operation_constraints` section of `plotium_capabilities_get`.
 
 After data-only import, read the actual DatasetId, FieldId, TableId, table revision
 and ColumnIds from import results / table metadata. Plan `plot.create` without
@@ -922,8 +953,8 @@ fresh revision after any edit or Undo/Redo.
 ## Author page layout, text and local images atomically
 
 Plan `figure.edit` with `parameters: {canvas: EXACT_CANVAS_TARGET, edits: [...]}`;
-omit top-level `ids`/`targets`. Discover the complete tagged edit schema in
-`connection_capabilities.operation_constraints["figure.edit"].schema`.
+omit top-level `ids`/`targets`. Discover the complete tagged edit schema with
+`plotium_capabilities_get {"section":"operation_constraints","key":"figure.edit"}`.
 One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 
 | `op` | Required fields and meaning |
@@ -1422,7 +1453,8 @@ RGBA8 asset pages, 8 MiB of intermediate SVG, 4 MiB of PNG, and 6 MiB of JSON-RP
 preview response (including the request ID). Shared asset bytes count once;
 decoded pages count once per asset/page. These are payload and image-buffer limits, not a total process
 memory limit. All referenced assets are validated, including hidden items.
-Limits are also available in `connection_capabilities.limits.image_preview`.
+Limits are also available with
+`plotium_capabilities_get {"section":"limits","key":"image_preview"}`.
 
 Missing or damaged assets and unavailable image pages return
 `preview_asset_unavailable`; no placeholder or incomplete success image is
@@ -1577,7 +1609,7 @@ inapplicable targets. Read-only connections can inspect/preflight but execute
 requires reversible-modify permission. Context/revision changes, revocation,
 busy and expired-plan failures retain the normal single-use contract. Inspection
 does not add project audit records or change dirty state, edit generation,
-automation revision or Undo history. Discover these rules in `connection_capabilities.guide_contract`.
+automation revision or Undo history. Discover these rules with `plotium_capabilities_get {"section":"guide_contract"}`.
 
 ## Change display without rebuilding the plot
 
@@ -1900,8 +1932,8 @@ write may replace them. Themes keep hand-set values; see the next section.
 `figure.apply_theme` restyles whole canvases with one of Plotium's built-in
 themes, such as `nature`, or with a canvas style saved in Plotium. Set
 `theme_id` to a built-in id from
-`operation_constraints["figure.apply_theme"].builtin_themes` in
-`plotium_capabilities_get`, or to the saved style's name. Saved styles are not
+`builtin_themes` in
+`plotium_capabilities_get {"section":"operation_constraints","key":"figure.apply_theme"}`, or to the saved style's name. Saved styles are not
 part of the static capabilities: an unknown `theme_id` fails preflight with
 `invalid_parameters`, and `error.details.themes` lists every built-in theme and
 saved style currently available. Plan it with the canvas ids in top-level `ids`:
@@ -2100,7 +2132,8 @@ Limits: one running batch, 32 shared pending plans, 4096 bytes per path, PNG
 16,384 pixels per edge and 16,777,216 pixels total; referenced embedded assets
 16 MiB, decoded asset RGBA 64 MiB, SVG 8 MiB and encoded output 64 MiB per file.
 No external asset lookup or placeholder substitution occurs. Limits and the
-complete schema are discoverable in `connection_capabilities`.
+complete schema are discoverable in the `limits` and `operation_constraints`
+capability sections.
 
 The last 16 export receipts survive reconnects and project changes in this
 desktop process, not application exit. After response loss query the original

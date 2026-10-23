@@ -172,9 +172,15 @@ fn content_image_replacement_uses_public_schema_and_discloses_native_attributes(
         .unwrap();
     assert_eq!(inspect(&mut s, &mut a, &image), before);
     let state = s
-        .call(&mut a, "plotium_capabilities_get", json!({}))
+        .call(
+            &mut a,
+            "plotium_capabilities_get",
+            json!({"section":"operation_constraints","key":FIGURE_EDIT}),
+        )
         .unwrap();
-    let ops=state["connection_capabilities"]["operation_constraints"][FIGURE_EDIT]["schema"]["properties"]["edits"]["items"]["oneOf"].as_array().unwrap();
+    let ops = state["contract"]["schema"]["properties"]["edits"]["items"]["oneOf"]
+        .as_array()
+        .unwrap();
     for op in ["content_frame", "image_replace"] {
         assert!(ops.iter().any(|v| v["properties"]["op"]["const"] == op));
     }
@@ -186,11 +192,15 @@ fn content_and_guide_capabilities_remain_discoverable_together() {
     for allow_modify in [false, true] {
         let mut s = crate::Session::default();
         s.allow_modify = allow_modify;
-        let state = s
-            .call(&mut a, "plotium_capabilities_get", json!({}))
-            .unwrap();
-        let caps = &state["connection_capabilities"];
-        let edit = &caps["operation_constraints"][FIGURE_EDIT];
+        let mut section = |section: &str, key: Option<&str>| {
+            let mut args = json!({ "section": section });
+            if let Some(key) = key {
+                args["key"] = json!(key);
+            }
+            s.call(&mut a, "plotium_capabilities_get", args).unwrap()["contract"].take()
+        };
+        let edit = &section("operation_constraints", Some(FIGURE_EDIT));
+        let guide = section("guide_contract", None);
         assert!(edit.get("currently_permitted").is_none());
         assert_eq!(edit["schema"], figure_edit_schema());
         let ops = edit["schema"]["properties"]["edits"]["items"]["oneOf"]
@@ -200,17 +210,17 @@ fn content_and_guide_capabilities_remain_discoverable_together() {
             assert!(ops.iter().any(|v| v["properties"]["op"]["const"] == op));
             assert!(edit["result_contract"].as_str().unwrap().contains(op));
         }
-        assert_eq!(caps["guide_contract"]["limits"]["targets"], 200);
-        assert_eq!(caps["guide_contract"]["limits"]["title_utf8_bytes"], 16384);
+        assert_eq!(guide["limits"]["targets"], 200);
+        assert_eq!(guide["limits"]["title_utf8_bytes"], 16384);
         assert!(
-            caps["guide_contract"]["coordinates"]
+            guide["coordinates"]
                 .as_str()
                 .unwrap()
                 .contains("plot_size - legend_size")
         );
-        let properties = caps["supported_properties"].as_array().unwrap();
         for key in ["visibility", "placement", "layout", "title", "position"] {
-            assert!(properties.contains(&json!(format!("object.guides.{key}"))));
+            let id = format!("object.guides.{key}");
+            assert!(crate::session::PROPERTIES.iter().any(|p| p.as_str() == id));
         }
     }
 }

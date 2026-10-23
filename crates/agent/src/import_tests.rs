@@ -272,11 +272,21 @@ fn schema_discovery_permissions_and_unexposed_core_tools_are_precise() {
     let state = s
         .call(&mut app, "plotium_capabilities_get", json!({}))
         .unwrap();
-    let caps = &state["connection_capabilities"];
     assert_eq!(
-        caps["tools"].as_array().unwrap().len(),
+        state["connection_capabilities"]["tools"]
+            .as_array()
+            .unwrap()
+            .len(),
         crate::protocol::definitions().len()
     );
+    let limits = s
+        .call(
+            &mut app,
+            "plotium_capabilities_get",
+            json!({"section":"limits"}),
+        )
+        .unwrap();
+    let caps = &json!({"limits":limits["contract"]});
     assert_eq!(caps["limits"]["table_read"]["max_rows"], 1000);
     assert_eq!(caps["limits"]["table_import"]["files"], 16);
     assert_eq!(

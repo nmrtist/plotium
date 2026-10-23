@@ -182,20 +182,26 @@ fn creation_discovery_schema_and_pending_curve_budget_are_shared_with_bindings()
     let state = s
         .call(&mut app, "plotium_capabilities_get", json!({}))
         .unwrap();
-    let cap = &state["connection_capabilities"];
     assert!(
-        cap["editable_operations"]
+        state["connection_capabilities"]["editable_operations"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|v| v == PLOT_CREATE)
+            .any(|group| group["operations"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(PLOT_CREATE)))
     );
+    let constraint = s
+        .call(
+            &mut app,
+            "plotium_capabilities_get",
+            json!({"section":"operation_constraints","key":PLOT_CREATE}),
+        )
+        .unwrap();
+    assert_eq!(constraint["contract"]["schema"], plot_create_schema());
     assert_eq!(
-        cap["operation_constraints"][PLOT_CREATE]["schema"],
-        plot_create_schema()
-    );
-    assert_eq!(
-        cap["operation_constraints"][PLOT_CREATE]["preflight_permission"],
+        constraint["contract"]["preflight_permission"],
         "reversible_modify"
     );
     let defs = crate::protocol::definitions();
@@ -207,13 +213,13 @@ fn creation_discovery_schema_and_pending_curve_budget_are_shared_with_bindings()
             .input_schema,
     )
     .unwrap();
-    let entry = schema["oneOf"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|v| v["properties"]["tool_id"]["const"] == PLOT_CREATE)
-        .unwrap();
-    assert_eq!(entry["properties"]["parameters"], plot_create_schema());
+    // The plan tool lists plot.create among operations without top-level selectors.
+    assert!(
+        schema["oneOf"][2]["properties"]["tool_id"]["enum"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(PLOT_CREATE))
+    );
     let columns = ["x", "y", "error"]
         .into_iter()
         .enumerate()

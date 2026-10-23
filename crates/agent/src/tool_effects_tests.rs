@@ -46,6 +46,7 @@ fn every_advertised_tool_has_explicit_conservative_annotations() {
 
 #[test]
 fn discovery_preserves_annotations_independently_of_current_permission() {
+    let mut first = None;
     for allow_modify in [false, true] {
         let mut app = plotium_core::state::PlotiumApp::new_with_settings(Default::default());
         let mut session = crate::Session::default();
@@ -53,15 +54,22 @@ fn discovery_preserves_annotations_independently_of_current_permission() {
         let discovery = session
             .call(&mut app, "plotium_capabilities_get", json!({}))
             .unwrap();
+        assert_eq!(first.get_or_insert_with(|| discovery.clone()), &discovery);
         let manifest = &discovery["connection_capabilities"];
         for tool in protocol::definitions() {
+            assert_eq!(
+                tool.annotations,
+                Some(crate::tool_effects::annotations(&tool.name))
+            );
             let advertised = manifest["tools"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .find(|entry| entry["name"] == tool.name.as_ref())
                 .unwrap();
-            assert_eq!(advertised["annotations"], json!(tool.annotations));
+            // Annotations and schemas live in tools/list; the index never repeats them.
+            assert!(advertised.get("annotations").is_none());
+            assert!(advertised.get("input_schema").is_none());
             if let Some(operation) = match tool.name.as_ref() {
                 "plotium_tasks_get" => Some("tasks.get"),
                 "plotium_tasks_list" => Some("tasks.list"),
@@ -70,30 +78,16 @@ fn discovery_preserves_annotations_independently_of_current_permission() {
             } {
                 assert_eq!(advertised["operations"], json!([operation]));
             }
-            if matches!(tool.name.as_ref(), "plotium_plan" | "plotium_execute") {
-                assert_eq!(
-                    advertised["operations"],
-                    json!(capabilities::EDIT_OPERATIONS)
-                );
-                assert!(
-                    advertised["operations"]
-                        .as_array()
-                        .unwrap()
-                        .contains(&json!("figure.edit"))
-                );
-                assert!(
-                    advertised["operations"]
-                        .as_array()
-                        .unwrap()
-                        .contains(&json!("project.save"))
-                );
-                assert!(
-                    advertised["operations"]
-                        .as_array()
-                        .unwrap()
-                        .contains(&json!("data.import"))
-                );
-            }
+        }
+        let grouped = manifest["editable_operations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|group| group["operations"].as_array().unwrap().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(grouped.len(), capabilities::EDIT_OPERATIONS.len());
+        for id in capabilities::EDIT_OPERATIONS {
+            assert!(grouped.contains(&json!(id)));
         }
     }
 }
