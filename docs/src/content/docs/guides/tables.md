@@ -8,11 +8,17 @@ values extracted by the region tools, and fit results.
 
 ## Editing
 
+On the board, a table appears as a sheet frame that previews its first 24 rows
+and 8 columns; the frame's title shows the full table size.
+
 Double-click a table on the board to open it as an editable sheet. The sheet
 is a spreadsheet-style grid: numbered rows, resizable columns, and a header
 that shows each column's name with its unit and type underneath. Empty cells
-render as a dimmed dash; `NaN` and infinities render dimmed. The grid paints
-only its visible row window, so very large tables stay responsive.
+render as a dimmed dash; `NaN` and infinities render dimmed. Decimal numbers
+show up to six significant digits, in scientific notation for very large or small
+magnitudes, the same way as on the board; editing and copying always use the
+full value. The grid paints only its visible row window, so very large tables
+stay responsive.
 
 Click a cell to select it and move with the arrow keys. Double-click, press
 **Enter** or **F2**, or simply start typing to edit; **Enter** commits and

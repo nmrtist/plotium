@@ -53,6 +53,29 @@ fn sheet_caps_visible_rows_and_reserves_overflow_footer() {
 }
 
 #[test]
+fn sheet_caps_visible_columns_and_reserves_overflow_column() {
+    let series = (0..SHEET_MAX_COLS + 3)
+        .map(|index| FloatSeries {
+            name: format!("s{index}"),
+            unit: String::new(),
+            values: vec![Some(1.0)],
+            uncertainty: None,
+            fit: None,
+        })
+        .collect();
+    let table = materialized_float_series_table(
+        ("x".into(), "".into(), vec![Some(0.0)]),
+        series,
+        "plotium.test.wide-table.v1",
+    )
+    .unwrap();
+    assert_eq!(table.sheet_cols(), SHEET_MAX_COLS);
+    assert_eq!(table.hidden_cols(), 4);
+    let [width, _] = table.sheet_size_pt();
+    assert!((width - (SHEET_MAX_COLS + 1) as f32 * SHEET_COL_W_PT).abs() < 1e-3);
+}
+
+#[test]
 fn figure_has_one_series_per_column() {
     let dataset = table_with_column();
     assert_eq!(dataset.figure().series.len(), 1);

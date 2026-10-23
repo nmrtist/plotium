@@ -72,7 +72,7 @@ pub(super) fn scalar_to_literal(value: &ScalarValue) -> Result<LiteralValue, Str
     })
 }
 
-pub(super) fn typed_cell_text(value: &ScalarValue, logical_type: &LogicalType) -> String {
+pub(crate) fn typed_cell_text(value: &ScalarValue, logical_type: &LogicalType) -> String {
     match value {
         ScalarValue::Null => String::new(),
         ScalarValue::Boolean(value) => value.to_string(),
@@ -97,9 +97,54 @@ pub(super) fn typed_cell_text(value: &ScalarValue, logical_type: &LogicalType) -
     }
 }
 
+/// Significant digits shown for floats on screen; edit and copy keep full precision.
+const DISPLAY_SIGNIFICANT_DIGITS: usize = 6;
+
+/// On-screen cell text shared by the data sheet grid and the board preview.
+pub(crate) fn display_cell_text(value: &ScalarValue, logical_type: &LogicalType) -> String {
+    match value {
+        ScalarValue::Null => "—".into(),
+        ScalarValue::Float64(value) if value.is_finite() => compact_float(*value),
+        ScalarValue::Extension { storage, .. } => display_cell_text(storage, logical_type),
+        _ => typed_cell_text(value, logical_type),
+    }
+}
+
+/// `%g`-style rendering: fixed notation for exponents in `-4..DIGITS`,
+/// scientific otherwise, trailing zeros trimmed.
+fn compact_float(value: f64) -> String {
+    if value == 0.0 {
+        return "0".into();
+    }
+    let digits = DISPLAY_SIGNIFICANT_DIGITS;
+    // The exponent comes from the rounded scientific form so 999999.5 moves to
+    // the next decade the same way its displayed mantissa does.
+    let scientific = format!("{value:.*e}", digits - 1);
+    let Some((mantissa, exponent)) = scientific.split_once('e') else {
+        return scientific;
+    };
+    let Ok(exponent) = exponent.parse::<i32>() else {
+        return scientific;
+    };
+    if exponent < -4 || exponent >= digits as i32 {
+        format!("{}e{exponent}", trim_fraction(mantissa))
+    } else {
+        let decimals = usize::try_from(digits as i32 - 1 - exponent).unwrap_or(0);
+        trim_fraction(&format!("{value:.decimals$}")).to_owned()
+    }
+}
+
+fn trim_fraction(text: &str) -> &str {
+    if text.contains('.') {
+        text.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        text
+    }
+}
+
 /// True when the value is a placeholder (NULL or non-finite) that should be
 /// rendered de-emphasized rather than as ordinary data.
-pub(super) fn is_placeholder(value: &ScalarValue) -> bool {
+pub(crate) fn is_placeholder(value: &ScalarValue) -> bool {
     match value {
         ScalarValue::Null => true,
         ScalarValue::Float64(value) => !value.is_finite(),
@@ -108,7 +153,7 @@ pub(super) fn is_placeholder(value: &ScalarValue) -> bool {
 }
 
 /// Numeric and temporal cells right-align so magnitudes line up.
-pub(super) fn right_aligned(logical_type: &LogicalType) -> bool {
+pub(crate) fn right_aligned(logical_type: &LogicalType) -> bool {
     matches!(
         logical_type,
         LogicalType::Int64
@@ -153,6 +198,40 @@ mod tests {
         assert_eq!(
             parse_typed_cell("-Inf", &schema).unwrap(),
             LiteralValue::Float64(FiniteOrSpecial::NegativeInfinity)
+        );
+    }
+
+    #[test]
+    fn display_text_is_compact_and_scientific_at_extremes() {
+        let float = |value| display_cell_text(&ScalarValue::Float64(value), &LogicalType::Float64);
+        assert_eq!(float(0.0015), "0.0015");
+        assert_eq!(float(0.1 + 0.2), "0.3");
+        assert_eq!(float(1e-9), "1e-9");
+        assert_eq!(float(6.02e23), "6.02e23");
+        assert_eq!(float(-123456.0), "-123456");
+        assert_eq!(float(999999.7), "1e6");
+        assert_eq!(float(0.0001), "0.0001");
+        assert_eq!(float(0.00001234), "1.234e-5");
+        assert_eq!(float(f64::NAN), "NaN");
+        assert_eq!(float(f64::INFINITY), "+Inf");
+        assert_eq!(float(f64::NEG_INFINITY), "-Inf");
+        assert_eq!(
+            display_cell_text(&ScalarValue::Null, &LogicalType::Float64),
+            "—"
+        );
+    }
+
+    #[test]
+    fn display_text_uses_category_labels() {
+        let logical_type = LogicalType::Categorical {
+            levels: vec![plotium_core::data::CategoryLevel {
+                value: "a".into(),
+                label: Some("Alpha".into()),
+            }],
+        };
+        assert_eq!(
+            display_cell_text(&ScalarValue::Categorical(0), &logical_type),
+            "Alpha"
         );
     }
 }

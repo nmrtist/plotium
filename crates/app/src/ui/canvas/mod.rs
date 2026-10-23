@@ -35,6 +35,7 @@ mod board;
 mod board_caption;
 mod board_marquee;
 mod board_notes;
+mod board_sheet;
 mod breadcrumb;
 mod chrome;
 mod craft_regions;

@@ -1,6 +1,7 @@
 use super::*;
 
-mod cell;
+mod batch_cache;
+pub(super) mod cell;
 mod column_menu;
 mod draft;
 mod focus;
@@ -41,6 +42,7 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         }
     }
     let Some(di) = app.session.ui.sheet_open else {
+        batch_cache::BatchCache::clear(ctx);
         return;
     };
     if di >= app.doc.datasets.len() {

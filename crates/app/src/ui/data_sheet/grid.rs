@@ -2,6 +2,8 @@
 //! editor, keyboard navigation, and header context menus. Row identity
 //! (RowId) stays internal; users see 1-based row numbers.
 
+use std::sync::Arc;
+
 use egui::{Align, Event, Key, Layout, Modifiers, Sense, StrokeKind, Ui};
 use egui_extras::{Column as TableColumn, TableBuilder};
 use plotium_core::data::{
@@ -11,6 +13,7 @@ use plotium_core::data::{
 
 use plotium_core::state::{TableCellEditDraft, TableDataset};
 
+use super::batch_cache::BatchCache;
 use super::{cell, focus};
 
 #[derive(Clone, Default)]
@@ -64,6 +67,7 @@ pub(super) fn typed_table_grid(
     let row_count = usize::try_from(snapshot.row_count).unwrap_or(usize::MAX);
     let editable = table.provenance.is_none();
     let mut outcome = GridOutcome::default();
+    let mut cache = BatchCache::load(ui.ctx(), table.snapshot_read());
     sanitize_state(state, schema, row_count);
     let had_focus = focus::grid_has_focus(ui.ctx());
     // A draft whose target changed shows no editor here; the grid must still
@@ -81,7 +85,6 @@ pub(super) fn typed_table_grid(
         &mut outcome.notice,
     ) {
         let index = request.row;
-        let mut cache = None;
         if let Some(batch) = batch_for_row(reader, chunks, index, &mut cache, &mut outcome.error) {
             let local = index - usize::try_from(batch.row_start).unwrap_or(usize::MAX);
             if let Some((_, values)) = batch.columns.iter().find(|(id, _)| *id == request.column)
@@ -156,14 +159,12 @@ pub(super) fn typed_table_grid(
             }
         })
         .body(|body| {
-            // Rows arrive in index order, so a one-batch cache serves the
-            // whole visible window without repeated chunk decodes.
-            let mut cache: Option<TableBatch> = None;
             body.rows(row_height, row_count, |mut row| {
                 let index = row.index();
                 row.set_selected(state.row == Some(index));
                 let batch = batch_for_row(reader, chunks, index, &mut cache, &mut outcome.error);
                 let local = batch
+                    .as_ref()
                     .map(|batch| index - usize::try_from(batch.row_start).unwrap_or(usize::MAX));
                 gutter_cell(
                     &mut row,
@@ -171,15 +172,14 @@ pub(super) fn typed_table_grid(
                     state,
                     index,
                     copy_requested,
-                    local.map(|local| (cache.as_ref().unwrap(), local)),
+                    batch.as_deref().zip(local),
                 );
-                let Some(local) = local else {
+                let (Some(batch), Some(local)) = (batch, local) else {
                     for _ in &schema.columns {
                         row.col(|_ui| {});
                     }
                     return;
                 };
-                let batch = cache.as_ref().unwrap();
                 let row_id = batch.row_ids[local];
                 for ((column_id, values), column) in batch.columns.iter().zip(&schema.columns) {
                     let value = values.value(local).unwrap_or(ScalarValue::Null);
@@ -224,6 +224,7 @@ pub(super) fn typed_table_grid(
                 }
             });
         });
+    cache.store(ui.ctx());
     let rect = egui::Rect::from_min_max(top_left, ui.min_rect().max);
     focus::maintain(ui, rect);
     outcome
@@ -397,29 +398,23 @@ fn start_edit(
     Ok(())
 }
 
-/// Locate and cache the batch containing `index`; None when reading failed.
-fn batch_for_row<'c>(
+/// Locate the batch containing `index` through the cache; None when reading failed.
+fn batch_for_row(
     reader: &SnapshotReader<'_>,
     chunks: &[ChunkDescriptor],
     index: usize,
-    cache: &'c mut Option<TableBatch>,
+    cache: &mut BatchCache,
     error: &mut Option<String>,
-) -> Option<&'c TableBatch> {
-    let in_batch = |batch: &TableBatch| {
-        let start = usize::try_from(batch.row_start).unwrap_or(usize::MAX);
-        (start..start + batch.row_ids.len()).contains(&index)
-    };
-    if !cache.as_ref().is_some_and(in_batch) {
-        let batch_index = batch_containing_row(chunks, index)?;
-        match reader.read_batch(batch_index, &[]) {
-            Ok(batch) => *cache = Some(batch),
-            Err(read_error) => {
-                *error = Some(read_error.to_string());
-                *cache = None;
-            }
-        }
-    }
-    cache.as_ref().filter(|batch| in_batch(batch))
+) -> Option<Arc<TableBatch>> {
+    let batch_index = batch_containing_row(chunks, index)?;
+    let batch = cache
+        .get_or_read(batch_index, || reader.read_batch(batch_index, &[]))
+        .map_err(|read_error| *error = Some(read_error.to_string()))
+        .ok()?;
+    let start = usize::try_from(batch.row_start).unwrap_or(usize::MAX);
+    (start..start + batch.row_ids.len())
+        .contains(&index)
+        .then_some(batch)
 }
 
 pub(super) fn batch_containing_row(chunks: &[ChunkDescriptor], row: usize) -> Option<usize> {
@@ -475,16 +470,12 @@ fn painted_value(
     column: &plotium_core::data::ColumnSchema,
     copy_requested: bool,
 ) {
-    let text = cell::typed_cell_text(value, &column.logical_type);
     if copy_requested {
-        ui.ctx().copy_text(text.clone());
+        ui.ctx()
+            .copy_text(cell::typed_cell_text(value, &column.logical_type));
     }
     let placeholder = cell::is_placeholder(value);
-    let shown = if matches!(value, ScalarValue::Null) {
-        "—".to_owned()
-    } else {
-        text
-    };
+    let shown = cell::display_cell_text(value, &column.logical_type);
     let layout = if cell::right_aligned(&column.logical_type) {
         Layout::right_to_left(Align::Center)
     } else {
