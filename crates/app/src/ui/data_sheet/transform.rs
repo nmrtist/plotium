@@ -22,4 +22,5 @@ pub(super) struct TableSheetContext<'a> {
     pub refresh: &'a mut Option<(usize, Vec<DatasetId>)>,
     pub catalog: &'a [TableCatalogEntry],
     pub transform_running: bool,
+    pub notice: &'a mut Option<String>,
 }

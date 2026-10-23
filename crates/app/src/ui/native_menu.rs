@@ -121,6 +121,7 @@ impl NativeMenu {
         // matching `handle_palette_shortcut`.
         self.lifecycle.poll(app);
         let typing = ctx.egui_wants_keyboard_input();
+        let table_focus = super::data_sheet::grid_has_focus(ctx);
         self.sync_recent(app);
         while let Ok(stable_id) = self.receiver.try_recv() {
             let Some(&id) = self.events.get(&stable_id) else {
@@ -131,6 +132,7 @@ impl NativeMenu {
                     id,
                     CommandId::CommandPalette | CommandId::CloseWindow | CommandId::Quit
                 )
+                && !(table_focus && matches!(id, CommandId::Undo | CommandId::Redo))
             {
                 continue;
             }

@@ -39,7 +39,8 @@ fn read_only_grid_keeps_arrow_navigation_without_starting_an_edit() {
     let mut edit_request = None;
 
     let _ = ctx.run_ui(input, |ui| {
-        edit_request = keyboard_navigation(ui, &schema, 3, &mut state, false, false);
+        focus::claim(ui.ctx());
+        edit_request = keyboard_navigation(ui, &schema, 3, &mut state, false, false, &mut None);
     });
 
     assert_eq!(state.cell, Some((0, second)));
@@ -62,10 +63,110 @@ fn editable_grid_still_supports_type_to_edit() {
     let mut edit_request = None;
 
     let _ = ctx.run_ui(input, |ui| {
-        edit_request = keyboard_navigation(ui, &schema, 3, &mut state, true, false);
+        focus::claim(ui.ctx());
+        edit_request = keyboard_navigation(ui, &schema, 3, &mut state, true, false, &mut None);
     });
 
-    assert_eq!(edit_request, Some((0, first, Some("7".to_owned()))));
+    assert_eq!(
+        edit_request,
+        Some(EditRequest {
+            row: 0,
+            column: first,
+            seed: Some("7".to_owned()),
+            commit: false,
+        })
+    );
+}
+
+#[test]
+fn unfocused_grid_leaves_tool_keys_and_arrows_to_the_canvas() {
+    let ctx = crate::typography::test_context();
+    let schema = two_column_schema();
+    let first = schema.columns[0].id;
+    let mut state = SheetState {
+        cell: Some((0, first)),
+        ..Default::default()
+    };
+    let mut events = vec![key_event(Key::ArrowRight), key_event(Key::ArrowDown)];
+    for key in ["v", "t", "r"] {
+        events.push(Event::Text(key.to_owned()));
+    }
+    let mut edit_request = None;
+    let mut remaining = 0;
+
+    let _ = ctx.run_ui(
+        egui::RawInput {
+            events,
+            ..Default::default()
+        },
+        |ui| {
+            edit_request = keyboard_navigation(ui, &schema, 3, &mut state, true, false, &mut None);
+            remaining = ui.input(|input| input.events.len());
+        },
+    );
+
+    assert!(edit_request.is_none());
+    assert_eq!(state.cell, Some((0, first)));
+    assert_eq!(remaining, 5);
+}
+
+fn focused_request(events: Vec<Event>) -> (Option<EditRequest>, Option<String>) {
+    let ctx = crate::typography::test_context();
+    let schema = two_column_schema();
+    let mut state = SheetState {
+        cell: Some((1, schema.columns[0].id)),
+        ..Default::default()
+    };
+    let mut request = None;
+    let mut notice = None;
+    let _ = ctx.run_ui(
+        egui::RawInput {
+            events,
+            ..Default::default()
+        },
+        |ui| {
+            focus::claim(ui.ctx());
+            request = keyboard_navigation(ui, &schema, 3, &mut state, true, false, &mut notice);
+        },
+    );
+    (request, notice)
+}
+
+#[test]
+fn focused_grid_turns_delete_and_single_value_paste_into_cell_edits() {
+    let (delete, _) = focused_request(vec![key_event(Key::Delete)]);
+    let delete = delete.unwrap();
+    assert_eq!((delete.row, delete.seed.as_deref()), (1, Some("")));
+    assert!(delete.commit);
+
+    let (paste, _) = focused_request(vec![Event::Paste("42\n".to_owned())]);
+    let paste = paste.unwrap();
+    assert_eq!(paste.seed.as_deref(), Some("42"));
+    assert!(!paste.commit);
+
+    let (multi, notice) = focused_request(vec![Event::Paste("1\t2\n3\t4".to_owned())]);
+    assert!(multi.is_none());
+    assert!(notice.unwrap().contains("not supported"));
+}
+
+#[test]
+fn escape_hands_the_keyboard_back() {
+    let ctx = crate::typography::test_context();
+    let schema = two_column_schema();
+    let mut state = SheetState::default();
+    let mut focused = true;
+    let _ = ctx.run_ui(
+        egui::RawInput {
+            events: vec![key_event(Key::Escape)],
+            ..Default::default()
+        },
+        |ui| {
+            focus::claim(ui.ctx());
+            keyboard_navigation(ui, &schema, 3, &mut state, true, false, &mut None);
+            focused = focus::grid_has_focus(ui.ctx());
+        },
+    );
+    assert!(!focused);
 }
 
 #[test]

@@ -484,3 +484,269 @@ fn data_list_delete_keeps_datasets_still_in_use() {
         app.session.status
     );
 }
+
+/// A page with a selected panel plus an open data sheet, run in render order:
+/// global shortcuts first, then the sheet.
+struct SheetHarness {
+    ctx: egui::Context,
+    app: PlotiumApp,
+    panel: plotium_core::state::PanelId,
+}
+
+impl SheetHarness {
+    fn new(nullable: bool) -> Self {
+        use plotium_core::data::{ColumnChunk, ColumnSchema, LogicalType};
+        let (mut app, panel) = app_with_pages(1);
+        select_panel_on_canvas(&mut app, panel);
+        let mut column = ColumnSchema::new("x", LogicalType::Float64);
+        column.nullable = nullable;
+        let table = plotium_core::state::TableDataset::from_materialized(
+            vec![(column, ColumnChunk::optional_f64([Some(10.0), Some(20.0)]))],
+            vec![],
+            None,
+            vec![],
+            "plotium.test.sheet-keys.v1",
+        )
+        .unwrap();
+        app.doc
+            .datasets
+            .push(plotium_core::state::Dataset::Table(Box::new(table)));
+        app.session.ui.sheet_open = Some(0);
+        let mut harness = Self {
+            ctx: crate::typography::test_context(),
+            app,
+            panel,
+        };
+        harness.frame(vec![], egui::Modifiers::NONE);
+        harness
+    }
+
+    fn frame(
+        &mut self,
+        events: Vec<egui::Event>,
+        modifiers: egui::Modifiers,
+    ) -> (Option<commands::CommandId>, egui::FullOutput) {
+        let mut command = None;
+        let app = &mut self.app;
+        let output = self.ctx.run_ui(
+            egui::RawInput {
+                events,
+                modifiers,
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1000.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                command = shortcut_command(ui.ctx());
+                handle_delete_shortcut(app, ui.ctx());
+                super::data_sheet::data_sheet_window(app, ui.ctx());
+            },
+        );
+        (command, output)
+    }
+
+    fn click(&mut self, position: egui::Pos2) {
+        let pointer = |pressed| egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        self.frame(
+            vec![egui::Event::PointerMoved(position), pointer(true)],
+            egui::Modifiers::NONE,
+        );
+        self.frame(vec![pointer(false)], egui::Modifiers::NONE);
+    }
+
+    /// Click the second row's value so the grid selects it and takes focus.
+    fn focus_second_cell(&mut self) {
+        let (_, output) = self.frame(vec![], egui::Modifiers::NONE);
+        let position = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                // Right of the row number lands inside the first value cell.
+                egui::Shape::Text(text) if text.galley.job.text == "2" => {
+                    Some(text.pos + text.galley.size() / 2.0 + egui::vec2(60.0, 0.0))
+                }
+                _ => None,
+            })
+            .expect("the second row is visible");
+        self.click(position);
+        assert!(super::data_sheet::grid_has_focus(&self.ctx));
+    }
+
+    fn second_value(&self) -> Option<f64> {
+        let rows = self.app.doc.datasets[0]
+            .as_table()
+            .unwrap()
+            .typed_rows(2, &[])
+            .unwrap();
+        match rows.columns[0].values.get(1) {
+            Some(plotium_core::data::ScalarValue::Float64(value)) => Some(*value),
+            _ => None,
+        }
+    }
+}
+
+fn pressed(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+    egui::Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers,
+    }
+}
+
+#[test]
+fn clicking_outside_the_sheet_returns_tool_keys_to_the_canvas() {
+    let mut sheet = SheetHarness::new(true);
+    sheet.focus_second_cell();
+    sheet.click(egui::pos2(995.0, 795.0));
+    assert!(!super::data_sheet::grid_has_focus(&sheet.ctx));
+
+    let (command, _) = sheet.frame(
+        vec![
+            pressed(egui::Key::V, egui::Modifiers::NONE),
+            egui::Event::Text("v".to_owned()),
+            pressed(egui::Key::ArrowDown, egui::Modifiers::NONE),
+        ],
+        egui::Modifiers::NONE,
+    );
+
+    assert_eq!(command, Some(commands::CommandId::Tool(Tool::Select)));
+    assert!(sheet.app.session.ui.table_cell_edit.is_none());
+    assert_eq!(sheet.second_value(), Some(20.0));
+}
+
+#[test]
+fn focused_sheet_copies_the_cell_instead_of_the_figure() {
+    let mut sheet = SheetHarness::new(true);
+    sheet.focus_second_cell();
+
+    let (command, output) = sheet.frame(vec![egui::Event::Copy], egui::Modifiers::COMMAND);
+
+    assert!(command.is_none());
+    assert!(
+        output
+            .platform_output
+            .commands
+            .contains(&egui::OutputCommand::CopyText("20".to_owned()))
+    );
+}
+
+#[test]
+fn focused_sheet_delete_clears_the_cell_undoably_and_keeps_the_canvas() {
+    let mut sheet = SheetHarness::new(true);
+    sheet.focus_second_cell();
+    let pages = sheet.app.doc.canvases.len();
+    let objects = sheet.app.doc.canvases[0].objects.len();
+
+    sheet.frame(
+        vec![pressed(egui::Key::Delete, egui::Modifiers::NONE)],
+        egui::Modifiers::NONE,
+    );
+    sheet.frame(vec![], egui::Modifiers::NONE);
+
+    assert!(sheet.app.doc.canvases[0].panel(sheet.panel).is_some());
+    assert_eq!(sheet.app.doc.canvases.len(), pages);
+    assert_eq!(sheet.app.doc.canvases[0].objects.len(), objects);
+    assert!(sheet.app.session.ui.table_cell_edit.is_none());
+    assert_eq!(sheet.second_value(), None);
+    assert!(super::data_sheet::grid_has_focus(&sheet.ctx));
+
+    let (command, _) = sheet.frame(
+        vec![pressed(egui::Key::Z, egui::Modifiers::COMMAND)],
+        egui::Modifiers::COMMAND,
+    );
+    assert_eq!(command, Some(commands::CommandId::Undo));
+    sheet.app.undo();
+    assert_eq!(sheet.second_value(), Some(20.0));
+}
+
+#[test]
+fn focused_sheet_delete_explains_a_non_nullable_column() {
+    let mut sheet = SheetHarness::new(false);
+    sheet.focus_second_cell();
+
+    sheet.frame(
+        vec![pressed(egui::Key::Backspace, egui::Modifiers::NONE)],
+        egui::Modifiers::NONE,
+    );
+
+    assert!(sheet.app.doc.canvases[0].panel(sheet.panel).is_some());
+    assert_eq!(sheet.second_value(), Some(20.0));
+    let draft = sheet.app.session.ui.table_cell_edit.as_ref().unwrap();
+    assert!(draft.error.as_deref().unwrap().contains("not nullable"));
+}
+
+#[test]
+fn focused_sheet_pastes_a_single_value_into_the_cell_editor() {
+    let mut sheet = SheetHarness::new(true);
+    sheet.focus_second_cell();
+    let objects = sheet.app.doc.canvases[0].objects.len();
+
+    let (command, _) = sheet.frame(
+        vec![egui::Event::Paste("42".to_owned())],
+        egui::Modifiers::COMMAND,
+    );
+
+    assert!(command.is_none());
+    assert_eq!(sheet.app.doc.canvases[0].objects.len(), objects);
+    let draft = sheet.app.session.ui.table_cell_edit.as_ref().unwrap();
+    assert_eq!(draft.text, "42");
+    assert_eq!(draft.original_text, "20");
+}
+
+#[test]
+fn escape_returns_the_keys_from_the_sheet_to_the_canvas() {
+    let mut sheet = SheetHarness::new(true);
+    sheet.focus_second_cell();
+
+    sheet.frame(
+        vec![pressed(egui::Key::Escape, egui::Modifiers::NONE)],
+        egui::Modifiers::NONE,
+    );
+    sheet.frame(vec![], egui::Modifiers::NONE);
+    assert!(!super::data_sheet::grid_has_focus(&sheet.ctx));
+
+    let (command, _) = sheet.frame(
+        vec![pressed(egui::Key::V, egui::Modifiers::NONE)],
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(command, Some(commands::CommandId::Tool(Tool::Select)));
+    assert!(sheet.app.doc.canvases[0].panel(sheet.panel).is_some());
+}
+
+#[test]
+fn tab_from_the_cell_editor_keeps_typing_in_the_sheet() {
+    let mut sheet = SheetHarness::new(true);
+    sheet.focus_second_cell();
+
+    sheet.frame(
+        vec![egui::Event::Text("7".to_owned())],
+        egui::Modifiers::NONE,
+    );
+    sheet.frame(vec![], egui::Modifiers::NONE);
+    sheet.frame(
+        vec![pressed(egui::Key::Tab, egui::Modifiers::NONE)],
+        egui::Modifiers::NONE,
+    );
+    sheet.frame(vec![], egui::Modifiers::NONE);
+
+    assert_eq!(sheet.second_value(), Some(7.0));
+    assert!(super::data_sheet::grid_has_focus(&sheet.ctx));
+    let (command, _) = sheet.frame(
+        vec![
+            pressed(egui::Key::T, egui::Modifiers::NONE),
+            egui::Event::Text("t".to_owned()),
+        ],
+        egui::Modifiers::NONE,
+    );
+    assert!(command.is_none());
+    assert!(sheet.app.session.ui.table_cell_edit.is_some());
+}

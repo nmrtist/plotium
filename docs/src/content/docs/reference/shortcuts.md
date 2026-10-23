@@ -5,6 +5,11 @@ description: Keyboard and mouse shortcuts.
 
 `Ctrl` means `Cmd` on macOS. Shortcuts are ignored while a text field has
 keyboard focus, except for the native macOS Close Window and Quit commands.
+After you click into a data sheet, it takes the board's keys: `Ctrl` + `C`
+copies the selected cell, `Delete` or `Backspace` clears it, and `Ctrl` + `V`
+pastes a single value into it. Undo, redo, `Ctrl` + `Shift` + `V` and the
+command palette keep working. Click the board or press `Esc` to return
+the keys to the board. See [Tables](/guides/tables/#editing).
 
 ## Tools
 

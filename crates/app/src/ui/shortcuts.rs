@@ -326,7 +326,14 @@ fn shortcut_command(ctx: &egui::Context) -> Option<commands::CommandId> {
             .any(|event| matches!(event, egui::Event::Paste(_)))
     });
     if ctx.egui_wants_keyboard_input() {
-        return None;
+        // The focused data sheet owns every other key, but undo/redo must
+        // still reach the history so a cleared cell can be restored in place.
+        if !data_sheet::grid_has_focus(ctx) {
+            return None;
+        }
+        return ctx
+            .input(bound_command)
+            .filter(|id| matches!(id, commands::CommandId::Undo | commands::CommandId::Redo));
     }
     ctx.input(|i| {
         // The platform Copy event has no chord of its own; route it like Cmd+C.
@@ -339,16 +346,20 @@ fn shortcut_command(ctx: &egui::Context) -> Option<commands::CommandId> {
         if system_paste {
             return Some(commands::CommandId::PasteImage);
         }
-        BINDINGS
-            .iter()
-            .filter(|binding| binding.dispatch)
-            .find_map(|binding| {
-                std::iter::once(binding.primary)
-                    .chain(binding.aliases.iter().copied())
-                    .any(|chord| chord_pressed(i, chord))
-                    .then_some(binding.id)
-            })
+        bound_command(i)
     })
+}
+
+fn bound_command(i: &egui::InputState) -> Option<commands::CommandId> {
+    BINDINGS
+        .iter()
+        .filter(|binding| binding.dispatch)
+        .find_map(|binding| {
+            std::iter::once(binding.primary)
+                .chain(binding.aliases.iter().copied())
+                .any(|chord| chord_pressed(i, chord))
+                .then_some(binding.id)
+        })
 }
 
 pub(super) fn handle_escape_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) {

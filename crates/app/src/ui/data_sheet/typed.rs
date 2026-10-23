@@ -17,6 +17,7 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
         refresh,
         catalog,
         transform_running,
+        notice,
     } = context;
     let apply = super::draft::controls(ui, draft, Some(table));
     let typed = &table.typed_state;
@@ -71,6 +72,9 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
         editable,
     );
     ui.ctx().data_mut(|data| data.insert_temp(state_id, state));
+    if outcome.notice.is_some() {
+        *notice = outcome.notice;
+    }
     if (apply || outcome.edit.is_some())
         && let Some(edit) = draft.as_mut()
     {
