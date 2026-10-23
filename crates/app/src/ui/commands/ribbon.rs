@@ -144,3 +144,17 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         applicability,
     })
 }
+
+/// Every (tab, group) pair the Ribbon placement tables can produce, so layout
+/// tests stay exhaustive as placements evolve.
+#[cfg(test)]
+pub(in crate::ui) fn ribbon_group_pairs() -> Vec<(WorkflowTab, &'static str)> {
+    let mut pairs: Vec<_> = super::command_ids(0)
+        .into_iter()
+        .filter_map(ribbon_placement)
+        .map(|placement| (placement.tab, placement.group))
+        .collect();
+    pairs.sort_by_key(|&(tab, group)| (tab as u8, group));
+    pairs.dedup();
+    pairs
+}
