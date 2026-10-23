@@ -237,6 +237,15 @@ Save and export still require fresh desktop confirmation for each exact request.
 Update the desktop and connector together and reconnect clients to refresh the
 tool catalog after upgrading.
 
+The advertised inputs for planning, property inspection, document inspection and
+figure diagnostics list their fields directly so clients can display complete
+signatures. Plotium still validates conditional rules: use exactly one nonempty
+`ids` or `targets` selector where required, omit both for operations with embedded
+targets, and supply one dataset ID for table operations. Only `properties.set`
+and `properties.reset` accept Series targets. Document pagination applies only
+to `view: "children"`; diagnostic continuation accepts only `cursor`, context and
+revision, whereas an initial diagnostic request requires `canvas` and `output`.
+
 ## Import native data from the welcome page
 
 `plotium_get_state {}` works immediately after opening Plotium, including while

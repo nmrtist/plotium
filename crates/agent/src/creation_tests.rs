@@ -213,9 +213,9 @@ fn creation_discovery_schema_and_pending_curve_budget_are_shared_with_bindings()
             .input_schema,
     )
     .unwrap();
-    // The plan tool lists plot.create among operations without top-level selectors.
+    // Creation is advertised alongside the other supported operations.
     assert!(
-        schema["oneOf"][2]["properties"]["tool_id"]["enum"]
+        schema["properties"]["tool_id"]["enum"]
             .as_array()
             .unwrap()
             .contains(&json!(PLOT_CREATE))

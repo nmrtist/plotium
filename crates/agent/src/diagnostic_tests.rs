@@ -300,7 +300,8 @@ fn discovery_and_budget_errors_are_explicit() {
             .unwrap()
             .contains(&json!("expected_project_context"))
     );
-    assert_eq!(schema["oneOf"].as_array().unwrap().len(), 2);
+    assert!(schema.get("oneOf").is_none());
+    assert!(schema["properties"].get("cursor").is_some());
     let (mut a, mut s, t) = fixture();
     let mut q = args(&a, &t);
     q["output"]["size_mm"] = json!([90, 90]);

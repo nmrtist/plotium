@@ -10,6 +10,7 @@ mod plan_budget_tests;
 mod property_allowlist;
 mod property_batch;
 pub use property_allowlist::PROPERTIES;
+mod input;
 mod recovery;
 pub(crate) mod save;
 mod science;
@@ -401,7 +402,7 @@ impl Session {
             return self.scientific_read(app, name, arguments);
         }
         if name == "plotium_plan" {
-            let args: Plan = decode(arguments)?;
+            let args = Plan::parse(arguments)?;
             if matches!(
                 args.tool_id.as_str(),
                 PROCESSING_EDIT
