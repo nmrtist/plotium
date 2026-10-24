@@ -1,6 +1,7 @@
 //! Guide observations reuse the exact renderer layout, not a second estimator.
 use crate::{
-    Figure, Projector, Rect, axis_layout_placed, color_scale_rect, legend_entries, legend_rect,
+    Figure, Projector, Rect, axis_layout_placed, color_scale_rect, legend_entries,
+    legend_rect_placed,
 };
 
 pub fn legend_entry_count(fig: &Figure) -> usize {
@@ -33,7 +34,7 @@ pub fn guide_geometry_placed(
 ) -> GuideGeometry {
     let layout = axis_layout_placed(fig, size[0], size[1], stack);
     let plot = Projector::new(fig, Rect::new(0., 0., size[0], size[1]), &layout.margins).plot;
-    let legend = legend_rect(fig, plot, 1.);
+    let legend = legend_rect_placed(fig, plot, 1., stack);
     let entries = legend_entry_count(fig);
     let available_travel = legend.map(|r| {
         [

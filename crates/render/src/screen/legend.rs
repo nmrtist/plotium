@@ -1,12 +1,18 @@
 use super::col;
 use crate::{
-    LegendMark, Rect, legend_entries, legend_entry_origin, legend_layout, legend_rect,
-    renders_legend,
+    LegendMark, Rect, StackPlacement, legend_entries, legend_entry_origin, legend_layout,
+    legend_rect_placed, renders_legend,
 };
 use egui::{Align2, Pos2, Stroke, Vec2};
 use plotium_figure::Figure;
 
-pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f32) {
+pub(super) fn paint(
+    painter: &egui::Painter,
+    plot: Rect,
+    fig: &Figure,
+    scale: f32,
+    stack: Option<&StackPlacement>,
+) {
     let entries = legend_entries(fig);
     if !renders_legend(fig) {
         return;
@@ -14,7 +20,7 @@ pub(super) fn paint(painter: &egui::Painter, plot: Rect, fig: &Figure, scale: f3
     let layout = legend_layout(fig, &entries);
     let font = fig.typography.legend_pt * scale;
     let sw = layout.swatch * scale;
-    let Some(box_geometry) = legend_rect(fig, plot, scale) else {
+    let Some(box_geometry) = legend_rect_placed(fig, plot, scale, stack) else {
         return;
     };
     // Legends draw neither a frame nor a backing.

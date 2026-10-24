@@ -184,3 +184,66 @@ fn members_beside_a_removed_member_stop_drawing_as_joined() {
     assert!(!placements[&ids[0]].joined_below);
     assert!(!placements[&ids[2]].joined_above);
 }
+
+#[test]
+fn outside_legends_line_up_beside_the_widest_right_axis() {
+    let (mut app, _, ids) = stacked(vec![
+        table(1, 10, "plotium.test.stack-h.v1"),
+        table(1, 10, "plotium.test.stack-i.v1"),
+    ]);
+    // The upper member alone draws a right axis; the lower one has the
+    // wider legend, so neither member alone sizes the shared right margin.
+    for (index, id) in ids.iter().enumerate() {
+        let plot = app.doc.canvases[0]
+            .object_mut(*id)
+            .and_then(|item| item.plot_mut())
+            .expect("plot");
+        plot.axis_overrides.guide_visibility = Some(plotium_figure::GuideVisibility::Show);
+        plot.axis_overrides.guide_placement = Some(plotium_figure::GuidePlacement::OutsideRight);
+        let series = &mut plot.binding.series[0];
+        if let plotium_figure::SeriesEncoding::Line(line) = &mut series.encoding
+            && index == 0
+        {
+            line.appearance.y_axis = plotium_figure::YAxisSide::Right;
+        }
+        if index == 1 {
+            series.label = Some("Longer entry".to_owned());
+        }
+    }
+    app.rebuild_canvases_for(0);
+    app.rebuild_canvases_for(1);
+    let page = &app.doc.canvases[0];
+    let placements = page.shared_x_stack_placements();
+    let legends: Vec<_> = ids
+        .iter()
+        .map(|id| {
+            let item = page.object(*id).unwrap();
+            let figure = item.plot().unwrap().figure();
+            let placement = placements[id];
+            let layout = plotium_render::axis_layout_placed(
+                figure,
+                item.frame.width,
+                item.frame.height,
+                Some(&placement),
+            );
+            let outer = plotium_render::Rect::new(0.0, 0.0, item.frame.width, item.frame.height);
+            let plot = plotium_render::Projector::new(figure, outer, &layout.margins).plot;
+            let legend =
+                plotium_render::legend_rect_placed(figure, plot, 1.0, Some(&placement)).unwrap();
+            (legend, item.frame.width)
+        })
+        .collect();
+    assert!(
+        page.object(ids[0])
+            .unwrap()
+            .plot()
+            .unwrap()
+            .figure()
+            .y2
+            .is_some()
+    );
+    assert!((legends[0].0.left - legends[1].0.left).abs() < 1e-3);
+    for (legend, width) in legends {
+        assert!(legend.right() <= width, "{legend:?} overflows {width}");
+    }
+}

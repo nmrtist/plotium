@@ -39,6 +39,16 @@ impl AxisLayout {
             widest_tick_label(&self.y2_ticks, fig.typography.tick_pt),
         )
     }
+
+    /// Width the right axis reserves beside the plot: ticks, labels and
+    /// title; zero without a right axis.
+    pub fn right_axis_width(&self, fig: &Figure) -> f32 {
+        crate::y2_axis::reserved_width(
+            fig,
+            &self.y2_ticks,
+            widest_tick_label(&self.y2_ticks, fig.typography.tick_pt),
+        )
+    }
 }
 
 /// Compute axes in page units, adapting tick density to the final plot rect.

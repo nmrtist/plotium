@@ -225,7 +225,7 @@ pub fn figure_text_boxes_placed(
             );
         }
     }
-    if let Some(r) = legend_rect(fig, plot, 1.) {
+    if let Some(r) = legend_rect_placed(fig, plot, 1., stack) {
         let entries = legend_entries(fig);
         let l = legend_layout(fig, &entries);
         add(

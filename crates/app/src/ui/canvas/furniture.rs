@@ -189,7 +189,8 @@ fn furniture_hit(
             continue;
         };
         let figure = plot_object.figure();
-        if let Some(rect) = plotium_render::legend_rect(figure, plot, scale)
+        let stack = canvas.shared_x_stack_placement(object.id);
+        if let Some(rect) = plotium_render::legend_rect_placed(figure, plot, scale, stack.as_ref())
             && rect_contains(rect, pointer, 2.0)
         {
             return Some(FurnitureHit::Legend {

@@ -311,10 +311,9 @@ fn check_plot(s: &mut Session, a: &mut PlotiumApp, plotted: &Value, fit: bool) {
         let cursor = diagnostic["value"]["continuation"].clone();
         diagnostic = call(s, a, "plotium_figure_diagnose", json!({"cursor":cursor}));
     }
-    // Hints are advice about clarity, not defects of the native figure.
     let issues = diagnostic_rows
         .iter()
-        .filter(|r| r["kind"] == "issue" && r["severity"] != "hint")
+        .filter(|r| r["kind"] == "issue")
         .collect::<Vec<_>>();
     assert!(issues.is_empty(), "{issues:?}");
     let preview = call(
@@ -466,7 +465,7 @@ async fn http_preview(client: &Client, canvas: &Value, size_mm: Value) {
             .as_array()
             .unwrap()
             .iter()
-            .filter(|r| r["kind"] == "issue" && r["severity"] != "hint")
+            .filter(|r| r["kind"] == "issue")
             .collect::<Vec<_>>();
         assert!(issues.is_empty(), "{issues:?}");
         if diagnosed["value"]["coverage"]["scan_complete"] == true {

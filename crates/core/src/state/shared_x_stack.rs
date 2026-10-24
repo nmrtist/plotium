@@ -165,27 +165,23 @@ impl CanvasDocument {
         if plots.len() < 2 {
             return Vec::new();
         }
-        let (left, right, y_tick_clearance, y2_tick_clearance) = plots
-            .iter()
-            .map(|(_, (frame, figure))| {
-                let layout = plotium_render::axis_layout(figure, frame.width, frame.height);
-                (
-                    layout.y_tick_clearance(figure),
-                    layout.y2_tick_clearance(figure),
-                    layout.margins,
-                )
-            })
-            .fold(
-                (0.0f32, 0.0f32, 0.0f32, 0.0f32),
-                |(left, right, ticks, right_ticks), (clearance, right_clearance, margins)| {
-                    (
-                        left.max(margins.left),
-                        right.max(margins.right),
-                        ticks.max(clearance),
-                        right_ticks.max(right_clearance),
-                    )
-                },
-            );
+        let mut left = 0.0f32;
+        let (mut right_axes, mut guides) = (0.0f32, 0.0f32);
+        let (mut y_tick_clearance, mut y2_tick_clearance) = (0.0f32, 0.0f32);
+        let mut right_axis_width = 0.0f32;
+        for (_, (frame, figure)) in &plots {
+            let layout = plotium_render::axis_layout(figure, frame.width, frame.height);
+            let guide = plotium_render::outside_guide_width(figure);
+            left = left.max(layout.margins.left);
+            // Outside-right guides stand off the column's widest right axis,
+            // so the shared margin is that axis plus the widest guide.
+            right_axes = right_axes.max(layout.margins.right - guide);
+            guides = guides.max(guide);
+            y_tick_clearance = y_tick_clearance.max(layout.y_tick_clearance(figure));
+            y2_tick_clearance = y2_tick_clearance.max(layout.y2_tick_clearance(figure));
+            right_axis_width = right_axis_width.max(layout.right_axis_width(figure));
+        }
+        let right = right_axes + guides;
         // Two neighbouring plots are joined only while their frames still meet
         // across the gap: deleting or moving out a member leaves a hole until
         // the stack reflows, and the plots beside it must keep their own axes.
@@ -214,6 +210,7 @@ impl CanvasDocument {
                         right,
                         y_tick_clearance,
                         y2_tick_clearance,
+                        right_axis_width,
                         joined_above: joined(index.checked_sub(1), Some(index)),
                         joined_below: joined(Some(index), Some(index + 1)),
                     },

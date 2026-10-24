@@ -363,11 +363,6 @@ pub(super) fn prepare(
         worker
             .commit_curve_bindings(plan)
             .map_err(|e| invalid(tool, e))?;
-        // Keep panel letters clear of the vertical axis title even in the
-        // short residual panel, whose title can extend to its upper edge.
-        for panel in &mut worker.doc.canvases[0].panels {
-            panel.label.position = [panel.frame.width - 14., 5.];
-        }
         let d = analysis
             .result
             .parameters
@@ -441,6 +436,12 @@ pub(super) fn prepare(
             if let Some(plot) = object.plot_mut() {
                 plot.adopt_rebuilt_figure(plot.figure().clone());
             }
+        }
+        align_plot_area_left_edges(&mut worker.doc.canvases[0]);
+        // Keep panel letters clear of the vertical axis title even in the
+        // short residual panel, whose title can extend to its upper edge.
+        for panel in &mut worker.doc.canvases[0].panels {
+            panel.label.position = [panel.frame.width - 14., 5.];
         }
         (
             worker.doc.canvases.remove(0),
@@ -557,3 +558,41 @@ pub(super) fn descriptors() -> Vec<ToolDescriptor> {
         parameter_schema:scientific_plot_schema(),
         result_schema:json!({"type":"object","required":["value","produced"]}),target_kinds:vec![ResourceKindId::new(if id==FIELD_PLOT_CREATE {KIND_FIELD}else{KIND_ANALYSIS})],required_capabilities:vec![],effect:EffectLevel::Reversible,undoable:true,deterministic:true,task_kind:"synchronous".into()}).collect()
 }
+
+/// Narrow the panels of a one-column page from the left so every plot area
+/// starts where the widest y-axis band ends. Tick labels of different widths
+/// would otherwise shift each plot area inside equally placed frames.
+fn align_plot_area_left_edges(page: &mut CanvasDocument) {
+    let lefts: Vec<_> = page
+        .objects
+        .iter()
+        .filter_map(|item| {
+            let figure = item.plot()?.figure();
+            let layout = plotium_render::axis_layout(figure, item.frame.width, item.frame.height);
+            Some((item.id, layout.margins.left))
+        })
+        .collect();
+    let Some(widest) = lefts.iter().map(|(_, left)| *left).reduce(f32::max) else {
+        return;
+    };
+    for (id, left) in lefts {
+        let inset = widest - left;
+        if inset <= 0. {
+            continue;
+        }
+        if let Some(panel) = page
+            .parent_panel(id)
+            .and_then(|panel| page.panel_mut(panel))
+        {
+            panel.frame.x += inset;
+            panel.frame.width -= inset;
+        }
+        if let Some(item) = page.object_mut(id) {
+            item.frame.width -= inset;
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "scientific_plot_tests.rs"]
+mod tests;

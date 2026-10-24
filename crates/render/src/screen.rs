@@ -481,7 +481,7 @@ fn paint_with_detail_and_stats_impl(
         paint_projection(painter, fig, trace, plot, band, false, scale);
     }
 
-    legend::paint(painter, plot, fig, scale);
+    legend::paint(painter, plot, fig, scale, stack.as_ref());
     color_scale::paint(painter, plot, fig, scale);
 }
 
