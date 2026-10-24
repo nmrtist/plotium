@@ -12,23 +12,48 @@ fn filtered_full_definitions_are_exact_and_compact_covers_every_property() {
     let compact = result["properties"].as_array().unwrap();
     assert_eq!(compact.len(), rows.len());
     for (full, compact) in rows.iter().zip(compact) {
-        for key in ["id", "label", "scope", "access", "unit", "applicability"] {
-            assert_eq!(full[key], compact[key], "{}: {key}", full["id"]);
+        let id = full["id"].as_str().unwrap();
+        for key in ["id", "label"] {
+            assert_eq!(full[key], compact[key], "{id}: {key}");
         }
-        for (key, value) in full["schema"].as_object().unwrap() {
-            if !matches!(key.as_str(), "variants" | "input_schema" | "drag_step") {
-                assert_eq!(value, &compact["schema"][key]);
-            }
+        assert_eq!(compact["type"], full["schema"]["type"], "{id}");
+        // Dropped fields must stay derivable from the id.
+        assert_eq!(
+            full["scope"] == "Document",
+            id.starts_with("document."),
+            "{id}"
+        );
+        assert_eq!(
+            full["applicability"]["component"] == "series",
+            id.starts_with("series."),
+            "{id}"
+        );
+        for key in ["min", "max", "format"] {
+            assert_eq!(full["schema"].get(key), compact.get(key), "{id}: {key}");
         }
-        if full["schema"].get("input_schema").is_some() {
-            assert_eq!(compact["schema"]["requires_full"], true);
-        }
+        assert_eq!(
+            compact["requires_full"] == true,
+            full["schema"].get("input_schema").is_some() || full["schema"].get("codes").is_some(),
+            "{id}"
+        );
         if let Some(variants) = full["schema"]["variants"].as_array() {
             assert_eq!(
-                compact["schema"]["variants"],
+                compact["values"],
                 json!(variants.iter().map(|v| v["id"].clone()).collect::<Vec<_>>())
             );
         }
+        let unit = full["unit"].as_str().unwrap();
+        assert_eq!(
+            compact.get("unit").and_then(Value::as_str),
+            (!unit.is_empty()).then_some(unit)
+        );
+        assert_eq!(
+            compact.get("encoding"),
+            full["applicability"]
+                .get("encoding")
+                .filter(|e| !e.is_null())
+        );
+        assert!(serde_json::to_vec(compact).unwrap().len() <= 200, "{id}");
         let detail = respond(json!({"keys":[full["id"]],"detail":"full"})).unwrap();
         assert_eq!(detail["properties"], json!([full]));
     }
@@ -37,8 +62,23 @@ fn filtered_full_definitions_are_exact_and_compact_covers_every_property() {
         respond(json!({"keys":keys,"detail":"full"})).unwrap()["properties"],
         json!([rows[0], rows[1]])
     );
+    assert!(serde_json::to_vec(&result).unwrap().len() <= 8 * 1024);
+    let lines = respond(json!({"prefix":"series.line."})).unwrap();
+    let lines = lines["properties"].as_array().unwrap();
+    assert!(!lines.is_empty());
+    assert!(
+        lines
+            .iter()
+            .all(|r| r["id"].as_str().unwrap().starts_with("series.line."))
+    );
+    assert_eq!(
+        lines.len(),
+        rows.iter()
+            .filter(|r| r["id"].as_str().unwrap().starts_with("series.line."))
+            .count()
+    );
     for scope in scopes(rows) {
-        let result = respond(json!({"scope":scope})).unwrap();
+        let result = respond(json!({"scope":scope,"detail":"full"})).unwrap();
         assert!(
             result["properties"]
                 .as_array()
@@ -61,6 +101,8 @@ fn invalid_keys_and_filters_never_silently_drop_requested_properties() {
         json!({"scope":"missing"}),
         json!({"extra":true}),
         json!({"detail":"other"}),
+        json!({"prefix":null}),
+        json!({"prefix":""}),
     ] {
         assert_eq!(respond(args).unwrap_err().code, "invalid_parameters");
     }
@@ -69,6 +111,14 @@ fn invalid_keys_and_filters_never_silently_drop_requested_properties() {
             .unwrap_err()
             .code,
         "unsupported_property"
+    );
+    let error = respond(json!({"prefix":"series.lines"})).unwrap_err();
+    assert_eq!(error.code, "invalid_parameters");
+    assert!(
+        error.details.unwrap()["prefixes"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("series.line"))
     );
     let different_scope = scopes(full["properties"].as_array().unwrap())
         .into_iter()
