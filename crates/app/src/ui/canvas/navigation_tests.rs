@@ -9,6 +9,7 @@ fn zoomed_plot_fixture() -> (PlotiumApp, ObjectId, PlotRect) {
     let mut canvas = CanvasDocument::new("page".to_owned(), [200.0, 120.0]);
     let mut figure = Figure::new("plot", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
     let viewport = CanvasViewport {
+        display_gain: 1.0,
         full_x: AxisRange::new(0.0, 10.0),
         full_y: AxisRange::new(0.0, 10.0),
         view_x: AxisRange::new(2.0, 8.0),
@@ -536,3 +537,6 @@ fn consecutive_plot_pans_coalesce_into_one_undo_action() {
     assert_eq!(app.session.undo_stack.len(), 1);
     assert!(app.session.ui.wheel_zoom.is_none());
 }
+
+#[path = "navigation_gain_tests.rs"]
+mod gain_tests;

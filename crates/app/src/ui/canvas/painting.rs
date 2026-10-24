@@ -490,7 +490,7 @@ pub(crate) fn paint_peaks(
         }
         _ => None,
     };
-    let sy = |v: f64| to_screen_y(v, plot, &fig.y);
+    let sy = |v: f64| to_screen_y(v * fig.display_gain, plot, &fig.y);
     let sx = |v: f64| to_screen_x(v, plot, &fig.x);
     // Confine every marker, ring, line and preview to the plot box so nothing spills
     // into the axes or margins when the view is zoomed in.

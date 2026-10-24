@@ -75,6 +75,7 @@ pub fn build_processed_1d_figure(
 pub fn apply_peak_labels(mut fig: Figure, peaks: &[ResolvedPeak]) -> Figure {
     for peak in peaks {
         fig = fig.with_annotation(Annotation {
+            display_baseline: 0.0,
             text: peak.label.clone(),
             at: [peak.x, peak.y],
             color: Color::rgb(0x8a, 0x1c, 0x1c),
@@ -225,7 +226,9 @@ pub fn build_stack_figure(stack: &StackSpectrum) -> Figure {
             .zip(&stack.traces[i])
             .map(|(&p, c)| [p, c.re + offset])
             .collect();
-        fig = fig.with_series(Series::line(format!("{i}"), pts).colored(Color::TRACE));
+        let mut series = Series::line(format!("{i}"), pts).colored(Color::TRACE);
+        series.display_baseline = offset;
+        fig = fig.with_series(series);
     }
     fig
 }

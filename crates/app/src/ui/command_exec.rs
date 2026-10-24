@@ -174,6 +174,9 @@ fn execute_inner(
                 _ => format!("Fit {count} selected frames to view."),
             };
         }
+        CommandId::ResetPeakHeight => {
+            super::canvas::reset_peak_height(app, ctx);
+        }
         CommandId::FitPlotY => {
             if super::canvas::fit_plot_viewport(app, ctx, super::canvas::PlotFitAxes::Y) {
                 app.session.status = "Fit intensity to the visible window.".into();

@@ -8,6 +8,8 @@ use crate::Color;
 /// belongs to a mark with a data-space width (see `cap_data_width`).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorBar {
+    #[serde(default)]
+    pub display_baseline: f64,
     pub center: [f64; 2],
     pub negative: f64,
     pub positive: f64,
@@ -36,6 +38,7 @@ pub struct ErrorBar {
 impl ErrorBar {
     pub fn symmetric(center: [f64; 2], error: f64) -> Self {
         Self {
+            display_baseline: 0.0,
             center,
             negative: error,
             positive: error,

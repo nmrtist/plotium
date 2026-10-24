@@ -79,6 +79,7 @@ pub(crate) fn pie_figure(dataset: &TableDataset, ctx: &ChartContext) -> Figure {
             let mid = start + sweep * 0.5;
             let [ax, ay] = arc_point_at(mid, RADIUS * 0.62);
             fig.annotations.push(Annotation {
+                display_baseline: 0.0,
                 text: format!("{:.1}%", fraction * 100.0),
                 at: [ax, ay],
                 color: WHITE,

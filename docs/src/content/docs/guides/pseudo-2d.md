@@ -44,6 +44,14 @@ For a manual correction, edit **X shift (ppm)** on the increment's line row.
 These undoable shifts belong to the plot, so the processed spectra and DOSY or
 ILT maps remain unchanged.
 
+Scroll over the stack to change the height of all traces by the same display
+factor. Every zero-signal baseline and the spacing between baselines stays
+fixed; negative peaks scale about their own baseline too. This preserves DOSY
+attenuation ratios and leaves processing, integrations and fitting unchanged.
+Use the X-axis strip or box zoom to inspect a chemical-shift range, and adjust
+**Vertical spacing** separately when arranging the stack. **View → Reset Peak
+Height** restores ×1 without resetting the axis ranges.
+
 ## Workflow
 
 1. Import the pseudo-2D dataset.

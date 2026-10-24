@@ -80,6 +80,9 @@ pub(crate) fn fit_plot_viewport(
     ctx: &egui::Context,
     axes: PlotFitAxes,
 ) -> bool {
+    let now = ctx.input(|input| input.time);
+    app.finish_pending_wheel_zoom(now, true);
+    app.finish_pending_wheel_property(now, true);
     let Some((ci, object_id)) = fit_target(app, ctx) else {
         return false;
     };
@@ -97,6 +100,46 @@ pub(crate) fn fit_plot_viewport(
     }
     app.commit_object_viewport(ci, object_id, before, after);
     true
+}
+
+pub(crate) fn can_reset_peak_height(app: &PlotiumApp) -> bool {
+    let Some(ci) = app.session.active_canvas else {
+        return false;
+    };
+    let Some(id) = app
+        .doc
+        .canvases
+        .get(ci)
+        .and_then(|canvas| canvas.active_plot_object_id())
+    else {
+        return false;
+    };
+    app.doc.canvases[ci]
+        .object(id)
+        .is_some_and(|object| !object.locked)
+        && supports_peak_height(app, ci, id)
+}
+
+pub(crate) fn reset_peak_height(app: &mut PlotiumApp, ctx: &egui::Context) {
+    let Some(ci) = app.session.active_canvas else {
+        return;
+    };
+    let Some(id) = app.doc.canvases[ci].active_plot_object_id() else {
+        return;
+    };
+    let now = ctx.input(|input| input.time);
+    app.finish_pending_wheel_zoom(now, true);
+    app.finish_pending_wheel_property(now, true);
+    let before = app.doc.canvases[ci]
+        .object(id)
+        .and_then(|object| object.plot())
+        .expect("the command requires an active plot")
+        .viewport
+        .clone();
+    let mut after = before.clone();
+    after.display_gain = 1.0;
+    app.commit_object_viewport(ci, id, before, after);
+    app.session.status = "Reset peak height to ×1; axis ranges unchanged.".into();
 }
 
 #[cfg(test)]
@@ -130,6 +173,7 @@ mod tests {
             ],
         ));
         let viewport = CanvasViewport {
+            display_gain: 1.0,
             full_x: AxisRange::new(0.0, 10.0),
             full_y: AxisRange::new(-1.0, 100.0),
             view_x: AxisRange::new(2.0, 8.0),

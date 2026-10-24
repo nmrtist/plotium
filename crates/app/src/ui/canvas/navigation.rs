@@ -3,6 +3,10 @@ use super::*;
 #[path = "navigation_input.rs"]
 mod input;
 use input::*;
+#[path = "navigation_gain.rs"]
+mod gain;
+use gain::scale_line_intensity;
+pub(crate) use gain::{peak_height_label, supports_peak_height};
 #[path = "navigation_pointer.rs"]
 mod pointer;
 pub(crate) use input::{last_wheel_was_trackpad, selected_plot_body, sync_macos_trackpad_gesture};
@@ -238,8 +242,12 @@ pub(crate) fn handle_navigation(
             NavigationInput::WheelZoom(amount) => {
                 let consumed = match data_target {
                     Some((id, outer, plot)) => {
-                        if alt && hit_zone(p, outer, plot) == HitZone::Plot {
-                            app.finish_pending_wheel_zoom(now, true);
+                        if hit_zone(p, outer, plot) == HitZone::Plot
+                            && (alt || supports_peak_height(app, ci, id))
+                        {
+                            if !supports_peak_height(app, ci, id) {
+                                app.finish_pending_wheel_zoom(now, true);
+                            }
                             adjust_plot_display(app, ci, id, plot, p, amount, now, ui)
                         } else {
                             app.finish_pending_wheel_property(now, true);
@@ -666,57 +674,6 @@ fn step_wheel_property(
     }
     ui.ctx()
         .request_repaint_after(std::time::Duration::from_millis(200));
-}
-
-#[allow(clippy::too_many_arguments)]
-fn scale_line_intensity(
-    app: &mut PlotiumApp,
-    canvas: usize,
-    object: ObjectId,
-    plot: PlotRect,
-    pointer: Pos2,
-    scroll_y: f32,
-    now: f64,
-    ui: &Ui,
-) -> bool {
-    let Some(plot_object) = app.doc.canvases[canvas]
-        .object(object)
-        .and_then(|object| object.plot())
-    else {
-        return false;
-    };
-    if plot_object.figure().y.categories.is_some() {
-        app.session.status =
-            "This categorical plot has no continuous display-intensity scale.".to_owned();
-        return true;
-    }
-    let before = plot_object.viewport.clone();
-    let y_axis = plot_object.figure().y.clone();
-    let view = before.view_y;
-    let anchor = if view.min <= 0.0 && view.max >= 0.0 {
-        0.0
-    } else if y_axis.scale == plotium_figure::AxisScale::Log10 {
-        (view.min * view.max).sqrt()
-    } else {
-        (view.min + view.max) * 0.5
-    };
-    let scale = f64::from((-scroll_y * WHEEL_ZOOM_SPEED).exp()).clamp(0.2, 5.0);
-    zoom_plot_viewport(
-        app,
-        canvas,
-        object,
-        plot_rect(plot),
-        plot,
-        Pos2::new(pointer.x, to_screen_y(anchor, plot, &y_axis)),
-        scale,
-        (false, true),
-        now,
-        ui,
-    );
-    app.session.status =
-        "Adjusted plot intensity; automatic Y scaling is now off. Double-click Y to reset."
-            .to_owned();
-    true
 }
 
 /// Zoom a plot's data viewport around the cursor on the requested axes.

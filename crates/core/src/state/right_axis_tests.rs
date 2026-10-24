@@ -343,6 +343,16 @@ fn moving_a_unitless_curve_right_fixes_the_right_axis_unit_once() {
     ];
     create(&mut app, curves).unwrap();
     let object_id = app.doc.canvases[0].objects[0].id;
+    let original = plot(&app).figure().clone();
+    let amplified = app.doc.canvases[0].objects[0].plot_mut().unwrap();
+    amplified.viewport.auto_y = false;
+    amplified.viewport.display_gain = 2.;
+    amplified.apply_viewport();
+    assert_eq!(plot(&app).figure().display_gain, 2.);
+    assert_ne!(
+        plot(&app).figure().series[0].points,
+        original.series[0].points
+    );
     let second = app.series_targets(0, object_id)[1].clone();
     write(
         &mut app,
@@ -353,6 +363,12 @@ fn moving_a_unitless_curve_right_fixes_the_right_axis_unit_once() {
     let units = plot(&app).binding.coordinates.as_ref().unwrap();
     assert_eq!(units.y2.as_ref().unwrap().display_unit, "%");
     let figure = plot(&app).figure();
+    assert_eq!(plot(&app).viewport.display_gain, 1.);
+    assert_eq!(figure.display_gain, 1.);
+    assert!(!figure.supports_display_gain());
+    for (actual, expected) in figure.series.iter().zip(&original.series) {
+        assert_eq!(actual.points, expected.points);
+    }
     assert_eq!(figure.y2.as_ref().unwrap().label, "bars (%)");
     assert!(figure.series[1].appearance.y_axis.is_right());
 
@@ -364,6 +380,31 @@ fn moving_a_unitless_curve_right_fixes_the_right_axis_unit_once() {
         PropertyValue::Enum(line_display::LEFT),
     );
     assert!(plot(&app).figure().y2.is_none(), "the right axis goes away");
+    assert_eq!(plot(&app).viewport.display_gain, 1.);
+    assert_eq!(plot(&app).figure().display_gain, 1.);
+    app.undo();
+    assert!(plot(&app).figure().y2.is_some());
+    assert_eq!(plot(&app).viewport.display_gain, 1.);
+    app.redo();
+    assert_eq!(plot(&app).viewport.display_gain, 1.);
+}
+
+#[test]
+fn applying_a_stale_gain_to_a_two_axis_figure_restores_unamplified_geometry() {
+    let mut figure = two_axis_figure();
+    let original = figure.clone();
+    let mut viewport = CanvasViewport::from_figure(&figure);
+    viewport.display_gain = 2.;
+    viewport.apply_to(&mut figure);
+    assert_eq!(figure.display_gain, 2.);
+    split_y_axes(&mut figure);
+    viewport.apply_to(&mut figure);
+    assert_eq!(figure.display_gain, 1.);
+    for (actual, expected) in figure.series.iter().zip(&original.series) {
+        assert_eq!(actual.points, expected.points);
+    }
+    viewport.sync_full_from(&figure);
+    assert_eq!(viewport.display_gain, 1.);
 }
 
 #[test]

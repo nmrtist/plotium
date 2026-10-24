@@ -138,6 +138,30 @@ fn a_non_positive_manual_range_is_rejected_on_a_log_axis() {
 }
 
 #[test]
+fn switching_to_log_y_clears_display_gain() {
+    let (mut app, target, id) = line_app();
+    let original = figure(&app, id).series[0].points.clone();
+    let plot = app.doc.canvases[0].objects[0].plot_mut().unwrap();
+    plot.viewport.auto_y = false;
+    plot.viewport.display_gain = 2.;
+    plot.apply_viewport();
+    assert_ne!(figure(&app, id).series[0].points, original);
+    write(
+        &mut app,
+        &target,
+        axis::Y_SCALE,
+        PropertyValue::Enum(axis::LOG),
+    );
+    let plot = app.doc.canvases[0].objects[0].plot().unwrap();
+    assert_eq!(plot.viewport.display_gain, 1.);
+    assert_eq!(plot.figure().display_gain, 1.);
+    assert_eq!(plot.figure().series[0].points, original);
+    app.undo();
+    assert_eq!(figure(&app, id).display_gain, 1.);
+    assert_eq!(figure(&app, id).series[0].points, original);
+}
+
+#[test]
 fn switching_to_log_over_a_non_positive_manual_range_is_rejected() {
     let (mut app, target, _) = line_app();
     write(&mut app, &target, plot_display::X_RANGE, manual(-5.0, 50.0));

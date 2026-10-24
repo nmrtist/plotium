@@ -27,6 +27,7 @@ impl PlotiumApp {
                 series.appearance.marker_fill = None;
                 series.appearance.marker_edge_color = None;
             }
+            series.display_baseline *= line.scale;
             for point in &mut series.points {
                 point[0] += x_shift;
                 point[1] *= line.scale;
@@ -38,6 +39,7 @@ impl PlotiumApp {
                 error_bar.color = color;
             }
             error_bar.width = line.width.get();
+            error_bar.display_baseline *= line.scale;
             error_bar.center[0] += x_shift;
             error_bar.center[1] *= line.scale;
             error_bar.negative *= line.scale.abs();

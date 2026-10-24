@@ -212,6 +212,7 @@ fn lower_bar(
                 figure.annotations.push(value_label(
                     y - bar.baseline,
                     [x + dx, end],
+                    bar.baseline,
                     anchor,
                     label,
                 ));
@@ -337,6 +338,7 @@ fn lower_overlay(
                 figure.annotations.push(value_label(
                     point[1] - overlay.baseline,
                     *point,
+                    series.display_baseline,
                     TextAnchor::Above,
                     label,
                 ));
@@ -355,10 +357,17 @@ fn lower_overlay(
     Ok(())
 }
 
-fn value_label(value: f64, at: [f64; 2], anchor: TextAnchor, style: LabelStyle) -> Annotation {
+fn value_label(
+    value: f64,
+    at: [f64; 2],
+    display_baseline: f64,
+    anchor: TextAnchor,
+    style: LabelStyle,
+) -> Annotation {
     Annotation {
         text: format_value(value),
         at,
+        display_baseline,
         color: style.color,
         size: style.size,
         anchor,

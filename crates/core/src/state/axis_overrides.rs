@@ -68,6 +68,8 @@ impl AxisRange {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanvasViewport {
+    /// Display-only trace amplification; scientific observations stay unchanged.
+    pub display_gain: f64,
     pub full_x: AxisRange,
     pub full_y: AxisRange,
     pub view_x: AxisRange,
@@ -88,6 +90,7 @@ impl CanvasViewport {
         let full_y = AxisRange::from_axis(&fig.y);
         let full_y2 = fig.y2.as_ref().map(AxisRange::from_axis);
         Self {
+            display_gain: fig.display_gain,
             full_x,
             full_y,
             view_x: full_x,
@@ -100,18 +103,33 @@ impl CanvasViewport {
     }
 
     pub fn sync_full_from(&mut self, fig: &Figure) {
+        self.reset_unsupported_gain(fig);
+        let keep_x = self.display_gain != 1.0 && self.full_x == AxisRange::from_axis(&fig.x);
+        let keep_y = self.display_gain != 1.0 && self.full_y == AxisRange::from_axis(&fig.y);
         self.full_x = AxisRange::from_axis(&fig.x);
         self.full_y = AxisRange::from_axis(&fig.y);
-        self.view_x = self.view_x.clamp_in(self.full_x, fig.x.scale);
+        // A frozen gain window may include automatic padding or legend room.
+        // Rebuilding unchanged data must not trim that room and move baselines.
+        if !keep_x {
+            self.view_x = self.view_x.clamp_in(self.full_x, fig.x.scale);
+        }
         self.sync_full_y2(fig);
         if self.auto_y {
             self.refresh_auto_y(fig);
-        } else {
+        } else if !keep_y {
             self.view_y = self.view_y.clamp_in(self.full_y, fig.y.scale);
         }
     }
 
     pub fn apply_to(&self, fig: &mut Figure) {
+        let gain = if fig.supports_display_gain() {
+            self.display_gain
+        } else {
+            1.0
+        };
+        if let Err(error) = fig.set_display_gain(gain) {
+            eprintln!("Could not apply plot display gain: {error}");
+        }
         fig.x.min = self.view_x.min;
         fig.x.max = self.view_x.max;
         fig.y.min = self.view_y.min;
@@ -122,7 +140,14 @@ impl CanvasViewport {
         }
     }
 
+    pub(crate) fn reset_unsupported_gain(&mut self, fig: &Figure) {
+        if !fig.supports_display_gain() {
+            self.display_gain = 1.0;
+        }
+    }
+
     pub fn reset_all(&mut self) {
+        self.display_gain = 1.0;
         self.view_x = self.full_x;
         self.view_y = self.full_y;
         self.view_y2 = self.full_y2;
@@ -137,8 +162,17 @@ impl CanvasViewport {
     }
 
     pub fn reset_y(&mut self, fig: &Figure) {
+        self.display_gain = 1.0;
         self.auto_y = true;
-        self.refresh_auto_y(fig);
+        if fig.display_gain != 1.0 {
+            let mut original = fig.clone();
+            match original.set_display_gain(1.0) {
+                Ok(()) => self.refresh_auto_y(&original),
+                Err(error) => eprintln!("Could not reset plot display gain: {error}"),
+            }
+        } else {
+            self.refresh_auto_y(fig);
+        }
     }
 
     pub fn zoom_x(&mut self, fig: &Figure, anchor: f64, scale: f64) {

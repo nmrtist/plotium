@@ -40,6 +40,7 @@ impl PlotAnnotation {
 
     fn lower(&self) -> Annotation {
         Annotation {
+            display_baseline: 0.0,
             text: self.text.clone(),
             at: self.at,
             color: self.color,

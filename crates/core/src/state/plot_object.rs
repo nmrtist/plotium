@@ -342,7 +342,12 @@ impl PlotObject {
     }
 
     pub fn apply_viewport(&mut self) {
+        let old_gain = self.figure.display_gain;
+        self.viewport.reset_unsupported_gain(&self.figure);
         self.viewport.apply_to(&mut self.figure);
+        if old_gain != self.figure.display_gain {
+            self.figure_geometry_generation = next_figure_geometry_generation();
+        }
         self.make_legend_room();
     }
 
@@ -352,6 +357,9 @@ impl PlotObject {
     /// lives only in the figure and is recomputed from the viewport each time.
     fn make_legend_room(&mut self) {
         let viewport = &self.viewport;
+        if viewport.display_gain != 1.0 {
+            return;
+        }
         let full_x = viewport.view_x == viewport.full_x;
         let grow_x = self.axis_overrides.x_range.is_none() && full_x;
         let grow_y = self.axis_overrides.y_range.is_none()
@@ -448,6 +456,7 @@ impl PlotObject {
     }
 
     pub(crate) fn normalize_viewport(&self, viewport: &mut CanvasViewport) {
+        viewport.reset_unsupported_gain(&self.figure);
         if self.has_manual_y_range(&self.figure) && viewport.auto_y {
             viewport.view_y = viewport.full_y;
             viewport.auto_y = false;

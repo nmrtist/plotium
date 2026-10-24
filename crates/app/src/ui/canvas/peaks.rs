@@ -55,6 +55,7 @@ fn threshold_y(peaks: &PeakSet, trace: &Trace1d) -> f64 {
 }
 
 struct Screen {
+    gain: f64,
     plot: PlotRect,
     x_axis: plotium_figure::Axis,
     y_axis: plotium_figure::Axis,
@@ -65,13 +66,13 @@ impl Screen {
         to_screen_x(x, self.plot, &self.x_axis)
     }
     fn y(&self, y: f64) -> f32 {
-        to_screen_y(y, self.plot, &self.y_axis)
+        to_screen_y(y * self.gain, self.plot, &self.y_axis)
     }
     fn to_x(&self, px: f32) -> f64 {
         from_screen_x(px, self.plot, &self.x_axis)
     }
     fn to_y(&self, py: f32) -> f64 {
-        from_screen_y(py, self.plot, &self.y_axis)
+        from_screen_y(py, self.plot, &self.y_axis) / self.gain
     }
 }
 
@@ -110,6 +111,7 @@ pub(crate) fn handle_peaks(
         .figure()
         .clone();
     let sc = Screen {
+        gain: fig.display_gain,
         plot,
         x_axis: fig.x,
         y_axis: fig.y,
