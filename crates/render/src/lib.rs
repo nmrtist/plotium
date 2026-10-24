@@ -491,6 +491,18 @@ pub(crate) fn legend_entry_origin(layout: &LegendLayout, index: usize) -> (f32, 
 /// space in which the complete box can move, so resizing keeps it inside.
 /// Auto placement picks the inside anchor that covers the least data.
 pub fn legend_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
+    legend_rect_placed(fig, plot, scale, None)
+}
+
+/// Legend box of a plot that may sit in a shared-x stack. An outside-right
+/// legend clears the stack's widest right axis, so the column's legends line
+/// up even when only some members draw right-axis labels.
+pub fn legend_rect_placed(
+    fig: &Figure,
+    plot: Rect,
+    scale: f32,
+    stack: Option<&StackPlacement>,
+) -> Option<Rect> {
     let entries = legend_entries(fig);
     if !renders_legend(fig) {
         return None;
@@ -503,7 +515,10 @@ pub fn legend_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
     let (left, top) = fig.legend_position.map_or_else(
         || match fig.guide_placement {
             plotium_figure::GuidePlacement::OutsideRight => {
-                let axis = y2_axis::guide_offset(fig, plot.height / scale);
+                let axis = stack.map_or_else(
+                    || y2_axis::guide_offset(fig, plot.height / scale),
+                    |p| p.right_axis_width,
+                );
                 (plot.right() + (axis + 8.0) * scale, plot.top)
             }
             plotium_figure::GuidePlacement::OutsideBottom => {
@@ -571,6 +586,11 @@ pub fn color_scale_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
             )
         }
     })
+}
+
+/// Right margin an outside-right legend or colour scale adds beside the plot.
+pub fn outside_guide_width(fig: &Figure) -> f32 {
+    guide_extra_margins(fig).0
 }
 
 pub(crate) fn guide_extra_margins(fig: &Figure) -> (f32, f32) {

@@ -499,7 +499,7 @@ fn write_figure(
         write_projection(s, fig, trace, plot, band, false, clip_id);
     }
 
-    legend::write(s, fig, plot);
+    legend::write(s, fig, plot, stack);
     color_scale::write(s, fig, plot);
     let _ = write!(s, "</g>");
 }

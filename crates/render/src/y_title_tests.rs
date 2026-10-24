@@ -121,6 +121,7 @@ fn stacked_titles_align_beside_the_stacks_widest_tick_labels() {
         right: 12.0,
         y_tick_clearance: 10.0,
         y2_tick_clearance: 0.0,
+        right_axis_width: 0.0,
         joined_above: false,
         joined_below: true,
     };

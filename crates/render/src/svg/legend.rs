@@ -1,11 +1,11 @@
 use crate::{
-    LegendMark, Rect, legend_entries, legend_entry_origin, legend_layout, legend_rect,
-    renders_legend,
+    LegendMark, Rect, StackPlacement, legend_entries, legend_entry_origin, legend_layout,
+    legend_rect_placed, renders_legend,
 };
 use plotium_figure::Figure;
 use std::fmt::Write;
 
-pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
+pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&StackPlacement>) {
     let entries = legend_entries(fig);
     if !renders_legend(fig) {
         return;
@@ -13,7 +13,7 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect) {
     let font = fig.typography.legend_pt;
     let layout = legend_layout(fig, &entries);
     let sw = layout.swatch;
-    let Some(box_geometry) = legend_rect(fig, plot, 1.0) else {
+    let Some(box_geometry) = legend_rect_placed(fig, plot, 1.0, stack) else {
         return;
     };
     // Legends draw neither a frame nor a backing.

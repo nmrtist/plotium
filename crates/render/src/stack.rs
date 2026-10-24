@@ -23,6 +23,10 @@ pub struct StackPlacement {
     /// The widest right-axis tick clearance among the members, from
     /// [`AxisLayout::y2_tick_clearance`], so right titles align the same way.
     pub y2_tick_clearance: f32,
+    /// The widest right-axis band (ticks, labels and title) among the members,
+    /// from [`AxisLayout::right_axis_width`]. Outside-right legends stand this
+    /// far off every member's plot so they line up down the column.
+    pub right_axis_width: f32,
     /// Another member sits directly above: no top margin and no figure title.
     pub joined_above: bool,
     /// Another member sits directly below: no bottom margin, no x tick labels

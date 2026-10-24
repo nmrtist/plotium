@@ -6,7 +6,7 @@ use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OUTER_PAD, OverlayAlign,
     OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, YTitleClearance,
     arrow_head, axis_layout_placed, color_scale_rect, error_bar_segments, heatmap_cells, integral,
-    legend_entries, legend_entry_origin, legend_layout, legend_rect, minor_tick_values,
+    legend_entries, legend_entry_origin, legend_layout, legend_rect_placed, minor_tick_values,
     polygon_outline, projection_points, range_label_layout, renders_legend,
 };
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure, SeriesKind};
@@ -599,7 +599,7 @@ fn write_figure_content(
         write_projection(dc, fig, trace, plot, band, false);
     }
 
-    write_legend(dc, fig, plot);
+    write_legend(dc, fig, plot, stack);
     write_color_scale(dc, fig, plot);
 }
 
@@ -635,7 +635,7 @@ fn write_projection(
     dc.clipped(band, |dc| dc.polyline(&pts, trace.color, trace.width));
 }
 
-fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect) {
+fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect, stack: Option<&crate::StackPlacement>) {
     let entries = legend_entries(fig);
     if !renders_legend(fig) {
         return;
@@ -643,7 +643,7 @@ fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect) {
     let font = fig.typography.legend_pt;
     let layout = legend_layout(fig, &entries);
     let sw = layout.swatch;
-    let Some(box_geometry) = legend_rect(fig, plot, 1.0) else {
+    let Some(box_geometry) = legend_rect_placed(fig, plot, 1.0, stack) else {
         return;
     };
     // Legends draw neither a frame nor a backing.

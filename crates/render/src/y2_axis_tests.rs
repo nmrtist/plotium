@@ -127,6 +127,7 @@ fn stacked_right_titles_align_on_the_widest_right_ticks() {
         right: 60.0,
         y_tick_clearance: 20.0,
         y2_tick_clearance: clearance,
+        right_axis_width: 0.0,
         joined_above: false,
         joined_below: false,
     };
