@@ -179,3 +179,50 @@ fn provenance_does_not_change_v1_serialization_and_capture_is_cancellable() {
     ));
     assert!(scan.font_status.is_none());
 }
+#[test]
+fn a_panel_too_short_for_two_y_ticks_is_reported() {
+    let sparse_axes = |height: f32| {
+        let (a, mut p) = fixture();
+        p.view = DiagnosticView::Issues;
+        let mut scan =
+            FigureDiagnosticScan::capture(&a, DocumentRevision(a.doc.automation_revision), p)
+                .unwrap();
+        scan.items.clear();
+        let figure = plotium_figure::Figure::new(
+            "",
+            plotium_figure::Axis::new("x", 0., 10.),
+            plotium_figure::Axis::new("y", 0., 10.),
+        );
+        let target = TargetRef::resource(canvas_object_ref(
+            a.doc.canvases[0].resource_id,
+            a.doc.canvases[0].objects[0].id,
+        ));
+        scan.items.push_back(SnapshotItem {
+            target,
+            frame: Rect::new(0., 0., 200., height),
+            visible: true,
+            kind: SnapshotKind::Plot {
+                figure: Box::new(figure),
+                stack: None,
+                selected_series: None,
+                declared: vec![],
+                facts: Default::default(),
+            },
+        });
+        let mut axes = Vec::new();
+        while !scan.is_complete() {
+            let page = scan.next_page(|| false).unwrap();
+            axes.extend(
+                page["items"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|r| r["code"] == "axis_ticks_sparse")
+                    .map(|r| r["component"].as_str().unwrap().to_owned()),
+            );
+        }
+        axes
+    };
+    assert_eq!(sparse_axes(40.), vec!["axis.y".to_owned()]);
+    assert!(sparse_axes(120.).is_empty());
+}

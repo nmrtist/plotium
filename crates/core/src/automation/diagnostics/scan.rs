@@ -384,6 +384,15 @@ impl FigureDiagnosticScan {
                         json!({"right_axis_curves":curves,"property":"object.axes.y2_label"}),
                     );
                 }
+                for sparse in geometry::sparse_tick_axes(&figure, size, stack.as_ref()) {
+                    self.issue(
+                        &target,
+                        sparse.component,
+                        "axis_ticks_sparse",
+                        "renderer_layout",
+                        json!({"drawn_ticks":sparse.drawn,"available_ticks":sparse.available,"plot":self.rect(move_rect(guide.plot))}),
+                    );
+                }
                 let hidden: usize = figure
                     .series
                     .iter()

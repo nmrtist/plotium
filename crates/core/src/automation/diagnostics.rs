@@ -181,6 +181,10 @@ impl FigureDiagnosticScan {
                 "info",
                 "Data points fall inside an axis break and are not drawn; check that the break hides only empty range.",
             ),
+            "axis_ticks_sparse" => (
+                "warning",
+                "Fewer than two ticks fit this axis at the output size, so its scale cannot be read. Enlarge the panel or lower object.figure.typography.tick_pt.",
+            ),
             "legend_occlusion_potential" => (
                 "warning",
                 "Visible curve primitives intersect the legend layout box. Its translucent background may obscure data; this is a potential visual conflict.",

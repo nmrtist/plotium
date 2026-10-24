@@ -1426,6 +1426,9 @@ owning plot's legend through `evidence.other_target` / `other_component`.
 - `text_container_overflow` is a warning based on native width/line-spacing
   **estimates**, not exact glyph ink. Text does not automatically wrap or shrink.
 - `content_frame_overlap` is informational; deliberate overlap is allowed.
+- `axis_ticks_sparse` is a warning: at the output size an axis with shown tick
+  labels draws fewer than two ticks, so its scale cannot be read. Enlarge the
+  panel or lower `object.figure.typography.tick_pt`.
 - `right_axis_untitled` is a warning: curves use the right y axis but it shows
   no title. Set `object.axes.y2_label` (or turn `object.axes.y2_show_label`
   back on).
