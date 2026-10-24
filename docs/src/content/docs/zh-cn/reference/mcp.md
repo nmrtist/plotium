@@ -78,6 +78,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.y_axis` | 图对象＋Series | `left`、`right`（折线和散点曲线；柱状曲线只能在左轴） |
 | `series.points.spread` | 图对象＋Series | 0–1，重复数据点在所在柱宽度内的散开程度（散点和折线曲线；默认 0） |
 | `series.value_labels` | 图对象＋Series | 布尔值；写出每根柱或每个点的数值（柱状、散点和折线曲线） |
+| `series.replicates` | 图对象＋Series | 0–100000，每个数据点由几次重复得到；0 表示未说明 |
+| `series.error_bars` | 图对象＋Series | `unspecified`、`sd`、`sem`、`ci95`；y 误差表示什么（有 y 误差列的曲线） |
 | `object.chart.orientation` | 图对象 | `vertical`、`horizontal`（按列绑定的图） |
 | `object.intent.purpose` | 图对象 | `unspecified`、`compare`、`trend`、`distribution`、`relationship`、`composition`、`change`、`detail`；这张图要表达什么 |
 | `object.intent.claim` | 图对象 | 最多 500 个字符的字符串；这张图要支撑的那句结论 |
@@ -1114,7 +1116,7 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
   "expected_revision": 7,
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
-  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
+  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics","intent"],
   "detail": "full",
   "limit": 100
 }
@@ -1160,8 +1162,8 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
   检查实际投影、有效裁剪后的线与 marker，分批保留虚线相位，不使用整条曲线包围盒，
   不抽样。线条包络与图例布局矩形是保守边界；圆角、半透明和抗锯齿可能有所不同。
 
-`data_shape` 和 `layout_aesthetics` 检查报告 `severity` 为 `hint` 的问题：图可以表达得
-更清楚，但没有错误。省略 `checks` 时包含这两项。提示从不修改文档。每条提示带
+`data_shape`、`layout_aesthetics` 和 `intent` 检查报告 `severity` 为 `hint` 的问题：图可以表达得
+更清楚，但没有错误。省略 `checks` 时包含这三项。提示从不修改文档。每条提示带
 `suggestions`，即 `{action, property, target, reason}` 列表；`property` 是要在 `target`
 上设置的属性，没有则两者都为 null。长度按请求的 `output.size_mm` 测量；阈值是暂定值。
 限定到 Series 的查询只报告这些 Series 的提示。
@@ -1170,15 +1172,31 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 | --- | --- |
 | `small_values_invisible` | 某根柱的数值不到数值轴跨度的 1 %，或打印长度不到 0.5 mm，而旁边有至少 5 mm 长的柱 |
 | `bars_too_narrow` | 某根柱打印宽度不到 0.6 mm |
-| `few_samples_hidden` | 箱线、小提琴 Series，或每个 x 有多行的柱状 Series，每组都少于 10 个值，且图中没有散点 Series |
+| `few_samples_hidden` | 箱线、小提琴 Series，或每个 x 有多行的柱状 Series，每组都少于 10 个值；或每个 x 只有一行的柱状 Series 的 `series.replicates` 为 1–9；且图中没有散点 Series |
 | `too_many_categories` | 类别轴显示标签，但省略了部分标签，或相邻标签相互重叠 |
 | `log_scale_candidate` | 不含柱、箱线或小提琴的图，线性数值轴上的折线或散点值全为正，且跨越三个及以上数量级 |
 | `bar_baseline_not_zero` | 数值轴范围不包含柱的基线 |
 | `labels_overlap` | 画布上两个文字框在两个方向上都重叠超过 0.2 mm；证据给出两者和第二个的移动方向。同一图例的条目之间、同一坐标轴的刻度标签之间不互相比较 |
 | `text_over_data` | 标注或数值标签压在柱、箱线、小提琴、折线或标记上 |
+| `intent_mismatch` | 图型不适合这张图的 `object.intent.purpose`（见下文） |
 | `panels_misaligned` | 同一列（左边缘相差 1 mm 以内）或同一行（下边缘相差 1 mm 以内）的两个框，绘图区左边缘或下边缘相差超过 0.5 mm；或同一行／列三个及以上框之间的间距相差超过 0.5 mm |
 
 同类提示超过 50 条，或检查用完预算时，会增加一条 `unavailable` 覆盖行。
+
+`intent` 检查对照作者声明的目的看每张按列绑定的图；`detail` 从不报告。没有声明目的的图
+会得到一条 `not_applicable` 覆盖行 `no_purpose_stated`：这时请询问用户这张图要表达什么。
+表格图表类型得到 `chart_type_not_covered`。`intent_mismatch` 的证据在
+`interpretation` 中给出原因；`detail: "full"` 时还给出目的、claim 和读到的图表特征。
+建议里只列 Plotium 能画出的图型；请转告用户，由用户选择。
+
+| 目的 | 报告条件 |
+| --- | --- |
+| `compare` | 折线连接了各类别 |
+| `trend` | 类别方向的轴是类别轴，或图中画了柱 |
+| `distribution` | 类别轴上只有柱或折线，没有箱线、小提琴或散点 Series |
+| `relationship` | 类别方向的轴是类别轴，或图中画了柱、箱线或小提琴 |
+| `composition` | 图中有折线或点，但没有柱 |
+| `change` | 两个及以上柱状 Series 并排，或正的柱值跨十倍及以上；或图中没有柱、箱线和小提琴时，左轴上为正的折线或散点值在线性轴上跨十倍及以上 |
 
 原生 guide 布局本身使用文字宽度估计。字体可用性沿用原生导出的字体发现；实际字形
 覆盖和跨后端 ink 边界仍未验证。图像视口几何使用头部尺寸、整数裁剪、旋转及 fit；

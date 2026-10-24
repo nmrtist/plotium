@@ -42,7 +42,7 @@ pub fn curve_binding_schema(materialize: bool) -> Value {
     let edit = if materialize {
         json!({"type":"object","additionalProperties":false,"required":["target","retain_y_column_id","table_revision"],"properties":{"target":target,"retain_y_column_id":uuid,"table_revision":uuid}})
     } else {
-        json!({"type":"object","additionalProperties":false,"required":["target","source"],"properties":{"target":target,"source":{"type":"object","additionalProperties":false,"required":["dataset_id","field_id","table_id","table_revision","x_column_id","y_column_id","y_error_column_id"],"properties":{"dataset_id":uuid,"field_id":{"type":"integer","minimum":0},"table_id":uuid,"table_revision":uuid,"x_column_id":uuid,"y_column_id":uuid,"y_error_column_id":{"type":["string","null"],"format":"uuid"}}}}})
+        json!({"type":"object","additionalProperties":false,"required":["target","source"],"properties":{"target":target,"source":{"type":"object","additionalProperties":false,"required":["dataset_id","field_id","table_id","table_revision","x_column_id","y_column_id","y_error_column_id"],"properties":{"dataset_id":uuid,"field_id":{"type":"integer","minimum":0},"table_id":uuid,"table_revision":uuid,"x_column_id":uuid,"y_column_id":uuid,"y_error_column_id":{"type":["string","null"],"format":"uuid","description":"Symmetric y errors, or null. With error bars, ask the user once how many replicates each value summarises and what the bars show (SD, SEM or 95% CI); record the answers with series.replicates and series.error_bars, or skip them if the user is unsure."}}}}})
     };
     json!({"type":"object","additionalProperties":false,"required":["edits"],"properties":{"edits":{"type":"array","minItems":1,"maxItems":200,"items":edit}}})
 }

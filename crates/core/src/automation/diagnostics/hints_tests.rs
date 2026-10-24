@@ -79,6 +79,14 @@ fn plot(rows: &[(&str, f64)], x: usize, kinds: &[CurveKind]) -> (PlotiumApp, Plo
 
 /// Hint rows of a full scan of the first canvas.
 fn hints(app: &PlotiumApp) -> Vec<Value> {
+    rows(app)
+        .into_iter()
+        .filter(|r| r["severity"] == "hint")
+        .collect()
+}
+
+/// Every issue and coverage row of a full scan of the first canvas.
+fn rows(app: &PlotiumApp) -> Vec<Value> {
     let c = &app.doc.canvases[0];
     let params = FigureDiagnosticParams {
         canvas: TargetRef::resource(c.resource_id.into()),
@@ -96,14 +104,7 @@ fn hints(app: &PlotiumApp) -> Vec<Value> {
     let mut out = Vec::new();
     loop {
         let page = scan.next_page(|| false).unwrap();
-        out.extend(
-            page["items"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter(|r| r["severity"] == "hint")
-                .cloned(),
-        );
+        out.extend(page["items"].as_array().unwrap().iter().cloned());
         if page["coverage"]["scan_complete"] == true {
             return out;
         }
@@ -403,4 +404,245 @@ fn neighbouring_panels_report_offset_edges_and_uneven_gaps() {
         .collect();
     assert!(rows.iter().any(|r| r["evidence"]["edge"] == "bottom"));
     assert!(rows.iter().any(|r| r["evidence"]["direction"] == "row"));
+}
+
+fn intent_codes(app: &PlotiumApp) -> Vec<String> {
+    hints(app)
+        .into_iter()
+        .filter(|r| r["code"] == "intent_mismatch")
+        .map(|r| r["evidence"]["purpose"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn intent_hints_wait_for_a_stated_purpose() {
+    let (mut app, summary) = plot(
+        &[("a", 1.0), ("b", 4.0), ("c", 9.0)],
+        NUMERIC,
+        &[CurveKind::Bar],
+    );
+    let unstated = rows(&app)
+        .into_iter()
+        .find(|r| r["kind"] == "coverage" && r["check"] == "intent")
+        .unwrap();
+    assert_eq!(unstated["status"], "not_applicable");
+    assert!(intent_codes(&app).is_empty());
+
+    set(
+        &mut app,
+        &summary.plot,
+        "object.intent.purpose",
+        json!("trend"),
+    );
+    set(
+        &mut app,
+        &summary.plot,
+        "object.intent.claim",
+        json!("The signal grows with x."),
+    );
+    let row = hints(&app)
+        .into_iter()
+        .find(|r| r["code"] == "intent_mismatch")
+        .unwrap();
+    assert_eq!(row["evidence"]["claim"], "The signal grows with x.");
+    assert_eq!(row["evidence"]["chart"]["marks"], json!(["bar"]));
+    assert!(
+        row["suggestions"][0]["action"]
+            .as_str()
+            .unwrap()
+            .starts_with("Redraw as a line")
+    );
+    // The same bars suit a comparison.
+    set(
+        &mut app,
+        &summary.plot,
+        "object.intent.purpose",
+        json!("compare"),
+    );
+    assert!(intent_codes(&app).is_empty());
+}
+
+/// Rows, x column, curve kinds, purpose, and whether it is reported.
+type Case<'a> = (&'a [(&'a str, f64)], usize, &'a [CurveKind], &'a str, bool);
+
+#[test]
+fn purposes_flag_the_chart_forms_that_cannot_carry_them() {
+    let groups = [("PEM", 10.0), ("BPM", 0.03)];
+    let numeric = [("a", 1.0), ("b", 30.0), ("c", 900.0)];
+    let cases: [Case; 9] = [
+        (&groups, GROUP, &[CurveKind::Bar], "change", true),
+        (&groups, GROUP, &[CurveKind::Scatter], "change", true),
+        (&numeric, NUMERIC, &[CurveKind::Line], "change", true),
+        (&groups, GROUP, &[CurveKind::Line], "compare", true),
+        (&groups, GROUP, &[CurveKind::Bar], "distribution", true),
+        (
+            &groups,
+            GROUP,
+            &[CurveKind::Box, CurveKind::Scatter],
+            "distribution",
+            false,
+        ),
+        (&groups, GROUP, &[CurveKind::Scatter], "relationship", true),
+        (
+            &numeric,
+            NUMERIC,
+            &[CurveKind::Scatter],
+            "relationship",
+            false,
+        ),
+        (&numeric, NUMERIC, &[CurveKind::Line], "composition", true),
+    ];
+    for (rows, x, kinds, purpose, flagged) in cases {
+        let (mut app, summary) = plot(rows, x, kinds);
+        set(
+            &mut app,
+            &summary.plot,
+            "object.intent.purpose",
+            json!(purpose),
+        );
+        assert_eq!(
+            !intent_codes(&app).is_empty(),
+            flagged,
+            "{purpose} with {kinds:?}"
+        );
+    }
+    // Points on a log axis give equal folds equal distances.
+    let (mut app, summary) = plot(&groups, GROUP, &[CurveKind::Scatter]);
+    set(
+        &mut app,
+        &summary.plot,
+        "object.intent.purpose",
+        json!("change"),
+    );
+    set(&mut app, &summary.plot, "object.axes.y_scale", json!("log"));
+    assert!(intent_codes(&app).is_empty());
+}
+
+#[test]
+fn a_stated_replicate_count_reports_few_samples_behind_mean_bars() {
+    let (mut app, summary) = plot(&[("a", 2.0), ("b", 3.0)], GROUP, &[CurveKind::Bar]);
+    let bar = summary.series_defaults[0].target.clone();
+    set(&mut app, &bar, "series.replicates", json!(3));
+    let row = hints(&app)
+        .into_iter()
+        .find(|r| r["code"] == "few_samples_hidden")
+        .unwrap();
+    assert_eq!(row["evidence"]["source"], "stated");
+    assert_eq!(row["evidence"]["replicates"], 3);
+    let path = std::env::temp_dir().join(format!("plotium-n-{}.plotium", uuid::Uuid::new_v4()));
+    crate::project::save_project(&app, &path, false).unwrap();
+    let loaded = crate::project::load_project(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert!(codes(&hints(&loaded)).contains(&"few_samples_hidden"));
+    // Without a y error column there are no error bars to describe.
+    let request = ToolRequest {
+        tool_id: "properties.set".into(),
+        tool_version: 1,
+        parameters: json!({"key":"series.error_bars","value":"sem"}),
+        targets: TargetSelector::Components {
+            targets: vec![bar.clone()],
+        },
+        expected_revision: DocumentRevision(app.doc.automation_revision),
+        caller: CallerType::Agent,
+    };
+    let plan = plan_tool(&app, request).unwrap();
+    let result = execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify).unwrap();
+    assert_eq!(
+        result.targets[0].message,
+        "Bind a y error column to this curve first."
+    );
+    set(&mut app, &bar, "series.replicates", json!(12));
+    assert!(!codes(&hints(&app)).contains(&"few_samples_hidden"));
+    set(&mut app, &bar, "series.replicates", json!(0));
+    assert_eq!(
+        app.doc.canvases[0].objects[0]
+            .plot()
+            .unwrap()
+            .binding
+            .series[0]
+            .replicates,
+        None
+    );
+}
+
+#[test]
+fn table_chart_plots_are_outside_the_intent_rules() {
+    let mut app = PlotiumApp::new();
+    table(&mut app, &[("a", 1.0), ("b", 4.0)]);
+    let mut canvas = CanvasDocument::new("table".to_owned(), [120.0, 80.0]);
+    let [w, h] = canvas.size_pt();
+    let id = canvas.allocate_object_id();
+    let mut object =
+        app.build_plot_object(0, ObjectFrame::new(0.0, 0.0, w, h), id, "Plot".to_owned());
+    object.plot_mut().unwrap().intent.purpose = Some(PlotPurpose::Distribution);
+    canvas.objects.push(object);
+    app.doc.canvases.push(canvas);
+    let row = rows(&app)
+        .into_iter()
+        .find(|r| r["kind"] == "coverage" && r["check"] == "intent")
+        .unwrap();
+    assert!(
+        row["reason"]
+            .as_str()
+            .unwrap()
+            .starts_with("chart_type_not_covered")
+    );
+    assert!(intent_codes(&app).is_empty());
+}
+
+#[test]
+fn intent_rules_read_the_category_axis_of_horizontal_plots() {
+    let (mut app, summary) = plot(&[("a", 1.0), ("b", 4.0)], GROUP, &[CurveKind::Bar]);
+    set(
+        &mut app,
+        &summary.plot,
+        "object.chart.orientation",
+        json!("horizontal"),
+    );
+    set(
+        &mut app,
+        &summary.plot,
+        "object.intent.purpose",
+        json!("trend"),
+    );
+    let row = hints(&app)
+        .into_iter()
+        .find(|r| r["code"] == "intent_mismatch")
+        .unwrap();
+    assert_eq!(row["evidence"]["chart"]["category_axis"], true);
+}
+
+#[test]
+fn rebinding_a_curve_forgets_its_stated_replicates() {
+    let (mut app, summary) = plot(&[("a", 2.0), ("b", 3.0)], GROUP, &[CurveKind::Bar]);
+    let bar = summary.series_defaults[0].target.clone();
+    set(&mut app, &bar, "series.replicates", json!(3));
+    let source = TableCurveSource {
+        x_column_id: {
+            let r = &app.doc.datasets[0]
+                .as_table()
+                .unwrap()
+                .typed_state
+                .envelope
+                .revision;
+            r.snapshot.schema.columns[NUMERIC].id
+        },
+        ..source(&app, GROUP)
+    };
+    let request = ToolRequest {
+        tool_id: "plot.series.bind".into(),
+        tool_version: 1,
+        parameters: json!({"edits":[{"target":bar,"source":source}]}),
+        targets: TargetSelector::Explicit { ids: vec![] },
+        expected_revision: DocumentRevision(app.doc.automation_revision),
+        caller: CallerType::Agent,
+    };
+    let plan = plan_tool(&app, request).unwrap();
+    execute_tool(&mut app, plan, ExecutionAuthority::ReversibleModify).unwrap();
+    let series = &app.doc.canvases[0].objects[0]
+        .plot()
+        .unwrap()
+        .binding
+        .series[0];
+    assert_eq!(series.replicates, None);
 }

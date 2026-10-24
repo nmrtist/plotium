@@ -90,6 +90,8 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.y_axis` | Object + Series | `left`, `right` (line and scatter curves; bars stay left) |
 | `series.points.spread` | Object + Series | 0–1 spread of replicate points across their mark (point and line curves; default 0) |
 | `series.value_labels` | Object + Series | boolean; write each bar's or point's value (bar, point and line curves) |
+| `series.replicates` | Object + Series | 0–100000 replicates behind each plotted value; 0 means not stated |
+| `series.error_bars` | Object + Series | `unspecified`, `sd`, `sem`, `ci95`; what the y errors show (curves with a y error column) |
 | `object.chart.orientation` | Object | `vertical`, `horizontal` (explicit-column plots) |
 | `object.intent.purpose` | Object | `unspecified`, `compare`, `trend`, `distribution`, `relationship`, `composition`, `change`, `detail`; what the plot is meant to show |
 | `object.intent.claim` | Object | string of at most 500 characters; the one claim the plot should support |
@@ -1378,7 +1380,7 @@ After discovering the canvas, call `plotium_figure_diagnose` directly (no edit p
   "expected_revision": 7,
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
-  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
+  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics","intent"],
   "detail": "full",
   "limit": 100
 }
@@ -1438,7 +1440,7 @@ owning plot's legend through `evidence.other_target` / `other_component`.
   bounding box or sample points. Stroke envelopes and the legend layout rectangle
   are conservative; rounded corners, translucency and exact antialiasing can differ.
 
-The `data_shape` and `layout_aesthetics` checks report issues with severity
+The `data_shape`, `layout_aesthetics` and `intent` checks report issues with severity
 `hint`: the figure could show its data more clearly, nothing is wrong. They are
 included when `checks` is omitted. Hints never edit the document. Each carries
 `suggestions`, a list of `{action, property, target, reason}`; `property` names a
@@ -1450,16 +1452,34 @@ Series reports Series hints for those Series only.
 | --- | --- |
 | `small_values_invisible` | A bar's value is under 1 % of the value-axis span, or it prints under 0.5 mm, beside bars at least 5 mm long |
 | `bars_too_narrow` | A bar prints narrower than 0.6 mm |
-| `few_samples_hidden` | Every group of a box or violin Series, or of a bar Series with repeated rows per x, has fewer than 10 values, and the plot has no scatter Series |
+| `few_samples_hidden` | Every group of a box or violin Series, or of a bar Series with repeated rows per x, has fewer than 10 values, or a bar Series of one row per x has `series.replicates` of 1–9; and the plot has no scatter Series |
 | `too_many_categories` | The category axis draws its labels but drops some, or neighbouring labels collide |
 | `log_scale_candidate` | A plot without bars, boxes or violins has only positive line or scatter values on a linear value axis, spanning three or more decades |
 | `bar_baseline_not_zero` | The value-axis range leaves out the bars' baseline |
 | `labels_overlap` | Two text boxes on the canvas overlap by more than 0.2 mm in both directions; evidence names both and a direction to move the second. Entries of one legend and tick labels of one axis are not compared with each other |
 | `text_over_data` | An annotation or value label overlaps a bar, box, violin, line or marker |
+| `intent_mismatch` | The chart form does not suit the plot's `object.intent.purpose` (see below) |
 | `panels_misaligned` | Two frames in one column (left edges within 1 mm) or row (bottom edges within 1 mm) have plot areas whose left or bottom edges differ by more than 0.5 mm, or the gaps between three or more frames in a row or column differ by more than 0.5 mm |
 
 Hints beyond 50 of one kind, and checks that hit a budget, add an `unavailable`
 coverage row.
+
+The `intent` check weighs each plot built from explicit columns against the
+purpose its author stated; `detail` is never reported. A plot without a purpose
+gets a `not_applicable` coverage row, `no_purpose_stated`: ask the user what it
+should show. Table chart types get `chart_type_not_covered`. `intent_mismatch`
+evidence keeps the reason in `interpretation` and, with `detail: "full"`, adds
+the purpose, the claim and the chart features it read. Its suggestions name
+chart forms Plotium can draw; relay them and let the user choose.
+
+| Purpose | Reported when |
+| --- | --- |
+| `compare` | Lines join categories |
+| `trend` | The category axis holds categories, or the plot draws bars |
+| `distribution` | On a category axis, bars or lines without a box, violin or scatter Series |
+| `relationship` | The category axis holds categories, or the plot draws bars, boxes or violins |
+| `composition` | The plot draws lines or points but no bars |
+| `change` | Two or more bar Series sit side by side, or positive bar values span tenfold or more; or, without bars, boxes or violins, positive left-axis line or scatter values span tenfold or more on a linear axis |
 
 Native guide layout includes estimated text widths. Font availability is checked
 using native export font discovery; glyph coverage and cross-backend ink bounds

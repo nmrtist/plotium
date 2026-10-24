@@ -34,6 +34,7 @@ mod processing_common;
 mod provider;
 mod readout;
 pub mod reference;
+pub mod replicates;
 pub mod right_axis;
 mod service;
 pub mod smooth;
@@ -68,6 +69,9 @@ pub(crate) static GROUPS: &[PropertyProviderGroup] = &[
     },
     PropertyProviderGroup {
         provider: &intent::PROVIDER,
+    },
+    PropertyProviderGroup {
+        provider: &replicates::PROVIDER,
     },
     PropertyProviderGroup {
         provider: &apodization::PROVIDER,

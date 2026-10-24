@@ -31,6 +31,8 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::chart_layout::ORIENTATION,
     properties::intent::PURPOSE,
     properties::intent::CLAIM,
+    properties::replicates::REPLICATES,
+    properties::replicates::ERROR_BARS,
     properties::object::SERIES_VISIBLE,
     properties::axis::X_LABEL,
     properties::axis::Y_LABEL,

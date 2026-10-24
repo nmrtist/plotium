@@ -243,6 +243,11 @@ impl PlotiumApp {
             if table.typed_state.envelope.revision.id != edit.source.table_revision {
                 return Err("Table revision is stale.".into());
             }
+            // n and the error kind describe the old columns.
+            if series.source != source {
+                series.replicates = None;
+                series.error_bars = None;
+            }
             series.source = source;
         }
         for edit in materialize {
