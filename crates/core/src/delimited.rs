@@ -6,6 +6,10 @@
 
 use thiserror::Error;
 
+#[cfg(test)]
+#[path = "delimited/import_layout_tests.rs"]
+mod import_layout_tests;
+mod origin;
 mod typed;
 
 pub use plotium_io::delimited::Delimiter;
@@ -65,6 +69,9 @@ pub struct DelimitedDiagnostic {
 pub struct DelimitedTable {
     pub delimiter: Delimiter,
     pub headers: Option<Vec<String>>,
+    /// Per-column descriptions from the source, such as Origin `Comments`;
+    /// empty when the source has none.
+    pub column_comments: Vec<String>,
     pub rows: Vec<DelimitedRow>,
     pub diagnostics: Vec<DelimitedDiagnostic>,
 }
@@ -114,12 +121,45 @@ pub fn parse_delimited_columns(
         return Err(DelimitedError::EmptyInput);
     }
 
-    let (delimiter, raw_rows) = match options.delimiter {
-        Some(delimiter) => (delimiter, rectangular_rows(input, delimiter)?),
+    let (delimiter, (mut raw_rows, padded)) = match options.delimiter {
+        Some(delimiter) => (delimiter, rows_padding_short(input, delimiter)?),
         None => detect_delimiter(input)?,
     };
+    let origin = (options.header != HeaderMode::Absent)
+        .then(|| origin::take_labels(&mut raw_rows))
+        .flatten();
     if raw_rows.first().map_or(0, |(_, row)| row.len()) < minimum_columns {
         return Err(DelimitedError::TooFewColumns);
+    }
+    let mut diagnostics = Vec::new();
+    if padded > 0 {
+        diagnostics.push(DelimitedDiagnostic {
+            level: DiagnosticLevel::Warning,
+            message: format!("Filled {padded} short rows with missing cells."),
+        });
+    }
+    if let Some(origin) = origin {
+        diagnostics.push(DelimitedDiagnostic {
+            level: DiagnosticLevel::Info,
+            message:
+                "Detected Origin label rows; used Long Name, Units and Comments as column names."
+                    .to_owned(),
+        });
+        if origin.kept_row_numbers {
+            diagnostics.push(DelimitedDiagnostic {
+                level: DiagnosticLevel::Warning,
+                message: "Origin exported a single column without its x values; kept the row numbers as x.".to_owned(),
+            });
+        }
+        let rows = typed_rows(&raw_rows)?;
+        diagnostics.extend(xy_pairs_diagnostic(&origin.headers, &rows));
+        return Ok(DelimitedTable {
+            delimiter,
+            headers: Some(origin.headers),
+            column_comments: origin.comments,
+            rows,
+            diagnostics,
+        });
     }
 
     let first_kinds = raw_rows[0]
@@ -158,8 +198,35 @@ pub fn parse_delimited_columns(
         (None, raw_rows.as_slice())
     };
 
-    let rows = data_rows
-        .iter()
+    let rows = typed_rows(data_rows)?;
+    if options.header == HeaderMode::Auto {
+        diagnostics.push(DelimitedDiagnostic {
+            level: DiagnosticLevel::Info,
+            message: if header_present {
+                "Detected a header row.".to_owned()
+            } else {
+                "Detected a headerless table; generated column names.".to_owned()
+            },
+        });
+    }
+    let names = headers.clone().unwrap_or_else(|| {
+        (1..=rows.first().map_or(0, |row| row.cells.len()))
+            .map(|index| format!("Column {index}"))
+            .collect()
+    });
+    diagnostics.extend(xy_pairs_diagnostic(&names, &rows));
+
+    Ok(DelimitedTable {
+        delimiter,
+        headers,
+        column_comments: Vec::new(),
+        rows,
+        diagnostics,
+    })
+}
+
+fn typed_rows(rows: &[(usize, Vec<String>)]) -> Result<Vec<DelimitedRow>, DelimitedError> {
+    rows.iter()
         .map(|(source_line, fields)| {
             let cells = fields
                 .iter()
@@ -176,26 +243,40 @@ pub fn parse_delimited_columns(
                 cells,
             })
         })
-        .collect::<Result<Vec<_>, DelimitedError>>()?;
+        .collect()
+}
 
-    let diagnostics = if options.header == HeaderMode::Auto {
-        vec![DelimitedDiagnostic {
-            level: DiagnosticLevel::Info,
-            message: if header_present {
-                "Detected a header row.".to_owned()
-            } else {
-                "Detected a headerless table; generated column names.".to_owned()
-            },
-        }]
-    } else {
-        Vec::new()
+/// Names alternating x/y column pairs, as in Source Data where each curve
+/// carries its own x. Pairs are recognized only when each pair is missing on
+/// the same rows and at least two pairs differ in length; otherwise a shared x
+/// column with several y columns is equally plausible.
+fn xy_pairs_diagnostic(names: &[String], rows: &[DelimitedRow]) -> Option<DelimitedDiagnostic> {
+    let width = names.len();
+    if width < 4 || !width.is_multiple_of(2) || rows.iter().any(|row| row.cells.len() != width) {
+        return None;
+    }
+    let missing = |column: usize| {
+        rows.iter()
+            .map(|row| matches!(row.cells[column].value, CellValue::Missing))
+            .collect::<Vec<_>>()
     };
-
-    Ok(DelimitedTable {
-        delimiter,
-        headers,
-        rows,
-        diagnostics,
+    let patterns = (0..width / 2)
+        .map(|pair| {
+            let x = missing(2 * pair);
+            (x == missing(2 * pair + 1)).then_some(x)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if patterns.iter().all(|pattern| *pattern == patterns[0]) {
+        return None;
+    }
+    let pairs = names
+        .chunks(2)
+        .map(|pair| format!("{} → {}", pair[0], pair[1]))
+        .collect::<Vec<_>>()
+        .join("; ");
+    Some(DelimitedDiagnostic {
+        level: DiagnosticLevel::Info,
+        message: format!("Columns form x/y pairs of different lengths: {pairs}."),
     })
 }
 
@@ -213,34 +294,51 @@ fn classify(raw: &str, _row: usize, _column: usize) -> Result<CellValue, Delimit
 /// Parsed rows as `(source_line, cells)` pairs.
 type SourceRows = Vec<(usize, Vec<String>)>;
 
-fn detect_delimiter(input: &str) -> Result<(Delimiter, SourceRows), DelimitedError> {
+fn detect_delimiter(input: &str) -> Result<(Delimiter, (SourceRows, usize)), DelimitedError> {
+    // Strict rectangularity disambiguates delimiters; short rows are accepted
+    // only when no delimiter yields a rectangular table.
+    let strict = candidates(|delimiter| rectangular_rows(input, delimiter).map(|rows| (rows, 0)));
+    if !strict.is_empty() {
+        return single(strict);
+    }
+    single(candidates(|delimiter| rows_padding_short(input, delimiter)))
+}
+
+type Candidate = (Delimiter, (SourceRows, usize));
+
+fn candidates(
+    parse: impl Fn(Delimiter) -> Result<(SourceRows, usize), DelimitedError>,
+) -> Vec<Candidate> {
     let mut candidates = Delimiter::ALL
         .into_iter()
         .filter_map(|delimiter| {
-            rectangular_rows(input, delimiter)
+            parse(delimiter)
                 .ok()
-                .filter(|rows| rows.first().is_some_and(|(_, row)| row.len() >= 2))
+                .filter(|(rows, _)| rows.first().is_some_and(|(_, row)| row.len() >= 2))
                 .map(|rows| (delimiter, rows))
         })
         .collect::<Vec<_>>();
-    let Some(max_width) = candidates
+    let max_width = candidates
         .iter()
-        .filter_map(|(_, rows)| rows.first().map(|(_, row)| row.len()))
+        .filter_map(|(_, (rows, _))| rows.first().map(|(_, row)| row.len()))
         .max()
-    else {
-        return Err(DelimitedError::DelimiterNotDetected);
-    };
-    candidates.retain(|(_, rows)| rows[0].1.len() == max_width);
-    if candidates.len() > 1 {
-        return Err(DelimitedError::AmbiguousDelimiter {
+        .unwrap_or_default();
+    candidates.retain(|(_, (rows, _))| rows[0].1.len() == max_width);
+    candidates
+}
+
+fn single(mut candidates: Vec<Candidate>) -> Result<Candidate, DelimitedError> {
+    match candidates.len() {
+        0 => Err(DelimitedError::DelimiterNotDetected),
+        1 => Ok(candidates.remove(0)),
+        _ => Err(DelimitedError::AmbiguousDelimiter {
             candidates: candidates
                 .iter()
                 .map(|(delimiter, _)| delimiter.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-        });
+        }),
     }
-    Ok(candidates.remove(0))
 }
 
 fn rectangular_rows(input: &str, delimiter: Delimiter) -> Result<SourceRows, DelimitedError> {
@@ -256,6 +354,46 @@ fn rectangular_rows(input: &str, delimiter: Delimiter) -> Result<SourceRows, Del
         }
     }
     Ok(rows)
+}
+
+/// Rows narrower than the first row are filled with missing cells, as
+/// spreadsheets write when trailing columns are shorter. Wider rows still fail.
+/// Returns the rows and how many were filled.
+fn rows_padding_short(
+    input: &str,
+    delimiter: Delimiter,
+) -> Result<(SourceRows, usize), DelimitedError> {
+    let mut rows = parse_rows(input, delimiter)?;
+    // Blank lines carry no record; dropping them keeps them from being padded
+    // into rows of missing cells.
+    rows.retain(|(_, row)| row.len() > 1 || !row[0].trim().is_empty());
+    let expected = rows.first().map_or(0, |(_, row)| row.len());
+    let mut padded = 0;
+    let mut first_short = None;
+    for (source_line, row) in &mut rows {
+        if row.len() > expected {
+            return Err(DelimitedError::RaggedRow {
+                row: *source_line,
+                expected,
+                actual: row.len(),
+            });
+        }
+        if row.len() < expected {
+            first_short.get_or_insert((*source_line, row.len()));
+            row.resize(expected, String::new());
+            padded += 1;
+        }
+    }
+    // A table needs at least one complete data row; otherwise text that merely
+    // contains the delimiter in its first line would be accepted.
+    if let Some((row, actual)) = first_short.filter(|_| padded + 1 >= rows.len()) {
+        return Err(DelimitedError::RaggedRow {
+            row,
+            expected,
+            actual,
+        });
+    }
+    Ok((rows, padded))
 }
 
 fn parse_rows(input: &str, delimiter: Delimiter) -> Result<SourceRows, DelimitedError> {

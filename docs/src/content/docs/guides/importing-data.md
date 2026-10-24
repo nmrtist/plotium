@@ -262,6 +262,19 @@ base-10 integers, `YYYY-MM-DD` dates, and `YYYY-MM-DDTHH:MM:SSZ` UTC timestamps.
 Locale-specific dates and columns that mix numbers with text stay as text, so
 Plotium never guesses a regional format.
 
+Rows shorter than the header are filled with empty cells, as spreadsheets write
+when some columns end early; the diagnostics say how many. When the columns
+alternate as x/y pairs of different lengths, such as Source Data where each
+curve has its own x column, the diagnostics list the pairs.
+
+CSV files exported from Origin start with label rows (`Short Name`,
+`Long Name`, `Units`, `Comments`) and a row-number column. Plotium names each
+column from its Long Name (or its Comments, then its Short Name), appends the
+unit in parentheses, converts Origin's superscript, subscript and Greek markup
+(`cm\+(-1)` becomes cm⁻¹), keeps Comments with the column, and drops the
+row-number column. When Origin exported a single column without its x values,
+the row numbers are kept as the x column and the diagnostics warn about it.
+
 When Plotium exports a CSV or TSV, it writes a companion `.plotium-schema.json` file
 next to it, and Copy TSV puts the same information on the clipboard beside the
 plain text (on Windows). Reopening either restores the original column types,

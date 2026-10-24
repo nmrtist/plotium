@@ -145,6 +145,13 @@ impl DelimitedTable {
                 );
             }
         }
+        for (column, comment) in schemas.iter_mut().zip(&self.column_comments) {
+            if !comment.is_empty() {
+                column
+                    .metadata
+                    .insert("import.comment".into(), serde_json::json!(comment));
+            }
+        }
         let mut uncertainty = Vec::new();
         for value_index in (0..width.saturating_sub(1)).filter(|_| infer_uncertainty) {
             let sigma_index = value_index + 1;
