@@ -250,7 +250,7 @@ pub use plot_label_placement::{
     HAND_PLACED_LABEL_KEY, LabelPlacement, MAX_LABEL_OFFSET_PT, PlacementRequest,
 };
 pub(crate) use plot_label_placement::{
-    hand_placed_label_readings, plot_label_layout, reference_placement_reading,
+    hand_placed_label_readings, plot_label_layout, plot_part_reading, reference_placement_reading,
     text_placement_reading,
 };
 pub use plot_object::*;

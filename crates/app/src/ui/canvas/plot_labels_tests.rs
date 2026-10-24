@@ -103,3 +103,40 @@ fn a_dragged_reference_label_records_its_side_and_place_along_the_line() {
     assert_eq!(position.side, ReferenceLabelSide::Before);
     assert!((position.along - 0.25).abs() < 1e-3);
 }
+
+#[test]
+fn a_nudged_text_shifts_its_offset_by_the_step_even_below_half_a_pixel() {
+    let (overrides, text, _) = fixture();
+    let object = plot_object(overrides, 10.0);
+    let nudged = nudged_label(&object, PLOT, 0.5, text, [0.25, -0.25]).expect("nudged text");
+    let LabelPlacement::Hand(offset) = nudged.annotations.get(text).expect("text").placement else {
+        panic!("hand placement expected");
+    };
+    // Half a screen pixel at zoom 0.5 is 0.5 pt; screen up is offset up.
+    let layout = plotium_render::label_layout(object.figure(), PLOT, 0.5).texts[0].expect("text");
+    assert!((offset[0] - (layout.offset_pt[0] + 0.5)).abs() < 1e-3);
+    assert!((offset[1] - (layout.offset_pt[1] + 0.5)).abs() < 1e-3);
+}
+
+#[test]
+fn a_nudge_across_a_reference_line_picks_the_side_it_steps_towards() {
+    let (overrides, _, line) = fixture();
+    let object = plot_object(overrides, 10.0);
+    let side = |delta: [f32; 2]| {
+        let nudged = nudged_label(&object, PLOT, 1.0, line, delta).expect("nudged label");
+        match nudged
+            .annotations
+            .reference_line(line)
+            .expect("line")
+            .label_placement
+        {
+            LabelPlacement::Hand(position) => position,
+            other => panic!("hand placement expected, got {other:?}"),
+        }
+    };
+    assert_eq!(side([-0.5, 0.0]).side, ReferenceLabelSide::Before);
+    assert_eq!(side([0.5, 0.0]).side, ReferenceLabelSide::After);
+    let up = side([0.0, -5.0]);
+    let down = side([0.0, 5.0]);
+    assert!(up.along > down.along);
+}

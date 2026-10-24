@@ -391,8 +391,8 @@ fn handle_escape(app: &mut PlotiumApp, now: f64) {
         app.session.status = "Cancelled interaction.".to_owned();
         return;
     }
-    // Esc steps back one level: analysis region -> panel-letter sub-selection ->
-    // selection -> active tool.
+    // Esc steps back one level: analysis region -> plot part -> panel-letter
+    // sub-selection -> selection -> active tool.
     if app.session.ui.analysis_selection.is_some() {
         if let Some(ci) = app.session.active_canvas {
             canvas::clear_canvas_interaction_state(
@@ -404,6 +404,12 @@ fn handle_escape(app: &mut PlotiumApp, now: f64) {
             app.session.ui.analysis_selection = None;
         }
         app.session.status = "Cleared analysis selection.".to_owned();
+        return;
+    }
+
+    if app.selected_plot_part().is_some() {
+        app.session.ui.plot_part_selection = None;
+        app.session.status = "Selected the whole plot.".to_owned();
         return;
     }
 

@@ -59,6 +59,7 @@ mod panel_selection;
 mod peaks;
 mod phase;
 mod plot_labels;
+mod plot_parts;
 mod readout;
 mod reference_pick;
 mod regions;
@@ -178,6 +179,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         handle_phase_before_paint(app, ci, rect, ui);
     }
 
+    plot_parts::handle_nudge_keys(app, ci, rect, ui);
     let author_active = app.session.tool.creates_object();
     if pointer_owned && author_active && !view_consumed && !frame_consumed {
         handle_author_create(app, ci, rect, ui);
@@ -266,6 +268,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     paint_author_drag(app, ci, rect, &painter, chrome);
     paint_marquee(app, ci, rect, &painter, chrome);
     paint_panel_label_selection(app, ci, rect, &painter, chrome);
+    plot_parts::paint_plot_part_selection(app, ci, rect, &painter, chrome);
     paint_object_selection(app, ci, rect, page, &painter, chrome);
     paint_property_readouts(app, ci, rect, &painter, chrome, ui.visuals().dark_mode);
     paint_wheel_target_hint(app, ci, rect, ui, &painter, chrome, ui.visuals().dark_mode);

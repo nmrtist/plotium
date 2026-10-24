@@ -178,6 +178,16 @@ at most 16 stable resource references. Pass `selection_offset` (default 0) and
 {"selection_offset":16,"selection_limit":50}
 ```
 
+`selection.canvas` reports what the user selected on the active page:
+`{items,total,part}`. `items` holds at most `selection_limit` summaries
+(`target`, `kind`, `name`, `visible`) of the selected panels and items. `part`
+is the legend or label the user clicked inside the lead plot, or `null`. A
+legend reads `{target,part:"legend",property:"object.guides.position",value}`,
+where a `null` value means automatic placement. A label reads
+`{target,part:"label",kind,annotation_id,edit:"figure.edit annotation_set",…}`
+with its current placement. When the user says "this", edit that target or
+part.
+
 Every call reads the current selection; pages are not a frozen snapshot. GUI
 selection can change without changing the document revision. Do not combine pages
 as an atomic selection or use selection as execution authority.

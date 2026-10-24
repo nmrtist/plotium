@@ -243,6 +243,9 @@ pub struct UiState {
     /// A panel-letter sub-selection (canvas index, object id): its own page-space
     /// selection scope, distinct from the whole-object `selection`.
     pub panel_label_selection: Option<(usize, ObjectId)>,
+    /// The legend or label clicked inside the selected plot; arrow keys move it.
+    pub plot_part_selection: Option<PlotPartSelection>,
+    pub pending_nudge: Option<PendingNudge>,
     /// Panel currently highlighted as a same-page drop destination.
     pub panel_drop_target: Option<PanelId>,
     /// Content row being dragged in the Layers tree.
@@ -481,6 +484,8 @@ impl Default for UiState {
             selection_scope: SelectionScope::default(),
             selection_anchors: SelectionAnchors::default(),
             panel_label_selection: None,
+            plot_part_selection: None,
+            pending_nudge: None,
             panel_drop_target: None,
             layers_drag_content: None,
             tile_drop: None,

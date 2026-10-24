@@ -405,7 +405,9 @@ What you control directly:
 - With **Select** active, click a legend or colour scale to open its
   **Legend & scales** settings. Drag a categorical legend to place it freely;
   the custom position survives resizing and is used by every export format.
-  Double-click a legend or colour scale to restore its automatic placement.
+  A clicked legend or plot label is outlined; the arrow keys then move it by
+  0.5 pt (`Shift`: 5 pt). Double-click a legend or colour scale to restore its
+  automatic placement.
 - Axis titles, legend entries and text use true superscripts and subscripts:
   type `cm^{-2}` or `H_{2}O`. Characters such as `⁻²` and `₂` are drawn the
   same way. EMF output falls back to those Unicode characters.
