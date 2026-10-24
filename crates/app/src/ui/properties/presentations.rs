@@ -86,11 +86,12 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(object::SHAPE_FILL_COLOR, "Fill color", SHAPE_HOME),
     object_entry(object::LOCKED, "Locked", OBJECT_HOME),
     PropertyPresentation {
-        id: axis::EQUAL_F1_F2_SCALE,
-        localized_label: LocalizedText("F1/F2 equal scale (1:1)"),
+        id: axis::EQUAL_SCALE,
+        localized_label: LocalizedText("Equal x/y scale (1:1)"),
         localized_aliases: &[
             LocalizedText("aspect lock"),
             LocalizedText("equal axis scale"),
+            LocalizedText("F1/F2 equal scale"),
         ],
         home_route: AXIS_HOME,
         canvas_step: false,

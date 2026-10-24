@@ -22,7 +22,7 @@ saved preferences except your recent-files list. AI connection preferences are d
   axes of the same nucleus, start an imported spectrum with equal F1/F2 scale
   if the wider range is no more than twice the narrower range. The imported
   plot keeps this initial setting even if you later change the preference.
-  Change an individual plot with **F1/F2 equal scale (1:1)** under **Axes** in
+  Change an individual plot with **Equal x/y scale (1:1)** under **Axes** in
   the Object inspector.
 - **Keep source canvas when tiling its last object** — keep a page that a
   drag-to-tile move empties, instead of deleting it along with the drop. Off by

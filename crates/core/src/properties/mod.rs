@@ -265,6 +265,10 @@ mod axis_scale_tests;
 mod axis_break_tests;
 
 #[cfg(test)]
+#[path = "axis_equal_scale_tests.rs"]
+mod axis_equal_scale_tests;
+
+#[cfg(test)]
 #[path = "object_tests.rs"]
 mod object_tests;
 

@@ -98,6 +98,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | Object | boolean |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | Object | boolean; groups digits in tick labels |
 | `object.axes.frame` | Object | `open` (left and bottom), `box` (all four sides) |
+| `object.axes.equal_scale` | Object | boolean; same data units per length on x and y (linear, non-categorical axes without a right y axis) |
 | `object.axes.x_scale / object.axes.y_scale` | Object | `linear`, `log` (line, scatter and stick plots; a manual range must stay above zero) |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | Object | compatible code from property inspection |
 | `object.axes.x_range / object.axes.y_range` | Object | auto or manual range object |

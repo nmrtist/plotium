@@ -360,7 +360,7 @@ fn equal_scale_is_directly_visible_and_title_visibility_is_advanced() {
     assert_eq!(
         essential,
         [
-            axis::EQUAL_F1_F2_SCALE,
+            axis::EQUAL_SCALE,
             axis::X_LABEL,
             axis::Y_LABEL,
             axis::X_SHOW_TICK_LABELS,

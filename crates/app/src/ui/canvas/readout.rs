@@ -193,7 +193,7 @@ fn aspect_hint(app: &PlotiumApp, ci: usize, object: plotium_core::state::ObjectI
         .and_then(|object| object.plot())
         .is_some_and(|plot| plot.figure().lock_aspect)
     {
-        " · F1/F2 1:1"
+        " · 1:1"
     } else {
         ""
     }

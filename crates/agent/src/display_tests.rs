@@ -205,7 +205,7 @@ fn inapplicable_targets_are_skipped_and_deleted_targets_cannot_execute() {
 }
 
 #[test]
-fn axis_visibility_and_separator_properties_are_listed_and_writable() {
+fn axis_visibility_separator_and_equal_scale_properties_are_listed_and_writable() {
     let keys = [
         "object.axes.x_show_label",
         "object.axes.y_show_label",
@@ -213,6 +213,7 @@ fn axis_visibility_and_separator_properties_are_listed_and_writable() {
         "object.axes.y_show_tick_labels",
         "object.axes.x_thousands_separator",
         "object.axes.y_thousands_separator",
+        "object.axes.equal_scale",
     ];
     let catalog = crate::session::property_catalog();
     for key in keys {
@@ -260,6 +261,7 @@ fn axis_visibility_and_separator_properties_are_listed_and_writable() {
             figure.y.show_tick_labels,
             figure.x.thousands_separator,
             figure.y.thousands_separator,
+            figure.lock_aspect,
         ],
         expected
     );
