@@ -10,6 +10,7 @@ fn figure(series: Vec<Series>) -> Figure {
 
 fn text(at: [f64; 2], label: &str) -> Annotation {
     Annotation {
+        display_baseline: 0.0,
         text: label.into(),
         at,
         color: Color::BLACK,

@@ -181,6 +181,7 @@ impl PlotiumApp {
             x_min = x_min.min(part_x_bounds[0] + x_off);
             x_max = x_max.max(part_x_bounds[1] + x_off);
             for mut s in series.drain(..) {
+                s.display_baseline += y_off;
                 for p in &mut s.points {
                     p[0] += x_off;
                     p[1] += y_off;
@@ -195,6 +196,7 @@ impl PlotiumApp {
                 fig.series.push(s);
             }
             for mut error_bar in error_bars.drain(..) {
+                error_bar.display_baseline += y_off;
                 error_bar.center[0] += x_off;
                 error_bar.center[1] += y_off;
                 if active {

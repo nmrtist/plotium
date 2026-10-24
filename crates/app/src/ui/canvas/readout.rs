@@ -10,8 +10,8 @@
 //! anything. A plot whose estimate has not arrived says so.
 
 use super::{
-    HitZone, content_screen_rect, hit_zone, last_wheel_was_trackpad, plot_rect, plot_under_cursor,
-    selected_plot_body,
+    HitZone, content_screen_rect, hit_zone, last_wheel_was_trackpad, peak_height_label, plot_rect,
+    plot_under_cursor, selected_plot_body, supports_peak_height,
 };
 use crate::ui::properties;
 use egui::{Align2, Color32, FontId};
@@ -150,19 +150,30 @@ pub(crate) fn paint_wheel_target_hint(
                         )
                     })
                 });
-            let navigation = if two_dimensional {
+            let peak_height = supports_peak_height(app, ci, object);
+            let navigation = if peak_height {
+                "Scroll: peak height · Baselines fixed"
+            } else if two_dimensional {
                 "Scroll/pinch: zoom X+Y"
             } else {
                 "Scroll: zoom X · Pinch: zoom X+Y"
             };
-            let display = match canvas_step_target(app, ci, object) {
-                CanvasStepTarget::Unique { label, targets, .. } => {
-                    format!("Alt+scroll: {label} ({} series)", targets.len())
+            let display = if peak_height {
+                let gain = app.doc.canvases[ci]
+                    .object(object)
+                    .and_then(|object| object.plot())
+                    .map_or(1.0, |plot| plot.viewport.display_gain);
+                format!("{} · View > Reset Peak Height", peak_height_label(gain))
+            } else {
+                match canvas_step_target(app, ci, object) {
+                    CanvasStepTarget::Unique { label, targets, .. } => {
+                        format!("Alt+scroll: {label} ({} series)", targets.len())
+                    }
+                    CanvasStepTarget::Ambiguous { labels } => {
+                        format!("Alt+scroll: choose layer ({})", labels.join(" / "))
+                    }
+                    CanvasStepTarget::None => "Alt+scroll: Y intensity".to_owned(),
                 }
-                CanvasStepTarget::Ambiguous { labels } => {
-                    format!("Alt+scroll: choose layer ({})", labels.join(" / "))
-                }
-                CanvasStepTarget::None => "Alt+scroll: Y intensity".to_owned(),
             };
             format!(
                 "{navigation} · {display} · Alt+drag: box zoom{}",

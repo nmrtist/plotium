@@ -611,6 +611,19 @@ pub fn view_to_canvas(
                     .as_ref()
                     .map(ViewportDto::to_viewport)
                     .unwrap_or_else(|| CanvasViewport::from_figure(&figure));
+                viewport.reset_unsupported_gain(&figure);
+                figure
+                    .check_display_gain(viewport.display_gain)
+                    .map_err(|error| {
+                        ProjectError::Invalid(format!("Invalid plot display gain: {error}"))
+                    })?;
+                if snapshot_backed {
+                    figure
+                        .set_display_gain(viewport.display_gain)
+                        .map_err(|error| {
+                            ProjectError::Invalid(format!("Invalid plot display gain: {error}"))
+                        })?;
+                }
                 if !snapshot_backed {
                     if axis_overrides.y_range.is_some() && figure.y.categories.is_none() {
                         viewport.auto_y = false;

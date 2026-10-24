@@ -754,3 +754,6 @@ mod xrd_tests;
 
 #[cfg(test)]
 mod save_boundary_tests;
+
+#[cfg(test)]
+mod display_gain_tests;

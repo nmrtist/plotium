@@ -330,6 +330,7 @@ fn text_on_a_bar_is_text_over_data() {
     let canvas = &app.doc.canvases[0];
     let mut figure = canvas.objects[0].plot().unwrap().figure().clone();
     figure.annotations.push(plotium_figure::Annotation {
+        display_baseline: 0.0,
         text: "inside".into(),
         at: [0.0, 1.0],
         size: 7.,

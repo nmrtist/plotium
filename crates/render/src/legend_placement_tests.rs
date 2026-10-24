@@ -100,6 +100,7 @@ fn stems_and_error_bars_occupy_space() {
     assert_eq!(r.top, PLOT.top + 8.0);
     f.series[1].points.clear();
     f.error_bars.push(ErrorBar {
+        display_baseline: 0.0,
         center: [0.5, 5.0],
         negative: 5.0,
         positive: 5.0,
@@ -164,6 +165,7 @@ fn gaps_and_non_finite_samples_do_not_bridge_or_block() {
         Series::line("B", vec![[0.0, 1.0], [10.0, 1.0]]),
     ]);
     f.error_bars.push(ErrorBar {
+        display_baseline: 0.0,
         center: [f64::NAN, 5.0],
         negative: 1.0,
         positive: 1.0,

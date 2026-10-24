@@ -674,6 +674,8 @@ pub struct RangeDto {
 
 #[derive(Serialize, Deserialize)]
 pub struct ViewportDto {
+    #[serde(default = "unit_display_gain")]
+    pub display_gain: f64,
     pub full_x: RangeDto,
     pub full_y: RangeDto,
     pub view_x: RangeDto,
@@ -695,9 +697,14 @@ pub struct SelectionDto {
     pub y_range: Option<RangeDto>,
 }
 
+fn unit_display_gain() -> f64 {
+    1.0
+}
+
 impl ViewportDto {
     pub fn from_viewport(v: &CanvasViewport) -> Self {
         Self {
+            display_gain: v.display_gain,
             full_x: RangeDto::from_range(v.full_x),
             full_y: RangeDto::from_range(v.full_y),
             view_x: RangeDto::from_range(v.view_x),
@@ -710,6 +717,7 @@ impl ViewportDto {
 
     pub fn to_viewport(&self) -> CanvasViewport {
         CanvasViewport {
+            display_gain: self.display_gain,
             full_x: self.full_x.into_range(),
             full_y: self.full_y.into_range(),
             view_x: self.view_x.into_range(),

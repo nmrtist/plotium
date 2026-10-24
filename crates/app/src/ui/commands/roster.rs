@@ -65,6 +65,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::ZoomToSelection,
         CommandId::FitPlotY,
         CommandId::FitPlotXY,
+        CommandId::ResetPeakHeight,
         CommandId::UiScaleUp,
         CommandId::UiScaleDown,
         CommandId::UiScaleReset,

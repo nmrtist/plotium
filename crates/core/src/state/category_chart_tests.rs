@@ -409,3 +409,64 @@ fn category_chart_settings_survive_save_and_load() {
     };
     assert_eq!(encodings(after), encodings(before));
 }
+
+#[test]
+fn offset_numeric_value_labels_stay_on_their_traces_after_gain_and_project_restore() {
+    let mut app = fixture();
+    let summary = create(&mut app, |app| {
+        vec![
+            curve(CurveKind::Line, source(app, Y2, Y, Some(ERROR))),
+            curve(CurveKind::Scatter, source(app, Y2, Y, Some(ERROR))),
+        ]
+    });
+    for series in summary.series_defaults {
+        set(&mut app, &series.target, "series.value_labels", json!(true));
+    }
+    let plot = app.doc.canvases[0].objects[0].plot_mut().unwrap();
+    plot.stack.mode = StackMode::Offset;
+    plot.stack.spacing_y = 1.;
+    app.rebuild_canvas(0);
+    let original = figure(&app).clone();
+    assert!(original.supports_display_gain());
+    assert!(original.series[1].display_baseline > 0.);
+    let check_labels = |figure: &plotium_figure::Figure| {
+        let mut labels = figure.annotations.iter();
+        for series in &figure.series {
+            for point in &series.points {
+                let label = labels.next().unwrap();
+                assert_eq!(label.display_baseline, series.display_baseline);
+                assert_eq!(label.at, *point);
+            }
+        }
+        assert!(labels.next().is_none());
+    };
+    check_labels(&original);
+    let plot = app.doc.canvases[0].objects[0].plot_mut().unwrap();
+    plot.viewport.auto_y = false;
+    plot.viewport.display_gain = 2.;
+    plot.apply_viewport();
+    check_labels(figure(&app));
+    for snapshots in [false, true] {
+        let path = std::env::temp_dir().join(format!(
+            "plotium-stacked-labels-{}.plotium",
+            uuid::Uuid::new_v4()
+        ));
+        crate::project::save_project(&app, &path, snapshots).unwrap();
+        let mut loaded = crate::project::load_project(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(figure(&loaded).display_gain, 2.);
+        check_labels(figure(&loaded));
+        let plot = loaded.doc.canvases[0].objects[0].plot_mut().unwrap();
+        plot.viewport.display_gain = 1.;
+        plot.apply_viewport();
+        check_labels(figure(&loaded));
+        for (actual, expected) in figure(&loaded)
+            .annotations
+            .iter()
+            .zip(&original.annotations)
+        {
+            assert_eq!(actual.at, expected.at);
+            assert_eq!(actual.text, expected.text);
+        }
+    }
+}

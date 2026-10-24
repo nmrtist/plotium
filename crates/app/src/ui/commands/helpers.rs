@@ -106,3 +106,10 @@ pub(super) fn tool_commands() -> [Tool; 17] {
         Tool::Arrow,
     ]
 }
+
+pub(super) fn peak_height_gate(app: &PlotiumApp) -> Result<(), &'static str> {
+    requires(
+        crate::ui::canvas::can_reset_peak_height(app),
+        "Select an unlocked numeric trace plot before resetting peak height.",
+    )
+}

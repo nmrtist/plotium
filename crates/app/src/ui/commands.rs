@@ -82,6 +82,7 @@ pub enum CommandId {
     ZoomToSelection,
     FitPlotY,
     FitPlotXY,
+    ResetPeakHeight,
     UiScaleUp,
     UiScaleDown,
     UiScaleReset,
@@ -412,6 +413,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             has_active_plot(app),
             "Plot a dataset on the canvas before fitting its data view.",
         ),
+        CommandId::ResetPeakHeight => helpers::peak_height_gate(app),
         CommandId::ZoomToSelection => {
             requires(has_canvas, "Open a canvas before showing the selection.")
         }

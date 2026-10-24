@@ -129,6 +129,7 @@ fn missing_data_and_unsupported_native_geometry_cannot_claim_clean() {
         plotium_figure::Axis::new("", 0., 1.),
     );
     f.annotations.push(plotium_figure::Annotation {
+        display_baseline: 0.0,
         text: "derived".into(),
         at: [0.5, 0.5],
         size: 8.,

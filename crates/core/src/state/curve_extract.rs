@@ -374,6 +374,7 @@ impl PlotiumApp {
                 0.0
             };
             for series in &mut part.series {
+                series.display_baseline += yoff;
                 if stack.active == Some(index) {
                     series.width = series.width.max(1.0) * 2.0;
                 }
@@ -391,6 +392,7 @@ impl PlotiumApp {
                 }
             }
             for e in &mut part.error_bars {
+                e.display_baseline += yoff;
                 e.center[0] += xoff;
                 e.center[1] += yoff;
                 if stack.active == Some(index) {

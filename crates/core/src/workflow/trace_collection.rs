@@ -39,6 +39,7 @@ pub(super) fn initial_figure(
     let (mut y_min, mut y_max) = (f64::INFINITY, f64::NEG_INFINITY);
     for (index, part) in parts.into_iter().enumerate() {
         for mut series in part.series {
+            series.display_baseline += index as f64 * StackSpec::default().spacing_y * peak;
             for point in &mut series.points {
                 point[1] += index as f64 * StackSpec::default().spacing_y * peak;
                 y_min = y_min.min(point[1]);

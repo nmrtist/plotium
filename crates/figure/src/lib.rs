@@ -1,6 +1,9 @@
 //! Figure model: a pure-data description of what to draw, in data-space
 //! coordinates. Both renderers (egui screen, SVG export) consume this model.
 
+mod display_gain;
+pub use display_gain::{MAX_DISPLAY_GAIN, MIN_DISPLAY_GAIN};
+
 mod axis_break;
 mod axis_scale;
 pub use axis_break::{AXIS_BREAK_GAP, AxisBreak};
@@ -327,6 +330,12 @@ pub struct SeriesOrigin(pub u64);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Series {
+    /// Original display coordinates while gain is active; shared by figure clones.
+    #[serde(skip)]
+    pub(crate) unamplified_y: Option<std::sync::Arc<Vec<f64>>>,
+    /// Zero-signal position after stacking, independent of display gain.
+    #[serde(default)]
+    pub display_baseline: f64,
     #[serde(skip)]
     pub origin: Option<SeriesOrigin>,
     #[serde(default)]
@@ -373,6 +382,8 @@ pub enum SeriesKind {
 impl Series {
     pub fn line(name: impl Into<String>, points: Vec<[f64; 2]>) -> Self {
         Self {
+            unamplified_y: None,
+            display_baseline: 0.0,
             origin: None,
             appearance: CurveAppearance::default(),
             name: name.into(),
@@ -385,6 +396,8 @@ impl Series {
 
     pub fn points(name: impl Into<String>, points: Vec<[f64; 2]>) -> Self {
         Self {
+            unamplified_y: None,
+            display_baseline: 0.0,
             origin: None,
             appearance: CurveAppearance::default(),
             name: name.into(),
@@ -397,6 +410,8 @@ impl Series {
 
     pub fn sticks(name: impl Into<String>, points: Vec<[f64; 2]>) -> Self {
         Self {
+            unamplified_y: None,
+            display_baseline: 0.0,
             origin: None,
             appearance: CurveAppearance::default(),
             name: name.into(),
@@ -417,6 +432,9 @@ impl Series {
 pub struct Annotation {
     pub text: String,
     pub at: [f64; 2],
+    /// Zero-signal baseline of the trace that owns this label.
+    #[serde(default)]
+    pub display_baseline: f64,
     pub color: Color,
     pub size: f32,
     #[serde(default, skip_serializing_if = "TextAnchor::is_point")]
@@ -553,6 +571,9 @@ pub enum AxisFrame {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Figure {
+    /// Display amplification already applied to this materialized geometry.
+    #[serde(default = "display_gain::unit_gain")]
+    pub display_gain: f64,
     pub title: String,
     pub x: Axis,
     pub y: Axis,
@@ -638,6 +659,7 @@ pub struct Figure {
 impl Figure {
     pub fn new(title: impl Into<String>, x: Axis, y: Axis) -> Self {
         Self {
+            display_gain: 1.0,
             title: title.into(),
             x,
             y,

@@ -717,6 +717,7 @@ fn unsupported_series_figure(series: &SeriesBinding) -> Figure {
         plotium_figure::Axis::new("y", 0.0, 1.0),
     );
     figure.annotations.push(plotium_figure::Annotation {
+        display_baseline: 0.0,
         text: format!(
             "The selected field cannot be rendered with {}.",
             match series.encoding {

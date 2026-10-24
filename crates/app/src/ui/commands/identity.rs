@@ -150,6 +150,9 @@ pub(super) fn command_identity(
         ),
         CommandId::ZoomToFit => ("Show All".into(), Some(icon::ARROWS_OUT), None),
         CommandId::ZoomToSelection => ("Show Selection".into(), Some(icon::CORNERS_OUT), None),
+        CommandId::ResetPeakHeight => {
+            plain("Reset Peak Height", Some(icon::ARROWS_COUNTER_CLOCKWISE))
+        }
         CommandId::FitPlotY => (
             "Fit Plot Vertically".into(),
             Some(icon::ARROWS_VERTICAL),
@@ -489,6 +492,7 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::ZoomToSelection => "view.zoom_selection",
         CommandId::FitPlotY => "view.fit_plot_y",
         CommandId::FitPlotXY => "view.fit_plot_xy",
+        CommandId::ResetPeakHeight => "view.reset_peak_height",
         CommandId::UiScaleUp => "view.ui_scale_up",
         CommandId::UiScaleDown => "view.ui_scale_down",
         CommandId::UiScaleReset => "view.ui_scale_reset",

@@ -250,7 +250,11 @@ fn point_to_screen(
         .figure();
     Some(Pos2::new(
         to_screen_x(point.x, plot, &figure.x),
-        to_screen_y(point.y.unwrap_or(point.intensity), plot, &figure.y),
+        to_screen_y(
+            point.y.unwrap_or(point.intensity * figure.display_gain),
+            plot,
+            &figure.y,
+        ),
     ))
 }
 

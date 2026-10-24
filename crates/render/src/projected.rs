@@ -204,6 +204,7 @@ mod tests {
         let fig = log_figure();
         let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 200.0, 100.0), &Margins::default());
         let bar = |center: f64, negative: f64| ErrorBar {
+            display_baseline: 0.0,
             center: [5.0, center],
             negative,
             positive: 5.0,

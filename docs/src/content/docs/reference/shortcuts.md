@@ -49,10 +49,10 @@ and pinches move the board; over the selected plot's body they move its data.
 
 | Input | Action |
 | --- | --- |
-| Scroll wheel over a plot body | Zoom the x axis of a 1D plot; both axes of a 2D plot |
+| Scroll wheel over a plot body | Adjust peak height on numeric 1D traces, keeping each baseline fixed; zoom both axes of a 2D plot. Other 1D charts zoom X |
 | Two-finger swipe on a macOS trackpad | Pan the board; over the selected plot's body, pan its data |
 | Pinch | Zoom the board; over the selected plot's body, zoom both of its axes |
-| `Alt` + scroll wheel over a plot body | Change what the plot shows: y intensity on a 1D plot, the lowest contour level, or a heatmap's colour range |
+| `Alt` + scroll wheel over a plot body | Adjust peak height on numeric 1D traces, the lowest contour level, or a heatmap's colour range |
 | `Alt` + drag over a plot body | Rubber-band a box to zoom into, in any tool |
 | Scroll wheel over an axis strip | Zoom that axis only |
 | `Ctrl` + scroll wheel | Zoom the board instead of the plot |
@@ -65,6 +65,16 @@ and pinches move the board; over the selected plot's body they move its data.
 | `F` over a plot body | Fit both axes of that plot to the full data range |
 | `F` elsewhere | Zoom the board to fit the selected frames (everything when nothing is selected) |
 | `Enter` | Zoom the board to the selected page or sheet |
+
+**Peak height** uses one display multiplier for the whole plot. Stacked spectra
+keep their individual zero-signal baselines and spacing, including negative
+peaks; relative attenuation and scientific results stay unchanged. The hover
+hint shows the multiplier. Use **View → Reset Peak Height** (also in the command
+palette) to restore ×1 without changing axis ranges. Double-clicking Y or the
+plot, and the `H` / plot `F` fits, also reset the multiplier. Horizontal zoom
+remains available on the X-axis strip and with box zoom. Numeric curves with
+logarithmic Y, two Y axes, transposed coordinates or filled marks keep their
+coordinate-navigation behavior.
 
 `H` acts on the plot under the pointer, or on the active plot when the pointer
 is elsewhere — the vertical-fit convention NMR software users expect. Both fits
