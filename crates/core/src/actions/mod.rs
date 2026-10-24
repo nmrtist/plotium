@@ -563,6 +563,12 @@ pub enum Action {
     InsertTableData {
         dataset: Box<Dataset>,
     },
+    /// A table created in the app (a new empty table or a sheet transform
+    /// result). It applies exactly like `InsertTableData`; only the undo label
+    /// differs, so imports keep theirs.
+    CreateTableData {
+        dataset: Box<Dataset>,
+    },
     /// Remove a dataset nothing draws from; undo restores it at `index` with
     /// its original identity.
     DeleteDataset {
@@ -645,6 +651,7 @@ impl Action {
         match self {
             Self::InstallScientificState { .. } => "apply scientific changes",
             Self::InsertTableData { .. } => "import table data",
+            Self::CreateTableData { .. } => "add data table",
             Self::DeleteDataset { .. } => "delete dataset",
             Self::CreatePlot { .. } => "create native plot",
             Self::ReplacePanelState { .. } => "edit panel structure",
@@ -743,6 +750,7 @@ impl Action {
             | Self::InsertCanvas { .. }
             | Self::InstallScientificState { .. }
             | Self::InsertTableData { .. }
+            | Self::CreateTableData { .. }
             | Self::DeleteDataset { .. }
             | Self::InsertDatasetWithCanvas { .. }
             | Self::InsertObject { .. }

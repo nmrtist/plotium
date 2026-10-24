@@ -25,6 +25,25 @@ fn new_table_dataset_adds_placed_starter_table() {
 }
 
 #[test]
+fn created_tables_and_imports_keep_their_own_undo_labels() {
+    let mut app = sample_app();
+    app.new_table_dataset();
+    let created = app.doc.datasets.last().unwrap().clone();
+    app.undo();
+    assert_eq!(app.session.status, "Undid add data table.");
+
+    let mut imported = created;
+    if let crate::state::Dataset::Table(table) = &mut imported {
+        table.resource_id = crate::state::DatasetId::new();
+    }
+    app.execute_action(Action::InsertTableData {
+        dataset: Box::new(imported),
+    });
+    app.undo();
+    assert_eq!(app.session.status, "Undid import table data.");
+}
+
+#[test]
 fn page_frame_showing_dataset_finds_charting_page() {
     // table_app charts dataset 0 (a table) as a plot object on canvas 0.
     let (app, _) = table_app();

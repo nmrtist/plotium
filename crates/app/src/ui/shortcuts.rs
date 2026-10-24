@@ -363,7 +363,8 @@ fn bound_command(i: &egui::InputState) -> Option<commands::CommandId> {
 }
 
 pub(super) fn handle_escape_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) {
-    if ctx.egui_wants_keyboard_input() {
+    // egui has already dropped a cell editor's focus for this Escape.
+    if ctx.egui_wants_keyboard_input() || data_sheet::sheet_held_keyboard(ctx) {
         return;
     }
     let (escape, now) = ctx.input(|i| (i.key_pressed(egui::Key::Escape), i.time));

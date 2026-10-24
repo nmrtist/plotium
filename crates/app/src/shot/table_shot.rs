@@ -1,4 +1,4 @@
-use plotium_core::data::{FiniteOrSpecial, LiteralValue, RevisionId};
+use plotium_core::data::{LiteralValue, RevisionId};
 use plotium_core::state::{PlotiumApp, TableCellEditDraft};
 
 pub(super) fn conflict(app: &mut PlotiumApp) -> Result<(), String> {
@@ -19,8 +19,8 @@ pub(super) fn conflict(app: &mut PlotiumApp) -> Result<(), String> {
         revision: RevisionId::new(),
         row,
         column,
-        original: LiteralValue::Float64(FiniteOrSpecial::Finite(0.0)),
-        original_text: "0".into(),
+        original: LiteralValue::Null,
+        original_text: String::new(),
         text: "12.5".into(),
         error: None,
         take_focus: false,

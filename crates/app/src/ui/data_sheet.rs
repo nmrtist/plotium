@@ -3,6 +3,7 @@ use super::*;
 mod batch_cache;
 pub(super) mod cell;
 mod column_menu;
+mod dock;
 mod draft;
 mod focus;
 mod grid;
@@ -10,9 +11,89 @@ mod relationship;
 mod transform;
 mod typed;
 
-pub(super) use focus::grid_has_focus;
+pub(super) use focus::{grid_has_focus, request_first_cell, sheet_held_keyboard};
 
-pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
+/// The data sheet docks below the board, between the sidebars; call it before
+/// the central panel so the board shrinks instead of being covered.
+pub(super) fn data_sheet_dock(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
+    let was_shown = dock_rect(ui.ctx()).is_some();
+    let rect = dock_sheet(app, ui, dark, was_shown);
+    if rect.is_none() {
+        // A shown panel consumes one auto-id slot; burn it while hidden so
+        // the central panel's ids do not shift when the sheet opens.
+        ui.skip_ahead_auto_ids(1);
+    }
+    ui.ctx().data_mut(|data| match rect {
+        Some(rect) => {
+            data.insert_temp(dock_rect_id(), rect);
+        }
+        None => data.remove::<egui::Rect>(dock_rect_id()),
+    });
+    // A hidden sheet holds no keyboard, even before egui drops its focus id.
+    let draft = app.session.ui.table_cell_edit.as_ref();
+    focus::record_keyboard_owner(ui.ctx(), rect.is_some(), draft);
+}
+
+/// Opening the sheet, or asking a table to take the keyboard, expands a
+/// collapsed sheet, as if the user had pressed the expand button.
+fn shown_panel(
+    app: &PlotiumApp,
+    ctx: &egui::Context,
+    was_shown: bool,
+    dataset: Option<plotium_core::state::DatasetId>,
+) -> plotium_core::settings::DataSheetPanelSettings {
+    let mut panel = app.settings.window.data_sheet;
+    if !was_shown || dataset.is_some_and(|dataset| focus::first_cell_requested(ctx, dataset)) {
+        panel.collapsed = false;
+    }
+    panel
+}
+
+fn dock_rect_id() -> egui::Id {
+    dock::dock_id().with("rect")
+}
+
+/// The docked sheet's rect this frame, when it is shown.
+pub(super) fn dock_rect(ctx: &egui::Context) -> Option<egui::Rect> {
+    ctx.data(|data| data.get_temp::<egui::Rect>(dock_rect_id()))
+}
+
+fn dock_margin(app: &PlotiumApp) -> egui::Margin {
+    egui::Margin {
+        left: if app.session.primary_sidebar_visible {
+            8
+        } else {
+            4
+        },
+        right: if app.session.secondary_sidebar_visible {
+            8
+        } else {
+            4
+        },
+        top: 2,
+        bottom: 8,
+    }
+}
+
+fn store_panel(
+    app: &mut PlotiumApp,
+    panel: plotium_core::settings::DataSheetPanelSettings,
+    persist: bool,
+) {
+    let persist = persist || panel.collapsed != app.settings.window.data_sheet.collapsed;
+    app.settings.window.data_sheet = panel;
+    if persist {
+        app.persist_settings();
+    }
+}
+
+/// Returns the dock's rect when it was shown this frame.
+fn dock_sheet(
+    app: &mut PlotiumApp,
+    ui: &mut Ui,
+    dark: bool,
+    was_shown: bool,
+) -> Option<egui::Rect> {
     let requested_sheet = app.session.ui.table_cell_edit.as_ref().and_then(|edit| {
         app.session
             .ui
@@ -31,23 +112,34 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
             app.session.ui.sheet_open = Some(index);
         } else {
             app.session.ui.sheet_open = None;
-            egui::Window::new("Data sheet — Unfinished cell edit")
-                .id(egui::Id::new("plotium_data_sheet"))
-                .collapsible(false)
-                .show(ctx, |ui| {
-                    super::result_follow::register_editor(ui);
-                    draft::controls(ui, &mut app.session.ui.table_cell_edit, None);
-                });
-            return;
+            let header = dock::Header {
+                title: "Unfinished cell edit".into(),
+                state: Some("Original table unavailable".into()),
+                size: None,
+                derived_from: None,
+            };
+            let mut panel = shown_panel(app, ui.ctx(), was_shown, None);
+            let margin = dock_margin(app);
+            let response = dock::show(ui, &mut panel, margin, dark, &header, |ui| {
+                draft::controls(ui, &mut app.session.ui.table_cell_edit, None);
+            });
+            store_panel(app, panel, response.persist);
+            if response.action == dock::HeaderAction::Close
+                && let Some(edit) = app.session.ui.table_cell_edit.as_mut()
+            {
+                edit.error =
+                    Some("Copy or discard this cell edit before closing the data sheet.".into());
+            }
+            return Some(response.rect);
         }
     }
     let Some(di) = app.session.ui.sheet_open else {
-        batch_cache::BatchCache::clear(ctx);
-        return;
+        batch_cache::BatchCache::clear(ui.ctx());
+        return None;
     };
     if di >= app.doc.datasets.len() {
         app.session.ui.sheet_open = None;
-        return;
+        return None;
     }
     let mut open = true;
     let mut commit: Option<plotium_core::state::TableEditDelta> = None;
@@ -85,40 +177,39 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
         })
         .collect::<Vec<_>>();
     let freshness = app.doc.table_freshness(app.doc.datasets[di].resource_id());
-    let title = format!("Data sheet — {}", app.doc.datasets[di].display_name());
-    let available = ctx.content_rect().size();
-    let maximum = egui::vec2(
-        (available.x * 0.8).max(320.0),
-        (available.y * 0.8).max(240.0),
+    let header = sheet_header(app, di, &freshness);
+    let mut panel = shown_panel(
+        app,
+        ui.ctx(),
+        was_shown,
+        Some(app.doc.datasets[di].resource_id()),
     );
-    egui::Window::new(title)
-        .id(egui::Id::new("plotium_data_sheet"))
-        .collapsible(false)
-        .resizable(true)
-        .default_size([620.0, 380.0])
-        .max_size(maximum)
-        .open(&mut open)
-        .show(ctx, |ui| {
-            crate::ui::result_follow::register_editor(ui);
-            if matches!(freshness.status, plotium_core::state::TableFreshnessState::Stale | plotium_core::state::TableFreshnessState::Unavailable) && app.doc.datasets[di].as_table().is_some() {
-                ui.colored_label(ui.visuals().warn_fg_color, &freshness.reason);
-                ui.separator();
-            }
-            if let Some(elapsed) = app.table_transform_progress() {
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(format!(
-                        "Running table transform… {:.1} s",
-                        elapsed.as_secs_f32()
-                    ));
-                    if ui.button("Cancel").clicked() {
-                        app.cancel_table_transform();
-                    }
-                });
-                ui.separator();
-            }
-            if let Some(source) = live_region_source {
-                ui.horizontal_wrapped(|ui| {
+    let margin = dock_margin(app);
+    let response = dock::show(ui, &mut panel, margin, dark, &header, |ui| {
+        if matches!(
+            freshness.status,
+            plotium_core::state::TableFreshnessState::Stale
+                | plotium_core::state::TableFreshnessState::Unavailable
+        ) && app.doc.datasets[di].as_table().is_some()
+        {
+            ui.colored_label(ui.visuals().warn_fg_color, &freshness.reason);
+            ui.separator();
+        }
+        if let Some(elapsed) = app.table_transform_progress() {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(format!(
+                    "Running table transform… {:.1} s",
+                    elapsed.as_secs_f32()
+                ));
+                if ui.button("Cancel").clicked() {
+                    app.cancel_table_transform();
+                }
+            });
+            ui.separator();
+        }
+        if let Some(source) = live_region_source {
+            ui.horizontal_wrapped(|ui| {
                     ui.weak(
                         "Calculated from the source regions · Values are read-only and stay synchronized.",
                     );
@@ -126,31 +217,38 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
                         freeze_source = Some(source);
                     }
                 });
-                ui.separator();
-            }
-            if let Some(n) = app.doc.datasets[di].as_nmr() {
-                nmr_sheet(ui, n);
-            } else if let Some(n) = app.doc.datasets[di].as_nmr2d() {
-                nmr2d_sheet(ui, n);
-            } else if app.doc.datasets[di].as_table().is_some() {
-                let t = app.doc.datasets[di].as_table_mut().unwrap();
-                typed::typed_table_sheet(
-                    ui,
-                    t,
-                    transform::TableSheetContext {
-                        dataset: di,
-                        commit: &mut commit,
-                        draft: &mut app.session.ui.table_cell_edit,
-                        transform: &mut transform,
-                        refresh: &mut refresh,
-                        catalog: &catalog,
-                        transform_running: app.session.table_transform_job.is_some()
-                            || app.session.table_refresh_job.is_some(),
-                        notice: &mut notice,
-                    },
-                );
-            }
-        });
+            ui.separator();
+        }
+        if let Some(n) = app.doc.datasets[di].as_nmr() {
+            nmr_sheet(ui, n);
+        } else if let Some(n) = app.doc.datasets[di].as_nmr2d() {
+            nmr2d_sheet(ui, n);
+        } else if app.doc.datasets[di].as_table().is_some() {
+            let t = app.doc.datasets[di].as_table_mut().unwrap();
+            typed::typed_table_sheet(
+                ui,
+                t,
+                transform::TableSheetContext {
+                    dataset: di,
+                    commit: &mut commit,
+                    draft: &mut app.session.ui.table_cell_edit,
+                    transform: &mut transform,
+                    refresh: &mut refresh,
+                    catalog: &catalog,
+                    transform_running: app.session.table_transform_job.is_some()
+                        || app.session.table_refresh_job.is_some(),
+                    notice: &mut notice,
+                },
+            );
+        }
+    });
+    store_panel(app, panel, response.persist);
+    let mut switch_to = None;
+    match response.action {
+        dock::HeaderAction::Close => open = false,
+        dock::HeaderAction::Open(index) => switch_to = Some(index),
+        dock::HeaderAction::None => {}
+    }
     if commit.is_none()
         && (requested_sheet.is_some() || !open)
         && let Some(edit) = app.session.ui.table_cell_edit.as_mut()
@@ -231,6 +329,55 @@ pub(super) fn data_sheet_window(app: &mut PlotiumApp, ctx: &egui::Context) {
             app.session.ui.sheet_open = None;
         }
     }
+    // Switching goes through `sheet_open`, so a pending draft is applied or
+    // kept by the same path as any other table switch on the next frame.
+    if let Some(index) = switch_to {
+        app.session.ui.sheet_open = Some(index);
+    }
+    Some(response.rect)
+}
+
+fn sheet_header(
+    app: &PlotiumApp,
+    di: usize,
+    freshness: &plotium_core::state::TableFreshness,
+) -> dock::Header {
+    use plotium_core::state::TableFreshnessState;
+    let dataset = &app.doc.datasets[di];
+    let mut header = dock::Header {
+        title: dataset.display_name(),
+        state: Some("Read-only".into()),
+        size: None,
+        derived_from: None,
+    };
+    let Some(table) = dataset.as_table() else {
+        return header;
+    };
+    header.state = Some(
+        match freshness.status {
+            _ if table.provenance.is_some() => "Read-only · synchronized",
+            TableFreshnessState::Stale => "Editable · needs refresh",
+            TableFreshnessState::Unavailable => "Editable · source unavailable",
+            TableFreshnessState::Source | TableFreshnessState::Current => "Editable",
+        }
+        .into(),
+    );
+    let snapshot = &table.typed_state.envelope.revision.snapshot;
+    let plural =
+        |count: u64, noun: &str| format!("{count} {noun}{}", if count == 1 { "" } else { "s" });
+    header.size = Some(format!(
+        "{} × {}",
+        plural(snapshot.row_count, "row"),
+        plural(snapshot.schema.columns.len() as u64, "column")
+    ));
+    header.derived_from = table
+        .lineage
+        .as_ref()
+        .and_then(|lineage| lineage.sources.first())
+        .and_then(|source| app.doc.dataset_index(*source))
+        .filter(|&source| app.doc.datasets[source].as_table().is_some())
+        .map(|source| (source, app.doc.datasets[source].display_name()));
+    header
 }
 
 pub(super) fn nmr2d_sheet(ui: &mut Ui, n: &plotium_core::state::Nmr2DDataset) {
@@ -369,3 +516,7 @@ pub(super) fn sparkline(painter: &egui::Painter, rect: egui::Rect, values: &[f64
         Stroke::new(1.0_f32, Color32::from_rgb(0x1f, 0x6f, 0xeb)),
     ));
 }
+
+#[cfg(test)]
+#[path = "data_sheet/dock_tests.rs"]
+mod dock_tests;
