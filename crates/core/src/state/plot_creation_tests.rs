@@ -676,3 +676,23 @@ fn new_canvas_takes_a_size_preset_with_its_identity() {
         );
     }
 }
+#[test]
+fn new_curves_take_distinct_palette_colours_that_a_theme_recolours() {
+    let mut app = fixture();
+    let mut p = params(&app);
+    p.series = (0..5)
+        .map(|_| NewCurve {
+            y_axis: Default::default(),
+            kind: CurveKind::Line,
+            source: source(&app, 0, 1, None),
+        })
+        .collect();
+    app.commit_curve_bindings(plan(&app, &p)).unwrap();
+    let colors = |app: &PlotiumApp| -> Vec<plotium_figure::Color> {
+        plot(app).figure().series.iter().map(|s| s.color).collect()
+    };
+    assert_eq!(colors(&app), OVERLAY_PALETTE[..5].to_vec());
+    app.apply_theme(&crate::theme::Theme::by_id("nature").unwrap());
+    let nature = crate::theme::Theme::by_id("nature").unwrap().trace_palette;
+    assert_eq!(colors(&app), nature[..5].to_vec());
+}
