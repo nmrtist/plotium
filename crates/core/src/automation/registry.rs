@@ -23,6 +23,11 @@ impl ToolRegistry {
                 .collect(),
         }
     }
+    /// The built-in registry, built once; descriptors are static per binary.
+    pub fn shared() -> &'static Self {
+        static REGISTRY: std::sync::OnceLock<ToolRegistry> = std::sync::OnceLock::new();
+        REGISTRY.get_or_init(Self::built_in)
+    }
     pub fn descriptors(&self) -> impl Iterator<Item = &ToolDescriptor> {
         self.descriptors.values()
     }

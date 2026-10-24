@@ -180,6 +180,8 @@ pub enum PlotPart {
     Legend,
     /// A text annotation or reference-line label of the plot.
     Label(AnnotationId),
+    /// An arrow, or a reference line itself rather than its label.
+    Annotation(AnnotationId),
     /// The label of a region band, stored on its dataset.
     RegionLabel {
         dataset: DatasetId,

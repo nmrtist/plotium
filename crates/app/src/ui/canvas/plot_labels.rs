@@ -185,7 +185,7 @@ fn place_label(
 }
 
 /// `overrides` with label `annotation` returned to automatic placement.
-pub(super) fn auto_label(plot_object: &PlotObject, annotation: AnnotationId) -> AxisOverrides {
+pub(crate) fn auto_label(plot_object: &PlotObject, annotation: AnnotationId) -> AxisOverrides {
     let mut overrides = plot_object.axis_overrides.clone();
     let annotations = &mut overrides.annotations;
     if let Some(text) = annotations.get_mut(annotation) {

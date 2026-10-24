@@ -96,6 +96,8 @@ pub(super) fn save_series(
                 label: sb.label.clone(),
                 encoding: sb.encoding.clone(),
                 visible: sb.visible,
+                replicates: sb.replicates,
+                error_bars: sb.error_bars,
             })
         })
         .collect()

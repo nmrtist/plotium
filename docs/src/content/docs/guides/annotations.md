@@ -45,8 +45,29 @@ themselves clear of the data:
 Drag a label to place it yourself; `Esc` during the drag puts it back, and the
 move is one Undo step. A dragged text keeps its distance from its anchor and a
 dragged reference label keeps its place along the line, so both follow axis
-range changes, zoom and pan. Agent edits to the text, anchor or size keep your
-placement. Double-click the label to return it to automatic placement.
+range changes, zoom and pan. Agent edits to the text or size keep your
+placement, and an agent moves a label you placed only when you ask it to.
+Right-click the label and choose **Automatic position** to return it to
+automatic placement.
+
+### Editing labels, arrows, and reference lines
+
+- **Add**: right-click an empty spot inside a plot and choose **Add text
+  here**, **Add arrow here**, **Add vertical line here**, or **Add horizontal
+  line here**. The new annotation sits at the clicked data point; an arrow
+  points at it.
+- **Edit text**: double-click a text annotation or reference-line label, or
+  choose **Edit text…** from its right-click menu. `Enter` saves and `Esc`
+  cancels.
+- **Move**: drag an arrow to move it, or drag one of its ends to move only that
+  end; drag a reference line across itself to change its value. Arrow keys
+  nudge the selected annotation. Agents keep an arrow or line you moved where
+  you put it unless you ask them to move it.
+- **Style**: click an annotation to select it; the Object inspector shows its
+  size and color (text), color, width, and style (reference lines), or color,
+  width, and head (arrows).
+- **Delete**: press `Delete` or `Backspace`, or choose **Delete annotation**
+  from its right-click menu.
 
 ## Style defaults
 

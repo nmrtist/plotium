@@ -3,9 +3,9 @@ use crate::state::{
     AssetId, AssetRecord, AxisOverrides, AxisProjections, CanvasDocument, CanvasObject,
     CanvasViewport, ChartSpec, CurveFitReference, DataBinding, Dataset, DatasetId,
     ExtractedIonChromatogram, ExtractedMassSpectrum, ExtractionId, IonChromatogramId, LayoutGroup,
-    NamedView, ObjectFrame, ObjectId, ObjectStyle, Panel, PanelLabelStyle, PanelMeta, PlotiumApp,
-    PrimaryView, Region, Selection, StackSpec, StatAnalysis, StoredCurveFitAnalysis, StoredLineFit,
-    StoredMultiplet, TableEditDelta, TextBox, TypedTableState,
+    NamedView, ObjectFrame, ObjectId, ObjectStyle, Panel, PanelLabelStyle, PanelMeta, PlotIntent,
+    PlotiumApp, PrimaryView, Region, Selection, StackSpec, StatAnalysis, StoredCurveFitAnalysis,
+    StoredLineFit, StoredMultiplet, TableEditDelta, TextBox, TypedTableState,
 };
 use crate::theme::ThemeSnapshot;
 use crate::{Integral2D, IntegralResult};
@@ -314,6 +314,12 @@ pub enum Action {
         before: (bool, bool),
         after: (bool, bool),
     },
+    SetPlotIntent {
+        canvas: usize,
+        object: ObjectId,
+        before: PlotIntent,
+        after: PlotIntent,
+    },
     /// Insert a named board view at `index` of the session bookmark list;
     /// revert removes it again.
     BoardViewInsert {
@@ -557,6 +563,12 @@ pub enum Action {
     InsertTableData {
         dataset: Box<Dataset>,
     },
+    /// A table created in the app (a new empty table or a sheet transform
+    /// result). It applies exactly like `InsertTableData`; only the undo label
+    /// differs, so imports keep theirs.
+    CreateTableData {
+        dataset: Box<Dataset>,
+    },
     /// Remove a dataset nothing draws from; undo restores it at `index` with
     /// its original identity.
     DeleteDataset {
@@ -639,6 +651,7 @@ impl Action {
         match self {
             Self::InstallScientificState { .. } => "apply scientific changes",
             Self::InsertTableData { .. } => "import table data",
+            Self::CreateTableData { .. } => "add data table",
             Self::DeleteDataset { .. } => "delete dataset",
             Self::CreatePlot { .. } => "create native plot",
             Self::ReplacePanelState { .. } => "edit panel structure",
@@ -663,6 +676,7 @@ impl Action {
             Self::SetDataBinding { .. } => "plot data",
             Self::SetChartType { .. } => "chart type",
             Self::SetStackSpec { .. } => "stack setting",
+            Self::SetPlotIntent { .. } => "plot intent",
             Self::SetCanvasSize { .. } | Self::SetPageLayout { .. } => "page layout",
             _ => "edit",
         }
@@ -697,6 +711,7 @@ impl Action {
             } => before_layout == after_layout && before == after,
             Self::SetPanelMeta { before, after, .. } => before == after,
             Self::SetObjectFlags { before, after, .. } => before == after,
+            Self::SetPlotIntent { before, after, .. } => before == after,
             // Inserting or removing a bookmark always changes the list.
             Self::BoardViewInsert { .. } | Self::BoardViewRemove { .. } => false,
             Self::SetCurveBinding { before, after, .. } => before.binding == after.binding,
@@ -735,6 +750,7 @@ impl Action {
             | Self::InsertCanvas { .. }
             | Self::InstallScientificState { .. }
             | Self::InsertTableData { .. }
+            | Self::CreateTableData { .. }
             | Self::DeleteDataset { .. }
             | Self::InsertDatasetWithCanvas { .. }
             | Self::InsertObject { .. }

@@ -312,3 +312,35 @@ fn cancelled_queued_edit_is_skipped_before_desktop_execution() {
     assert_eq!(app.doc.automation_runs.len(), runs);
     assert!(!app.can_undo());
 }
+
+#[test]
+fn authenticated_requests_wake_the_desktop_and_idle_connections_have_no_work() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let counter = wakes.clone();
+    let connection = Connection::start(move || {
+        counter.fetch_add(1, Ordering::SeqCst);
+    })
+    .unwrap();
+    assert!(!connection.has_pending_work());
+    let status = connection.url.trim_end_matches("/mcp").to_owned() + "/status";
+    let token = connection.token.clone();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let http = reqwest::Client::builder().no_proxy().build().unwrap();
+        let rejected = http.get(&status).send().await.unwrap();
+        assert_eq!(rejected.status(), reqwest::StatusCode::UNAUTHORIZED);
+        assert_eq!(wakes.load(Ordering::SeqCst), 0);
+        let accepted = http.get(&status).bearer_auth(&token).send().await.unwrap();
+        assert!(accepted.status().is_success());
+    });
+    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    assert!(connection.activity().last.is_some());
+    assert!(!connection.has_pending_work());
+}

@@ -20,12 +20,29 @@ magnitudes, the same way as on the board; editing and copying always use the
 full value. The grid paints only its visible row window, so very large tables
 stay responsive.
 
+The sheet is docked below the board, between the side bars, and the board
+shrinks to make room, so it never covers a page. Drag the sheet's top edge to
+change its height; Plotium remembers the height between sessions. The header
+shows the table's name, whether it is editable, read-only and synchronized with
+its source, or in need of a refresh, and its size. Use the arrow at its left to
+collapse the sheet to the header, the buttons at its right to maximize the sheet
+and restore it, and × to close it. When you switch between tables, each keeps
+its own scroll position and selected cell. Wide tables scroll sideways inside
+the sheet, and the arrow keys bring the selected cell into view.
+
+**New Empty Data Table** opens an empty table in the sheet with its first cell
+selected, so you can start typing at once; one **Undo** removes the table.
+Results that get a canvas of their own, such as patch-clamp IV and window
+statistics tables, do not open the sheet; double-click the table in the Data
+list to open it. Imports open their result as described in the
+[interface glossary](/reference/ui-overview/).
+
 Click a cell to select it and move with the arrow keys. Double-click, press
 **Enter** or **F2**, or simply start typing to edit; **Enter** commits and
 moves down, **Tab** commits and moves right, and **Esc** cancels. Invalid
 input keeps the editor open with a red outline and an explanation on hover.
 Click a row number to select the whole row; **Ctrl+C** copies the selected
-cell or row. The status bar shows the table size and the current selection.
+cell or row. The line below the grid shows the current selection.
 
 The sheet takes the keyboard only after you click a cell, row number, or column
 header; the selected cell's outline turns from grey to the accent color. While
@@ -58,7 +75,9 @@ submenu. When the table holds several columns of one type you can **Unpivot
 matching columns** into name/value rows, and a text column can **Pivot using
 these names** to turn its values into column headings. The **Combine** menu in
 the sheet toolbar unions or joins the table with another table in the project.
-Every transform produces a new table and leaves the original untouched.
+Every transform produces a new table and leaves the original untouched. The
+sheet switches to the new table without adding a canvas; **Derived from** in
+its header returns to the source table.
 
 Transforms run in the background: the sheet shows the elapsed time and a
 **Cancel** button, and a cancelled or failed transform never replaces the

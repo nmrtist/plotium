@@ -18,6 +18,7 @@ pub enum DiagnosticCheck {
     LegendOcclusion,
     DataShape,
     LayoutAesthetics,
+    Intent,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,6 +71,7 @@ pub fn all_checks() -> Vec<DiagnosticCheck> {
         DiagnosticCheck::LegendOcclusion,
         DiagnosticCheck::DataShape,
         DiagnosticCheck::LayoutAesthetics,
+        DiagnosticCheck::Intent,
     ]
 }
 pub fn figure_diagnostic_limits() -> Value {
@@ -80,7 +82,7 @@ pub fn figure_diagnostic_schema() -> Value {
     json!({"type":"object","additionalProperties":false,"required":["canvas","output"],"properties":{
         "canvas":super::super::image_preview_schema()["properties"]["target"],
         "output":{"type":"object","additionalProperties":false,"required":["size_mm"],"properties":{"size_mm":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"number","exclusiveMinimum":0},"description":"Physical output size, preserving the canvas aspect ratio; scales the native page without reflow."}}},
-        "checks":{"type":"array","minItems":1,"maxItems":7,"uniqueItems":true,"items":{"enum":["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"]},"description":"data_shape and layout_aesthetics report severity hint issues: the figure could be clearer, nothing is wrong. Each carries suggestions and never edits the document."},
+        "checks":{"type":"array","minItems":1,"maxItems":8,"uniqueItems":true,"items":{"enum":["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics","intent"]},"description":"data_shape, layout_aesthetics and intent report severity hint issues: the figure could be clearer, nothing is wrong. Each carries suggestions and never edits the document. intent weighs each plot against its object.intent.purpose; relay its suggestions to the user and let them choose."},
         "targets":{"type":"array","minItems":1,"maxItems":200,"items":target,"description":"Exact content or Series targets; Series queries include owning plot frame/guide context. Omit to scan the entire canvas; never uses selection."},
         "overlap_targets":{"type":"array","maxItems":200,"items":target,"description":"Explicit whole-content targets for frame overlap only."},
         "view":{"enum":["layout","issues","both"],"default":"issues","description":"issues returns findings, layout returns measured geometry rows instead, both returns both."},

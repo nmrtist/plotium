@@ -75,6 +75,7 @@ fn plan(app: &PlotiumApp, series: Vec<NewCurve>) -> Result<CurveEditPlan, String
         panel_name: None,
         panel_frame_pt: None,
         series,
+        intent: None,
     };
     app.plan_plot_creation(DocumentRevision(app.doc.automation_revision), &params)
 }

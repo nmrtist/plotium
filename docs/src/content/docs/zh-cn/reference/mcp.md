@@ -78,7 +78,11 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.y_axis` | 图对象＋Series | `left`、`right`（折线和散点曲线；柱状曲线只能在左轴） |
 | `series.points.spread` | 图对象＋Series | 0–1，重复数据点在所在柱宽度内的散开程度（散点和折线曲线；默认 0） |
 | `series.value_labels` | 图对象＋Series | 布尔值；写出每根柱或每个点的数值（柱状、散点和折线曲线） |
+| `series.replicates` | 图对象＋Series | 0–100000，每个数据点由几次重复得到；0 表示未说明 |
+| `series.error_bars` | 图对象＋Series | `unspecified`、`sd`、`sem`、`ci95`；y 误差表示什么（有 y 误差列的曲线） |
 | `object.chart.orientation` | 图对象 | `vertical`、`horizontal`（按列绑定的图） |
+| `object.intent.purpose` | 图对象 | `unspecified`、`compare`、`trend`、`distribution`、`relationship`、`composition`、`change`、`detail`；这张图要表达什么 |
+| `object.intent.claim` | 图对象 | 最多 500 个字符的字符串；这张图要支撑的那句结论 |
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
@@ -86,6 +90,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | 图对象 | 布尔值 |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | 图对象 | 布尔值；刻度数字按千分位分组 |
 | `object.axes.frame` | 图对象 | `open`（左、下两条轴）、`box`（四边框） |
+| `object.axes.equal_scale` | 图对象 | 布尔值；x、y 每单位长度对应相同的数据量（线性、非分类轴，且没有右 y 轴） |
 | `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
 | `object.axes.x_range / object.axes.y_range` | 图对象 | 自动或手动范围对象 |
@@ -154,10 +159,11 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 
 `selection.canvas` 报告用户在当前页面上选中的内容：`{items,total,part}`。`items`
 最多 `selection_limit` 项，是所选 Panel 和对象的摘要（`target`、`kind`、`name`、
-`visible`）。`part` 是用户在首个所选图中点中的图例或标签，没有时为 `null`。图例为
+`visible`）。`part` 是用户在首个所选图中点中的图例、标签或标注，没有时为 `null`。图例为
 `{target,part:"legend",property:"object.guides.position",value}`，`value` 为 `null`
 表示自动位置；标签为 `{target,part:"label",kind,annotation_id,edit:"figure.edit annotation_set",…}`
-并带当前位置。用户说“这个”时，改的就是这个目标或部件。
+并带当前位置；箭头或参考线本身为 `{target,part:"annotation",kind,annotation_id,edit,…}`，
+带位置和 `hand_moved`。用户说“这个”时，改的就是这个目标或部件。
 
 每次调用都读取当前选择，分页不是冻结快照；GUI 选择变化不一定改变文档 revision。
 不能将多页视作原子选择或把选择当作执行授权。
@@ -176,7 +182,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 `sections`。工具说明、输入 schema 和 annotations 见 `tools/list`；属性定义见
 `plotium_properties_list`。
 
-`sections` 列出每个详情分区的字节大小及是否接受 `key`。用 `{"section":...,"key":...}`
+`sections` 列出每个详情分区的字节大小及是否接受 `key`。`operation_constraints` 和
+`operation_details` 为每个 key 附一句用途，便于先按任务找到操作再读取详情。用 `{"section":...,"key":...}`
 读取单项详情，返回 `{capability_fingerprint,section,key,contract}`：
 
 | 分区 | key | 内容 |
@@ -199,8 +206,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 `{"section":"operation_details","key":"figure.edit/page"}`。多项编辑用 `keys` 代替 `key`，
 例如 `{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`。
 响应包含 `keys` 和以请求名称为键的 `contract` 映射。此分区每次接受 1–32 个不重复的 key；
-其他分区只接受 `key`。索引列出全部子操作 key 及用途。每项详情保留共享编辑限制和
-一个精确的编辑 schema；请将示例目标替换为文档检查返回的完整稳定引用。混合编辑的
+其他分区只接受 `key`。每项详情包含一个精确的编辑 schema，以及只适用于该编辑的限制和
+结果字段；请将示例目标替换为文档检查返回的完整稳定引用。混合编辑的
 完整 schema 仍见 `operation_constraints`。可编辑科学描述符通过
 `input_schema_ref: {section,key}` 引用规范输入 schema，不重复返回该 schema。
 
@@ -229,6 +236,12 @@ Plotium 仍在服务端检查条件约束：需要选择器时只提供一个非
 `after_revision` 用于下一次查询或规划，无须额外读取状态。这不刷新选择、手动值、
 可用性或权限；首次访问、桌面编辑或 Undo/Redo 后、需要这些动态值时，以及
 stale/context 错误或结果不确定时，仍须读取状态。执行继续检查上下文、revision 与权限。
+
+图形编辑、曲线追加／绑定／展开、科学结果绘图、重命名、主题和删除数据集的计划返回
+`plan_id`、`project_context`、`basis_revision` 和 `preflight`，不再回显请求和冻结目标集。
+`preflight.summary` 统计可执行、跳过和失败的目标数，`preflight.targets` 只列出将被跳过或
+失败的目标。它们的执行结果用 `summary` 统计成功、跳过和失败数，`targets` 只列跳过或
+失败的行，已修改资源见 `produced` 和 `modified`。
 
 科学任务排队或提交并不代表修改已提交，不可复用即时响应的 `after_revision`。
 只有已知项目上下文中终态为 `succeeded` 且包含 `end_revision` 的回执才允许复用。
@@ -342,15 +355,18 @@ Series 详情包含可直接用于属性查询的完整 target、编码、可见
 不提供递归展开整个项目的接口。revision 变化会拒绝续页，须重读状态并重新列举。
 目标失效或身份伪造返回 `invalid_parameters`，不会改用当前选择。
 
-`plotium_properties_list {}` 默认以紧凑形式浏览全部支持属性。每项包含 ID、标签、
-scope、访问方式、静态适用能力，以及值类型、单位、范围和枚举 ID。紧凑 schema
-省略界面拖动步长和枚举标签；复杂输入标为 `requires_full`。可一次读取多个属性的完整定义：
+`plotium_properties_list {}` 默认以紧凑形式浏览全部支持属性，每个属性一行：`id`、`label`、
+值类型 `type`，以及适用时的 `min`/`max`、`unit`、`format`、枚举 `values`、曲线 `encoding`
+和所需字段能力 `requires`。以 `document.` 开头的 ID 属于文档范围，其他 ID 属于对象范围，
+`series.` 开头的 ID 以 Series 为目标。标为 `requires_full` 的行（嵌套输入和显示单位代码）
+需要读取完整定义。可一次读取多个属性的完整定义：
 
 ```json
 {"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
 ```
 
-`scope` 使用目录中的范围名称筛选。`keys` 必须非空且不重复；不支持的键、未知 scope
+`scope` 使用目录中的范围名称筛选，`prefix` 按属性 ID 开头筛选，例如 `series.line` 或
+`object.axes`；没有匹配的前缀会报错，并在 `error.details.prefixes` 中列出可用前缀。`keys` 必须非空且不重复；不支持的键、未知 scope
 和键与 scope 冲突均明确报错，不会静默省略请求项。无筛选的 `detail: "full"` 返回完整目录。
 两种形式均为静态查询，忙碌时也可调用，不包含当前目标值。完整详情保留复杂输入约束、
 颜色格式 `#rrggbb` 和全部已注册单位代码。用 `plotium_properties_inspect` 查询目标值、
@@ -784,6 +800,14 @@ y 轴，拥有自己的自动范围、刻度类型和标题，标题初始为第
 误差和单位规则与上文显式曲线绑定相同；不修改表格共享默认 X/Y、不影响
 其他图，也不复制源表。
 
+可选的 `intent: {purpose, claim}` 记录这张图要表达什么。`purpose` 取 `compare`
+（比较各组大小）、`trend`（随连续变量的趋势）、`distribution`（分布或离散程度）、
+`relationship`（两个量的关系）、`composition`（组成占比）、`change`（变化、比值或倍数差）
+或 `detail`（放大或插图）；`claim` 是一句话，最多 500 个字符。建图前先请用户选目的、
+写 claim，不要自己猜；用户没填时，给出你的理解，让用户确认或修改。意图不会改变图的画法。
+它随项目保存，之后通过 `object.intent.purpose`（设为 `unspecified` 即清除）和
+`object.intent.claim` 修改，也显示在对象检查器 **Chart** 区的 **Advanced** 中。
+
 完整 `parent` 决定新建范围：
 
 - document 根：新建画布、单面板和图对象。可选
@@ -857,10 +881,10 @@ Series 身份和来源绑定。已知目标可复用同步提交结果的 contex
 | `text_create` | `parent: 完整画布或面板目标`、`name`、`frame_pt`、`text`、`font_pt` |
 | `text_set` | `target: 完整文字目标`、`text`；可选 `font_pt` |
 | `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG 或 JPEG） |
-| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"` |
+| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"`、`color: "#rrggbb"` |
 | `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
 | `annotation_create`（箭头） | `target: 完整图目标`、`kind: "arrow"`、箭尾 `at: [x,y]`、箭头 `to: [x,y]`；可选 `head: none\|open\|filled\|double`、`line_width_pt`、`color: "#rrggbb"` |
-| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一；可选 `override_hand_edits` |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`color`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一；可选 `override_hand_edits` |
 | `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
@@ -909,9 +933,10 @@ x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示�
 导出中都跟随该图的轴范围、缩放和平移移动；锚点在可见范围外时随图一起裁切。该位置
 压到数据、图例、数值标签或其他标签时，文字挪到约三个字高范围内最近的空位；指向它的
 箭头不算遮挡。`offset_pt: [dx, dy]`（pt，x 向右、y 向上）把文字固定在该偏移处，
-`[0, 0]` 即正好在 `at`；`placement: "auto"` 恢复自动摆放。用户在画布上拖过的标签在
-修改 `text`、`at`、`font_pt` 时保持原位；对它使用 `offset_pt` 或 `placement` 会被
-拒绝，除非以 `override_hand_edits: true` 表明是用户要求。`annotations` 中每个文字
+`[0, 0]` 即正好在 `at`；`placement: "auto"` 恢复自动摆放。`color`（`#rrggbb`）设置
+文字颜色，默认黑色。用户在画布上拖过的标签在修改 `text`、`font_pt` 时保持原位；对它
+设置新的 `at`、`offset_pt` 或 `placement` 会被拒绝，除非以 `override_hand_edits: true`
+表明是用户要求。`annotations` 中每个文字
 标注报告 `placement`（`auto`、`fixed` 或 `hand`）和实际绘制的 `offset_pt`；
 `plotium_get_state` 在 `hand_edits` 中以键 `annotation.label_position` 列出拖过的标签。
 `annotation_id` 只在所属图内有效，删除后不会复用；可从结果的 `annotation_edits`
@@ -932,7 +957,13 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
 字号，一旦用 `font_pt` 设定字号便保持该值直至再次修改；`label` 为空字符串时移除
 标签。参考线与文字标注共用同一 id 序列和
 每张图 256 个的上限，`plotium_document_inspect` 在 `annotations` 中同时列出二者，
-并以 `kind` 区分。提供另一类标注的字段会被拒绝，而不是被忽略。
+并以 `kind` 区分。提供另一类标注的字段会被拒绝，而不是被忽略；参考线的颜色用
+`line.color` 设置，不用 `color`。
+
+用户在画布上移动过的箭头或参考线报告 `hand_moved: true`，并在 `hand_edits` 中以键
+`annotation.position` 列出。可以改它的样式，但给这样的箭头设置新的 `at`、`to`，或给
+这样的参考线设置新的 `value`、`orientation` 会被拒绝，除非以
+`override_hand_edits: true` 表明是用户要求；改后位置重新算作 agent 的设置。
 
 ```json
 {"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"reference_line",
@@ -1093,7 +1124,7 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
   "expected_revision": 7,
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
-  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
+  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics","intent"],
   "detail": "full",
   "limit": 100
 }
@@ -1115,7 +1146,10 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 和 `clip_children` 的裁剪另行列明。
 
 `ToolResult.value` 包含 `project_context`、`basis_revision`、`canvas`、`summary`、
-`output`、`items`、`coverage`、`budget`、`truncated` 和 `continuation`。`summary`
+`output`、`items`、`coverage`、`truncated` 和 `continuation`。默认的 compact 详情中，
+`output` 只含 `size_mm` 和 `size_pt`，`coverage` 给出状态、扫描计数以及不可用或不支持的
+条目数。`detail: "full"` 时 `output` 另含页面坐标说明，`coverage` 另含请求、支持和不支持的
+检查列表，并附 `budget`、`preview_request` 和 `read_policy`。`summary`
 统计本页的问题（`issues`、`by_code`、`by_severity`）；分页扫描时把各页计数相加。
 每个问题带完整原生 `target`、所属对象内的 `component`、`code`、`severity` 和说明；
 `detail: "full"` 时证据另带 bounds、clip 和交集几何。
@@ -1128,14 +1162,16 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 - `text_container_overflow` 是基于原生宽度／行距**估计**的警告，不是精确字形边界；
   文字不会自动换行或缩小。
 - `content_frame_overlap` 是信息性事实，允许有意重叠。
+- `axis_ticks_sparse` 是警告：在输出尺寸下，显示刻度标签的坐标轴画出的刻度少于两个，
+  读不出刻度比例。增大面板，或调小 `object.figure.typography.tick_pt`。
 - `right_axis_untitled` 是警告：有曲线使用右 y 轴，但右轴没有显示标题。设置
   `object.axes.y2_label`（或重新打开 `object.axes.y2_show_label`）。
 - `legend_occlusion_potential` 表示潜在视觉冲突，不表示数据必然不可见。逐段／逐点
   检查实际投影、有效裁剪后的线与 marker，分批保留虚线相位，不使用整条曲线包围盒，
   不抽样。线条包络与图例布局矩形是保守边界；圆角、半透明和抗锯齿可能有所不同。
 
-`data_shape` 和 `layout_aesthetics` 检查报告 `severity` 为 `hint` 的问题：图可以表达得
-更清楚，但没有错误。省略 `checks` 时包含这两项。提示从不修改文档。每条提示带
+`data_shape`、`layout_aesthetics` 和 `intent` 检查报告 `severity` 为 `hint` 的问题：图可以表达得
+更清楚，但没有错误。省略 `checks` 时包含这三项。提示从不修改文档。每条提示带
 `suggestions`，即 `{action, property, target, reason}` 列表；`property` 是要在 `target`
 上设置的属性，没有则两者都为 null。长度按请求的 `output.size_mm` 测量；阈值是暂定值。
 限定到 Series 的查询只报告这些 Series 的提示。
@@ -1144,15 +1180,31 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 | --- | --- |
 | `small_values_invisible` | 某根柱的数值不到数值轴跨度的 1 %，或打印长度不到 0.5 mm，而旁边有至少 5 mm 长的柱 |
 | `bars_too_narrow` | 某根柱打印宽度不到 0.6 mm |
-| `few_samples_hidden` | 箱线、小提琴 Series，或每个 x 有多行的柱状 Series，每组都少于 10 个值，且图中没有散点 Series |
+| `few_samples_hidden` | 箱线、小提琴 Series，或每个 x 有多行的柱状 Series，每组都少于 10 个值；或每个 x 只有一行的柱状 Series 的 `series.replicates` 为 1–9；且图中没有散点 Series |
 | `too_many_categories` | 类别轴显示标签，但省略了部分标签，或相邻标签相互重叠 |
 | `log_scale_candidate` | 不含柱、箱线或小提琴的图，线性数值轴上的折线或散点值全为正，且跨越三个及以上数量级 |
 | `bar_baseline_not_zero` | 数值轴范围不包含柱的基线 |
 | `labels_overlap` | 画布上两个文字框在两个方向上都重叠超过 0.2 mm；证据给出两者和第二个的移动方向。同一图例的条目之间、同一坐标轴的刻度标签之间不互相比较 |
 | `text_over_data` | 标注或数值标签压在柱、箱线、小提琴、折线或标记上 |
+| `intent_mismatch` | 图型不适合这张图的 `object.intent.purpose`（见下文） |
 | `panels_misaligned` | 同一列（左边缘相差 1 mm 以内）或同一行（下边缘相差 1 mm 以内）的两个框，绘图区左边缘或下边缘相差超过 0.5 mm；或同一行／列三个及以上框之间的间距相差超过 0.5 mm |
 
 同类提示超过 50 条，或检查用完预算时，会增加一条 `unavailable` 覆盖行。
+
+`intent` 检查对照作者声明的目的看每张按列绑定的图；`detail` 从不报告。没有声明目的的图
+会得到一条 `not_applicable` 覆盖行 `no_purpose_stated`：这时请询问用户这张图要表达什么。
+表格图表类型得到 `chart_type_not_covered`。`intent_mismatch` 的证据在
+`interpretation` 中给出原因；`detail: "full"` 时还给出目的、claim 和读到的图表特征。
+建议里只列 Plotium 能画出的图型；请转告用户，由用户选择。
+
+| 目的 | 报告条件 |
+| --- | --- |
+| `compare` | 折线连接了各类别 |
+| `trend` | 类别方向的轴是类别轴，或图中画了柱 |
+| `distribution` | 类别轴上只有柱或折线，没有箱线、小提琴或散点 Series |
+| `relationship` | 类别方向的轴是类别轴，或图中画了柱、箱线或小提琴 |
+| `composition` | 图中有折线或点，但没有柱 |
+| `change` | 两个及以上柱状 Series 并排，或正的柱值跨十倍及以上；或图中没有柱、箱线和小提琴时，左轴上为正的折线或散点值在线性轴上跨十倍及以上 |
 
 原生 guide 布局本身使用文字宽度估计。字体可用性沿用原生导出的字体发现；实际字形
 覆盖和跨后端 ink 边界仍未验证。图像视口几何使用头部尺寸、整数裁剪、旋转及 fit；
@@ -1188,7 +1240,8 @@ stdio 结束时关闭；其他工具仍使用原来的单次调用 transport，�
 只读权限即可使用；对象、绑定、手动范围、几何、Undo 历史和 automation revision
 以及 dirty、edit generation 不变，不追加项目审计记录。不持久化诊断几何、问题、cursor 或 PNG 副本。
 
-按 `preview_request` 取得并实际查看原生 PNG。X 坐标转像素为
+用画布、上下文和 `basis_revision` 调用 `plotium_render_preview` 取得并实际查看原生 PNG。
+X 坐标转像素为
 `x * width_px / output.size_pt[0]`，Y 使用对应高度；核对其
 `render_revision` 与 `basis_revision` 一致。编辑器 zoom 不影响上述坐标。直接 core
 `figure.diagnose` 只返回一个有界 batch，不保留 cursor；MCP 查询提供继续读取。
@@ -1264,13 +1317,17 @@ target 调用 `plotium_preview_plan`：
 
 | 已有计划 | 候选支持范围 |
 | --- | --- |
-| `properties.set` / `properties.reset` | 上述五个 `object.guides.*` 属性及原生多目标批次 |
+| `properties.set` / `properties.reset` / `properties.set_many` | 文档和图对象的显示属性及原生多目标批次；不含画布属性、应用偏好、数据处理，以及图表类型和堆叠方式的修改 |
 | `figure.edit` 局部编辑 | `content_frame`、`image_replace`、`text_set`、`annotation_create`／`annotation_set`／`annotation_delete`（文字标注与参考线）及原生批次 |
 | `figure.edit` 纯删除批次 | `content_delete`、原本为空的 `panel_delete`、显式列绑定 `series_delete`；原拒绝规则不变 |
 | 其他操作，包括保存和导出 | 返回 `unsupported_operation`，不改变其正常 execute 合同 |
 
+想让用户挑选样式（配色、线宽、图例位置、标签布局等）时，规划两三个备选计划，逐个预览，
+把图并排给用户看。只执行用户选中的计划。其余计划从不提交，之后会返回 `stale_revision`，
+但在提交或连接重置前仍占用 32 个待执行计划的名额。
+
 受影响画布须使用普通折线／散点、原生文字、形状和栅格内容；预览不启动科学计算。
-跨画布 guide 计划在隔离原生上下文应用完整批次，可逐个请求受影响画布，仍是一个计划、
+跨画布属性计划在隔离原生上下文应用完整批次，可逐个请求受影响画布，仍是一个计划、
 一个 Undo 步骤。自动轴、guide 依赖和派生页高复用原生 action 与 renderer，不另建布局模型。
 基线、输出设置和字体相同时，候选内容和几何与 execute 一致；不保证跨机器字体／renderer
 不同情况下的像素相等。
@@ -1424,15 +1481,17 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 1. 用 `{}` 调用 `plotium_get_state`，取得 `project_context`、`revision`、项目概况、选择和连接权限。
 2. `plotium_resources_search` 接受 `expected_project_context`、`expected_revision` 和 `query`，例如
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}`。先将结果解析为
-   显式稳定 ID；`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
-3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性及范围。
+   显式稳定 ID；所有匹配理由相同（例如无筛选搜索）时，`value.reason` 只给出一次，
+   不再返回 `value.reasons`。`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
+3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性 ID 和值类型。
    使用 `plotium_properties_inspect` 查询曲线地址：
 
    ```json
    {"ids":["CANVAS_UUID/OBJECT_ID"],"key":"series.line.stroke_width","expected_project_context":"PROJECT_CONTEXT","expected_revision":7}
    ```
 
-   返回的 `value.readings` 为每条适用曲线提供一行。复制所选曲线的完整
+   返回的 `value.readings` 为每条适用曲线提供一行；各行 schema 或默认值相同时，改为在
+   `value.schema` 和 `value.default_value` 中给出一次。复制所选曲线的完整
    `value.readings[0].target`，例如：
 
    ```json

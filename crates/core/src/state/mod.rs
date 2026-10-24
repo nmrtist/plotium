@@ -135,6 +135,7 @@ mod peaks;
 mod peaks2d;
 mod plot_annotations;
 mod plot_arrows;
+mod plot_intent;
 mod plot_interaction;
 mod plot_label_placement;
 mod plot_object;
@@ -245,9 +246,11 @@ pub use peaks::*;
 pub use peaks2d::*;
 pub use plot_annotations::*;
 pub use plot_arrows::*;
+pub use plot_intent::*;
 pub use plot_interaction::*;
 pub use plot_label_placement::{
-    HAND_PLACED_LABEL_KEY, LabelPlacement, MAX_LABEL_OFFSET_PT, PlacementRequest,
+    HAND_MOVED_ANNOTATION_KEY, HAND_PLACED_LABEL_KEY, LabelPlacement, MAX_LABEL_OFFSET_PT,
+    PlacementRequest,
 };
 pub(crate) use plot_label_placement::{
     hand_placed_label_readings, plot_label_layout, plot_part_reading, reference_placement_reading,
@@ -348,6 +351,9 @@ mod bar_curve_tests;
 
 #[cfg(test)]
 mod category_chart_tests;
+
+#[cfg(test)]
+mod plot_intent_tests;
 
 #[cfg(test)]
 mod display_tests;

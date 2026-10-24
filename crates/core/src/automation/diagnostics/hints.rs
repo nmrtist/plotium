@@ -2,6 +2,12 @@
 //! edit the document and are never failures.
 use super::*;
 use plotium_figure::{Figure, SeriesEncoding, SeriesKind, SeriesOrigin, YAxisSide};
+
+#[path = "intent_hints.rs"]
+mod intent;
+#[path = "plot_facts.rs"]
+mod plot_facts;
+pub(super) use plot_facts::PlotFacts;
 use plotium_render::Projector;
 use plotium_render::diagnostics::TextBox;
 
@@ -22,59 +28,6 @@ const MAX_TEXTS: usize = 4096;
 const TEXT_SCAN_POINTS: usize = 100_000;
 /// Frames whose edges differ by less than this share a row or column.
 const SHARED_EDGE_MM: f32 = 1.0;
-
-/// What diagnostics need to know about a plot's native curves.
-#[derive(Default)]
-pub(super) struct PlotFacts {
-    transposed: bool,
-    /// Kinds of the visible native Series.
-    kinds: Vec<(SeriesId, SeriesKind)>,
-    /// Table rows at each x of visible bar, box and violin Series.
-    rows_per_x: Vec<(SeriesId, Vec<usize>)>,
-    /// Series whose rows could not be read, with the reason.
-    unreadable: Vec<(SeriesId, String)>,
-    /// Series a narrowed query asked about; `None` reports every Series.
-    selected: Option<BTreeSet<SeriesId>>,
-}
-
-impl PlotFacts {
-    pub(super) fn of(app: &PlotiumApp, binding: &DataBinding, data_shape: bool) -> Self {
-        let mut facts = Self {
-            transposed: binding.coordinates.as_ref().is_some_and(|c| c.transposed),
-            ..Self::default()
-        };
-        for series in binding.series.iter().filter(|s| s.visible) {
-            let SeriesEncoding::Line(line) = &series.encoding else {
-                continue;
-            };
-            facts.kinds.push((series.id, line.kind));
-            if data_shape && is_mark(line.kind) {
-                match app.curve_rows_per_x(binding, series) {
-                    Ok(sizes) => facts.rows_per_x.push((series.id, sizes)),
-                    Err(reason) => facts.unreadable.push((series.id, reason)),
-                }
-            }
-        }
-        facts
-    }
-
-    pub(super) fn select(&mut self, selected: Option<BTreeSet<SeriesId>>) {
-        self.selected = selected;
-    }
-
-    fn reports(&self, id: SeriesId) -> bool {
-        self.selected.as_ref().is_none_or(|s| s.contains(&id))
-    }
-
-    fn kind(&self, origin: Option<SeriesOrigin>) -> Option<SeriesKind> {
-        let id = SeriesId::new(origin?.0);
-        self.kinds.iter().find(|(s, _)| *s == id).map(|(_, k)| *k)
-    }
-
-    fn has(&self, kind: SeriesKind) -> bool {
-        self.kinds.iter().any(|(_, k)| *k == kind)
-    }
-}
 
 fn is_mark(kind: SeriesKind) -> bool {
     matches!(kind, SeriesKind::Bar | SeriesKind::Box | SeriesKind::Violin)
@@ -105,6 +58,7 @@ fn message(code: &str) -> &'static str {
         }
         "labels_overlap" => "Two text boxes overlap.",
         "text_over_data" => "Text is drawn over data marks.",
+        "intent_mismatch" => "The chart form does not suit the purpose stated for this plot.",
         "panels_misaligned" => {
             "Plot areas of neighbouring panels are not aligned or evenly spaced."
         }
@@ -124,6 +78,7 @@ fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
 }
 
 /// One bar as printed: its value from the baseline, and its projected size.
+#[derive(Clone, Copy)]
 struct PrintedBar {
     series: SeriesId,
     value: f64,
@@ -195,7 +150,13 @@ impl FigureDiagnosticScan {
                 })
             })
             .filter(|b| b.value.is_finite() && b.length.is_finite() && b.thickness.is_finite())
+            .collect();
+        // Intent weighs the whole plot; the other hints only the queried Series.
+        let all_bars = bars;
+        let bars: Vec<PrintedBar> = all_bars
+            .iter()
             .filter(|b| facts.reports(b.series))
+            .copied()
             .collect();
         if self.checks(DiagnosticCheck::DataShape) {
             for (id, reason) in &facts.unreadable {
@@ -213,6 +174,9 @@ impl FigureDiagnosticScan {
             self.sample_hints(target, facts);
             self.category_hints(target, figure, texts, facts);
             self.log_hints(target, figure, facts);
+        }
+        if self.checks(DiagnosticCheck::Intent) {
+            self.intent_hints(target, figure, &all_bars, facts);
         }
         if self.checks(DiagnosticCheck::LayoutAesthetics) {
             let page = |r: Rect| geometry::translate(r, frame.left, frame.top);
@@ -330,14 +294,46 @@ impl FigureDiagnosticScan {
             let (Some(&fewest), Some(&most)) = (sizes.iter().min(), sizes.iter().max()) else {
                 continue;
             };
-            // One row per bar is a summary table; its raw values are unknown.
-            if most >= FEW_SAMPLES || (kind == Some(SeriesKind::Bar) && most < 2) {
-                continue;
-            }
-            self.hint(&series_target(target, *id), "series.mark", "few_samples_hidden", json!({"groups":sizes.len(),"fewest_values":fewest,"most_values":most,"threshold":FEW_SAMPLES}), vec![
-                suggest("Append a scatter Series of the same columns, then set series.points.spread on it.", None, "Each value shows next to its group's summary."),
-                suggest("Use a dot plot with mean and error bars instead.", None, "With few values per group the values themselves are the clearest summary."),
-            ]);
+            // One row per bar is a summary table; only a stated n says how few.
+            let summary = kind == Some(SeriesKind::Bar) && most < 2;
+            let stated = facts
+                .stated_replicates
+                .iter()
+                .find(|(s, _)| s == id)
+                .map(|(_, n)| *n as usize);
+            let (evidence, suggestions) = match (summary, stated) {
+                (true, Some(n)) if n < FEW_SAMPLES => (
+                    json!({"groups":sizes.len(),"replicates":n,"source":"stated","threshold":FEW_SAMPLES}),
+                    vec![suggest(
+                        "Add the replicate values to the table and overlay them as a scatter Series with series.points.spread.",
+                        None,
+                        "Readers see each of the few values behind the bar.",
+                    )],
+                ),
+                (false, _) if most < FEW_SAMPLES => (
+                    json!({"groups":sizes.len(),"fewest_values":fewest,"most_values":most,"source":"rows","threshold":FEW_SAMPLES}),
+                    vec![
+                        suggest(
+                            "Append a scatter Series of the same columns, then set series.points.spread on it.",
+                            None,
+                            "Each value shows next to its group's summary.",
+                        ),
+                        suggest(
+                            "Use a dot plot with mean and error bars instead.",
+                            None,
+                            "With few values per group the values themselves are the clearest summary.",
+                        ),
+                    ],
+                ),
+                _ => continue,
+            };
+            self.hint(
+                &series_target(target, *id),
+                "series.mark",
+                "few_samples_hidden",
+                evidence,
+                suggestions,
+            );
         }
     }
 

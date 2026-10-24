@@ -34,7 +34,7 @@ pub fn figure_edit_schema() -> Value {
     let placement = json!({"enum":["auto"],"description":"Return the label to automatic placement, which keeps it clear of data, the legend and other labels."});
     let arrow_head = json!({"enum":["none","open","filled","double"],"description":"Arrowhead: none (plain line), open V or filled triangle at `to`, or double (filled at both ends). Default filled."});
     let arrow_width = json!({"type":"number","minimum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.start()),"maximum":crate::state::reference_line_width_bound(*crate::state::ARROW_LINE_WIDTH_PT.end()),"description":"Shaft stroke width in pt; default 1, or the theme's supporting-line width."});
-    let arrow_color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
+    let color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
     let arrow_tail = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow tail point in the plot's source data coordinates (the units in its coordinate_units). The arrow follows axis range, zoom and pan and is clipped to the plot area."});
     let arrow_to = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow head point in the same source data coordinates as `at` (the tail); must differ from `at`."});
     let variant = |op: &str, required: Vec<&str>, mut properties: Value| {
@@ -106,7 +106,7 @@ pub fn figure_edit_schema() -> Value {
         variant(
             "annotation_create",
             vec!["target", "text", "at", "font_pt"],
-            json!({"target":target,"kind":{"const":"text"},"text":annotation_text,"at":data_point,"font_pt":font}),
+            json!({"target":target,"kind":{"const":"text"},"text":annotation_text,"at":data_point,"font_pt":font,"color":color}),
         ),
         variant(
             "annotation_create",
@@ -116,13 +116,13 @@ pub fn figure_edit_schema() -> Value {
         variant(
             "annotation_create",
             vec!["target", "kind", "at", "to"],
-            json!({"target":target,"kind":{"const":"arrow"},"at":arrow_tail,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":arrow_color}),
+            json!({"target":target,"kind":{"const":"arrow"},"at":arrow_tail,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":color}),
         ),
         {
             let mut set = variant(
                 "annotation_set",
                 vec!["target", "annotation_id"],
-                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":arrow_color,"offset_pt":label_offset,"placement":placement,"override_hand_edits":{"type":"boolean","description":"Also re-place a label the user placed by hand (placement hand). Pass true only when the user asked for it."}}),
+                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":color,"offset_pt":label_offset,"placement":placement,"override_hand_edits":{"type":"boolean","description":"Also re-place a label the user placed by hand (placement hand), or move an annotation the user placed or moved by hand. Pass true only when the user asked for it."}}),
             );
             set["anyOf"] = json!(
                 [
@@ -143,7 +143,7 @@ pub fn figure_edit_schema() -> Value {
                 .map(|field| json!({"required":[field]}))
             );
             set["description"] = json!(
-                "text, at and offset_pt apply to text annotations; orientation, value, label and line to reference lines; font_pt and placement to both; at, to, head, line_width_pt and color to arrows (at is the tail). Labels are placed clear of data automatically; a label the user dragged keeps its place through other edits, and offset_pt or placement on it needs override_hand_edits."
+                "text, at, color and offset_pt apply to text annotations; orientation, value, label and line to reference lines; font_pt and placement to both; at, to, head, line_width_pt and color to arrows (at is the tail). Labels are placed clear of data automatically; a label the user dragged keeps its place through other edits, and offset_pt or placement on it needs override_hand_edits. Moving a hand-placed text's at, or an arrow's at/to or a reference line's value/orientation the user moved (hand_moved), also needs override_hand_edits."
             );
             set
         },

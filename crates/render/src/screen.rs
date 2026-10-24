@@ -1,9 +1,9 @@
 pub use crate::screen_stats::RenderStats;
 use crate::{
-    Document, DocumentItem, DocumentObject, DocumentViewport, OUTER_PAD, Projector, Rect,
-    TICK_LABEL_PAD, axis_layout_placed, error_bar_segments, heatmap_cells, integral,
-    line_lod::scaled_line_points, minor_tick_values, polygon_outline, projection_points,
-    screen_contours::paint_contours, screen_lod::line_columns,
+    Document, DocumentItem, DocumentObject, DocumentViewport, Projector, Rect, TICK_LABEL_PAD,
+    axis_layout_placed, error_bar_segments, heatmap_cells, integral, line_lod::scaled_line_points,
+    minor_tick_values, polygon_outline, projection_points, screen_contours::paint_contours,
+    screen_lod::line_columns,
 };
 use egui::{Align2, Color32, FontId, Pos2, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use plotium_figure::{AxisFrame, AxisTrace, Color, Figure};
@@ -139,7 +139,7 @@ fn paint_with_detail_and_stats_impl(
             painter,
             Pos2::new(
                 frame.left + frame.width / 2.0,
-                frame.top + (OUTER_PAD + ty.title_pt * 0.5) * scale,
+                frame.top + ty.title_pt * 0.5 * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.title,
@@ -263,10 +263,7 @@ fn paint_with_detail_and_stats_impl(
     {
         crate::rich_text::paint(
             painter,
-            Pos2::new(
-                plot.right(),
-                x_lane_bottom - (OUTER_PAD + ty.tick_pt * 0.5) * scale,
-            ),
+            Pos2::new(plot.right(), x_lane_bottom - ty.tick_pt * 0.5 * scale),
             Align2::RIGHT_CENTER,
             multiplier,
             crate::rich_text::plot_font(ty.tick_pt * scale, &ty),
@@ -284,7 +281,7 @@ fn paint_with_detail_and_stats_impl(
             painter,
             Pos2::new(
                 (plot.left + plot.right()) / 2.0,
-                x_lane_bottom - (OUTER_PAD + multiplier_clearance + ty.label_pt * 0.5) * scale,
+                x_lane_bottom - (multiplier_clearance + ty.label_pt * 0.5) * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.x.label,

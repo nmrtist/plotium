@@ -221,6 +221,7 @@ fn mixed_curve_page(kinds: [plotium_core::state::CurveKind; 2]) -> (PlotiumApp, 
                         source: source.clone(),
                     })
                     .collect(),
+                intent: None,
             },
         )
         .unwrap();

@@ -81,6 +81,8 @@ pub struct PlotCreateParams {
     pub panel_name: Option<String>,
     pub panel_frame_pt: Option<[f32; 4]>,
     pub series: Vec<NewCurve>,
+    #[serde(default)]
+    pub intent: Option<PlotIntent>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreatedCurveDefaults {
@@ -123,6 +125,11 @@ impl PlotiumApp {
             return Err("Document revision is stale.".into());
         }
         name(&params.name)?;
+        let intent = params
+            .intent
+            .as_ref()
+            .map(PlotIntent::normalized)
+            .transpose()?;
         if params.series.is_empty() || params.series.len() > 200 {
             return Err("Create one plot with 1–200 explicit curves.".into());
         }
@@ -175,7 +182,12 @@ impl PlotiumApp {
             self.check_table_curve_revision(&curve.source)?;
             let mut sb = SeriesBinding::with_source(curve.source.source());
             sb.id = SeriesId::new(index as u64);
-            sb.encoding = SeriesEncoding::Line(curve.encoding()?);
+            // The same rotation `plot.series.append` and the desktop overlay use,
+            // so a later theme can still recolour these unlocked curves.
+            sb.encoding = SeriesEncoding::Line(LineEncoding {
+                color: plotium_figure::ColorSource::Explicit(self.next_stack_color(&binding)),
+                ..curve.encoding()?
+            });
             binding.series.push(sb);
         }
         self.check_curve_row_budget([&binding])?;
@@ -248,7 +260,9 @@ impl PlotiumApp {
                 viewport,
             ))),
         };
-        object.plot_mut().expect("new native plot").apply_viewport();
+        let plot = object.plot_mut().expect("new native plot");
+        plot.apply_viewport();
+        plot.intent = intent.unwrap_or_default();
         let panel_id = if let Some(id) = existing_panel {
             id
         } else {

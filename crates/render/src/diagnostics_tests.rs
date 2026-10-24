@@ -356,7 +356,126 @@ fn aspect_locked_svg_x_title_sits_under_the_plot() {
         .and_then(|rest| rest.split('"').next())
         .and_then(|value| value.parse().ok())
         .expect("x title y");
-    let expected = outer.bottom() - proj.bottom_letterbox(outer, &layout.margins) - OUTER_PAD;
+    let expected = outer.bottom()
+        - proj.bottom_letterbox(outer, &layout.margins)
+        - fig.typography.label_pt * crate::rich_text::BASELINE_TO_BOTTOM;
     assert!((y - expected).abs() < 0.01);
     assert!(y < outer.bottom() - 10.0);
+}
+
+#[test]
+fn sparse_tick_axes_name_only_labelled_axes_with_too_few_ticks() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+    let short = [400.0, 30.0];
+    assert_eq!(
+        sparse_tick_axes(&fig, short, None),
+        vec![SparseTicks {
+            component: "axis.y",
+            drawn: 0,
+            available: axis_ticks_for(&fig.y, 5).values.len(),
+        }]
+    );
+    assert!(sparse_tick_axes(&fig, [400.0, 300.0], None).is_empty());
+    fig.y.show_tick_labels = false;
+    assert!(sparse_tick_axes(&fig, short, None).is_empty());
+}
+
+#[test]
+fn a_short_lower_stack_member_draws_and_reports_by_its_visible_labels() {
+    let fig = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+    let below = StackPlacement {
+        left: 40.0,
+        right: 8.0,
+        joined_above: true,
+        ..Default::default()
+    };
+    let layout = axis_layout_placed(&fig, 400.0, 60.0, Some(&below));
+    let outer = Rect::new(0.0, 0.0, 400.0, 60.0);
+    let proj = Projector::new(&fig, outer, &layout.margins);
+    let furniture = XFurniture::of(&fig, Some(&below));
+    let shown = layout
+        .y_ticks
+        .values
+        .iter()
+        .filter(|&&value| {
+            let (_, py) = proj.project([fig.x.min, value]);
+            furniture.shows_y_label_at(py - proj.plot.top)
+        })
+        .count();
+    assert_eq!(shown, 2, "{:?}", layout.y_ticks.values);
+    assert!(sparse_tick_axes(&fig, [400.0, 60.0], Some(&below)).is_empty());
+
+    // An inner member draws no x labels, so its x axis is never reported.
+    let inner = StackPlacement {
+        joined_below: true,
+        ..below
+    };
+    let axes = sparse_tick_axes(&fig, [12.0, 300.0], Some(&inner));
+    assert!(axes.iter().all(|axis| axis.component != "axis.x"));
+}
+
+#[test]
+fn axis_text_reaches_every_frame_edge_without_leaving_it() {
+    // Ticks land on both window ends, so the end labels stick out past the
+    // plot on the right and top; the titles sit on the left and bottom.
+    let fig = Figure::new(
+        "",
+        Axis::new("Time (h)", 0., 100.),
+        Axis::new("Current (mA)", 0., 10.),
+    );
+    let size = [250., 160.];
+    let all = figure_text_boxes(&fig, size);
+    let left = all
+        .iter()
+        .map(|t| t.bounds.left)
+        .fold(f32::INFINITY, f32::min);
+    let top = all
+        .iter()
+        .map(|t| t.bounds.top)
+        .fold(f32::INFINITY, f32::min);
+    let right = all.iter().map(|t| t.bounds.right()).fold(0., f32::max);
+    let bottom = all.iter().map(|t| t.bounds.bottom()).fold(0., f32::max);
+    for (edge, extent) in [("left", left), ("top", top)] {
+        assert!(extent.abs() < 1e-3, "{edge} text at {extent}");
+    }
+    for (edge, extent, limit) in [("right", right, size[0]), ("bottom", bottom, size[1])] {
+        assert!(
+            (extent - limit).abs() < 1e-3,
+            "{edge} text at {extent} of {limit}"
+        );
+    }
+}
+
+#[test]
+fn color_scale_values_stay_inside_the_frame() {
+    for placement in [
+        plotium_figure::GuidePlacement::OutsideRight,
+        plotium_figure::GuidePlacement::OutsideBottom,
+    ] {
+        let mut fig = figure();
+        fig.x.show_label = false;
+        fig.x.show_tick_labels = false;
+        fig.guide_placement = placement;
+        fig.heatmap = Some(plotium_figure::HeatmapGrid {
+            rows: 1,
+            cols: 2,
+            values: vec![-12_345.0, 3.0],
+            x_bounds: [0.0, 100.0],
+            y_bounds: [0.0, 100.0],
+            colormap: plotium_figure::ColormapId::Viridis,
+            value_range: [-12_345.0, 3.0],
+        });
+        let size = [250., 160.];
+        for text in figure_text_boxes(&fig, size)
+            .iter()
+            .filter(|t| t.component.starts_with("guide.color_scale"))
+        {
+            let b = text.bounds;
+            assert!(
+                b.right() <= size[0] + 1e-3 && b.bottom() <= size[1] + 1e-3,
+                "{placement:?} {} at {b:?}",
+                text.component
+            );
+        }
+    }
 }

@@ -3,6 +3,33 @@ use super::{
     default_encoding, field_peak_magnitude,
 };
 use plotium_figure::Color;
+use serde::{Deserialize, Serialize};
+use std::num::NonZeroU32;
+
+/// What a curve's error bars show, as the user states it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorBarKind {
+    Sd,
+    Sem,
+    Ci95,
+}
+
+impl ErrorBarKind {
+    const ALL: [Self; 3] = [Self::Sd, Self::Sem, Self::Ci95];
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Sd => "sd",
+            Self::Sem => "sem",
+            Self::Ci95 => "ci95",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.id() == id)
+    }
+}
 
 /// One overlaid series' field source. A field is a child resource of its
 /// dataset, not a component of the plot object.
@@ -23,6 +50,10 @@ pub struct SeriesBinding {
     pub visible: bool,
     pub label: Option<String>,
     pub encoding: plotium_figure::SeriesEncoding,
+    /// Replicates behind each plotted value when the table holds only
+    /// summaries; raw replicate rows are counted instead.
+    pub replicates: Option<NonZeroU32>,
+    pub error_bars: Option<ErrorBarKind>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,6 +145,8 @@ impl SeriesBinding {
             visible: true,
             label: None,
             encoding,
+            replicates: None,
+            error_bars: None,
         })
     }
 
@@ -124,6 +157,8 @@ impl SeriesBinding {
             visible: true,
             label: None,
             encoding: plotium_figure::SeriesEncoding::default(),
+            replicates: None,
+            error_bars: None,
         }
     }
 

@@ -166,7 +166,10 @@ impl Session {
             value,
         });
         run.finish(app, &outcome)?;
-        let result = outcome?;
+        let mut result = outcome?;
+        if scan.audit_parameters()["detail"] != "full" {
+            crate::session::diagnostic_page(&mut result.value);
+        }
         if let Some(cursor) = cursor {
             // Release completed rows and retain only the unread immutable tail.
             scan.release_completed_storage();

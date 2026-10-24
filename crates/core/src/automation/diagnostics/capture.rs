@@ -13,8 +13,11 @@ pub(super) fn validate<'a>(
         .ok_or_else(|| {
             invalid("Use an existing whole canvas with its complete target identity.")
         })?;
-    if p.limit == 0 || p.limit > 200 || p.checks.is_empty() || p.checks.len() > 7 {
-        return Err(invalid("Use 1..=200 rows and 1..=7 checks."));
+    let check_count = all_checks().len();
+    if p.limit == 0 || p.limit > 200 || p.checks.is_empty() || p.checks.len() > check_count {
+        return Err(invalid(format!(
+            "Use 1..=200 rows and 1..={check_count} checks."
+        )));
     }
     for (i, k) in p.checks.iter().enumerate() {
         if p.checks[..i].contains(k) {
@@ -179,7 +182,9 @@ impl FigureDiagnosticScan {
                     let facts = hints::PlotFacts::of(
                         app,
                         &binding,
-                        params.checks.contains(&DiagnosticCheck::DataShape),
+                        &p.intent,
+                        params.checks.contains(&DiagnosticCheck::DataShape)
+                            || params.checks.contains(&DiagnosticCheck::Intent),
                     );
                     SnapshotKind::Plot {
                         facts,

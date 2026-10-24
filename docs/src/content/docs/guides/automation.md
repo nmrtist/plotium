@@ -300,12 +300,17 @@ PNG before explicitly executing that same plan; afterward read the real PNG and
 fresh diagnostics. Preserve my data, units, manual ranges, other same-name objects,
 and intentional clipping or overlap. Do not shrink text or hide data to clear warnings.”
 
-Candidate preview supports native guide edits, content geometry, image replacement,
+Candidate preview supports display property edits such as colours, line widths,
+axes, legends and typography, as well as content geometry, image replacement,
 text updates and exact deletion. It needs **Read and modify**, but leaves authored
 state, Undo/Redo, dirty state and edit generation untouched, and adds no project
 audit record. If you edit while the agent is reviewing a candidate, its old plan must be
 replaced. One execution remains one native Undo step. See the [support matrix and
 candidate metadata](/reference/mcp/#preview-a-plan-before-committing-it).
+
+For a style choice such as a palette, line widths or the legend position, ask
+the AI to show two or three options. It previews each without changing your
+project, and applies only the one you pick.
 
 ### Deliver the editable project and final figures
 
@@ -349,6 +354,18 @@ They grant no Plotium permissions and do not remove desktop file confirmation.
 The mixed planning/execution tools use conservative hints. Keep client approval
 scoped to the intended tools and follow the
 [annotation and authorization guidance](/reference/mcp/#tool-annotations-and-client-approval).
+
+Before the AI creates a plot, Plotium asks it to check with you what the plot
+should show (compare groups, a trend, a distribution, a relationship, parts of a
+whole, a change or ratio, or a local detail) and the one claim it should
+support. Answer in your own words, or let the AI propose a reading and correct
+it. The intent is saved with the plot and never changes the drawing; edit it
+later under **Chart › Advanced** in the Object inspector. When you ask the AI to
+check the figure, it compares the chart with this purpose and suggests forms
+that fit better; it never switches them on its own. For curves with error bars
+it also asks how many replicates each value summarises and whether the bars
+show SD, SEM or a 95 % CI. See
+[plot creation](/reference/mcp/#create-a-native-single-plot-from-an-imported-table).
 
 For different colours or labels across curves, ask for one atomic
 `properties.set_many` plan with 1–200 exact target/property/value writes and one

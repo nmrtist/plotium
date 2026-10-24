@@ -90,7 +90,11 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.y_axis` | Object + Series | `left`, `right` (line and scatter curves; bars stay left) |
 | `series.points.spread` | Object + Series | 0–1 spread of replicate points across their mark (point and line curves; default 0) |
 | `series.value_labels` | Object + Series | boolean; write each bar's or point's value (bar, point and line curves) |
+| `series.replicates` | Object + Series | 0–100000 replicates behind each plotted value; 0 means not stated |
+| `series.error_bars` | Object + Series | `unspecified`, `sd`, `sem`, `ci95`; what the y errors show (curves with a y error column) |
 | `object.chart.orientation` | Object | `vertical`, `horizontal` (explicit-column plots) |
+| `object.intent.purpose` | Object | `unspecified`, `compare`, `trend`, `distribution`, `relationship`, `composition`, `change`, `detail`; what the plot is meant to show |
+| `object.intent.claim` | Object | string of at most 500 characters; the one claim the plot should support |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -98,6 +102,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | Object | boolean |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | Object | boolean; groups digits in tick labels |
 | `object.axes.frame` | Object | `open` (left and bottom), `box` (all four sides) |
+| `object.axes.equal_scale` | Object | boolean; same data units per length on x and y (linear, non-categorical axes without a right y axis) |
 | `object.axes.x_scale / object.axes.y_scale` | Object | `linear`, `log` (line, scatter and stick plots; a manual range must stay above zero) |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | Object | compatible code from property inspection |
 | `object.axes.x_range / object.axes.y_range` | Object | auto or manual range object |
@@ -181,12 +186,13 @@ at most 16 stable resource references. Pass `selection_offset` (default 0) and
 `selection.canvas` reports what the user selected on the active page:
 `{items,total,part}`. `items` holds at most `selection_limit` summaries
 (`target`, `kind`, `name`, `visible`) of the selected panels and items. `part`
-is the legend or label the user clicked inside the lead plot, or `null`. A
+is the legend, label or annotation the user clicked inside the lead plot, or `null`. A
 legend reads `{target,part:"legend",property:"object.guides.position",value}`,
 where a `null` value means automatic placement. A label reads
 `{target,part:"label",kind,annotation_id,edit:"figure.edit annotation_set",…}`
-with its current placement. When the user says "this", edit that target or
-part.
+with its current placement; an arrow or a reference line itself reads
+`{target,part:"annotation",kind,annotation_id,edit,…}` with its position and
+`hand_moved`. When the user says "this", edit that target or part.
 
 Every call reads the current selection; pages are not a frozen snapshot. GUI
 selection can change without changing the document revision. Do not combine pages
@@ -210,7 +216,8 @@ input schemas and annotations are in `tools/list`; property definitions are in
 `plotium_properties_list`.
 
 `sections` names each detail section with its size in bytes and whether it takes a
-`key`. Fetch one detail with `{"section":...,"key":...}`, which returns
+`key`. `operation_constraints` and `operation_details` list each key with a
+one-line purpose, so you can match a task to an operation before fetching it. Fetch one detail with `{"section":...,"key":...}`, which returns
 `{capability_fingerprint,section,key,contract}`:
 
 | Section | Key | Contract |
@@ -235,8 +242,8 @@ For several edits, pass `keys` instead of `key`, for example
 `{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`.
 The response has `keys` and a `contract` map keyed by the requested names. This
 section accepts 1–32 unique keys per call; other sections accept only `key`.
-The index lists all suboperation keys and their purposes. Each detail retains the
-shared edit restrictions and one exact edit schema. Replace example targets with
+Each detail holds one exact edit schema with only the restrictions and result
+fields that apply to that edit. Replace example targets with
 full stable references from document inspection. Use `operation_constraints` for
 the complete mixed-edit schema. Editable scientific descriptors expose
 `input_schema_ref: {section,key}` instead of duplicating that schema.
@@ -276,6 +283,15 @@ an extra state read. This does not refresh selection, hand edits, availability o
 permissions. Read state initially, after desktop edits or Undo/Redo, when those
 dynamic values are needed, and on stale/context errors or uncertain outcomes.
 Execution still rechecks context, revision and permissions.
+
+Plans for figure edits, curve append/bind/expansion, scientific plots, renames,
+themes and dataset deletion return `plan_id`, `project_context`, `basis_revision`
+and a `preflight` without the echoed request or frozen target set.
+`preflight.summary` counts compatible, skipped and failed targets, and
+`preflight.targets` lists only the targets that will be skipped or fail. Their
+execution results carry `summary` counts of succeeded, skipped and failed
+targets, list only skipped or failed rows in `targets`, and report changed
+resources in `produced` and `modified`.
 
 A queued or submitted scientific task is not a committed edit; its immediate
 `after_revision` must not be reused. Only a terminal `succeeded` receipt in the
@@ -412,17 +428,21 @@ There is no recursive whole-project dump. Revision changes reject continuation;
 read state and restart the listing. Missing targets and forged identities return
 `invalid_parameters`, without using the current selection.
 
-`plotium_properties_list {}` browses every supported property in compact form.
-Each row includes its ID, label, scope, access, static applicability and value
-schema with units, bounds and enum IDs. Compact schemas omit UI drag steps and
-enum labels; complex inputs are marked `requires_full`. Fetch complete definitions
-for the properties you need in one call:
+`plotium_properties_list {}` browses every supported property, one compact row
+each: `id`, `label`, value `type`, and where they apply `min`/`max`, `unit`,
+`format`, enum `values`, the curve `encoding` and required field capabilities
+(`requires`). An ID starting with `document.` has document scope; every other ID
+has object scope, and `series.` IDs target a Series. Rows marked `requires_full`
+(nested inputs and display-unit codes) need full detail. Fetch complete
+definitions for the properties you need in one call:
 
 ```json
 {"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
 ```
 
-Use `scope` with a scope name from the catalog to filter the list. `keys` must be
+Use `scope` with a scope name from the catalog, or `prefix` with the start of a
+property ID such as `series.line` or `object.axes`, to filter the list. A prefix
+that matches nothing fails with `error.details.prefixes`. `keys` must be
 nonempty and unique; unsupported keys, unknown scopes and key/scope conflicts are
 errors, rather than silently omitting requested properties. `detail: "full"`
 without filters returns the complete catalog. Both forms are static, callable
@@ -951,6 +971,15 @@ one plot, not separate plots. Source extraction and all numeric, missing-value,
 error and unit rules are the same as explicit curve binding above. Table-wide
 X/Y defaults and other plots are untouched; no source table is copied.
 
+Optional `intent: {purpose, claim}` records what the plot is meant to show.
+`purpose` is `compare`, `trend`, `distribution`, `relationship`, `composition`,
+`change` (ratio or fold difference) or `detail` (zoom or inset); `claim` is one
+sentence of at most 500 characters. Ask the user for both before creating a
+plot instead of guessing; if they leave it open, propose your reading and let
+them confirm or edit it. The intent never changes the drawing. It is saved with
+the project, edited later through `object.intent.purpose` (`unspecified` clears
+it) and `object.intent.claim`, and shown under **Chart › Advanced** in the Object inspector.
+
 The exact `parent` determines which objects are new:
 
 - Document root: create canvas, single panel and plot. Optional
@@ -1043,10 +1072,10 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `text_create` | `parent: EXACT_CANVAS_OR_PANEL_TARGET`, `name`, `frame_pt`, `text`, `font_pt` |
 | `text_set` | `target: EXACT_TEXT_TARGET`, `text`; optional `font_pt` |
 | `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG or JPEG) |
-| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"` |
+| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"`, `color: "#rrggbb"` |
 | `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
 | `annotation_create` (arrow) | `target: EXACT_PLOT_TARGET`, `kind: "arrow"`, tail `at: [x,y]`, head `to: [x,y]`; optional `head: none\|open\|filled\|double`, `line_width_pt`, `color: "#rrggbb"` |
-| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow); optional `override_hand_edits` |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `color`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow); optional `override_hand_edits` |
 | `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
@@ -1104,9 +1133,10 @@ value label or another label, the text moves to the nearest clear spot within
 about three text heights; an arrow pointing at it does not count.
 `offset_pt: [dx, dy]` (pt, x right, y up) pins the text there instead, with
 `[0, 0]` exactly at `at`, and `placement: "auto"` returns it to automatic
-placement. A label the user dragged on the canvas keeps its place through
-edits of `text`, `at` and `font_pt`; `offset_pt` or `placement` on it is
-rejected unless `override_hand_edits: true` says the user asked. Each text in
+placement. `color` (`#rrggbb`) sets the text colour, black by default. A label
+the user dragged on the canvas keeps its place through edits of `text` and
+`font_pt`; a new `at`, `offset_pt` or `placement` on it is rejected unless
+`override_hand_edits: true` says the user asked. Each text in
 `annotations` reports `placement` (`auto`, `fixed` or `hand`) and the drawn
 `offset_pt`, and `plotium_get_state` lists dragged labels under `hand_edits`
 with key `annotation.label_position`. An anchor outside the visible range is
@@ -1135,7 +1165,15 @@ same `override_hand_edits` rule. It uses the tick label size until `font_pt` set
 explicit size, which then stays until changed. An empty `label` removes it. Reference lines and text
 annotations share one id sequence and the 256-per-plot budget, and
 `plotium_document_inspect` lists both under `annotations`, each with its `kind`.
-Fields of the other kind are rejected rather than ignored.
+Fields of the other kind are rejected rather than ignored; a reference line
+takes its colour in `line.color`, not `color`.
+
+An arrow or reference line the user moved on the canvas reports
+`hand_moved: true` and is listed under `hand_edits` with key
+`annotation.position`. Restyling it is allowed, but a new `at` or `to` on such
+an arrow, or a new `value` or `orientation` on such a line, is rejected unless
+`override_hand_edits: true` says the user asked; the moved position then
+becomes the agent's again.
 
 ```json
 {"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"reference_line",
@@ -1352,7 +1390,7 @@ After discovering the canvas, call `plotium_figure_diagnose` directly (no edit p
   "expected_revision": 7,
   "canvas": {"resource":{"id":"CANVAS_UUID","kind":"plotium.canvas"}},
   "output": {"size_mm":[180,90]},
-  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics"],
+  "checks": ["bounds","clipping","text_overflow","content_overlap","legend_occlusion","data_shape","layout_aesthetics","intent"],
   "detail": "full",
   "limit": 100
 }
@@ -1381,7 +1419,11 @@ clip; a panel border is **not** a general content clip. Native raster frame and
 `clip_children` clipping are reported separately.
 
 `ToolResult.value` contains `project_context`, `basis_revision`, `canvas`, `summary`,
-`output`, `items`, `coverage`, `budget`, `truncated` and `continuation`. `summary`
+`output`, `items`, `coverage`, `truncated` and `continuation`. In the default
+compact detail, `output` has `size_mm` and `size_pt`, and `coverage` reports its
+status, scan counts and unavailable or unsupported items. `detail: "full"` adds the
+page coordinate description to `output`, the requested, supported and unsupported
+check lists to `coverage`, and `budget`, `preview_request` and `read_policy`. `summary`
 counts the issues on this page (`issues`, `by_code`, `by_severity`); add the
 counts of every page of a continued scan. Each issue has a full native `target`,
 an owner-relative `component`, `code`, `severity` and explanation; with
@@ -1396,6 +1438,9 @@ owning plot's legend through `evidence.other_target` / `other_component`.
 - `text_container_overflow` is a warning based on native width/line-spacing
   **estimates**, not exact glyph ink. Text does not automatically wrap or shrink.
 - `content_frame_overlap` is informational; deliberate overlap is allowed.
+- `axis_ticks_sparse` is a warning: at the output size an axis with shown tick
+  labels draws fewer than two ticks, so its scale cannot be read. Enlarge the
+  panel or lower `object.figure.typography.tick_pt`.
 - `right_axis_untitled` is a warning: curves use the right y axis but it shows
   no title. Set `object.axes.y2_label` (or turn `object.axes.y2_show_label`
   back on).
@@ -1405,7 +1450,7 @@ owning plot's legend through `evidence.other_target` / `other_component`.
   bounding box or sample points. Stroke envelopes and the legend layout rectangle
   are conservative; rounded corners, translucency and exact antialiasing can differ.
 
-The `data_shape` and `layout_aesthetics` checks report issues with severity
+The `data_shape`, `layout_aesthetics` and `intent` checks report issues with severity
 `hint`: the figure could show its data more clearly, nothing is wrong. They are
 included when `checks` is omitted. Hints never edit the document. Each carries
 `suggestions`, a list of `{action, property, target, reason}`; `property` names a
@@ -1417,16 +1462,34 @@ Series reports Series hints for those Series only.
 | --- | --- |
 | `small_values_invisible` | A bar's value is under 1 % of the value-axis span, or it prints under 0.5 mm, beside bars at least 5 mm long |
 | `bars_too_narrow` | A bar prints narrower than 0.6 mm |
-| `few_samples_hidden` | Every group of a box or violin Series, or of a bar Series with repeated rows per x, has fewer than 10 values, and the plot has no scatter Series |
+| `few_samples_hidden` | Every group of a box or violin Series, or of a bar Series with repeated rows per x, has fewer than 10 values, or a bar Series of one row per x has `series.replicates` of 1–9; and the plot has no scatter Series |
 | `too_many_categories` | The category axis draws its labels but drops some, or neighbouring labels collide |
 | `log_scale_candidate` | A plot without bars, boxes or violins has only positive line or scatter values on a linear value axis, spanning three or more decades |
 | `bar_baseline_not_zero` | The value-axis range leaves out the bars' baseline |
 | `labels_overlap` | Two text boxes on the canvas overlap by more than 0.2 mm in both directions; evidence names both and a direction to move the second. Entries of one legend and tick labels of one axis are not compared with each other |
 | `text_over_data` | An annotation or value label overlaps a bar, box, violin, line or marker |
+| `intent_mismatch` | The chart form does not suit the plot's `object.intent.purpose` (see below) |
 | `panels_misaligned` | Two frames in one column (left edges within 1 mm) or row (bottom edges within 1 mm) have plot areas whose left or bottom edges differ by more than 0.5 mm, or the gaps between three or more frames in a row or column differ by more than 0.5 mm |
 
 Hints beyond 50 of one kind, and checks that hit a budget, add an `unavailable`
 coverage row.
+
+The `intent` check weighs each plot built from explicit columns against the
+purpose its author stated; `detail` is never reported. A plot without a purpose
+gets a `not_applicable` coverage row, `no_purpose_stated`: ask the user what it
+should show. Table chart types get `chart_type_not_covered`. `intent_mismatch`
+evidence keeps the reason in `interpretation` and, with `detail: "full"`, adds
+the purpose, the claim and the chart features it read. Its suggestions name
+chart forms Plotium can draw; relay them and let the user choose.
+
+| Purpose | Reported when |
+| --- | --- |
+| `compare` | Lines join categories |
+| `trend` | The category axis holds categories, or the plot draws bars |
+| `distribution` | On a category axis, bars or lines without a box, violin or scatter Series |
+| `relationship` | The category axis holds categories, or the plot draws bars, boxes or violins |
+| `composition` | The plot draws lines or points but no bars |
+| `change` | Two or more bar Series sit side by side, or positive bar values span tenfold or more; or, without bars, boxes or violins, positive left-axis line or scatter values span tenfold or more on a linear axis |
 
 Native guide layout includes estimated text widths. Font availability is checked
 using native export font discovery; glyph coverage and cross-backend ink bounds
@@ -1475,7 +1538,8 @@ range, geometry, Undo history, automation revision, edit generation or dirty sta
 They do not append project audit records. Geometry, issues, cursors and PNGs are
 not persisted as diagnostic copies.
 
-Use `preview_request` to obtain the native PNG, then inspect it. Convert a returned
+Call `plotium_render_preview` with the canvas, context and `basis_revision` to
+obtain the native PNG, then inspect it. Convert a returned
 X coordinate to pixels using `x * width_px / output.size_pt[0]`; use height
 for Y. Check its `render_revision` against `basis_revision`. Editor zoom does not
 change these units. Direct core `figure.diagnose` returns one bounded batch without
@@ -1564,14 +1628,20 @@ proof of occlusion.
 
 | Existing plan | Candidate support |
 | --- | --- |
-| `properties.set` / `properties.reset` | The five `object.guides.*` properties above, including their native multi-target batch |
+| `properties.set` / `properties.reset` / `properties.set_many` | Document and object display properties, including their native multi-target batch; not canvas, app preference or dataset processing properties, chart type or stack changes |
 | `figure.edit` local edits | `content_frame`, `image_replace`, `text_set`, `annotation_create`/`annotation_set`/`annotation_delete` (text and reference lines), including native batches |
 | `figure.edit` deletion-only batch | `content_delete`, originally empty `panel_delete`, explicit-column `series_delete`; all existing refusal rules remain |
 | Other operations, including save/export | `unsupported_operation`; their normal execution contract is unchanged |
 
+To let the user choose a style, such as a palette, line widths, legend
+placement or label layout, plan two or three alternatives, preview each and show
+the images side by side. Execute only the plan the user picks. The others are
+never committed: they then fail with `stale_revision`, but count toward the 32
+pending plans until submitted or the connection resets.
+
 Affected canvases must use ordinary line/scatter plots, native text, shapes and
 raster content; previews do not launch scientific computations. A cross-canvas
-guide plan applies its complete batch to the disposable native context; request
+property plan applies its complete batch to the disposable native context; request
 each affected canvas separately. It is still one plan and one Undo step.
 Automatic axes, guide dependencies and derived page height use the native action
 and renderer, not a second layout model. With identical baseline, settings and
@@ -1770,16 +1840,20 @@ changing it to 1.5 pt, then apply the saved plan.” The tool sequence is:
    and connection permissions.
 2. `plotium_resources_search` with `expected_project_context`, `expected_revision` and a `query` such as
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}` locates resources.
+   When every match has the same reason, as in an unfiltered search, `value.reason`
+   states it once instead of `value.reasons`.
    Resolve results to explicit stable IDs; `plotium_resources_inspect` reads
    descriptors using `ids` and `expected_revision`.
-3. `plotium_properties_list` with `{}` lists supported IDs and scopes. Discover
+3. `plotium_properties_list` with `{}` lists supported IDs and value types. Discover
    curve addresses with `plotium_properties_inspect`:
 
    ```json
    {"ids":["CANVAS_UUID/OBJECT_ID"],"key":"series.line.stroke_width","expected_project_context":"PROJECT_CONTEXT","expected_revision":7}
    ```
 
-   The response's `value.readings` contains one row per applicable curve. Copy
+   The response's `value.readings` contains one row per applicable curve. When
+   every reading shares its schema or default, `value.schema` and
+   `value.default_value` hold it once instead. Copy
    the complete `value.readings[0].target` for the curve you want, for example:
 
    ```json

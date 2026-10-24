@@ -60,7 +60,7 @@ pub fn axis_layout_placed(
             &x_ticks,
             &natural.y_ticks,
             &natural.y2_ticks,
-            outer_width,
+            [outer_width, outer_height],
         ),
         placement,
     );

@@ -433,6 +433,7 @@ fn dense_line_app(rows: usize) -> PlotiumApp {
                 y_error_column_id: None,
             },
         }],
+        intent: None,
     };
     let plan = app
         .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &params)

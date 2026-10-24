@@ -111,10 +111,10 @@ Holding `Space` or dragging with the middle button uses the pan cursor instead.
 | `Ctrl` + `Shift` + click | Add a continuous range to the existing list selection |
 | `↑` / `↓`, `Home` / `End` | Move selection through the active Canvas, Layers, or Data list; hold `Shift` to extend |
 | `Space` | Add or remove the lead item in the active list |
-| `←` `→` `↑` `↓` | On the canvas, move the selected legend or label, otherwise the selected objects or panels, by 0.5 pt; hold `Shift` for 5 pt. Holding a key is one undo step |
+| `←` `→` `↑` `↓` | On the canvas, move the selected legend, label, arrow or reference line, otherwise the selected objects or panels, by 0.5 pt; hold `Shift` for 5 pt. Holding a key is one undo step |
 | `Ctrl` + `G` | Group the selected objects |
 | `Ctrl` + `Shift` + `G` | Ungroup |
-| `Delete` or `Backspace` | In the Data list, delete the selected datasets that nothing uses; otherwise delete the selected annotation objects, the selected panel and its contents, or the selected board pages; in Peaks or Integrate, delete the selected peak or region; in Symmetry review, delete the selected cross-peak mark |
+| `Delete` or `Backspace` | In the Data list, delete the selected datasets that nothing uses; otherwise delete the selected plot annotation, the selected annotation objects, the selected panel and its contents, or the selected board pages; in Peaks or Integrate, delete the selected peak or region; in Symmetry review, delete the selected cross-peak mark |
 | `+` (or `=`) / `-` | Raise / lower the lowest contour level of the selected plot |
 | `F2` | Rename the selected dataset or canvas |
 | `Esc` | Cancel the active drag; further presses clear the Analysis Range and selections one at a time (a selected legend or label first returns to its whole plot), then leave the active tool |

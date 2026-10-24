@@ -5,8 +5,8 @@ use super::routes::*;
 use super::types::*;
 use plotium_core::properties::{
     apodization, app_preferences, axis, baseline, bin, canvas, chart_layout, contour, export_dpi,
-    group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase, plot_display,
-    reference, right_axis, smooth, step_enabled, typography, zero_fill,
+    group_delay, guide, heatmap, ilt, intent, line, line_display, normalize, object, phase,
+    plot_display, reference, replicates, right_axis, smooth, step_enabled, typography, zero_fill,
 };
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
@@ -38,7 +38,11 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(line_display::BAR_EDGE_WIDTH, "Bar outline width", LINE_HOME),
     object_entry(chart_layout::SPREAD, "Replicate spread", LINE_HOME),
     object_entry(chart_layout::VALUE_LABELS, "Value labels", LINE_HOME),
+    object_entry(replicates::REPLICATES, "Replicates (n)", LINE_HOME),
+    object_entry(replicates::ERROR_BARS, "Error bars show", LINE_HOME),
     object_entry(chart_layout::ORIENTATION, "Chart orientation", AXIS_HOME),
+    object_entry(intent::PURPOSE, "Purpose", CHART_HOME),
+    object_entry(intent::CLAIM, "Claim", CHART_HOME),
     object_entry(
         line_display::MARKER_EDGE_COLOR,
         "Marker edge color",
@@ -86,11 +90,12 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(object::SHAPE_FILL_COLOR, "Fill color", SHAPE_HOME),
     object_entry(object::LOCKED, "Locked", OBJECT_HOME),
     PropertyPresentation {
-        id: axis::EQUAL_F1_F2_SCALE,
-        localized_label: LocalizedText("F1/F2 equal scale (1:1)"),
+        id: axis::EQUAL_SCALE,
+        localized_label: LocalizedText("Equal x/y scale (1:1)"),
         localized_aliases: &[
             LocalizedText("aspect lock"),
             LocalizedText("equal axis scale"),
+            LocalizedText("F1/F2 equal scale"),
         ],
         home_route: AXIS_HOME,
         canvas_step: false,

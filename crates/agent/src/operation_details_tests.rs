@@ -16,7 +16,16 @@ fn every_figure_branch_has_exact_detail_and_a_parseable_example() {
         let mut restored = detail["schema"].clone();
         restored["properties"]["edits"]["items"] =
             full["schema"]["properties"]["edits"]["items"].clone();
+        restored["description"] = full["schema"]["description"].clone();
         assert_eq!(restored, full["schema"]);
+        assert_ne!(
+            detail["purpose"],
+            json!(key.trim_start_matches("figure.edit/").replace('_', " ")),
+            "{key}"
+        );
+        let shared =
+            serde_json::to_vec(detail).unwrap().len() - serde_json::to_vec(branch).unwrap().len();
+        assert!(shared <= 5 * 512, "{key}: {shared}");
         assert_eq!(detail["execute_permission"], full["execute_permission"]);
         let _: plotium_core::state::FigureEditParams =
             serde_json::from_value(detail["example"]["parameters"].clone()).unwrap();
@@ -90,4 +99,47 @@ fn common_examples_execute_with_discovered_native_targets() {
             .unwrap();
         assert_eq!(result["tool_id"], "figure.edit");
     }
+}
+
+#[test]
+fn every_shared_clause_routes_to_existing_ops_exactly_once() {
+    let full = respond(json!({"section":"operation_constraints","key":"figure.edit"})).unwrap()["contract"].clone();
+    let ops: Vec<_> = full["schema"]["properties"]["edits"]["items"]["oneOf"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["properties"]["op"]["const"].as_str().unwrap().to_owned())
+        .collect();
+    for (text, rules) in [
+        (full["schema"]["description"].as_str().unwrap(), DESCRIPTION),
+        (full["result_contract"].as_str().unwrap(), RESULT),
+    ] {
+        let clauses: Vec<_> = clauses(text).collect();
+        for clause in &clauses {
+            let matches = rules.iter().filter(|(p, _)| clause.starts_with(p)).count();
+            assert_eq!(matches, 1, "{clause}");
+        }
+        for (prefix, routed) in rules {
+            assert!(clauses.iter().any(|c| c.starts_with(prefix)), "{prefix}");
+            assert!(
+                routed.iter().all(|op| ops.iter().any(|o| o == op)),
+                "{prefix}"
+            );
+        }
+    }
+    let details = build(&full);
+    let label = &details["figure.edit/panel_label"];
+    let description = label["schema"]["description"].as_str().unwrap();
+    assert!(description.starts_with("Atomic native authoring"));
+    assert!(!description.contains("panel_stack needs"));
+    assert!(
+        !label["result_contract"]
+            .as_str()
+            .unwrap()
+            .contains("Deletion-only")
+    );
+    let delete = details["figure.edit/content_delete"]["schema"]["description"]
+        .as_str()
+        .unwrap();
+    assert!(delete.contains("Deletion-only batches"));
 }

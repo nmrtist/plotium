@@ -104,6 +104,7 @@ impl Connection {
         let guard = Guard {
             instance_id,
             activity: activity.clone(),
+            wake: service.wake.clone(),
             bearer: format!("Bearer {token}"),
             authority: authority.clone(),
             origin: origin.clone(),
@@ -203,6 +204,15 @@ impl Connection {
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .clone()
+    }
+    /// Whether queued requests or in-flight work still need frequent polling.
+    pub fn has_pending_work(&self) -> bool {
+        self.preview.is_some()
+            || self.retiring_preview.is_some()
+            || self.diagnostic.is_some()
+            || self.import.is_some()
+            || self.transform.is_some()
+            || !self.requests.is_empty()
     }
     pub fn is_running(&self) -> bool {
         self.active.load(Ordering::Acquire)
@@ -309,6 +319,7 @@ struct Guard {
     bearer: String,
     instance_id: uuid::Uuid,
     activity: Arc<std::sync::Mutex<Activity>>,
+    wake: Arc<dyn Fn() + Send + Sync>,
     authority: String,
     origin: String,
     active: Arc<AtomicBool>,
@@ -342,6 +353,8 @@ async fn authenticate(
             activity.desktop_seen = true;
         }
     }
+    // The desktop only redraws on demand, so client activity must reach the indicator.
+    (guard.wake)();
     Ok(next.run(request).await)
 }
 

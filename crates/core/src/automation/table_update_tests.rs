@@ -176,6 +176,7 @@ fn patch_refresh_undo_redo_preserve_native_curves_display_and_freshness() {
                 source: source(&app, derived, 2),
             },
         ],
+        intent: None,
     };
     let plan = app
         .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &p)
@@ -520,6 +521,7 @@ fn native_pivot_refresh_is_rejected_atomically_without_restricting_native_refres
             kind: CurveKind::Line,
             source: source(&app, 1, 1),
         }],
+        intent: None,
     };
     let plan = app
         .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &p)

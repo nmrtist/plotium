@@ -32,6 +32,109 @@ pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
     "plot.series.materialize_default",
 ];
 
+/// One line per editable operation, so a caller can map a task to an operation
+/// before fetching its schema.
+const PURPOSES: [(&str, &str); 28] = [
+    (
+        "analysis.diffusion.plot",
+        "Plot a diffusion fit with residuals on a new canvas",
+    ),
+    (
+        "plot.field.create",
+        "Plot a native 2D field such as a DOSY or ILT map",
+    ),
+    (
+        "analysis.dosy.build",
+        "Compute a DOSY map from a diffusion source field (task)",
+    ),
+    (
+        "analysis.regions.extract",
+        "Extract region metrics into a new table (task)",
+    ),
+    (
+        "analysis.diffusion.fit",
+        "Fit diffusion decay of a table response column (task)",
+    ),
+    (
+        "processing.edit",
+        "Edit a dataset's processing steps (task)",
+    ),
+    (
+        "processing.apply_scheme",
+        "Apply a saved processing scheme file",
+    ),
+    (
+        "diffusion.set_input",
+        "Set a dataset's diffusion encoding input",
+    ),
+    (
+        "project.save",
+        "Save the project file after desktop consent",
+    ),
+    (
+        "figure.export",
+        "Export a canvas as SVG, PDF or PNG after desktop consent",
+    ),
+    (
+        "resource.rename",
+        "Rename a dataset, canvas or canvas object",
+    ),
+    ("dataset.delete", "Delete unused datasets"),
+    (
+        "figure.apply_theme",
+        "Apply a built-in theme or saved style to canvases",
+    ),
+    ("properties.set", "Set one display property on targets"),
+    (
+        "properties.set_many",
+        "Set up to 200 display property values in one Undo step",
+    ),
+    (
+        "properties.reset",
+        "Reset one display property to its default",
+    ),
+    (
+        "data.import",
+        "Import CSV/TSV tables or native acquisitions",
+    ),
+    (
+        "data.transform",
+        "Derive a new table from an existing table",
+    ),
+    ("table.patch", "Edit table cells"),
+    (
+        "table.refresh",
+        "Recompute a derived table from its saved recipe",
+    ),
+    (
+        "plot.series.bind",
+        "Rebind existing curves to other table columns",
+    ),
+    (
+        "plot.create",
+        "Create a plot with curves from table columns",
+    ),
+    ("plot.series.append", "Add curves to an existing plot"),
+    (
+        "figure.edit",
+        "Edit page, panels, text, images and annotations; see operation_details",
+    ),
+    (
+        "plot.series.materialize_default",
+        "Expand a default table curve into explicit curves",
+    ),
+    (
+        "analysis.results.inspect",
+        "Read with plotium_analysis_results_inspect",
+    ),
+    ("diffusion.inspect", "Read with plotium_diffusion_inspect"),
+    ("processing.inspect", "Read with plotium_processing_inspect"),
+];
+
+fn purpose(id: &str) -> Option<&'static str> {
+    PURPOSES.iter().find(|(key, _)| *key == id).map(|(_, p)| *p)
+}
+
 /// Detail sections served by `plotium_capabilities_get {section,key?}`.
 pub(crate) const SECTIONS: [&str; 7] = [
     "tools",
@@ -83,16 +186,16 @@ fn tool_index() -> Vec<Value> {
             "plotium_processing_inspect"=>(vec!["processing.inspect"],"ToolResult.value: {dataset,axes:[{axis,pipeline,pending_apply}]}","one dataset ID"),
             "plotium_get_state"=>(vec!["state.get"],"{project_context,revision,availability,project:{dataset_count,canvas_count},selection:{items,total,next_offset,canvas:{items:[{target,kind,name,visible}],total,part}},hand_edits:{items:[{target,key,label,value}],total,next_offset},permissions,capability_fingerprint,save_state}; latest state per call, not a frozen selection snapshot","application; project, selection and hand_edits are null while busy"),
             "plotium_capabilities_get"=>(vec!["capabilities.get"],"{} returns {capability_fingerprint,connection_capabilities:index}; {section,key?} returns {capability_fingerprint,section,key?,contract}; immutable contracts, not current authorization","static; no project or revision required; callable while busy"),
-            "plotium_resources_search"=>(vec!["resources.search"],"ToolResult.value: FrozenTargetSet","ResourceQuery"),
+            "plotium_resources_search"=>(vec!["resources.search"],"ToolResult.value: FrozenTargetSet; a reason shared by every match is value.reason instead of value.reasons","ResourceQuery"),
             "plotium_resources_inspect"=>(vec!["resources.inspect"],"ToolResult.value: ResourceDescriptor[]","explicit resource IDs"),
             "plotium_properties_list"=>(vec!["properties.list"],"{detail,properties:[{id,label,scope,schema,unit,access,applicability}]}; compact by default, keys/scope filter, detail full returns complete definitions","static; no target"),
-            "plotium_properties_inspect"=>(vec!["properties.inspect"],"ToolResult.value: {property,canonical_label,tier,aggregate,readings}; ToolResult.targets reports skips","ids expand by property, or exact Series TargetRef[]"),
-            "plotium_plan"=>(EDIT_OPERATIONS.to_vec(),"{plan_id,project_context?,basis_revision?,preflight:ToolPlan|creation_preflight{required_authority,created_target_count,targets,outputs,binding_plan{creation,binding_count,row_counts,bindings:issue_diagnostics[]}}|property_preflight{required_authority,estimated_changes,summary:{compatible,skipped,failed},targets:non-compatible PlannedTarget[]}|save_preflight|export_preflight,save_id?,export_id?,import?:{status,items},transform?:{status,output},update?:{status,output,before_table_revision,changed}}; native import or table_data_only import/transform; import omits ids/targets, transform requires one DatasetId in ids; prepared is not committed","rename: dataset/canvas/content IDs; properties: ids or exact Series targets; transform: one DatasetId; creation: explicit parent inside parameters, no top-level selector"),
-            "plotium_execute"=>(EDIT_OPERATIONS.to_vec(),"ToolResult for edits; plot.create adds summary and keeps exceptional targets, full bindings/layout and preflight-only defaults; properties.set/set_many/reset add summary {succeeded,skipped,failed,by_reason} and keep only non-succeeded targets and value.writes; {save:SaveReceipt} or {export:ExportReceipt} for external writes. Submitted plan is consumed even on failure","one-use plan_id"),
+            "plotium_properties_inspect"=>(vec!["properties.inspect"],"ToolResult.value: {property,canonical_label,tier,aggregate,readings,schema?,default_value?}; schema and default_value move out of readings when every reading shares them; ToolResult.targets lists only skips and failures","ids expand by property, or exact Series TargetRef[]"),
+            "plotium_plan"=>(EDIT_OPERATIONS.to_vec(),"{plan_id,project_context?,basis_revision?,preflight:ToolPlan|edit_preflight{ToolPlan without request and frozen_targets,summary:{compatible,skipped,failed},targets:non-compatible PlannedTarget[]}|creation_preflight{required_authority,created_target_count,targets,outputs,binding_plan{creation,binding_count,row_counts,bindings:issue_diagnostics[]}}|property_preflight{required_authority,estimated_changes,summary:{compatible,skipped,failed},targets:non-compatible PlannedTarget[]}|save_preflight|export_preflight,save_id?,export_id?,import?:{status,items},transform?:{status,output},update?:{status,output,before_table_revision,changed}}; native import or table_data_only import/transform; import omits ids/targets, transform requires one DatasetId in ids; prepared is not committed","rename: dataset/canvas/content IDs; properties: ids or exact Series targets; transform: one DatasetId; creation: explicit parent inside parameters, no top-level selector"),
+            "plotium_execute"=>(EDIT_OPERATIONS.to_vec(),"ToolResult for edits; plot.create adds summary and keeps exceptional targets, full bindings/layout and preflight-only defaults; properties.set/set_many/reset add summary {succeeded,skipped,failed,by_reason} and keep only non-succeeded targets and value.writes; figure.edit, plot.series.*, scientific plots, rename, themes and dataset.delete add summary {succeeded,skipped,failed} and keep only non-succeeded targets; {save:SaveReceipt} or {export:ExportReceipt} for external writes. Submitted plan is consumed even on failure","one-use plan_id"),
             "plotium_document_inspect"=>(vec!["document.inspect"],"ToolResult.value: self {revision,node:{target,kind,name,visible,ancestors,child_count,...}}; children {revision,target,items,total,next_offset,truncated}","document, canvas, panel, content or exact Series TargetRef"),
             "plotium_table_columns"=>(vec!["table.columns"],"ToolResult.value: {dataset_id,table_id,table_revision,snapshot_fingerprint,fields,columns,total_rows,diagnostics,inference,freshness,analyses,provenance?}","explicit DatasetId and table RevisionId"),
             "plotium_table_read_rows"=>(vec!["table.read_rows"],"ToolResult.value: {dataset_id,table_id,table_revision,revision,column_ids,offset,requested_rows,returned_rows,total_rows,next_offset,end,rows:[{row_id,values,sources?}]} ; typed 64-bit integer values are decimal strings","explicit DatasetId, table RevisionId and ColumnId projection"),
-            "plotium_figure_diagnose"=>(vec!["figure.diagnose"],"ToolResult.value: {project_context,basis_revision,canvas,summary:{issues,by_code,by_severity},output,items,coverage,budget,truncated,continuation}; view issues and detail compact by default; output_page_pt; estimates and potential conflicts are labeled; does not modify project audit or dirty state","exact canvas and output.size_mm, optional exact content/Series and overlap_targets; or one-use cursor"),
+            "plotium_figure_diagnose"=>(vec!["figure.diagnose"],"ToolResult.value: {project_context,basis_revision,canvas,summary:{issues,by_code,by_severity},output:{size_mm,size_pt},items,coverage,truncated,continuation}; view issues and detail compact by default; detail full adds page coordinates, coverage check lists, budget, preview_request and read_policy; output_page_pt; estimates and potential conflicts are labeled; does not modify project audit or dirty state","exact canvas and output.size_mm, optional exact content/Series and overlap_targets; or one-use cursor"),
             "plotium_preview_plan"=>(vec!["render.preview_image"],"MCP PNG image plus ToolResult.value: {plan_id,basis_project_context,basis_revision,candidate:true,target,output,width_px,height_px,mime_type,downsampled?}; no render_revision; downsampled lists [{target,source_points,drawn_points}] for curves thinned to preview pixels; exports draw every point","existing supported plan and one affected whole canvas"),
             "plotium_render_preview"=>(vec!["render.preview_image"],"MCP PNG image content plus ToolResult.value: {target,render_revision,width_px,height_px,mime_type,downsampled?}; downsampled lists [{target,source_points,drawn_points}] for curves thinned to preview pixels; exports draw every point","one exact whole-canvas TargetRef"),
             "plotium_export_status"=>(vec!["figure.export.status"],"{export:ExportReceipt,current_project_context,current_revision,matches_current_project}; non-auditing per-file results","opaque export_id; last 16 batches retained across reconnect/project changes within this desktop process"),
@@ -201,15 +304,21 @@ fn build_index(sections: &serde_json::Map<String, Value>) -> Value {
         .collect::<Vec<_>>();
     let scientific = sections["scientific_operations"].as_object().expect("local section").values().map(|entry| {
         let d = &entry["descriptor"];
-        json!({"id":d["id"],"title":d["title"],"effect":d["effect"],"required_permission":entry["required_permission"]})
+        let id = d["id"].as_str().expect("descriptor id");
+        let mut row = json!({"id":id,"effect":d["effect"],"required_permission":entry["required_permission"]});
+        // Editable operations carry their purpose in sections.operation_constraints.
+        if !EDIT_OPERATIONS.contains(&id) {
+            row["purpose"] = purpose(id).map_or(d["title"].clone(), |p| json!(p));
+        }
+        row
     }).collect::<Vec<_>>();
     let listing = SECTIONS.iter().map(|name| {
         let detail = &sections[*name];
         let mut entry = json!({"bytes":size(detail),"key":if KEY_REQUIRED.contains(name) {"required"} else if KEYED.contains(name) {"optional"} else {"none"}});
         let entries = detail.as_object().expect("sections are objects");
-        // Keys repeat ids the index already lists, so only the large schemas show per-key sizes.
+        // Keys repeat ids the index already lists, so only the large schemas list their entries.
         match *name {
-            "operation_constraints" => entry["key_bytes"] = entries.iter().map(|(key, value)| (key.clone(), json!(size(value)))).collect::<serde_json::Map<_,_>>().into(),
+            "operation_constraints" => entry["entries"] = entries.iter().map(|(key, value)| json!({"key":key,"purpose":purpose(key),"bytes":size(value)})).collect::<Vec<_>>().into(),
             "scientific_operations" => entry["keys"] = json!("scientific_operations[].id"),
             "tools" => entry["keys"] = json!("tools[].name"),
             "operation_details" => entry["entries"] = entries.iter().map(|(key, value)| json!({"key":key,"purpose":value["purpose"]})).collect::<Vec<_>>().into(),

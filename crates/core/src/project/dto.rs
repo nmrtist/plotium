@@ -395,6 +395,9 @@ pub struct ViewCanvasObject {
     pub viewport: Option<ViewportDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub axis_overrides: Option<AxisOverridesDto>,
+    /// The author's stated purpose and claim of a plot; absent when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent: Option<crate::state::PlotIntent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<TextBoxDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -437,6 +440,10 @@ pub struct SeriesBindingDto {
     pub encoding: plotium_figure::SeriesEncoding,
     #[serde(default = "bool_true", skip_serializing_if = "is_true")]
     pub visible: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replicates: Option<std::num::NonZeroU32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_bars: Option<crate::state::ErrorBarKind>,
 }
 
 fn bool_true() -> bool {

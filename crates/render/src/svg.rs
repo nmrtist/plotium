@@ -1,5 +1,5 @@
 use crate::{
-    Document, DocumentItem, DocumentObject, OUTER_PAD, Projector, Rect, TICK_LABEL_PAD, TextAnchor,
+    Document, DocumentItem, DocumentObject, Projector, Rect, TICK_LABEL_PAD, TextAnchor,
     axis_layout_placed, error_bar_segments, heatmap_cells, integral, minor_tick_values,
     polygon_outline, projection_points, range_label_layout,
 };
@@ -126,7 +126,7 @@ fn write_figure(
             s,
             r#"<text x="{cx}" y="{y}" text-anchor="middle" font-size="{font}" fill="{col}">{title}</text>"#,
             cx = frame.left + w / 2.0,
-            y = frame.top + OUTER_PAD + ty.title_pt,
+            y = frame.top + ty.title_pt * crate::rich_text::TOP_TO_BASELINE,
             font = ty.title_pt,
             col = plotium_figure::Color::BLACK.to_hex(),
             title = svg_content(&fig.title, ty.title_pt),
@@ -254,7 +254,7 @@ fn write_figure(
             s,
             r#"<text x="{x:.2}" y="{y:.2}" text-anchor="end" font-size="{font}" fill="{axis}">{label}</text>"#,
             x = plot.right(),
-            y = x_lane_bottom - OUTER_PAD,
+            y = x_lane_bottom - ty.tick_pt * crate::rich_text::BASELINE_TO_BOTTOM,
             font = ty.tick_pt,
             label = svg_content(&multiplier, ty.tick_pt),
         );
@@ -270,7 +270,9 @@ fn write_figure(
             s,
             r#"<text x="{cx:.2}" y="{y:.2}" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
             cx = (plot.left + plot.right()) / 2.0,
-            y = x_lane_bottom - OUTER_PAD - multiplier_clearance,
+            y = x_lane_bottom
+                - multiplier_clearance
+                - ty.label_pt * crate::rich_text::BASELINE_TO_BOTTOM,
             font = ty.label_pt,
             lab = svg_content(&fig.x.label, ty.label_pt),
         );

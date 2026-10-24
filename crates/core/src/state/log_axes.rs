@@ -29,7 +29,6 @@ pub fn log_scale_unavailable(figure: &Figure, x: bool) -> Option<&'static str> {
         || !figure.polygons.is_empty()
         || figure.top_projection.is_some()
         || figure.left_projection.is_some()
-        || figure.lock_aspect
         || figure.series.is_empty()
         || !figure.series.iter().all(|series| {
             matches!(
@@ -39,6 +38,8 @@ pub fn log_scale_unavailable(figure: &Figure, x: bool) -> Option<&'static str> {
         })
     {
         Some("Logarithmic axes are available on line, scatter and stick plots only.")
+    } else if figure.lock_aspect {
+        Some("An axis with equal x/y scale has no logarithmic scale; turn equal scale off first.")
     } else {
         None
     }

@@ -48,7 +48,7 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
         "/sections/limits/document_page_max",
         "/sections/tools/plotium_get_state/result_contract",
         "/properties/properties/0/schema/min",
-        "/property_catalog_compact/properties/0/schema/min",
+        "/property_catalog_compact/properties/0/min",
         "/index/recovery_contract/unknown",
     ] {
         let mut changed = contract.clone();
@@ -93,13 +93,23 @@ fn index_is_compact_and_names_every_detail_section() {
         names.sort();
         names
     });
-    assert_eq!(
-        sections["operation_constraints"]["key_bytes"]
-            .as_object()
-            .unwrap()
-            .len(),
-        EDIT_OPERATIONS.len()
-    );
+    let entries = sections["operation_constraints"]["entries"]
+        .as_array()
+        .unwrap();
+    assert_eq!(entries.len(), EDIT_OPERATIONS.len());
+    for entry in entries {
+        let purpose = entry["purpose"].as_str().unwrap();
+        assert!(!purpose.is_empty() && purpose != entry["key"], "{entry}");
+        assert!(entry["bytes"].as_u64().unwrap() > 0);
+    }
+    for operation in caps["scientific_operations"].as_array().unwrap() {
+        let id = operation["id"].as_str().unwrap();
+        assert_eq!(
+            operation.get("purpose").is_none(),
+            EDIT_OPERATIONS.contains(&id)
+        );
+        assert_ne!(operation["purpose"], operation["id"], "{operation}");
+    }
     let plan = crate::protocol::definitions()
         .into_iter()
         .find(|tool| tool.name == "plotium_plan")
@@ -112,13 +122,7 @@ fn every_section_and_key_is_served() {
     for section in SECTIONS {
         let listed = &manifest()["sections"][section];
         let keys: Vec<String> = match section {
-            "operation_constraints" => listed["key_bytes"]
-                .as_object()
-                .unwrap()
-                .keys()
-                .cloned()
-                .collect(),
-            "operation_details" => listed["entries"]
+            "operation_constraints" | "operation_details" => listed["entries"]
                 .as_array()
                 .unwrap()
                 .iter()

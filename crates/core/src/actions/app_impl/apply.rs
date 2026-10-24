@@ -164,6 +164,14 @@ impl PlotiumApp {
             } => {
                 self.set_object_flags(*canvas, *object, *after);
             }
+            Action::SetPlotIntent {
+                canvas,
+                object,
+                after,
+                ..
+            } => {
+                self.set_plot_intent(*canvas, *object, after.clone());
+            }
             Action::BoardViewInsert { index, view } => {
                 self.board_view_do_insert(*index, view);
             }
@@ -391,7 +399,7 @@ impl PlotiumApp {
             Action::SetFigureTypography { after, .. } => {
                 self.set_figure_typography_value(*after);
             }
-            Action::InsertTableData { dataset } => {
+            Action::InsertTableData { dataset } | Action::CreateTableData { dataset } => {
                 let id = dataset.resource_id();
                 if self.doc.dataset_index(id).is_some() {
                     return Err(ActionApplyError::StaleTarget(format!(

@@ -58,15 +58,14 @@ fn reduce_electrophysiology_region(
 }
 
 impl PlotiumApp {
-    /// Create an empty editable data table from scratch: a small starter grid,
-    /// placed as a collision-free board sheet frame, selected, with its
-    /// editable sheet window opened for immediate row/column authoring.
+    /// Create an empty editable data table from scratch: a small starter grid
+    /// of empty cells, placed as a collision-free board sheet frame, selected,
+    /// with its sheet opened for immediate typing. One undo removes it.
     pub fn new_table_dataset(&mut self) {
-        let (mut x_schema, x) =
-            materialized_float_column("x", "", [Some(0.0), Some(1.0), Some(2.0)]);
+        let (mut x_schema, x) = materialized_float_column("x", "", [None; 3]);
         x_schema.role = plotium_data::SemanticRole::Custom("space.nmrtist.plotium.axis.x".into());
         let x_binding = x_schema.id;
-        let (y_schema, y) = materialized_float_column("y", "", [Some(0.0), Some(0.0), Some(0.0)]);
+        let (y_schema, y) = materialized_float_column("y", "", [None; 3]);
         let series = TableSeriesBinding {
             value_column: y_schema.id,
             uncertainty_column: None,
@@ -89,14 +88,22 @@ impl PlotiumApp {
         tds.name = Some(format!("Table {}", sheet_index + 1));
         let sheet = tds.board_rect_pt();
         tds.board_pos = crate::state::next_board_frame_pos(self, [sheet.width, sheet.height]);
-        self.doc.datasets.push(Dataset::Table(Box::new(tds)));
-        let di = self.doc.datasets.len() - 1;
+        let id = tds.resource_id;
+        let action = Action::CreateTableData {
+            dataset: Box::new(Dataset::Table(Box::new(tds))),
+        };
+        if let Err(error) = self.try_execute_action(action) {
+            self.session.status = format!("Could not create a data table: {error}");
+            return;
+        }
+        let Some(di) = self.doc.dataset_index(id) else {
+            return;
+        };
         self.focus_single(di);
         self.session.view = PrimaryView::Data;
         self.session.ui.frame_selection =
             vec![BoardFrameId::Sheet(self.doc.datasets[di].resource_id())];
         self.session.ui.sheet_open = Some(di);
-        self.mark_document_dirty();
         self.session.status = "Created a data table.".to_owned();
     }
 

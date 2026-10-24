@@ -13,7 +13,7 @@ use crate::ticks::{
 use plotium_figure::{Axis, AxisFrame, Figure};
 
 /// Half the long and short extents of one break mark, in points.
-const MARK_HALF_LONG: f32 = 2.5;
+pub(crate) const MARK_HALF_LONG: f32 = 2.5;
 const MARK_HALF_SHORT: f32 = 1.25;
 
 /// Major ticks of a broken axis: each piece gets a share of `target` by its

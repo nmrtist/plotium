@@ -22,6 +22,7 @@ pub mod guide;
 mod hand_edits;
 pub mod heatmap;
 pub mod ilt;
+pub mod intent;
 pub mod line;
 pub mod line_display;
 mod model;
@@ -33,6 +34,7 @@ mod processing_common;
 mod provider;
 mod readout;
 pub mod reference;
+pub mod replicates;
 pub mod right_axis;
 mod service;
 pub mod smooth;
@@ -64,6 +66,12 @@ pub(crate) static GROUPS: &[PropertyProviderGroup] = &[
     },
     PropertyProviderGroup {
         provider: &chart_layout::PROVIDER,
+    },
+    PropertyProviderGroup {
+        provider: &intent::PROVIDER,
+    },
+    PropertyProviderGroup {
+        provider: &replicates::PROVIDER,
     },
     PropertyProviderGroup {
         provider: &apodization::PROVIDER,
@@ -263,6 +271,10 @@ mod axis_scale_tests;
 #[cfg(test)]
 #[path = "axis_break_tests.rs"]
 mod axis_break_tests;
+
+#[cfg(test)]
+#[path = "axis_equal_scale_tests.rs"]
+mod axis_equal_scale_tests;
 
 #[cfg(test)]
 #[path = "object_tests.rs"]

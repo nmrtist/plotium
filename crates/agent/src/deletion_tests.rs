@@ -49,6 +49,7 @@ fn fixture() -> PlotiumApp {
                 panel_name: None,
                 panel_frame_pt: None,
                 series,
+                intent: None,
             },
         )
         .unwrap();

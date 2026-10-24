@@ -286,6 +286,19 @@ fn plan(
     Ok(Planned { commit, held })
 }
 
+/// The commit a batch would make, planned against `app` without running it.
+pub(super) fn candidate_commit(
+    app: &PlotiumApp,
+    plan: &ToolPlan,
+) -> Result<crate::properties::PropertyCommit, AutomationError> {
+    let writes = decode(&plan.request.parameters)?;
+    let on_users_behalf = overrides_hand_edits(&plan.request.parameters)?;
+    let planned = self::plan(app, &writes, on_users_behalf)?;
+    // A write the copy cannot apply must fail here, as it would on execution.
+    outcomes(&writes, &planned)?;
+    Ok(planned.commit)
+}
+
 enum Outcome {
     Applied,
     Unchanged(String),

@@ -40,6 +40,7 @@ fn fixture() -> PlotiumApp {
                     source: source.clone(),
                 },
             ],
+            intent: None,
         };
         let plan = app
             .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &p)
@@ -463,6 +464,7 @@ fn r6_affine_and_domain_unit_range_inputs_retain_native_meaning() {
                 kind: CurveKind::Line,
                 source,
             }],
+            intent: None,
         };
         let plan = app
             .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &p)

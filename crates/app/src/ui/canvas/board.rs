@@ -390,7 +390,7 @@ pub(crate) fn paint_frame_captions(
     }
 }
 
-/// Board chrome only — the sheet's editable form is the modal data-sheet window
+/// Board chrome only — the sheet's editable form is the docked data sheet
 /// (double-click in the Data list).
 pub(crate) fn paint_sheet_frames(
     app: &PlotiumApp,

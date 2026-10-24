@@ -18,7 +18,7 @@ AI 连接启用状态和权限会持久保存，详见下文。
 - **Equal scale for homonuclear 2D imports**——导入两个坐标轴均为同一种
   频率单位且核种相同的 2D 谱时，若较宽轴不超过较窄轴的 2 倍，则初始使用
   F1/F2 等比例坐标。即使之后更改此偏好设置，已导入的图仍会保留原设置；
-  可在对象检查器的 **Axes → F1/F2 equal scale (1:1)** 中单独修改。
+  可在对象检查器的 **Axes → Equal x/y scale (1:1)** 中单独修改。
 - **Keep source canvas when tiling its last object**——拖放平铺把页面上最后
   一个对象移走后，保留这个空页面，而不随本次拖放一起删除。默认关闭；释放
   鼠标时按住 `Alt` 可仅为本次拖放反转此选择。

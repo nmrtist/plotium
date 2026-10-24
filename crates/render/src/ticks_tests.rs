@@ -105,3 +105,44 @@ fn a_category_y_axis_names_every_slot_that_fits() {
     let layout = axis_layout(&fig, 252.0, 170.0);
     assert_eq!(layout.y_ticks.labels, names);
 }
+
+#[test]
+fn short_panels_keep_endpoint_ticks_before_a_single_middle_tick() {
+    let axis = Axis::new("y", 0.0, 10.0);
+    let values = |height: f32| adaptive_y_ticks(&axis, 8.0, height).values;
+    // Too short for evenly spaced labels, still tall enough for two apart;
+    // 10 sits on the top edge, where a joined stack member hides its label.
+    assert_eq!(values(20.0), vec![0.0, 5.0]);
+    assert_eq!(values(10.0), vec![5.0]);
+    assert!(values(7.0).is_empty());
+}
+
+#[test]
+fn short_reversed_log_axis_keeps_ascending_tick_values() {
+    let mut axis = Axis::new("y", 1.0, 1000.0);
+    axis.scale = AxisScale::Log10;
+    axis.reversed = true;
+    let values = adaptive_y_ticks(&axis, 8.0, 20.0).values;
+    assert_eq!(values.len(), 2);
+    assert!(values[0] < values[1], "{values:?}");
+}
+
+#[test]
+fn short_panel_ticks_keep_the_axis_label_system() {
+    let axis = Axis::new("y", 0.0, 2.0e-5);
+    let full = axis_ticks_for(&axis, 2);
+    let sparse = adaptive_y_ticks(&axis, 8.0, 20.0);
+    assert_eq!(sparse.scale_exponent, full.scale_exponent);
+    assert_eq!(sparse.values, full.values[..2]);
+    assert_eq!(sparse.labels, full.labels[..2]);
+}
+
+#[test]
+fn a_coarse_step_with_one_tick_in_range_yields_to_a_finer_pair() {
+    // A two-tick target steps by 0.5 here, leaving only 0 inside the range.
+    let axis = Axis::new("y", -0.35, 0.42);
+    assert_eq!(axis_ticks_for(&axis, 2).values, vec![0.0]);
+    for height in [20.0, 30.0, 60.0] {
+        assert!(adaptive_y_ticks(&axis, 8.0, height).values.len() >= 2);
+    }
+}

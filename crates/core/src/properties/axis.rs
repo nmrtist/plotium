@@ -8,12 +8,12 @@ use super::{
     PropertyTransaction, PropertyValue, ResolvedProperty, ScopeKind, Tier, ValueCopies,
     ValueSchema,
 };
-use crate::state::{FieldCapabilities, PlotObject, PlotiumApp};
+use crate::state::{FieldCapabilities, ObjectId, PlotObject, PlotiumApp};
 use plotium_figure::{AxisFrame, AxisScale};
 
 pub const X_LABEL: PropertyId = PropertyId("object.axes.x_label");
 pub const Y_LABEL: PropertyId = PropertyId("object.axes.y_label");
-pub const EQUAL_F1_F2_SCALE: PropertyId = PropertyId("object.axes.equal_f1_f2_scale");
+pub const EQUAL_SCALE: PropertyId = PropertyId("object.axes.equal_scale");
 pub const X_SHOW_TICK_LABELS: PropertyId = PropertyId("object.axes.x_show_tick_labels");
 pub const X_SHOW_LABEL: PropertyId = PropertyId("object.axes.x_show_label");
 pub const Y_SHOW_TICK_LABELS: PropertyId = PropertyId("object.axes.y_show_tick_labels");
@@ -37,6 +37,8 @@ const SCALES: &[EnumVariant] = &[
     EnumVariant::new(LOG, "Logarithmic"),
 ];
 const NO_AXES: &str = "Choose a chart with visible axes to edit axis settings.";
+const STACKED_EQUAL_SCALE: &str =
+    "Plots in a shared-x stack keep the stack's width and cannot use equal x/y scale.";
 
 const OBJECT: Applicability = Applicability::component(ComponentKind::None);
 
@@ -62,18 +64,19 @@ const fn axis_definition(
 }
 
 pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
-    PropertyDefinition {
-        id: EQUAL_F1_F2_SCALE,
-        scope_kind: ScopeKind::Object,
-        value_schema: ValueSchema::Bool,
-        access: PropertyAccess::ReadWrite,
-        applicability: OBJECT,
-        default_policy: DefaultPolicy::None,
-        tier: Tier::Essential,
-        copies: ValueCopies::PerTarget,
-        canonical_label: "Equal F1/F2 scale",
-        canonical_aliases: &["1:1 scale", "equal axis scale", "aspect lock"],
-    },
+    axis_definition(
+        EQUAL_SCALE,
+        ValueSchema::Bool,
+        "Equal x/y scale",
+        &[
+            "1:1 scale",
+            "equal axis scale",
+            "equal F1/F2 scale",
+            "aspect lock",
+            "Nyquist",
+        ],
+        Tier::Essential,
+    ),
     axis_definition(
         X_LABEL,
         ValueSchema::Text,
@@ -186,31 +189,25 @@ impl PropertyProvider for AxisProvider {
             .object(object)
             .and_then(|object| object.plot())
             .ok_or_else(|| PropertyError::UnknownTarget(address.target.describe()))?;
-        if definition.id == EQUAL_F1_F2_SCALE {
-            require_2d_nmr_plot(app, plot, definition)?;
-        }
         let availability = if matches!(definition.id, X_LABEL | Y_LABEL | FRAME)
             && plot.figure().axis_frame == AxisFrame::Hidden
         {
             Availability::Disabled(NO_AXES)
         } else if let Some(reason) = scale_unavailable(app, definition.id, plot) {
             Availability::Disabled(reason)
+        } else if definition.id == EQUAL_SCALE
+            && let Some(reason) =
+                equal_scale_blocked(app, canvas, object, plot, !plot.figure().lock_aspect)
+        {
+            Availability::Disabled(reason)
         } else {
             Availability::Editable
-        };
-        let (default_value, modified) = if definition.id == EQUAL_F1_F2_SCALE {
-            (None, None)
-        } else {
-            (
-                Some(default_value(definition.id, plot)?),
-                Some(has_override(definition.id, plot)?),
-            )
         };
         Ok(ResolvedProperty {
             address: address.clone(),
             value: AggregateValue::Uniform(value_of(definition.id, plot)?),
-            default_value,
-            modified,
+            default_value: Some(default_value(definition.id, plot)?),
+            modified: Some(has_override(definition.id, plot)?),
             availability,
             schema: resolved_schema(definition, &FieldCapabilities::default()),
         })
@@ -225,12 +222,16 @@ impl PropertyProvider for AxisProvider {
     ) -> Result<(), PropertyError> {
         let definition = property_definition(address.definition)?;
         let (canvas, object) = require_plot_object_target(app, &address.target, definition)?;
-        if definition.id == EQUAL_F1_F2_SCALE {
+        if definition.id == EQUAL_SCALE
+            && let EditOp::Set(PropertyValue::Bool(lock)) = operation
+        {
             let plot = app.doc.canvases[canvas]
                 .object(object)
                 .and_then(|object| object.plot())
                 .ok_or_else(|| PropertyError::UnknownTarget(address.target.describe()))?;
-            require_2d_nmr_plot(app, plot, definition)?;
+            if let Some(reason) = equal_scale_blocked(app, canvas, object, plot, *lock) {
+                return Err(PropertyError::NotApplicable(reason.to_owned()));
+            }
         }
         if matches!(definition.id, X_LABEL | Y_LABEL | FRAME)
             && app.doc.canvases[canvas]
@@ -251,7 +252,7 @@ impl PropertyProvider for AxisProvider {
         }
         let overrides = transaction.axis_overrides(app, canvas, object)?;
         match (definition.id, operation) {
-            (EQUAL_F1_F2_SCALE, EditOp::Set(PropertyValue::Bool(value))) => {
+            (EQUAL_SCALE, EditOp::Set(PropertyValue::Bool(value))) => {
                 overrides.lock_aspect = Some(*value)
             }
             (X_LABEL, EditOp::Set(PropertyValue::Text(value))) => {
@@ -302,7 +303,7 @@ impl PropertyProvider for AxisProvider {
                 *scale_slot(overrides, definition.id) = Some(AxisScale::Log10)
             }
             (X_SCALE | Y_SCALE, EditOp::Reset) => *scale_slot(overrides, definition.id) = None,
-            (EQUAL_F1_F2_SCALE, EditOp::Reset) => overrides.lock_aspect = None,
+            (EQUAL_SCALE, EditOp::Reset) => overrides.lock_aspect = None,
             (X_LABEL, EditOp::Reset) => overrides.x_label = None,
             (Y_LABEL, EditOp::Reset) => overrides.y_label = None,
             (X_SHOW_TICK_LABELS, EditOp::Reset) => overrides.x_show_tick_labels = None,
@@ -344,7 +345,7 @@ fn property_definition(id: PropertyId) -> Result<&'static PropertyDefinition, Pr
 
 fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, PropertyError> {
     match id {
-        EQUAL_F1_F2_SCALE => Ok(PropertyValue::Bool(plot.figure().lock_aspect)),
+        EQUAL_SCALE => Ok(PropertyValue::Bool(plot.figure().lock_aspect)),
         X_LABEL => Ok(PropertyValue::Text(plot.figure().x.label.clone())),
         Y_LABEL => Ok(PropertyValue::Text(plot.figure().y.label.clone())),
         X_SHOW_TICK_LABELS => Ok(PropertyValue::Bool(plot.figure().x.show_tick_labels)),
@@ -360,25 +361,23 @@ fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Property
     }
 }
 
-fn require_2d_nmr_plot(
+/// Why equal x/y scale cannot be set on `plot`. Turning it on is also refused
+/// inside a shared-x stack, whose plots must keep the stack's common width;
+/// an already locked plot there may still turn it off.
+fn equal_scale_blocked(
     app: &PlotiumApp,
+    canvas: usize,
+    object: ObjectId,
     plot: &PlotObject,
-    definition: &'static PropertyDefinition,
-) -> Result<(), PropertyError> {
-    let applicable = plot
-        .primary_dataset()
-        .and_then(|dataset| app.doc.dataset_by_id(dataset))
-        .is_some_and(|dataset| {
-            matches!(dataset, crate::state::Dataset::Nmr2D(dataset) if dataset.is_true_2d())
-        });
-    if applicable {
-        Ok(())
-    } else {
-        Err(PropertyError::NotApplicable(format!(
-            "{} belongs to a true 2D NMR spectrum",
-            definition.canonical_label
-        )))
-    }
+    turning_on: bool,
+) -> Option<&'static str> {
+    crate::state::equal_scale_unavailable(plot.figure()).or_else(|| {
+        (turning_on
+            && !app.doc.canvases[canvas]
+                .shared_x_axis_peers(object)
+                .is_empty())
+        .then_some(STACKED_EQUAL_SCALE)
+    })
 }
 
 fn default_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, PropertyError> {
@@ -396,6 +395,7 @@ fn default_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Pro
             plot.derived_axes().y_thousands_separator,
         )),
         FRAME => Ok(frame_value(plot.derived_axes().frame)),
+        EQUAL_SCALE => Ok(PropertyValue::Bool(plot.derived_axes().lock_aspect)),
         X_SCALE => Ok(scale_value(plot.derived_axes().x_scale)),
         Y_SCALE => Ok(scale_value(plot.derived_axes().y_scale)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
@@ -413,6 +413,12 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
         X_THOUSANDS_SEPARATOR => Ok(plot.axis_overrides.x_thousands_separator.is_some()),
         Y_THOUSANDS_SEPARATOR => Ok(plot.axis_overrides.y_thousands_separator.is_some()),
         FRAME => Ok(plot.axis_overrides.axis_frame.is_some()),
+        // Imported 2D spectra seed this override; it counts as an edit only
+        // where it departs from the chart's own choice.
+        EQUAL_SCALE => Ok(plot
+            .axis_overrides
+            .lock_aspect
+            .is_some_and(|lock| lock != plot.derived_axes().lock_aspect)),
         X_SCALE => Ok(plot.axis_overrides.x_scale.is_some()),
         Y_SCALE => Ok(plot.axis_overrides.y_scale.is_some()),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),

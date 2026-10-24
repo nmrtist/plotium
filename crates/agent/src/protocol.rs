@@ -23,7 +23,7 @@ impl ServerHandler for Handler {
         _: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         Ok(ListToolsResult {
-            tools: definitions(),
+            tools: catalog().to_vec(),
             ..Default::default()
         })
     }
@@ -32,7 +32,7 @@ impl ServerHandler for Handler {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        if !definitions().iter().any(|tool| tool.name == request.name) {
+        if !catalog().iter().any(|tool| tool.name == request.name) {
             return Err(ErrorData::invalid_params("Unknown tool", None));
         }
         let arguments = Value::Object(request.arguments.unwrap_or_default());
@@ -94,6 +94,12 @@ impl ServerHandler for Handler {
         .into())
     }
 }
+/// Tool definitions are static per binary; build them once per process.
+fn catalog() -> &'static [Tool] {
+    static TOOLS: std::sync::OnceLock<Vec<Tool>> = std::sync::OnceLock::new();
+    TOOLS.get_or_init(definitions)
+}
+
 pub(crate) fn definitions() -> Vec<Tool> {
     let revision = json!({"type": "integer", "minimum": 0});
     let ids = json!({"type": "array", "items": {"type": "string"}, "minItems": 1});
@@ -110,7 +116,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         }
     }});
     let key = json!({"type": "string", "enum": crate::session::PROPERTIES.iter().map(|id| id.as_str()).collect::<Vec<_>>()});
-    let registry = plotium_core::automation::ToolRegistry::built_in();
+    let registry = plotium_core::automation::ToolRegistry::shared();
     let mut query = registry
         .get("resources.search")
         .and_then(|d| d.parameter_schema.get("properties"))
@@ -132,7 +138,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         ("plotium_capabilities_get", "Read a compact index of static tool, operation and contract summaries with a stable fingerprint; sections lists each detail section, its keys and sizes. Fetch detail directly with {section,key?}; operation_details accepts keys for batching, such as an operation schema with {section:\"operation_constraints\",key:<tool_id>}. Callable while busy; cached capabilities and annotations never authorize execution or retry. Read current permissions from plotium_get_state.", json!({"section":{"enum":crate::capabilities::SECTIONS},"key":{"type":"string","minLength":1},"keys":{"type":"array","minItems":1,"maxItems":32,"uniqueItems":true,"items":{"type":"string"},"description":"Only operation_details; mutually exclusive with key."}}), json!([])),
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
-        ("plotium_properties_list", "Browse supported display properties in compact form, or fetch full definitions with keys and detail full. Optional scope filters use catalog scope names. Complex schemas marked requires_full need full detail. For 1-200 exact target/key/value writes use properties.set_many through plotium_plan, atomically with one Undo. Reuse full targets returned by plot.create. Does not create a run record.", crate::property_catalog::schema(), json!([])),
+        ("plotium_properties_list", "Browse supported display properties, one compact row each, or fetch full definitions with keys and detail full. Filter by scope or id prefix. Rows marked requires_full need full detail for their value schema. For 1-200 exact target/key/value writes use properties.set_many through plotium_plan, atomically with one Undo. Reuse full targets returned by plot.create. Does not create a run record.", crate::property_catalog::schema(), json!([])),
         ("plotium_properties_inspect", "Read property values, defaults, bounds and applicability. Supply exactly one nonempty ids or targets array.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "key": key}), json!(["expected_revision", "key"])),
         ("plotium_plan", "Preflight a supported edit on resource IDs or exact series targets. Returns a one-use opaque plan_id; at most 32 pending plans. Use ids or targets exclusively; only properties.set/reset accept targets. Operations naming their own targets omit both; table operations require exactly one dataset id.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "tool_id": {"enum": crate::capabilities::EDIT_OPERATIONS}, "parameters": {"type": "object", "description": "Operation arguments. Fetch the exact schema with plotium_capabilities_get {section:\"operation_constraints\",key:<tool_id>}. resource.rename {name}; dataset.delete {}; figure.apply_theme {theme_id}; properties.set {key,value,override_hand_edits?}; properties.reset {key,override_hand_edits?}; properties.set_many {writes:[{target,key,value}]}; data.import {paths,...}; data.transform {mode:table_data_only,name,plan}; table.patch {table_revision,edits}; table.refresh {table_revision}; plot.create {parent,name,series}; plot.series.append {plot,series}; plot.series.bind/materialize_default {edits}; figure.edit {canvas,edits}; project.save {path}; figure.export {canvas,outputs}. Property writes skip values the user set by hand unless override_hand_edits is true because the user asked."}}), json!(["expected_revision", "tool_id", "parameters"])),
         ("plotium_execute", "Submit a saved plan once. Edits require reversible-modify permission. project.save queues separate per-request desktop file authorization; poll plotium_save_status for completion. figure.export requests separate desktop authorization; poll plotium_export_status for per-file completion. External writes are not undoable.", json!({"plan_id": {"type": "string"}}), json!(["plan_id"])),
@@ -145,7 +151,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
     diagnostic["properties"]["expected_revision"] = json!({"type":"integer","minimum":0});
     diagnostic["properties"]["cursor"] = json!({"type":"string","format":"uuid"});
     diagnostic["required"] = json!(["expected_revision"]);
-    tools.push(Tool::new("plotium_figure_diagnose", "Read native figure geometry and potential issues at explicit physical size. The data_shape and layout_aesthetics checks add severity hint issues with suggestions: the figure could be clearer, nothing is wrong. Defaults return compact issue rows only; pass view both for layout geometry and detail full for evidence. summary counts the issues on each page by code and severity. Coverage is mandatory: no issues is not proof of full coverage. Initial queries require canvas and output; continuation accepts only cursor, context and revision. Follow one-use continuation with the same context/revision; a new initial query replaces the previous scan. Queries do not append project audit records or change dirty state, edit generation or revision.", diagnostic.as_object().expect("local schema").clone()));
+    tools.push(Tool::new("plotium_figure_diagnose", "Read native figure geometry and potential issues at explicit physical size. The data_shape, layout_aesthetics and intent checks add severity hint issues with suggestions: the figure could be clearer, nothing is wrong. Defaults return compact issue rows only; pass view both for layout geometry and detail full for evidence, page coordinates and budgets. summary counts the issues on each page by code and severity. Coverage is mandatory: no issues is not proof of full coverage. Initial queries require canvas and output; continuation accepts only cursor, context and revision. Follow one-use continuation with the same context/revision; a new initial query replaces the previous scan. Queries do not append project audit records or change dirty state, edit generation or revision.", diagnostic.as_object().expect("local schema").clone()));
     tools.push(Tool::new("plotium_preview_plan", "Read an uncommitted candidate PNG for one existing local edit plan. Does not execute or consume the plan. Requires current context, revision, reversible-modify permission and valid plan at capture and delivery. Use plotium_execute explicitly afterwards.", plotium_core::automation::plan_preview_schema().as_object().expect("local schema").clone()));
     let mut preview = plotium_core::automation::image_preview_schema();
     preview["properties"]["expected_revision"] = json!({"type":"integer","minimum":0});

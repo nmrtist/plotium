@@ -136,6 +136,14 @@ impl PlotiumApp {
             } => {
                 self.set_object_flags(*canvas, *object, *before);
             }
+            Action::SetPlotIntent {
+                canvas,
+                object,
+                before,
+                ..
+            } => {
+                self.set_plot_intent(*canvas, *object, before.clone());
+            }
             Action::BoardViewInsert { index, view } => {
                 self.board_view_do_remove(*index, view);
             }
@@ -392,7 +400,7 @@ impl PlotiumApp {
             Action::SetFigureTypography { before, .. } => {
                 self.set_figure_typography_value(*before);
             }
-            Action::InsertTableData { dataset } => {
+            Action::InsertTableData { dataset } | Action::CreateTableData { dataset } => {
                 if let Some(index) = self.doc.dataset_index(dataset.resource_id()) {
                     self.doc.datasets.remove(index);
                     // The import itself never changes selection. Undo must also

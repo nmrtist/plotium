@@ -185,10 +185,16 @@ values.
   plots, counting the tick labels and axis titles that sit between them, so a
   panel with a long y title is given the room it needs. The value is a
   minimum: the gap you see can end up wider, never narrower, and frames never
-  overlap.
+  overlap. The axis text of neighboring plots always keeps at least 8 pt
+  apart.
 - **Frame** measures between the plot frames and ignores axis text. Frames
   then sit exactly the requested distance apart, and the visible space between
   data areas varies from pair to pair.
+
+A plot frame ends at its outermost text, tick, or axis line, with no blank
+border of its own. A panel placed against the page edge therefore reaches the
+edge of the exported figure, which suits journal sizes where the page is the
+finished figure.
 
 The basis applies wherever Plotium places plots for you — **Apply grid**, and
 dragging a plot onto a page that already holds one.
@@ -320,7 +326,8 @@ settings and do not affect source data or data exports.
 
 Plotium styles plots for print automatically: clean bottom-and-left axes with
 outward ticks, tick precision that follows the displayed range, tick density
-that thins as a panel narrows, and NMR isotope numbers set as superscripts.
+that thins as a panel narrows or shortens (a short panel still keeps two y
+ticks wherever they fit), and NMR isotope numbers set as superscripts.
 New dataset pages start at the 89 × 60 mm single-column size, so a plot
 spanning the page already shows text at its printed journal size; assemble
 multi-panel figures on a wider page later, keeping each panel at its natural
@@ -330,9 +337,13 @@ What you control directly:
 
 - Select one plot and use **Axes** in the Object inspector to override its X
   and Y titles or numeric ranges, or to hide either axis's tick labels and
-  title. For a true 2D NMR spectrum, **F1/F2 equal scale (1:1)** uses the same
-  data units per screen unit on both axes. Plotium sets its initial value when
-  the spectrum is imported; you can change it afterward without changing the
+  title. **Equal x/y scale (1:1)** uses the same data units per screen unit on
+  both axes, for example for a Nyquist plot, an AFM image or a 2D NMR
+  spectrum. The plot area shrinks to that shape inside the frame; the axis
+  ranges are kept. It needs linear, non-categorical axes and no right y axis,
+  and a plot in a shared-x stack cannot turn it on. AFM images start with it
+  on; for a true 2D NMR spectrum Plotium sets its initial value when the
+  spectrum is imported, and you can change it afterward without changing the
   import preference. Leave a title blank, or keep a range on **Auto**, to use
   the value derived from the data. A manual range becomes that axis's full
   range: zooming and panning stay inside it, and a double-click on the plot

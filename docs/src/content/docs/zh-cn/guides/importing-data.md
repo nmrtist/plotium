@@ -205,6 +205,16 @@ Plotium 会区分布尔、整数、小数、文本和空单元格。混合了不
 `YYYY-MM-DDTHH:MM:SSZ` UTC 时间戳。依赖地区习惯的日期以及数值与文本混合的列仍
 保留为文本，Plotium 不会猜测地区格式。
 
+比表头短的行会用空单元格补齐（电子表格在部分列提前结束时会这样写），诊断会说明补了
+几行。如果各列交替组成长度不同的 x/y 列对（例如每条曲线有自己 x 列的 Source
+Data），诊断会列出这些列对。
+
+从 Origin 导出的 CSV 开头有标签行（`Short Name`、`Long Name`、`Units`、
+`Comments`）和一列行号。Plotium 用 Long Name 给列命名（没有时依次用 Comments、
+Short Name），把单位加在括号里，把 Origin 的上标、下标和希腊字母写法转成正常字符
+（`cm\+(-1)` 变成 cm⁻¹），把 Comments 保存在列上，并去掉行号列。如果 Origin 只导出了
+一列、没有 x 值，就保留行号作为 x 列，并在诊断中给出警告。
+
 Plotium 导出 CSV 或 TSV 时，会在旁边写入一个配套的 `.plotium-schema.json` 文件；
 复制 TSV 时（Windows 上）也会把同样的信息与纯文本一起放到剪贴板。重新打开其中
 任一种，都能恢复原始的列类型、单位和误差棒关系。没有该配套信息时，Plotium 会在

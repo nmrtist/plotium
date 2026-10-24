@@ -210,6 +210,7 @@ fn create(app: &mut PlotiumApp, series: Vec<NewCurve>) -> Result<(), String> {
         panel_name: None,
         panel_frame_pt: None,
         series,
+        intent: None,
     };
     let plan = app.plan_plot_creation(DocumentRevision(app.doc.automation_revision), &params)?;
     app.commit_curve_bindings(plan)

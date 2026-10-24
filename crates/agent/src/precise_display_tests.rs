@@ -294,7 +294,7 @@ fn r6_display_queries_and_plans_cannot_cross_equal_revision_project_contexts() {
         .unwrap();
     assert_eq!(
         read["value"]["readings"][0]["value"]["value"]["value"],
-        "#0f4d92"
+        "#d55e00"
     );
     assert_eq!(
         app.doc.automation_revision,
