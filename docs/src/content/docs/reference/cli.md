@@ -249,6 +249,18 @@ writes JSON to stdout and progress to stderr. Failed terminal states return a
 nonzero exit code. Optional `--output` saves the native project. `process` also
 uses the shared scheme service before exporting its default plot.
 
+Without an input, `tool run` starts from an empty project. Use this to begin
+from CSV or TSV tables, which are imported with `data.import` rather than
+loaded as an input. Import paths must be absolute.
+
+```sh
+plotium-cli tool run --request import.json --output result.plotium
+```
+
+```json
+{"tool_id":"data.import","parameters":{"mode":"table_data_only","paths":["/data/curve.csv"]}}
+```
+
 Supported operations include `processing.inspect`, `processing.edit`,
 `processing.apply_scheme`, `diffusion.inspect`, `diffusion.set_input`,
 `analysis.regions.extract`, `analysis.diffusion.fit`, `analysis.dosy.build` and

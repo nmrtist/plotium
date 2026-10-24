@@ -23,7 +23,7 @@ USAGE:
   plotium-cli tool list
   plotium-cli tool properties
   plotium-cli tool describe <tool_id>
-  plotium-cli tool run <input> --request <operation.json> [--output <project.plotium>]
+  plotium-cli tool run [<input>] --request <operation.json> [--output <project.plotium>]
   plotium-cli batch --workflow <workflow.json> --manifest <manifest.json>
   plotium-cli export <project.plotium> --output-dir <dir> [--format pdf|svg|png|tiff|jpeg] [--canvas <name or id>]... [--dpi <n>] [--overwrite]
 
@@ -45,6 +45,9 @@ OUTPUT:
   export writes the figure.export tool result JSON to stdout.
   tool properties writes every figure property's id, label, scope, schema,
   unit, access and applicability as a JSON array.
+  tool run without <input> starts from an empty project, for example to
+  import CSV or TSV tables (absolute paths) with data.import and save them
+  with --output.
   Operational diagnostics and errors are written only to stderr.
 
 STABLE EXIT CODES:
