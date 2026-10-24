@@ -182,7 +182,12 @@ impl PlotiumApp {
             self.check_table_curve_revision(&curve.source)?;
             let mut sb = SeriesBinding::with_source(curve.source.source());
             sb.id = SeriesId::new(index as u64);
-            sb.encoding = SeriesEncoding::Line(curve.encoding()?);
+            // The same rotation `plot.series.append` and the desktop overlay use,
+            // so a later theme can still recolour these unlocked curves.
+            sb.encoding = SeriesEncoding::Line(LineEncoding {
+                color: plotium_figure::ColorSource::Explicit(self.next_stack_color(&binding)),
+                ..curve.encoding()?
+            });
             binding.series.push(sb);
         }
         self.check_curve_row_budget([&binding])?;
