@@ -15,7 +15,7 @@ impl ServerHandler for Handler {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("Plotium", env!("CARGO_PKG_VERSION")))
-            .with_instructions("Known operations can fetch their static detail directly; otherwise browse the plotium_capabilities_get index. Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. Never replay a tool call after a disconnection.")
+            .with_instructions("Known operations can fetch their static detail directly; otherwise browse the plotium_capabilities_get index. Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. For known exact targets, committed synchronous results provide project_context and after_revision for the next call. Refresh state after desktop edits or Undo. Never replay a tool call after a disconnection.")
     }
     async fn list_tools(
         &self,

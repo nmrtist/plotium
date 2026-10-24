@@ -269,6 +269,22 @@ and `properties.reset` accept Series targets. Document pagination applies only
 to `view: "children"`; diagnostic continuation accepts only `cursor`, context and
 revision, whereas an initial diagnostic request requires `canvas` and `output`.
 
+Committed synchronous `plotium_execute` results include `project_context`,
+`before_revision` and `after_revision`. For known exact targets in that context,
+use the returned context and `after_revision` for the next query or plan without
+an extra state read. This does not refresh selection, hand edits, availability or
+permissions. Read state initially, after desktop edits or Undo/Redo, when those
+dynamic values are needed, and on stale/context errors or uncertain outcomes.
+Execution still rechecks context, revision and permissions.
+
+A queued or submitted scientific task is not a committed edit; its immediate
+`after_revision` must not be reused. Only a terminal `succeeded` receipt in the
+known project context with `end_revision` permits reuse. Check scientific
+validity/convergence separately: successful task completion alone does not prove
+a valid fit. Failed, cancelled, stale, missing or uncertain receipts require the
+existing recovery flow and never authorize automatic replay. Save/export receipts
+describe file operations and do not provide a new document revision.
+
 ## Import native data from the welcome page
 
 `plotium_get_state {}` works immediately after opening Plotium, including while
@@ -988,8 +1004,9 @@ Use returned targets with document inspection and properties; preview the
 returned whole-canvas target at the current revision. The result is selectable
 and editable in the GUI. One Undo removes the created subtree but keeps existing
 parents and imported data; Redo restores the same IDs. Existing native resize
-and layout controls retain plot/Series identities and source bindings. Fetch a
-fresh revision after any edit or Undo/Redo.
+and layout controls retain plot/Series identities and source bindings. Known exact
+targets may reuse committed synchronous results; refresh state after desktop edits
+or Undo/Redo.
 
 ## Author page layout, text and local images atomically
 
@@ -1811,7 +1828,8 @@ every deleted dataset with its original ID and position.
 
 Tool responses include structured content and its JSON text representation.
 Project reads and preflight require the current `expected_revision`; fetch the
-state again after edits or Undo. Execution rechecks the saved revision and current
+state when dynamic values are needed or after desktop edits or Undo. Known exact
+targets may reuse committed synchronous results as described above. Execution rechecks the saved revision and current
 permission. Plans are single-use, including failed submissions, and at most 32
 can be pending. Restarting the connection clears them. Requests cancelled before
 desktop execution are skipped without changing the project. Cancellation cannot

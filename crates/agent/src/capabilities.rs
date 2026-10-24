@@ -225,7 +225,7 @@ fn build_index(sections: &serde_json::Map<String, Value>) -> Value {
         "recovery_contract":{"location":"error.recovery or receipt.recovery","unknown":"null plan_consumed/committed and unknown submission/completion are not evidence of non-execution","retryable":"false: follow next_action, never replay the failed request","authorization":"recovery actions and annotations grant no permissions; file requests require fresh exact-path desktop consent"},
         "resource_capabilities":"Core resource capabilities describe data/rendering semantics, not operations exposed by this connection. Only the operations above can be called here.",
         "document_root":document_root_target(),
-        "revision_contract":"Fetch get_state after edits or Undo. Revision-bound reads and plans reject stale revisions; execute rechecks permission and revision. Queries do not append project run records or change dirty state, edit generation or revision."})
+        "revision_contract":"Committed synchronous execute results include project_context and after_revision. Reuse them for known exact targets in that context; refresh state after Undo, desktop changes, uncertain outcomes or when current permissions/selection are needed. Submitted tasks are not committed; only matching succeeded terminal receipts with end_revision permit reuse. Revision-bound reads and plans reject stale revisions; execute rechecks permission and revision. Queries do not append project run records or change dirty state, edit generation or revision."})
 }
 
 /// Built-in themes are fixed in the binary, so they belong to the static

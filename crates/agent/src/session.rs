@@ -12,6 +12,7 @@ mod property_batch;
 pub use property_allowlist::PROPERTIES;
 mod input;
 mod recovery;
+mod result_context;
 pub(crate) mod save;
 mod science;
 mod state;
@@ -158,6 +159,7 @@ impl Session {
         app.session.background_activity.execution_source = previous;
         match result {
             Ok(mut value) => {
+                result_context::annotate(app, name, &mut value);
                 recovery::annotate(&mut value);
                 Ok(value)
             }
