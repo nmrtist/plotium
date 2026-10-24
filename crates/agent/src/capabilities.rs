@@ -33,19 +33,25 @@ pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
 ];
 
 /// Detail sections served by `plotium_capabilities_get {section,key?}`.
-pub(crate) const SECTIONS: [&str; 6] = [
+pub(crate) const SECTIONS: [&str; 7] = [
     "tools",
     "operation_constraints",
+    "operation_details",
     "scientific_operations",
     "guide_contract",
     "candidate_preview",
     "limits",
 ];
-/// Sections whose entries are large enough that only one is returned per call.
-const KEY_REQUIRED: [&str; 2] = ["operation_constraints", "scientific_operations"];
-const KEYED: [&str; 4] = [
+/// Sections that require selecting entries instead of returning the entire section.
+const KEY_REQUIRED: [&str; 3] = [
+    "operation_constraints",
+    "scientific_operations",
+    "operation_details",
+];
+const KEYED: [&str; 5] = [
     "tools",
     "operation_constraints",
+    "operation_details",
     "scientific_operations",
     "limits",
 ];
@@ -131,14 +137,25 @@ fn operation_constraints() -> serde_json::Map<String, Value> {
 }
 
 fn sections() -> serde_json::Map<String, Value> {
-    let scientific = plotium_core::automation::ToolRegistry::built_in().descriptors().filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")).map(|d|(d.id.clone(),json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}}))).collect::<serde_json::Map<_,_>>();
+    let constraints = operation_constraints();
+    let details = crate::operation_details::build(&constraints["figure.edit"]);
+    let scientific = plotium_core::automation::ToolRegistry::built_in().descriptors()
+        .filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis."))
+        .map(|d| {
+            let mut entry = json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}});
+            if EDIT_OPERATIONS.contains(&d.id.as_str()) {
+                entry["descriptor"].as_object_mut().expect("descriptor").remove("parameter_schema");
+                entry["input_schema_ref"] = json!({"section":"operation_constraints","key":d.id});
+            }
+            (d.id.clone(), entry)
+        }).collect::<serde_json::Map<_,_>>();
     let tools = tool_index().into_iter().map(|mut tool| {
         let name = tool["name"].as_str().expect("tool names are strings").to_owned();
         let entry = tool.as_object_mut().expect("local entry");
         entry.remove("name");
         (name, json!({"result_contract":entry.remove("result_contract"),"targets":entry.remove("targets")}))
     }).collect::<serde_json::Map<_,_>>();
-    let Value::Object(sections) = json!({"tools":tools,"operation_constraints":operation_constraints(),"scientific_operations":scientific,
+    let Value::Object(sections) = json!({"tools":tools,"operation_constraints":constraints,"operation_details":details,"scientific_operations":scientific,
         "candidate_preview":plotium_core::automation::plan_preview_contract(),
         "guide_contract": {"targets":"ids: explicit plot object IDs; no Series components",
             "write_policy":"strict_all_targets; existing non-guide property skip behavior is unchanged",
@@ -195,6 +212,7 @@ fn build_index(sections: &serde_json::Map<String, Value>) -> Value {
             "operation_constraints" => entry["key_bytes"] = entries.iter().map(|(key, value)| (key.clone(), json!(size(value)))).collect::<serde_json::Map<_,_>>().into(),
             "scientific_operations" => entry["keys"] = json!("scientific_operations[].id"),
             "tools" => entry["keys"] = json!("tools[].name"),
+            "operation_details" => entry["entries"] = entries.iter().map(|(key, value)| json!({"key":key,"purpose":value["purpose"]})).collect::<Vec<_>>().into(),
             "limits" => entry["keys"] = json!(entries.keys().collect::<Vec<_>>()),
             _ => {}
         }
@@ -334,6 +352,12 @@ pub(crate) fn respond(arguments: Value) -> Result<Value, crate::session::Failure
     struct Query {
         section: Option<String>,
         key: Option<String>,
+        keys: Option<Vec<String>>,
+    }
+    if arguments.get("keys").is_some_and(|v| !v.is_array()) {
+        return Err(
+            crate::Failure::new("invalid_parameters", "keys must be an array").at_field("keys"),
+        );
     }
     let invalid = |message: String, field: &str, values: Vec<String>| {
         let mut failure = crate::session::Failure::new("invalid_parameters", message);
@@ -344,9 +368,15 @@ pub(crate) fn respond(arguments: Value) -> Result<Value, crate::session::Failure
     };
     let query: Query = serde_json::from_value(arguments)
         .map_err(|e| crate::session::Failure::new("invalid_parameters", e.to_string()))?;
+    if query.key.is_some() && query.keys.is_some() {
+        return Err(
+            crate::Failure::new("invalid_parameters", "Supply key or keys, not both")
+                .at_field("keys"),
+        );
+    }
     let discovery = discovery();
     let Some(section) = query.section else {
-        if query.key.is_some() {
+        if query.key.is_some() || query.keys.is_some() {
             return Err(invalid(
                 "key requires section; choose a section from error.details.sections".into(),
                 "sections",
@@ -372,7 +402,34 @@ pub(crate) fn respond(arguments: Value) -> Result<Value, crate::session::Failure
         }
         _ => Vec::new(),
     };
-    let contract = match &query.key {
+    if let Some(requested) = query.keys {
+        if section != "operation_details"
+            || requested.is_empty()
+            || requested.len() > 32
+            || requested
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != requested.len()
+        {
+            return Err(crate::Failure::new(
+                "invalid_parameters",
+                "keys is a unique nonempty list of at most 32 operation_details keys",
+            )
+            .at_field("keys"));
+        }
+        let mut contracts = serde_json::Map::new();
+        for key in &requested {
+            let entry = detail.get(key).ok_or_else(|| {
+                invalid(format!("Unknown operation detail {key}"), "keys", keys()).at_field("keys")
+            })?;
+            contracts.insert(key.clone(), entry.clone());
+        }
+        return Ok(
+            json!({"capability_fingerprint":discovery.fingerprint,"section":section,"keys":requested,"contract":contracts}),
+        );
+    }
+    let mut contract = match &query.key {
         None if KEY_REQUIRED.contains(&section.as_str()) => {
             return Err(invalid(
                 format!("Section \"{section}\" requires a key; choose one from error.details.keys"),
@@ -394,6 +451,14 @@ pub(crate) fn respond(arguments: Value) -> Result<Value, crate::session::Failure
             }
         },
     };
+    if section == "tools"
+        && let Some(key) = &query.key
+        && let Some(tool) = crate::protocol::definitions()
+            .into_iter()
+            .find(|tool| tool.name == *key)
+    {
+        contract["input_schema"] = json!(tool.input_schema);
+    }
     let mut response = json!({"capability_fingerprint":discovery.fingerprint,"section":section,"contract":contract});
     if let Some(key) = query.key {
         response["key"] = json!(key);

@@ -5,6 +5,7 @@ pub mod connector;
 mod diagnostics;
 pub mod discovery;
 mod imports;
+mod operation_details;
 mod preview;
 mod property_catalog;
 mod protocol;

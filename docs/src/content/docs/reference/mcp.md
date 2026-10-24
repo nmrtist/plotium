@@ -215,9 +215,10 @@ input schemas and annotations are in `tools/list`; property definitions are in
 
 | Section | Key | Contract |
 | --- | --- | --- |
-| `tools` | optional tool name | result contract and target rules per tool |
+| `tools` | optional tool name | result contract and target rules; a keyed request also includes the tool input schema |
 | `operation_constraints` | required operation id | schema, permissions and result contract of one editable operation |
-| `scientific_operations` | required operation id | full core descriptor and required permission |
+| `operation_details` | required operation/suboperation key, or `keys` | focused figure-edit schema, permissions, result contract and example |
+| `scientific_operations` | required operation id | descriptor and required permission; editable operations link to their canonical input schema |
 | `guide_contract` | none | legend and colorbar placement rules |
 | `candidate_preview` | none | uncommitted plan preview contract |
 | `limits` | optional limit name | connection budgets |
@@ -227,6 +228,18 @@ For example, read the `figure.edit` schema with:
 ```json
 {"section":"operation_constraints","key":"figure.edit"}
 ```
+
+Known operations can request their detail directly without first reading the index.
+For a page edit, use `{"section":"operation_details","key":"figure.edit/page"}`.
+For several edits, pass `keys` instead of `key`, for example
+`{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`.
+The response has `keys` and a `contract` map keyed by the requested names. This
+section accepts 1–32 unique keys per call; other sections accept only `key`.
+The index lists all suboperation keys and their purposes. Each detail retains the
+shared edit restrictions and one exact edit schema. Replace example targets with
+full stable references from document inspection. Use `operation_constraints` for
+the complete mixed-edit schema. Editable scientific descriptors expose
+`input_schema_ref: {section,key}` instead of duplicating that schema.
 
 An unknown section or key fails with `invalid_parameters`; `error.details.sections`
 or `error.details.keys` lists the valid values.

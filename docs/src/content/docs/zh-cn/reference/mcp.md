@@ -181,9 +181,10 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 
 | 分区 | key | 内容 |
 | --- | --- | --- |
-| `tools` | 可选，工具名 | 各工具的结果约定和目标规则 |
+| `tools` | 可选，工具名 | 结果约定和目标规则；指定 key 时也返回工具输入 schema |
 | `operation_constraints` | 必填，操作 id | 单个可编辑操作的 schema、权限和结果约定 |
-| `scientific_operations` | 必填，操作 id | 完整核心描述符和所需权限 |
+| `operation_details` | 必填，操作/子操作 key，或 `keys` | 聚焦的图形编辑 schema、权限、结果约定和示例 |
+| `scientific_operations` | 必填，操作 id | 描述符和所需权限；可编辑操作引用其规范输入 schema |
 | `guide_contract` | 无 | 图例和色标定位规则 |
 | `candidate_preview` | 无 | 未提交计划的预览约定 |
 | `limits` | 可选，限制名 | 连接预算 |
@@ -193,6 +194,15 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 ```json
 {"section":"operation_constraints","key":"figure.edit"}
 ```
+
+已知操作可直接查询详情，无须先读索引。例如页面编辑使用
+`{"section":"operation_details","key":"figure.edit/page"}`。多项编辑用 `keys` 代替 `key`，
+例如 `{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`。
+响应包含 `keys` 和以请求名称为键的 `contract` 映射。此分区每次接受 1–32 个不重复的 key；
+其他分区只接受 `key`。索引列出全部子操作 key 及用途。每项详情保留共享编辑限制和
+一个精确的编辑 schema；请将示例目标替换为文档检查返回的完整稳定引用。混合编辑的
+完整 schema 仍见 `operation_constraints`。可编辑科学描述符通过
+`input_schema_ref: {section,key}` 引用规范输入 schema，不重复返回该 schema。
 
 未知分区或 key 返回 `invalid_parameters`，`error.details.sections` 或
 `error.details.keys` 列出有效值。

@@ -44,6 +44,7 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
         "/tools/0/inputSchema/properties/selection_limit/maximum",
         "/tools/0/annotations/readOnlyHint",
         "/sections/operation_constraints/data.import/schema",
+        "/sections/operation_details/figure.edit~1page/schema/properties/edits/items/properties/size_mm",
         "/sections/limits/document_page_max",
         "/sections/tools/plotium_get_state/result_contract",
         "/properties/properties/0/schema/min",
@@ -66,7 +67,7 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
 #[test]
 fn index_is_compact_and_names_every_detail_section() {
     let index = respond(json!({})).unwrap();
-    assert!(serde_json::to_vec(&index).unwrap().len() <= 8 * 1024);
+    assert!(serde_json::to_vec(&index).unwrap().len() <= 12 * 1024);
     let caps = &index["connection_capabilities"];
     for key in [
         "property_definitions",
@@ -116,6 +117,12 @@ fn every_section_and_key_is_served() {
                 .unwrap()
                 .keys()
                 .cloned()
+                .collect(),
+            "operation_details" => listed["entries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v["key"].as_str().unwrap().to_owned())
                 .collect(),
             "limits" => serde_json::from_value(listed["keys"].clone()).unwrap(),
             "scientific_operations" => manifest()["scientific_operations"]
