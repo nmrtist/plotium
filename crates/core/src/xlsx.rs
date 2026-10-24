@@ -7,6 +7,10 @@ use plotium_data::{
 use plotium_io::xlsx::{XlsxCell, XlsxDiagnostic, XlsxSheet, XlsxValue, XlsxWorkbook};
 use serde::{Deserialize, Serialize};
 
+mod layout;
+mod regions;
+pub use regions::{XlsxRegion, import_xlsx_regions};
+
 const NANOS_PER_SECOND: i64 = 1_000_000_000;
 const NANOS_PER_DAY: i64 = 86_400 * NANOS_PER_SECOND;
 
@@ -16,10 +20,17 @@ pub enum XlsxImportError {
     Data(#[from] plotium_data::DataError),
     #[error("worksheet '{0}' has no tabular cells")]
     EmptySheet(String),
+    #[error("{0}")]
+    Region(String),
 }
 
 pub struct ImportedXlsxSheet {
+    /// The table name: the worksheet name, extended by the panel letter, title
+    /// or range when one worksheet holds several tables.
     pub name: String,
+    pub worksheet: String,
+    /// The A1 range the table was read from when it is not the whole worksheet.
+    pub range: Option<String>,
     pub snapshot: TableSnapshot,
     pub diagnostics: Vec<String>,
 }
@@ -97,6 +108,7 @@ pub fn import_delimited_with_schema(
         sheets: vec![XlsxSheet {
             name: "Data".into(),
             hidden: false,
+            origin: (0, 0),
             rows,
         }],
         uses_1904_date_system: false,
@@ -151,34 +163,93 @@ pub fn import_xlsx_workbook(
         .collect::<Vec<_>>();
     let mut imported = Vec::new();
     for sheet in workbook.sheets.iter().filter(|sheet| !sheet.hidden) {
-        let mut diagnostics = workbook_diagnostics
-            .iter()
-            .filter(|diagnostic| diagnostic.starts_with(&format!("{}!", sheet.name)))
-            .cloned()
-            .collect::<Vec<_>>();
-        let (headers, data_rows) = split_header(sheet, &mut diagnostics)?;
+        let mut diagnostics = sheet_diagnostics(&workbook_diagnostics, sheet);
         let sidecar_sheet = sidecar
             .as_ref()
             .and_then(|schema| schema.sheets.iter().find(|entry| entry.name == sheet.name));
-        let (table_id, schema, uncertainty) =
-            resolve_schema(&headers, data_rows, sidecar_sheet, &mut diagnostics)?;
-        let snapshot = build_snapshot(
-            table_id,
-            schema,
-            uncertainty,
-            sheet,
-            data_rows,
-            &diagnostics,
-            store,
-            codecs,
-        )?;
-        imported.push(ImportedXlsxSheet {
-            name: sheet.name.clone(),
-            snapshot,
-            diagnostics,
-        });
+        // Plotium's own exports keep their declared schema; sheets without
+        // values keep the sheet-level reading.
+        let tables = match sidecar_sheet {
+            Some(_) => Vec::new(),
+            None => layout::auto_tables(sheet),
+        };
+        if tables.is_empty() {
+            let (headers, data_rows) = split_header(sheet, &mut diagnostics)?;
+            let (table_id, schema, uncertainty) =
+                resolve_schema(&headers, data_rows, sidecar_sheet, &mut diagnostics)?;
+            let snapshot = build_snapshot(
+                table_id,
+                schema,
+                uncertainty,
+                &sheet.name,
+                None,
+                data_rows,
+                &diagnostics,
+                store,
+                codecs,
+            )?;
+            imported.push(ImportedXlsxSheet {
+                name: sheet.name.clone(),
+                worksheet: sheet.name.clone(),
+                range: None,
+                snapshot,
+                diagnostics,
+            });
+            continue;
+        }
+        let several = tables.len() > 1;
+        for table in tables {
+            let range = (several || !table.diagnostics.is_empty()).then(|| table.range.clone());
+            imported.push(import_table(
+                table,
+                sheet,
+                range,
+                diagnostics.clone(),
+                store,
+                codecs,
+            )?);
+        }
     }
     Ok(imported)
+}
+
+fn sheet_diagnostics(workbook_diagnostics: &[String], sheet: &XlsxSheet) -> Vec<String> {
+    workbook_diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.starts_with(&format!("{}!", sheet.name)))
+        .cloned()
+        .collect()
+}
+
+fn import_table(
+    table: layout::LaidOutTable,
+    sheet: &XlsxSheet,
+    range: Option<String>,
+    mut diagnostics: Vec<String>,
+    store: &dyn BlockStore,
+    codecs: &CodecRegistry,
+) -> Result<ImportedXlsxSheet, XlsxImportError> {
+    diagnostics.extend(table.diagnostics);
+    let (table_id, schema, uncertainty) =
+        resolve_schema(&table.headers, &table.rows, None, &mut diagnostics)?;
+    let snapshot = build_snapshot(
+        table_id,
+        schema,
+        uncertainty,
+        &sheet.name,
+        range.as_deref(),
+        &table.rows,
+        &diagnostics,
+        store,
+        codecs,
+    )?;
+    Ok(ImportedXlsxSheet {
+        name: table.name,
+        worksheet: sheet.name.clone(),
+        range,
+        snapshot,
+        diagnostics,
+    })
 }
 
 fn split_header<'a>(
@@ -262,7 +333,8 @@ fn build_snapshot(
     table_id: TableId,
     schema: TableSchema,
     uncertainty: Vec<UncertaintyRelation>,
-    sheet: &XlsxSheet,
+    worksheet: &str,
+    range: Option<&str>,
     rows: &[Vec<XlsxCell>],
     diagnostics: &[String],
     store: &dyn BlockStore,
@@ -276,8 +348,14 @@ fn build_snapshot(
     );
     builder.metadata_mut().insert(
         "space.nmrtist.plotium.import.worksheet".into(),
-        serde_json::Value::String(sheet.name.clone()),
+        serde_json::Value::String(worksheet.to_owned()),
     );
+    if let Some(range) = range {
+        builder.metadata_mut().insert(
+            "space.nmrtist.plotium.import.xlsx.range".into(),
+            serde_json::Value::String(range.to_owned()),
+        );
+    }
     builder.metadata_mut().insert(
         "space.nmrtist.plotium.import.diagnostics".into(),
         serde_json::Value::Array(

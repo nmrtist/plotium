@@ -85,9 +85,19 @@ An `.xlsx` file (or `format: "xlsx"`) imports each visible worksheet that has
 cells as its own table, named after the worksheet, or after the file when the
 workbook holds a single table, the same way the desktop imports it.
 `sheets: ["Figure 3", …]` imports only the named worksheets; an unknown name
-fails that file and lists the visible worksheets. Each worksheet is prepared on
-its own: one that holds no table or exceeds a limit fails as its own item and
-the others still import. One file reads at most 8,000,000 worksheet cells,
+fails that file and lists the visible worksheets. Worksheets laid out like
+Source Data are split into tables as described in
+[Importing data](/guides/importing-data/#source-data-worksheets); each item
+then reports its `range`. When a table is recognized wrongly, import it again
+with `regions: [{"sheet": "Figure 3", "range": "J2:AC4411", "header_rows": 1}]`.
+Each region becomes one table, named `name` or the worksheet and range;
+`header_rows` counts from the first non-empty row of the range and defaults to
+the rows above the first value, and `split_segments: false` keeps stacked
+segments in one column. With `regions`, only the regions and any worksheets in
+`sheets` are imported. Each worksheet is prepared on its own: one that holds no
+table or exceeds a limit, or a region that holds no cells, fails as its own
+item and the others still import. A table wider than 256 columns fails and
+asks for a narrower region. One file reads at most 8,000,000 worksheet cells,
 counted over each worksheet's used range. `header`, `schema` and `schema_path`
 apply to CSV/TSV only. If the summary of a batch with XLSX files would exceed
 128 KiB, the preflight fails and lists each workbook's worksheets, so you can

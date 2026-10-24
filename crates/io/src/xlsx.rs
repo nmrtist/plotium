@@ -28,6 +28,10 @@ pub struct XlsxWorkbook {
 pub struct XlsxSheet {
     pub name: String,
     pub hidden: bool,
+    /// Zero-based worksheet row and column of `rows[0][0]`. Readers start at
+    /// the used range; writers always start at A1.
+    #[serde(default)]
+    pub origin: (u32, u32),
     pub rows: Vec<Vec<XlsxCell>>,
 }
 
@@ -181,6 +185,7 @@ impl<RS: Read + Seek> XlsxReader<RS> {
         let formulas = self.reader.worksheet_formula(name)?;
         let start = union_start(values.start(), formulas.start());
         let end = union_end(values.end(), formulas.end());
+        let origin = start.unwrap_or_default();
         let rows = match (start, end) {
             (Some(start), Some(end)) => {
                 read_rows(name, start, end, &values, &formulas, &mut self.diagnostics)
@@ -190,6 +195,7 @@ impl<RS: Read + Seek> XlsxReader<RS> {
         Ok(XlsxSheet {
             name: name.to_owned(),
             hidden,
+            origin,
             rows,
         })
     }
@@ -520,6 +526,7 @@ mod tests {
             sheets: vec![XlsxSheet {
                 name: "Data".to_owned(),
                 hidden: false,
+                origin: (0, 0),
                 rows: vec![
                     vec![
                         XlsxCell::value(XlsxValue::Utf8("sample".to_owned())),
@@ -552,11 +559,13 @@ mod tests {
                 XlsxSheet {
                     name: "Samples".to_owned(),
                     hidden: false,
+                    origin: (0, 0),
                     rows: vec![vec![XlsxCell::value(XlsxValue::Utf8("sample".into()))]],
                 },
                 XlsxSheet {
                     name: "Measurements".to_owned(),
                     hidden: false,
+                    origin: (0, 0),
                     rows: vec![vec![XlsxCell::value(XlsxValue::Float64(2.5))]],
                 },
             ],
@@ -599,6 +608,7 @@ mod tests {
             sheets: vec![XlsxSheet {
                 name: "Data".to_owned(),
                 hidden: false,
+                origin: (0, 0),
                 rows: vec![vec![XlsxCell::value(XlsxValue::Int64(1))]],
             }],
             uses_1904_date_system: true,

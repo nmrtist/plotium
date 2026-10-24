@@ -7,6 +7,7 @@ fn imports_mixed_null_and_iso_columns_without_discarding_them() {
         sheets: vec![XlsxSheet {
             name: "Data".into(),
             hidden: false,
+            origin: (0, 0),
             rows: vec![
                 vec![text("sample"), text("value"), text("when")],
                 vec![text("a"), number(1.0), text("2026-07-20")],

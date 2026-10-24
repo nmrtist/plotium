@@ -52,8 +52,11 @@ pub struct TableImportParams {
     #[serde(default)]
     pub header: ImportHeader,
     pub format: Option<ImportFormat>,
-    /// XLSX worksheets to import by name; every visible worksheet when absent.
+    /// XLSX worksheets to import by name; every visible worksheet when
+    /// neither this nor `regions` is given.
     pub sheets: Option<Vec<String>>,
+    /// Explicit XLSX ranges, each imported as one table.
+    pub regions: Option<Vec<crate::xlsx::XlsxRegion>>,
     /// An explicit ordered schema, not display-name-based resource addressing.
     pub schema: Option<TableSchema>,
     pub schema_path: Option<PathBuf>,
@@ -65,7 +68,12 @@ pub fn table_import_schema() -> Value {
     json!({"type":"object","additionalProperties":false,"required":["mode","paths"],"properties":{
         "mode":{"const":"table_data_only"},"paths":{"type":"array","minItems":1,"maxItems":TABLE_IMPORT_FILES,"items":{"type":"string"}},
         "header":{"enum":["auto","present","absent"],"default":"auto","description":"CSV/TSV only."},"format":{"enum":["csv","tsv","xlsx"]},
-        "sheets":{"type":"array","minItems":1,"items":{"type":"string"},"description":"XLSX worksheet names, each imported as its own table. Default: every visible worksheet."},
+"sheets":{"type":"array","minItems":1,"items":{"type":"string"},"description":"XLSX worksheets whose tables are recognized automatically. Default: every visible worksheet, unless regions is given."},
+        "regions":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["sheet","range"],"properties":{
+            "sheet":{"type":"string"},"range":{"type":"string","description":"A1 range such as J2:AC4411, or columns such as J:AC; include the header rows."},
+            "header_rows":{"type":"integer","minimum":0,"description":"Header rows at the top of range. Default: rows above the first value."},
+            "name":{"type":"string"},"split_segments":{"type":"boolean","default":true,"description":"Split a column where text rows separate stacked runs of values."}}},
+            "description":"XLSX ranges imported as one table each, for tables recognized wrongly; each preflight item reports its sheet and range."},
         "schema":table_declaration_schema(),
         "schema_path":{"type":"string","description":"Explicit PlotiumDelimitedSchemaV1 JSON file for CSV/TSV. Never discovered automatically."}},
         "not":{"required":["schema","schema_path"]}})
@@ -106,6 +114,9 @@ impl TableImportParams {
         if self.sheets.as_ref().is_some_and(Vec::is_empty) {
             return Err(invalid("sheets must name at least one worksheet."));
         }
+        if self.regions.as_ref().is_some_and(Vec::is_empty) {
+            return Err(invalid("regions must list at least one range."));
+        }
         if self.schema.is_some() && self.schema_path.is_some() {
             return Err(invalid("Supply schema or schema_path, not both."));
         }
@@ -126,7 +137,7 @@ impl TableImportParams {
 struct ImportItem {
     path: PathBuf,
     /// The source worksheet of an XLSX table.
-    sheet: Option<String>,
+    sheet: Option<super::table_import_xlsx::SourceSheet>,
     dataset: Option<Dataset>,
     summary: Value,
     error: Option<String>,
@@ -136,7 +147,10 @@ impl ImportItem {
         let mut value =
             json!({"path":self.path,"status":status,"metadata":self.summary,"error":self.error});
         if let Some(sheet) = &self.sheet {
-            value["sheet"] = json!(sheet);
+            value["sheet"] = json!(sheet.worksheet);
+            if let Some(range) = &sheet.range {
+                value["range"] = json!(range);
+            }
         }
         value
     }
@@ -216,7 +230,7 @@ impl PreparedTableImport {
             let mut workbooks: Vec<(&Path, Vec<String>)> = Vec::new();
             for item in &prepared.items {
                 let Some(sheet) = &item.sheet else { continue };
-                let name = format!("'{sheet}'");
+                let name = format!("'{}'", sheet.worksheet);
                 match workbooks.iter_mut().find(|(path, _)| *path == item.path) {
                     Some((_, names)) => names.push(name),
                     None => workbooks.push((&item.path, vec![name])),
@@ -300,7 +314,10 @@ impl PreparedTableImport {
                     TargetOutcome::Failed
                 },
                 message: item.error.clone().unwrap_or_else(|| match &item.sheet {
-                    Some(sheet) => format!("Imported worksheet '{sheet}' as native table data."),
+                    Some(sheet) => format!(
+                        "Imported worksheet '{}' as native table data.",
+                        sheet.worksheet
+                    ),
                     None => "Imported native table data.".into(),
                 }),
                 skip_reason: None,
@@ -400,10 +417,15 @@ fn prepare_file(
             );
         }
         let bytes = read_selected(path, budget, TABLE_IMPORT_FILE_BYTES)?;
-        return super::table_import_xlsx::prepare(path, bytes, params.sheets.as_deref());
+        return super::table_import_xlsx::prepare(
+            path,
+            bytes,
+            params.sheets.as_deref(),
+            params.regions.as_deref(),
+        );
     }
-    if params.sheets.is_some() {
-        return Err("sheets applies to XLSX workbooks only.".into());
+    if params.sheets.is_some() || params.regions.is_some() {
+        return Err("sheets and regions apply to XLSX workbooks only.".into());
     }
     let bytes = read_selected(path, budget, TABLE_IMPORT_FILE_BYTES)?;
     let input = std::str::from_utf8(&bytes).map_err(|e| format!("CSV/TSV must be UTF-8: {e}"))?;
