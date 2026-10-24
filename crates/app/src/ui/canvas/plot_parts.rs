@@ -32,6 +32,7 @@ fn part_rect(
             plotium_render::legend_rect_placed(figure, plot, scale, stack.as_ref())
         }
         PlotPart::Label(id) => super::plot_labels::label_bounds(plot_object, plot, scale, id),
+        PlotPart::Annotation(id) => super::plot_marks::mark_bounds(plot_object, plot, id),
         PlotPart::RegionLabel { region, .. } => {
             super::furniture::region_label_rect(figure, region, plot, scale)
         }
@@ -61,6 +62,19 @@ pub(crate) fn paint_plot_part_selection(
         Stroke::new(1.0_f32, chrome.selection_active),
         StrokeKind::Outside,
     );
+    // Handles on a selected arrow's ends show that each end drags on its own.
+    if let PlotPart::Annotation(id) = selected.part
+        && let Some((plot, _)) =
+            super::furniture::plot_geometry(app, ci, selected.object, canvas_rect)
+        && let Some(ends) = app.doc.canvases[ci]
+            .object(selected.object)
+            .and_then(|object| object.plot())
+            .and_then(|plot_object| super::plot_marks::arrow_ends(plot_object, plot, id))
+    {
+        for end in ends {
+            painter.circle_filled(end, 3.0, chrome.selection_active);
+        }
+    }
 }
 
 /// Arrow keys move the selected plot part, else the selected objects and
@@ -113,6 +127,10 @@ pub(crate) fn handle_nudge_keys(app: &mut PlotiumApp, ci: usize, canvas_rect: eg
                 part: PlotPart::Legend,
                 ..
             }) => "legend",
+            Some(PendingNudge::Plot {
+                part: PlotPart::Annotation(_),
+                ..
+            }) => "annotation",
             Some(PendingNudge::Plot { .. } | PendingNudge::Regions { .. }) => "label",
             _ => "selection",
         };
@@ -304,6 +322,30 @@ fn nudge_part(
             let Some(after) =
                 super::plot_labels::nudged_label(plot_object, plot, scale, annotation, delta)
             else {
+                return false;
+            };
+            begin_nudge(
+                app,
+                PendingNudge::Plot {
+                    canvas: ci,
+                    object,
+                    part,
+                    before: Box::new(before),
+                },
+            );
+            app.set_axis_overrides_value(ci, object, &after);
+            true
+        }
+        PlotPart::Annotation(annotation) => {
+            let before = plot_object.axis_overrides.clone();
+            let Some(after) = super::plot_marks::moved_mark(
+                plot_object,
+                plot,
+                annotation,
+                plotium_core::state::MarkGrip::Whole,
+                &before.annotations,
+                delta,
+            ) else {
                 return false;
             };
             begin_nudge(

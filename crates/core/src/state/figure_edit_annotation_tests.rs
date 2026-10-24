@@ -120,6 +120,37 @@ fn set_and_delete_address_stable_ids_and_undo_as_one_step() {
 }
 
 #[test]
+fn text_annotations_take_a_colour_on_create_and_set() {
+    let (mut a, target) = fixture();
+    let result = commit(
+        &mut a,
+        json!([{"op":"annotation_create","target":target,"text":"90.1%","at":[1.0,2.0],"font_pt":7,"color":"#C03020"}]),
+    );
+    assert_eq!(
+        result["annotation_edits"][0]["annotation"]["color"],
+        "#c03020"
+    );
+    let drawn = |a: &PlotiumApp| plot(a).figure().author_annotations[0].color;
+    assert_eq!(drawn(&a), plotium_figure::Color::rgb(0xC0, 0x30, 0x20));
+    commit(
+        &mut a,
+        json!([{"op":"annotation_set","target":target,"annotation_id":0,"color":"#2040A0"}]),
+    );
+    assert_eq!(drawn(&a), plotium_figure::Color::rgb(0x20, 0x40, 0xA0));
+    commit(
+        &mut a,
+        json!([{"op":"annotation_create","target":target,"kind":"reference_line","orientation":"vertical","value":1.0}]),
+    );
+    for edit in [
+        json!({"op":"annotation_set","target":target,"annotation_id":0,"color":"red"}),
+        json!({"op":"annotation_set","target":target,"annotation_id":1,"color":"#000000"}),
+        json!({"op":"annotation_set","target":target,"annotation_id":0,"head":"open"}),
+    ] {
+        assert!(try_plan(&a, json!([edit.clone()])).is_err(), "{edit}");
+    }
+}
+
+#[test]
 fn invalid_annotation_edits_reject_the_whole_batch() {
     let (a, target) = fixture();
     for edit in [

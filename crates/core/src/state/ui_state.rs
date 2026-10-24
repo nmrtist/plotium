@@ -40,7 +40,7 @@ mod rename;
 pub use rename::{RenameState, RenameTarget};
 #[path = "ui_state_text.rs"]
 mod text_edit;
-pub use text_edit::{PanelNoteEditState, TextEditState};
+pub use text_edit::{PanelNoteEditState, PlotMenuPoint, PlotTextEditState, TextEditState};
 /// In-progress rubber-band while a shape Author tool draws a new object. `start`
 /// and `current` are page-space (pt) pointer positions.
 #[derive(Clone, Copy, Debug)]
@@ -327,6 +327,8 @@ pub struct UiState {
     pub panel_note_inline_edit: Option<PanelNoteEditState>,
     pub panel_note_edit: Option<PanelNoteEditState>,
     pub text_edit: Option<TextEditState>,
+    pub plot_text_edit: Option<PlotTextEditState>,
+    pub plot_menu_point: Option<PlotMenuPoint>,
     /// Snap guide previews painted during an `Interaction::Object` drag; cleared
     /// alongside it.
     pub snap_guides: Vec<crate::layout::SnapGuide>,
@@ -535,6 +537,8 @@ impl Default for UiState {
             panel_note_inline_edit: None,
             panel_note_edit: None,
             text_edit: None,
+            plot_text_edit: None,
+            plot_menu_point: None,
             snap_guides: Vec::new(),
             selected_region: None,
             selected_integral: None,

@@ -58,7 +58,9 @@ mod panel_notes;
 mod panel_selection;
 mod peaks;
 mod phase;
+mod plot_annotation_menu;
 mod plot_labels;
+mod plot_marks;
 mod plot_parts;
 mod readout;
 mod reference_pick;
@@ -93,6 +95,7 @@ pub(crate) use panel_interactions::*;
 pub(crate) use panel_notes::*;
 pub(crate) use peaks::*;
 pub(crate) use phase::*;
+pub(crate) use plot_labels::auto_label;
 pub(crate) use readout::*;
 pub(crate) use reference_pick::*;
 pub(crate) use regions::*;
@@ -282,7 +285,16 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     }
 
     if data_edit_target(app, ci).is_none() {
-        resp.context_menu(|ui| arrange_context_menu(app, ci, ui));
+        if resp.secondary_clicked()
+            && let Some(pointer) = resp.interact_pointer_pos()
+        {
+            plot_annotation_menu::note_secondary_click(app, ci, rect, pointer);
+        }
+        resp.context_menu(|ui| {
+            if !plot_annotation_menu::menu_items(app, ci, ui) {
+                arrange_context_menu(app, ci, ui);
+            }
+        });
     }
 
     let Some(object_id) =

@@ -159,10 +159,11 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 
 `selection.canvas` 报告用户在当前页面上选中的内容：`{items,total,part}`。`items`
 最多 `selection_limit` 项，是所选 Panel 和对象的摘要（`target`、`kind`、`name`、
-`visible`）。`part` 是用户在首个所选图中点中的图例或标签，没有时为 `null`。图例为
+`visible`）。`part` 是用户在首个所选图中点中的图例、标签或标注，没有时为 `null`。图例为
 `{target,part:"legend",property:"object.guides.position",value}`，`value` 为 `null`
 表示自动位置；标签为 `{target,part:"label",kind,annotation_id,edit:"figure.edit annotation_set",…}`
-并带当前位置。用户说“这个”时，改的就是这个目标或部件。
+并带当前位置；箭头或参考线本身为 `{target,part:"annotation",kind,annotation_id,edit,…}`，
+带位置和 `hand_moved`。用户说“这个”时，改的就是这个目标或部件。
 
 每次调用都读取当前选择，分页不是冻结快照；GUI 选择变化不一定改变文档 revision。
 不能将多页视作原子选择或把选择当作执行授权。
@@ -880,10 +881,10 @@ Series 身份和来源绑定。已知目标可复用同步提交结果的 contex
 | `text_create` | `parent: 完整画布或面板目标`、`name`、`frame_pt`、`text`、`font_pt` |
 | `text_set` | `target: 完整文字目标`、`text`；可选 `font_pt` |
 | `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG 或 JPEG） |
-| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"` |
+| `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"`、`color: "#rrggbb"` |
 | `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
 | `annotation_create`（箭头） | `target: 完整图目标`、`kind: "arrow"`、箭尾 `at: [x,y]`、箭头 `to: [x,y]`；可选 `head: none\|open\|filled\|double`、`line_width_pt`、`color: "#rrggbb"` |
-| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一；可选 `override_hand_edits` |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`color`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一；可选 `override_hand_edits` |
 | `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
@@ -932,9 +933,10 @@ x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示�
 导出中都跟随该图的轴范围、缩放和平移移动；锚点在可见范围外时随图一起裁切。该位置
 压到数据、图例、数值标签或其他标签时，文字挪到约三个字高范围内最近的空位；指向它的
 箭头不算遮挡。`offset_pt: [dx, dy]`（pt，x 向右、y 向上）把文字固定在该偏移处，
-`[0, 0]` 即正好在 `at`；`placement: "auto"` 恢复自动摆放。用户在画布上拖过的标签在
-修改 `text`、`at`、`font_pt` 时保持原位；对它使用 `offset_pt` 或 `placement` 会被
-拒绝，除非以 `override_hand_edits: true` 表明是用户要求。`annotations` 中每个文字
+`[0, 0]` 即正好在 `at`；`placement: "auto"` 恢复自动摆放。`color`（`#rrggbb`）设置
+文字颜色，默认黑色。用户在画布上拖过的标签在修改 `text`、`font_pt` 时保持原位；对它
+设置新的 `at`、`offset_pt` 或 `placement` 会被拒绝，除非以 `override_hand_edits: true`
+表明是用户要求。`annotations` 中每个文字
 标注报告 `placement`（`auto`、`fixed` 或 `hand`）和实际绘制的 `offset_pt`；
 `plotium_get_state` 在 `hand_edits` 中以键 `annotation.label_position` 列出拖过的标签。
 `annotation_id` 只在所属图内有效，删除后不会复用；可从结果的 `annotation_edits`
@@ -955,7 +957,13 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
 字号，一旦用 `font_pt` 设定字号便保持该值直至再次修改；`label` 为空字符串时移除
 标签。参考线与文字标注共用同一 id 序列和
 每张图 256 个的上限，`plotium_document_inspect` 在 `annotations` 中同时列出二者，
-并以 `kind` 区分。提供另一类标注的字段会被拒绝，而不是被忽略。
+并以 `kind` 区分。提供另一类标注的字段会被拒绝，而不是被忽略；参考线的颜色用
+`line.color` 设置，不用 `color`。
+
+用户在画布上移动过的箭头或参考线报告 `hand_moved: true`，并在 `hand_edits` 中以键
+`annotation.position` 列出。可以改它的样式，但给这样的箭头设置新的 `at`、`to`，或给
+这样的参考线设置新的 `value`、`orientation` 会被拒绝，除非以
+`override_hand_edits: true` 表明是用户要求；改后位置重新算作 agent 的设置。
 
 ```json
 {"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"reference_line",

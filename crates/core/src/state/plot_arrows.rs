@@ -18,6 +18,8 @@ pub struct PlotArrow {
     pub head: ArrowHead,
     pub line_width: f32,
     pub color: Color,
+    /// Moved on the canvas; automation keeps its ends unless the user asks.
+    pub hand_moved: bool,
 }
 
 impl PlotArrow {
@@ -81,6 +83,7 @@ impl PlotAnnotations {
             head,
             line_width,
             color,
+            hand_moved: false,
         };
         arrow.validate()?;
         self.next_id = id

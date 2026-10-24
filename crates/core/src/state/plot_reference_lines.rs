@@ -29,6 +29,8 @@ pub struct PlotReferenceLine {
     /// `None` follows the figure's tick text size.
     pub font_size: Option<f32>,
     pub label_placement: super::LabelPlacement<plotium_figure::ReferenceLabelPosition>,
+    /// Moved on the canvas; automation keeps its value unless the user asks.
+    pub hand_moved: bool,
 }
 
 impl PlotReferenceLine {
@@ -43,6 +45,7 @@ impl PlotReferenceLine {
             label: String::new(),
             font_size: None,
             label_placement: Default::default(),
+            hand_moved: false,
         }
     }
 

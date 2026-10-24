@@ -652,6 +652,9 @@ pub(super) fn handle_delete_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) 
 /// objects, a selected panel letter, then (outside analysis tools, which own the
 /// key for their own marks) the selected panel or the selected board pages.
 fn delete_selection(app: &mut PlotiumApp, ctx: &egui::Context) {
+    if super::plot_annotations::delete_selected(app) {
+        return;
+    }
     // Page-space authoring objects (text/shape/panel label) are deletable; plots
     // are not removed this way. Each selected authoring object is its own step.
     if let (Selection::Objects(ids), Some(ci)) =

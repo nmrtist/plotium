@@ -1,6 +1,7 @@
 //! The Object inspector: geometry + per-kind style editing for the current
 //! page-space selection, at the top of the Secondary Side Bar.
 
+mod annotation;
 mod axes;
 mod chart_gallery;
 mod curve_append;
@@ -68,6 +69,9 @@ pub(crate) fn render(app: &mut PlotiumApp, ui: &mut Ui) {
     }
 
     section_navigation(app, ci, &ids, ui);
+    if ids.len() == 1 {
+        annotation::annotation_section(app, ci, ids[0], ui);
+    }
     custom_section_heading(app, "inspector.layout", "Layout", ui);
     geometry_section(app, ci, &ids, ui);
     if ids.len() == 1 {

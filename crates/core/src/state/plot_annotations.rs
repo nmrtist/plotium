@@ -113,6 +113,13 @@ impl PlotAnnotations {
         Some(self.items.remove(index))
     }
 
+    /// Remove the annotation `id` of any kind; `false` when there is none.
+    pub fn remove_any(&mut self, id: AnnotationId) -> bool {
+        self.remove(id).is_some()
+            || self.remove_reference_line(id).is_some()
+            || self.remove_arrow(id).is_some()
+    }
+
     /// Reject files whose annotations could alias an id or fail to render.
     pub fn validate(&self) -> Result<(), String> {
         if self.len() > MAX_PLOT_ANNOTATIONS {

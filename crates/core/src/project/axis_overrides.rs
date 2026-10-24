@@ -94,6 +94,8 @@ struct PlotArrowDto {
     head: plotium_figure::ArrowHead,
     line_width: f32,
     color: [u8; 3],
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    hand_moved: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -113,6 +115,8 @@ struct PlotReferenceLineDto {
     label_position: Option<ReferenceLabelPosition>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     label_hand_placed: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    hand_moved: bool,
 }
 
 /// A label placement as its stored pinned value and whether a hand set it.
@@ -142,6 +146,7 @@ impl PlotReferenceLineDto {
             font_size: line.font_size,
             label_position,
             label_hand_placed,
+            hand_moved: line.hand_moved,
         }
     }
 
@@ -156,6 +161,7 @@ impl PlotReferenceLineDto {
             label: self.label.clone(),
             font_size: self.font_size,
             label_placement: placement_of(self.label_position, self.label_hand_placed),
+            hand_moved: self.hand_moved,
         }
     }
 }
@@ -210,6 +216,7 @@ impl PlotAnnotationsDto {
                     head: a.head,
                     line_width: a.line_width,
                     color: [a.color.r, a.color.g, a.color.b],
+                    hand_moved: a.hand_moved,
                 })
                 .collect(),
         })
@@ -245,6 +252,7 @@ impl PlotAnnotationsDto {
                     head: a.head,
                     line_width: a.line_width,
                     color: plotium_figure::Color::rgb(a.color[0], a.color[1], a.color[2]),
+                    hand_moved: a.hand_moved,
                 })
                 .collect(),
         }

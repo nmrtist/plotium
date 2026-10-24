@@ -1,5 +1,5 @@
 //! Reference-line kind of the plot annotation edits in a figure transaction.
-use super::plot_label_placement::request_placement;
+use super::plot_label_placement::{guard_hand_position, request_placement};
 use super::*;
 use plotium_figure::{LineStyle, ReferenceOrientation};
 use serde::{Deserialize, Serialize};
@@ -90,7 +90,14 @@ fn update(
     line: &mut PlotReferenceLine,
     fields: &LineFields,
     font_pt: Option<f32>,
+    override_hand_edits: bool,
 ) -> Result<(), String> {
+    let moves = fields.orientation.is_some_and(|o| o != line.orientation)
+        || fields.value.is_some_and(|v| v != line.value);
+    if moves {
+        guard_hand_position(line.hand_moved, line.id, override_hand_edits)?;
+        line.hand_moved = false;
+    }
     if let Some(orientation) = fields.orientation {
         line.orientation = orientation;
     }
@@ -128,6 +135,7 @@ pub(super) fn apply(
 ) -> Result<Option<AnnotationId>, String> {
     let fields = line_fields(edit);
     let not_text = "Reference lines take value and label, not at or text.";
+    let not_color = "Reference lines take line.color, not color.";
     let not_line = "orientation, value, label and line apply only to reference lines.";
     match edit {
         FigureEdit::AnnotationCreate {
@@ -135,10 +143,14 @@ pub(super) fn apply(
             text,
             at,
             font_pt,
+            color,
             ..
         } => {
             if text.is_some() || at.is_some() {
                 return Err(not_text.into());
+            }
+            if color.is_some() {
+                return Err(not_color.into());
             }
             let orientation = fields
                 .orientation
@@ -148,7 +160,7 @@ pub(super) fn apply(
             if let Some(width) = default_width {
                 line.width = width;
             }
-            update(&mut line, &fields, *font_pt)?;
+            update(&mut line, &fields, *font_pt, false)?;
             annotations.add_reference_line(line).map(Some)
         }
         FigureEdit::AnnotationCreate { .. } if !fields.is_empty() => Err(
@@ -163,6 +175,7 @@ pub(super) fn apply(
             offset_pt,
             placement,
             override_hand_edits,
+            color,
             ..
         } => {
             let Some(line) = annotations.reference_line_mut(*annotation_id) else {
@@ -177,6 +190,9 @@ pub(super) fn apply(
             };
             if text.is_some() || at.is_some() {
                 return Err(not_text.into());
+            }
+            if color.is_some() {
+                return Err(not_color.into());
             }
             if offset_pt.is_some() {
                 return Err(
@@ -198,7 +214,7 @@ pub(super) fn apply(
                     *override_hand_edits,
                 )?;
             }
-            update(line, &fields, *font_pt)?;
+            update(line, &fields, *font_pt, *override_hand_edits)?;
             Ok(Some(*annotation_id))
         }
         FigureEdit::AnnotationDelete { annotation_id, .. } => Ok(annotations
@@ -213,6 +229,9 @@ pub(crate) fn reference_line_reading(
     drawn: Option<&plotium_render::ReferenceLabelBox>,
 ) -> Value {
     let mut reading = json!({"id":line.id,"kind":"reference_line","orientation":line.orientation,"value":line.value,"label":line.label,"font_pt":line.font_size,"line":{"color":line.color.to_hex(),"width_pt":reference_line_width_bound(line.width),"style":line.line_style},"anchor_space":"data"});
+    if line.hand_moved {
+        reading["hand_moved"] = json!(true);
+    }
     if !line.label.is_empty()
         && let (Some(out), Value::Object(placement)) = (
             reading.as_object_mut(),
