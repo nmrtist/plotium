@@ -247,6 +247,15 @@ Save and export still require fresh desktop confirmation for each exact request.
 Update the desktop and connector together and reconnect clients to refresh the
 tool catalog after upgrading.
 
+The advertised inputs for planning, property inspection, document inspection and
+figure diagnostics list their fields directly so clients can display complete
+signatures. Plotium still validates conditional rules: use exactly one nonempty
+`ids` or `targets` selector where required, omit both for operations with embedded
+targets, and supply one dataset ID for table operations. Only `properties.set`
+and `properties.reset` accept Series targets. Document pagination applies only
+to `view: "children"`; diagnostic continuation accepts only `cursor`, context and
+revision, whereas an initial diagnostic request requires `canvas` and `output`.
+
 ## Import native data from the welcome page
 
 `plotium_get_state {}` works immediately after opening Plotium, including while
@@ -1789,6 +1798,15 @@ roll back an edit that has already started its atomic commit; use **Undo**.
 Errors include stable codes: `permission_denied`, `expired_plan`,
 `stale_revision`, `busy`, `invalid_parameters`, `unsupported_operation`, `unsupported_property`,
 `project_changed`, `unavailable`, `connection_lost`, `plan_limit`, `request_cancelled`, `connection_stopped`, `response_too_large` and `execution_failed`.
+Invalid capability sections or keys point back to static discovery, with valid
+candidates in `error.details`. Invalid plan parameters point to that operation's
+`operation_constraints` instead of asking for project state. Input errors include
+`error.details.field` at the decoded request boundary, such as `plan_id`,
+`parameters`, or `parameters.writes[0].key`. Stale revisions and changed projects
+still require reading state and replanning. This guidance never permits replay.
+When creating or binding table curves, include `y_error_column_id: null` explicitly
+when there is no error column; omission is not a default.
+
 Errors carry `error.recovery`; asynchronous save, export and task receipts carry
 `recovery`. `retryable: false` means do not repeat the failed call: follow the
 reported next action. A `busy` execute can already have consumed its plan.

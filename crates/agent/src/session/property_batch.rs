@@ -29,7 +29,9 @@ impl Session {
                         "writes[{index}]: property is outside the connection's supported display properties"
                     ),
                 );
-                failure.details = Some(json!({"write_index":index,"key":write.get("key")}));
+                failure.details = Some(
+                    json!({"write_index":index,"key":write.get("key"),"field":format!("parameters.writes[{index}].key")}),
+                );
                 return Err(failure);
             }
             // The single-key guide request enforces the same bound.

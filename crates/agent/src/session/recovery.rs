@@ -9,6 +9,15 @@ pub struct Failure {
     pub(super) recovery: Option<Value>,
 }
 impl Failure {
+    pub(crate) fn at_field(mut self, field: &str) -> Self {
+        if self.details.is_none() {
+            self.details = Some(json!({}));
+        }
+        if let Some(details) = self.details.as_mut().and_then(Value::as_object_mut) {
+            details.insert("field".into(), json!(field));
+        }
+        self
+    }
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -57,7 +66,11 @@ impl From<&AutomationError> for Failure {
             }
             _ => "execution_failed",
         };
-        Self::new(code, error.to_string())
+        let mut failure = Self::new(code, error.to_string());
+        if let AutomationError::InvalidParameters { tool_id, .. } = error {
+            failure.details = Some(json!({"operation":tool_id}));
+        }
+        failure
     }
 }
 
@@ -88,7 +101,44 @@ pub(super) fn for_error(code: &str) -> Value {
 
 impl Failure {
     pub(crate) fn for_request(mut self, name: &str, arguments: &Value) -> Self {
+        if name == "plotium_plan"
+            && self.code == "invalid_parameters"
+            && self.details.as_ref().is_some_and(|details| {
+                details["field"].is_null()
+                    && details["operation"].is_string()
+                    && details.get("operation") == arguments.get("tool_id")
+            })
+        {
+            self = self.at_field("parameters");
+        }
         let mut value = for_error(self.code);
+        if matches!(self.code, "invalid_parameters" | "unsupported_operation") {
+            let field = self.details.as_ref().and_then(|d| d["field"].as_str());
+            let query = if name == "plotium_capabilities_get" {
+                Some(json!({}))
+            } else if name == "plotium_plan"
+                && !matches!(
+                    field,
+                    Some("expected_project_context" | "expected_revision")
+                )
+            {
+                Some(
+                    arguments
+                        .get("tool_id")
+                        .and_then(Value::as_str)
+                        .filter(|id| crate::capabilities::EDIT_OPERATIONS.contains(id))
+                        .map_or(
+                            json!({}),
+                            |id| json!({"section":"operation_constraints","key":id}),
+                        ),
+                )
+            } else {
+                None
+            };
+            if let Some(arguments) = query {
+                value["next_action"] = json!({"kind":"call_tool","tool":"plotium_capabilities_get","arguments":arguments});
+            }
+        }
         if name == "plotium_execute" {
             value["plan_id"] = arguments.get("plan_id").cloned().unwrap_or(Value::Null);
         }

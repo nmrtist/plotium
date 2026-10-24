@@ -207,6 +207,13 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 不授予权限，也不允许自动重试。保存和导出仍须对每个精确请求取得新的桌面确认。
 升级时一起更新桌面与连接器，并重连客户端以刷新工具目录。
 
+规划、属性检查、文档检查与图形诊断的工具输入直接列出字段，便于客户端展示完整签名。
+Plotium 仍在服务端检查条件约束：需要选择器时只提供一个非空 `ids` 或 `targets`；
+操作在参数内部指定目标时省略二者；表操作只接收一个数据集 ID。只有
+`properties.set` 和 `properties.reset` 接收 Series 目标。文档分页仅适用于
+`view: "children"`；诊断续页只接收 `cursor`、context 和 revision，首次诊断必须提供
+`canvas` 与 `output`。
+
 ## 从欢迎页导入原生数据
 
 只打开 Plotium 即可调用 `plotium_get_state {}`；后台工作、恢复或保存阻塞项目访问时也可查询。
@@ -1451,6 +1458,13 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 稳定错误码包括 `project_changed`、`unavailable`、`connection_lost`、`permission_denied`、`expired_plan`、`stale_revision`、`busy`、
 `invalid_parameters`、`unsupported_operation`、`unsupported_property`、`plan_limit`、
 `request_cancelled`、`connection_stopped`、`response_too_large` 和 `execution_failed`。
+无效的能力分区或键会指向静态发现，并在 `error.details` 给出合法候选。
+无效的规划参数指向该操作的 `operation_constraints`，而不是要求读取项目状态。
+输入错误在已解析的请求边界提供 `error.details.field`，例如 `plan_id`、
+`parameters` 或 `parameters.writes[0].key`。过期 revision 和项目切换仍须读取状态并重规划；
+这些指引不允许重放。创建或绑定表格曲线时，没有误差列也须显式提供
+`y_error_column_id: null`，不能省略该字段。
+
 错误提供 `error.recovery`，异步保存、导出和任务回执提供 `recovery`。
 `retryable: false` 表示不要重复失败的调用，应遵循下一步动作。`busy` 执行可能已经
 消费计划。revision 冲突需读取状态并审核新计划；过期计划可能已经执行，必须先核查结果。

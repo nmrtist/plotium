@@ -16,8 +16,8 @@ impl Session {
         blocked: bool,
     ) -> Result<(ToolPlan, DataImportParams), Failure> {
         check_context(app, &mut arguments)?;
-        let args: Plan = decode(arguments)?;
         self.check_import_ready(app, blocked)?;
+        let args = Plan::parse(arguments)?;
         if args.tool_id != "data.import" || args.ids.is_some() || args.targets.is_some() {
             return Err(Failure::new(
                 "invalid_parameters",

@@ -44,7 +44,7 @@ impl Session {
         check_context(app, &mut arguments)?;
         // Permission precedes potentially expensive IR decoding.
         self.check_transform_ready(app, blocked, 0)?;
-        let args: Plan = decode(arguments)?;
+        let args = Plan::parse(arguments)?;
         if !is_table_operation(&args.tool_id)
             || (args.tool_id == "data.transform"
                 && args.parameters.get("mode").and_then(Value::as_str) != Some("table_data_only"))

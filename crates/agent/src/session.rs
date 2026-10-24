@@ -10,6 +10,7 @@ mod plan_budget_tests;
 mod property_allowlist;
 mod property_batch;
 pub use property_allowlist::PROPERTIES;
+mod input;
 mod recovery;
 pub(crate) mod save;
 mod science;
@@ -250,7 +251,7 @@ impl Session {
             }
         };
         if name == "plotium_execute" {
-            let args: Execute = decode(arguments)?;
+            let args = Execute::parse(arguments)?;
             if let Some(receipt) = app.session.scientific_tasks.for_plan(&args.plan_id) {
                 return Ok(json!(ToolResult {
                     tool_id: receipt.operation.clone(),
@@ -401,7 +402,7 @@ impl Session {
             return self.scientific_read(app, name, arguments);
         }
         if name == "plotium_plan" {
-            let args: Plan = decode(arguments)?;
+            let args = Plan::parse(arguments)?;
             if matches!(
                 args.tool_id.as_str(),
                 PROCESSING_EDIT
@@ -755,8 +756,10 @@ pub(crate) fn check_context(app: &PlotiumApp, arguments: &mut Value) -> Result<(
                 "invalid_parameters",
                 "expected_project_context is required; read plotium_get_state first",
             )
+            .at_field("expected_project_context")
         })?;
-    let expected: plotium_core::state::ProjectContextId = decode(context)?;
+    let expected: plotium_core::state::ProjectContextId =
+        decode(context).map_err(|e| e.at_field("expected_project_context"))?;
     if expected != app.session.project_context {
         return Err(project_changed());
     }

@@ -28,13 +28,12 @@ fn figure_edit_permissions_discovery_single_use_revision_context_and_busy_are_en
         .into_iter()
         .find(|t| t.name == "plotium_plan")
         .unwrap();
-    let alternatives = &tool.input_schema["oneOf"];
-    assert!(alternatives.as_array().unwrap().iter().any(|v| {
-        v["properties"]["tool_id"]["enum"]
+    assert!(
+        tool.input_schema["properties"]["tool_id"]["enum"]
             .as_array()
-            .is_some_and(|ids| ids.contains(&json!(FIGURE_EDIT)))
-            && v["not"]["anyOf"].is_array()
-    }));
+            .unwrap()
+            .contains(&json!(FIGURE_EDIT))
+    );
     let p = args(&a);
     let planned = s.call(&mut a, "plotium_plan", p).unwrap();
     assert!(a.doc.canvases[0].objects.is_empty());
