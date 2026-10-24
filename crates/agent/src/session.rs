@@ -17,6 +17,7 @@ mod result_context;
 pub(crate) mod save;
 mod science;
 mod state;
+mod summaries;
 mod table;
 mod transform;
 
@@ -26,6 +27,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 pub use recovery::Failure;
+pub(crate) use summaries::diagnostic_page;
 
 #[derive(Default)]
 pub struct Session {
@@ -321,13 +323,7 @@ impl Session {
                     .scientific_tasks
                     .bind_permission(&id, self.scientific_permission.clone());
             }
-            if compact::is_property_write(&result.tool_id) {
-                return Ok(compact::execute_response(result));
-            }
-            if result.tool_id == PLOT_CREATE {
-                return Ok(creation_response::execute_response(result));
-            }
-            return Ok(json!(result));
+            return Ok(summaries::execute_response(result));
         }
         if name == "plotium_capabilities_get" {
             return crate::capabilities::respond(arguments);
@@ -493,11 +489,7 @@ impl Session {
                     ));
                 }
                 let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
-                let value = if plan.request.tool_id == PLOT_CREATE {
-                    creation_response::plan_response(&id, &plan, app)
-                } else {
-                    json!({"plan_id":id,"preflight":plan})
-                };
+                let value = summaries::plan_response(&id, &plan, app);
                 if serde_json::to_vec(&value)
                     .map_err(|e| Failure::new("execution_failed", e.to_string()))?
                     .len()
@@ -559,11 +551,7 @@ impl Session {
                 ));
             }
             let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
-            let result = if compact::is_property_write(&plan.request.tool_id) {
-                compact::plan_response(&id, &plan)
-            } else {
-                json!({"plan_id": id, "preflight": plan})
-            };
+            let result = summaries::plan_response(&id, &plan, app);
             guides::check_response(&result, &plan.request.parameters)?;
             self.plans.insert(id, plan);
             return Ok(result);
@@ -631,7 +619,8 @@ impl Session {
                 request.targets = selector(args.ids, args.targets)?;
                 guides::validate_request(&mut request)?;
                 let plan = plan_tool(app, request)?;
-                let result = json!(execute_tool(app, plan, ExecutionAuthority::Read)?);
+                let result =
+                    summaries::inspect_response(execute_tool(app, plan, ExecutionAuthority::Read)?);
                 guides::check_response(&result, &parameters)?;
                 return Ok(result);
             }
@@ -644,7 +633,11 @@ impl Session {
             ));
         }
         let plan = plan_tool(app, request(tool, parameters, ids, revision))?;
-        Ok(json!(execute_tool(app, plan, ExecutionAuthority::Read)?))
+        Ok(summaries::query_response(execute_tool(
+            app,
+            plan,
+            ExecutionAuthority::Read,
+        )?))
     }
 }
 pub fn ensure_not_busy(app: &PlotiumApp) -> Result<(), Failure> {
