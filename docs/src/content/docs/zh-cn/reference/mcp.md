@@ -152,6 +152,13 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 {"selection_offset":16,"selection_limit":50}
 ```
 
+`selection.canvas` 报告用户在当前页面上选中的内容：`{items,total,part}`。`items`
+最多 `selection_limit` 项，是所选 Panel 和对象的摘要（`target`、`kind`、`name`、
+`visible`）。`part` 是用户在首个所选图中点中的图例或标签，没有时为 `null`。图例为
+`{target,part:"legend",property:"object.guides.position",value}`，`value` 为 `null`
+表示自动位置；标签为 `{target,part:"label",kind,annotation_id,edit:"figure.edit annotation_set",…}`
+并带当前位置。用户说“这个”时，改的就是这个目标或部件。
+
 每次调用都读取当前选择，分页不是冻结快照；GUI 选择变化不一定改变文档 revision。
 不能将多页视作原子选择或把选择当作执行授权。
 

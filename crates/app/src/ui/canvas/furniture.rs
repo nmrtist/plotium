@@ -1,5 +1,6 @@
 use super::*;
 use plotium_core::properties::{PropertyAddress, guide};
+use plotium_core::state::PlotPart;
 
 enum FurnitureHit {
     Legend {
@@ -22,6 +23,22 @@ enum FurnitureHit {
 }
 
 impl FurnitureHit {
+    /// The movable plot part under the pointer; the colour scale has no
+    /// position of its own to move.
+    fn part(&self) -> Option<PlotPart> {
+        match self {
+            Self::Legend { .. } => Some(PlotPart::Legend),
+            Self::ColorScale { .. } => None,
+            Self::RegionLabel {
+                dataset, region, ..
+            } => Some(PlotPart::RegionLabel {
+                dataset: *dataset,
+                region: *region,
+            }),
+            Self::PlotLabel { label, .. } => Some(PlotPart::Label(label.annotation)),
+        }
+    }
+
     fn object(&self) -> ObjectId {
         match self {
             Self::Legend { object, .. }
@@ -86,7 +103,7 @@ pub(crate) fn handle_furniture_interactions(
     ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
     let object = hit.object();
     if double_clicked {
-        app.select_object(ci, object);
+        select_hit(app, ci, &hit);
         if matches!(
             &hit,
             FurnitureHit::Legend { .. } | FurnitureHit::ColorScale { .. }
@@ -101,7 +118,7 @@ pub(crate) fn handle_furniture_interactions(
         return true;
     }
 
-    app.select_object(ci, object);
+    select_hit(app, ci, &hit);
     if matches!(
         &hit,
         FurnitureHit::Legend { .. } | FurnitureHit::ColorScale { .. }
@@ -169,6 +186,13 @@ pub(crate) fn handle_furniture_interactions(
     true
 }
 
+fn select_hit(app: &mut PlotiumApp, ci: usize, hit: &FurnitureHit) {
+    match hit.part() {
+        Some(part) => app.select_plot_part(ci, hit.object(), part),
+        None => app.select_object(ci, hit.object()),
+    }
+}
+
 fn furniture_hit(
     app: &PlotiumApp,
     ci: usize,
@@ -218,19 +242,9 @@ fn furniture_hit(
             continue;
         };
         for annotation in figure.range_annotations.iter().rev() {
-            let x0 = to_screen_x(annotation.x0, plot, &figure.x);
-            let x1 = to_screen_x(annotation.x1, plot, &figure.x);
-            let Some(layout) = plotium_render::range_label_layout(
-                plot,
-                x0.min(x1),
-                x0.max(x1),
-                figure.typography.tick_pt * scale,
-                &annotation.label,
-                annotation.label_position,
-            ) else {
+            let Some(rect) = range_label_rect(figure, annotation, plot, scale) else {
                 continue;
             };
-            let rect = layout.rect(figure.typography.tick_pt * scale);
             if rect_contains(rect, pointer, 3.0) {
                 return Some(FurnitureHit::RegionLabel {
                     object: object.id,
@@ -244,6 +258,40 @@ fn furniture_hit(
     None
 }
 
+fn range_label_rect(
+    figure: &plotium_figure::Figure,
+    annotation: &plotium_figure::RangeAnnotation,
+    plot: PlotRect,
+    scale: f32,
+) -> Option<PlotRect> {
+    let x0 = to_screen_x(annotation.x0, plot, &figure.x);
+    let x1 = to_screen_x(annotation.x1, plot, &figure.x);
+    let font = figure.typography.tick_pt * scale;
+    plotium_render::range_label_layout(
+        plot,
+        x0.min(x1),
+        x0.max(x1),
+        font,
+        &annotation.label,
+        annotation.label_position,
+    )
+    .map(|layout| layout.rect(font))
+}
+
+/// The screen box of region `region`'s label in `figure`.
+pub(super) fn region_label_rect(
+    figure: &plotium_figure::Figure,
+    region: RegionId,
+    plot: PlotRect,
+    scale: f32,
+) -> Option<PlotRect> {
+    figure
+        .range_annotations
+        .iter()
+        .find(|annotation| RegionId::new(annotation.source_id) == region)
+        .and_then(|annotation| range_label_rect(figure, annotation, plot, scale))
+}
+
 pub(crate) fn furniture_hovered(
     app: &PlotiumApp,
     ci: usize,
@@ -254,7 +302,7 @@ pub(crate) fn furniture_hovered(
         && furniture_hit(app, ci, canvas_rect, pointer).is_some()
 }
 
-fn plot_geometry(
+pub(super) fn plot_geometry(
     app: &PlotiumApp,
     ci: usize,
     object: ObjectId,

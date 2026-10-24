@@ -1,4 +1,7 @@
-use super::{BoardFrameId, CanvasId, ContentId, DatasetId, ObjectId, PanelId};
+use super::{
+    AnnotationId, AxisOverrides, BoardFrameId, CanvasId, ContentId, DatasetId, ObjectFrame,
+    ObjectId, PanelId, Region, RegionId,
+};
 
 /// A stable hierarchical selection address. `content` is only valid in the
 /// loose page scope when `panel` is `None`, or as a direct child of `panel`.
@@ -169,6 +172,53 @@ mod hierarchy_tests {
                 .is_err()
         );
     }
+}
+
+/// A movable part drawn inside a plot that the user clicked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlotPart {
+    Legend,
+    /// A text annotation or reference-line label of the plot.
+    Label(AnnotationId),
+    /// The label of a region band, stored on its dataset.
+    RegionLabel {
+        dataset: DatasetId,
+        region: RegionId,
+    },
+}
+
+/// The plot part the user clicked, on top of selecting its plot. It is only
+/// current while that plot is the lead of the active page's selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlotPartSelection {
+    pub canvas: CanvasId,
+    pub object: ObjectId,
+    pub part: PlotPart,
+}
+
+/// Where a held arrow-key nudge started. The nudge applies live and is
+/// recorded as one undo step once the arrow keys are released, so holding a
+/// key does not spend the bounded undo history one press at a time.
+#[derive(Clone)]
+pub enum PendingNudge {
+    /// A legend or plot label, stored in the plot's axis overrides.
+    Plot {
+        canvas: usize,
+        object: ObjectId,
+        part: PlotPart,
+        before: Box<AxisOverrides>,
+    },
+    /// A region label, stored with its dataset's regions.
+    Regions {
+        dataset: DatasetId,
+        region: RegionId,
+        before: Vec<Region>,
+    },
+    /// Selected objects and panels, as page-space layout frames.
+    Frames {
+        canvas: usize,
+        before: Vec<(ObjectId, ObjectFrame)>,
+    },
 }
 
 /// The current desktop selection context. Global selection commands dispatch

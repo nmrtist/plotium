@@ -67,7 +67,8 @@ impl Session {
             let next_offset = (end < selected.len()).then_some(end);
             (
                 json!({"dataset_count":app.doc.datasets.len(),"canvas_count":app.doc.canvases.len()}),
-                json!({"items":items,"total":selected.len(),"next_offset":next_offset}),
+                json!({"items":items,"total":selected.len(),"next_offset":next_offset,
+                    "canvas":plotium_core::automation::canvas_selection_reading(app, limit)}),
                 plotium_core::automation::hand_edit_readings(
                     app,
                     query.hand_edits_offset,

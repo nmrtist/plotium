@@ -1,4 +1,6 @@
-//! Bounded, identity-addressed document discovery. No selection or data samples.
+//! Bounded, identity-addressed document discovery without data samples.
+//! Inspection never reads the selection; `canvas_selection_reading` reports it
+//! to state reads with the same summaries.
 use super::*;
 use crate::state::{CanvasDocument, ContentItem, ContentKind, Panel, PlotiumApp, SeriesBinding};
 use serde::{Deserialize, Serialize};
@@ -76,6 +78,42 @@ fn series_target(canvas: &CanvasDocument, item: &ContentItem, series: &SeriesBin
         resource: canvas_object_ref(canvas.resource_id, item.id),
         component: Some(ComponentRef::Series(series.id)),
     }
+}
+
+/// What the user selected on the active page, for `plotium_get_state`: the
+/// selected panels and items as document summaries, and the plot part they
+/// clicked inside the lead plot. `null` without an active page.
+pub fn canvas_selection_reading(app: &PlotiumApp, limit: usize) -> Value {
+    let Some(page) = app
+        .session
+        .active_canvas
+        .and_then(|ci| app.doc.canvases.get(ci))
+    else {
+        return Value::Null;
+    };
+    let panels = app
+        .session
+        .ui
+        .hierarchical_selection
+        .paths()
+        .iter()
+        .filter(|path| path.canvas == page.resource_id && path.content.is_none())
+        .filter_map(|path| path.panel.and_then(|id| page.panel(id)))
+        .map(|panel| Node::Panel(page, panel));
+    let items = app
+        .session
+        .ui
+        .selection
+        .objects()
+        .iter()
+        .filter_map(|id| page.object(*id))
+        .map(|item| Node::Content(page, item));
+    let nodes: Vec<_> = panels.chain(items).collect();
+    json!({
+        "items":nodes.iter().take(limit).map(Node::summary).collect::<Vec<_>>(),
+        "total":nodes.len(),
+        "part":crate::state::plot_part_reading(app),
+    })
 }
 
 enum Node<'a> {
@@ -404,3 +442,7 @@ pub(super) fn execute(app: &PlotiumApp, plan: &ToolPlan) -> Result<ToolResult, A
 #[cfg(test)]
 #[path = "document_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "document_selection_tests.rs"]
+mod selection_tests;

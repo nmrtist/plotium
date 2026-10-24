@@ -65,8 +65,8 @@ mod workflow_processing;
 pub(crate) use document::content_geometry_detail;
 pub use document::{
     DOCUMENT_INSPECT, DOCUMENT_PAGE_DEFAULT, DOCUMENT_PAGE_MAX, DOCUMENT_RESPONSE_BYTES,
-    DocumentInspectParams, DocumentView, KIND_PANEL, document_inspect_schema, document_root_target,
-    panel_resource,
+    DocumentInspectParams, DocumentView, KIND_PANEL, canvas_selection_reading,
+    document_inspect_schema, document_root_target, panel_resource,
 };
 pub(crate) use properties::parse_color;
 pub use properties::{

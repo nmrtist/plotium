@@ -15,6 +15,7 @@ impl PlotiumApp {
         for path in paths {
             selection.extend_sibling(*path)?;
         }
+        self.session.ui.plot_part_selection = None;
         self.session.ui.hierarchical_selection = selection;
         let ids: Vec<_> = self
             .session
@@ -43,6 +44,7 @@ impl PlotiumApp {
             return;
         }
         self.session.ui.panel_label_selection = None;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = Selection::None;
         self.session
             .ui
@@ -64,6 +66,7 @@ impl PlotiumApp {
             .ui
             .hierarchical_selection
             .toggle_sibling(SelectionPath::panel(canvas.resource_id, panel))?;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = Selection::None;
         if let Some(canvas) = self.doc.canvases.get_mut(ci) {
             canvas.selected_object = None;
@@ -81,6 +84,7 @@ impl PlotiumApp {
         let canvas_id = canvas.resource_id;
         let parent = canvas.parent_panel(id);
         self.session.ui.panel_label_selection = None;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = Selection::Objects(self.group_click_members(ci, id));
         self.session
             .ui
@@ -100,6 +104,7 @@ impl PlotiumApp {
             .ui
             .hierarchical_selection
             .toggle_sibling(path)?;
+        self.session.ui.plot_part_selection = None;
         let ids: Vec<_> = self
             .session
             .ui
@@ -140,6 +145,7 @@ impl PlotiumApp {
                 first,
             ));
         self.session.ui.selection = Selection::single(first);
+        self.session.ui.plot_part_selection = None;
         if let Some(canvas) = self.doc.canvases.get_mut(ci) {
             canvas.selected_object = Some(first);
         }
@@ -147,11 +153,52 @@ impl PlotiumApp {
 
     pub fn exit_panel_scope(&mut self) {
         self.session.ui.hierarchical_selection.exit_scope();
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = Selection::None;
         if let Some(ci) = self.session.active_canvas
             && let Some(canvas) = self.doc.canvases.get_mut(ci)
         {
             canvas.selected_object = None;
         }
+    }
+
+    /// Select plot `object` together with the part of it the user clicked.
+    pub fn select_plot_part(&mut self, ci: usize, object: ObjectId, part: PlotPart) {
+        self.select_object(ci, object);
+        let Some(canvas) = self.doc.canvases.get(ci) else {
+            return;
+        };
+        self.session.ui.plot_part_selection = Some(PlotPartSelection {
+            canvas: canvas.resource_id,
+            object,
+            part,
+        });
+    }
+
+    /// The selected plot part, while its plot still leads the active page's
+    /// selection and the part still exists.
+    pub fn selected_plot_part(&self) -> Option<(usize, PlotPartSelection)> {
+        let selected = self.session.ui.plot_part_selection?;
+        let ci = self.session.active_canvas?;
+        let canvas = self.doc.canvases.get(ci)?;
+        if canvas.resource_id != selected.canvas
+            || self.session.ui.selection.object() != Some(selected.object)
+        {
+            return None;
+        }
+        let plot = canvas.object(selected.object)?.plot()?;
+        let exists = match selected.part {
+            PlotPart::Legend => true,
+            PlotPart::Label(id) => {
+                let annotations = &plot.axis_overrides.annotations;
+                annotations.get(id).is_some() || annotations.reference_line(id).is_some()
+            }
+            PlotPart::RegionLabel { dataset, region } => self
+                .doc
+                .dataset_by_id(dataset)
+                .and_then(Dataset::region_analysis)
+                .is_some_and(|state| state.regions.iter().any(|item| item.id == region)),
+        };
+        exists.then_some((ci, selected))
     }
 }

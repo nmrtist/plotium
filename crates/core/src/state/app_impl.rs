@@ -396,6 +396,7 @@ impl PlotiumApp {
         let canvas_id = canvas.resource_id;
         let parent = canvas.parent_panel(id);
         self.session.ui.panel_label_selection = None;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = Selection::Objects(self.group_click_members(ci, id));
         self.session
             .ui
@@ -535,6 +536,7 @@ impl PlotiumApp {
 
     pub fn select_panel_label(&mut self, ci: usize, id: ObjectId) {
         self.session.ui.selection = Selection::None;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.panel_label_selection = Some((ci, id));
         if let Some(c) = self.doc.canvases.get_mut(ci) {
             c.selected_object = Some(id);
@@ -548,6 +550,7 @@ impl PlotiumApp {
     pub fn set_selection(&mut self, selection: Selection) {
         let primary = selection.object();
         self.session.ui.panel_label_selection = None;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = selection;
         if let Some(ci) = self.session.active_canvas
             && let Some(c) = self.doc.canvases.get_mut(ci)
@@ -564,6 +567,7 @@ impl PlotiumApp {
 
     pub fn sync_selection_to_active_canvas(&mut self) {
         self.session.ui.panel_label_selection = None;
+        self.session.ui.plot_part_selection = None;
         self.session.ui.selection = self
             .session
             .active_canvas

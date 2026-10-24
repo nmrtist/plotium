@@ -1,6 +1,6 @@
 //! Placement of author plot labels: automatic, pinned by automation, or
 //! dragged by hand on the canvas.
-use super::{AnnotationId, CanvasDocument, ObjectId, PlotAnnotations, PlotiumApp};
+use super::{AnnotationId, CanvasDocument, ObjectId, PlotAnnotations, PlotPart, PlotiumApp};
 use crate::automation::{TargetRef, canvas_object_ref};
 use plotium_figure::{ReferenceLabelPosition, ReferenceLabelSide, ReferenceOrientation};
 use serde::{Deserialize, Serialize};
@@ -183,4 +183,65 @@ fn hand_placed_labels(annotations: &PlotAnnotations) -> Vec<Value> {
             _ => None,
         });
     texts.chain(lines).collect()
+}
+
+/// The plot part the user selected on the canvas, with its current placement
+/// and the edit that moves it.
+pub(crate) fn plot_part_reading(app: &PlotiumApp) -> Option<Value> {
+    let (ci, selected) = app.selected_plot_part()?;
+    let page = app.doc.canvases.get(ci)?;
+    let plot = page.object(selected.object)?.plot()?;
+    let target = TargetRef::resource(canvas_object_ref(page.resource_id, selected.object));
+    let mut reading = match selected.part {
+        PlotPart::Legend => json!({
+            "part":"legend",
+            "property":crate::properties::guide::POSITION.as_str(),
+            "value":plot.figure().legend_position,
+        }),
+        PlotPart::Label(id) => {
+            let annotations = &plot.axis_overrides.annotations;
+            let layout = plot_label_layout(page, selected.object);
+            let mut reading = if let Some(index) = annotations.items.iter().position(|a| a.id == id)
+            {
+                let drawn = layout
+                    .as_ref()
+                    .and_then(|l| l.texts.get(index).copied().flatten());
+                let mut reading =
+                    text_placement_reading(annotations.items[index].placement, drawn.as_ref());
+                reading["kind"] = json!("text");
+                reading
+            } else {
+                let index = annotations
+                    .reference_lines
+                    .iter()
+                    .position(|l| l.id == id)?;
+                let line = &annotations.reference_lines[index];
+                let drawn = layout
+                    .as_ref()
+                    .and_then(|l| l.reference.get(index).copied().flatten());
+                let mut reading = reference_placement_reading(
+                    line.orientation,
+                    line.label_placement,
+                    drawn.as_ref(),
+                );
+                reading["kind"] = json!("reference_line");
+                reading
+            };
+            reading["part"] = json!("label");
+            reading["annotation_id"] = json!(id);
+            reading["edit"] = json!("figure.edit annotation_set");
+            reading
+        }
+        PlotPart::RegionLabel { dataset, region } => {
+            let position = app
+                .doc
+                .dataset_by_id(dataset)
+                .and_then(super::Dataset::region_analysis)
+                .and_then(|state| state.regions.iter().find(|item| item.id == region))
+                .and_then(|item| item.label_position);
+            json!({"part":"region_label","dataset":crate::automation::ResourceRef::from(dataset),"region_id":region,"label_position":position})
+        }
+    };
+    reading["target"] = json!(target);
+    Some(reading)
 }
