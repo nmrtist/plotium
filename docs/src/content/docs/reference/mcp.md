@@ -300,6 +300,19 @@ execution results carry `summary` counts of succeeded, skipped and failed
 targets, list only skipped or failed rows in `targets`, and report changed
 resources in `produced` and `modified`.
 
+`plotium_apply` takes the same inputs as `plotium_plan` and plans and commits one
+reversible edit in a single call, returning the `plotium_execute` result. It
+accepts `properties.set`, `properties.set_many`, `properties.reset`,
+`figure.edit` without deletions, `plot.create`, `plot.series.append`,
+`plot.series.bind`, `plot.series.materialize_default`, `resource.rename` and
+`figure.apply_theme`, and requires Read and modify. Preflight, revision and
+permission checks, Undo and run records are those of the two-step form, and no
+plan is retained. Saving, export, deletions, imports, table and scientific
+operations still use `plotium_plan` and `plotium_execute`, as does previewing a
+candidate. A rejected apply commits nothing. After a disconnection, read state:
+a revision equal to the request's `expected_revision` means the edit was not
+committed; otherwise inspect the targets. Never replay the call.
+
 A queued or submitted scientific task is not a committed edit; its immediate
 `after_revision` must not be reused. Only a terminal `succeeded` receipt in the
 known project context with `end_revision` permits reuse. Check scientific
