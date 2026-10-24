@@ -336,3 +336,90 @@ fn candidate_deletion_preserves_selection_context_on_an_unaffected_active_canvas
     roundtrip(&mut a, &mut s, q);
     assert_eq!(a.session.active_canvas, Some(1));
 }
+
+/// One `properties.set_many` plan per style variant over the first plot.
+fn variant_args(a: &PlotiumApp, writes: impl Fn(TargetRef, usize) -> Vec<Value>) -> Value {
+    let plot = &a.doc.canvases[0].objects[0];
+    let writes: Vec<Value> = plot
+        .plot()
+        .unwrap()
+        .binding
+        .series
+        .iter()
+        .enumerate()
+        .flat_map(|(i, s)| writes(a.series_target(0, plot.id, s.id).unwrap(), i))
+        .collect();
+    json!({"expected_project_context":a.session.project_context,"expected_revision":a.doc.automation_revision,
+        "tool_id":"properties.set_many","parameters":{"writes":writes}})
+}
+
+#[test]
+fn candidate_style_variants_preview_exactly_what_each_would_commit() {
+    let (mut a, mut s, _) = fixture();
+    let palettes = [
+        [
+            "#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00",
+        ],
+        [
+            "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "#E6AB02",
+        ],
+        [
+            "#000000", "#555555", "#888888", "#AAAAAA", "#333333", "#777777",
+        ],
+    ];
+    for palette in palettes {
+        let args = variant_args(&a, |target, i| {
+            vec![
+                json!({"target":target,"key":"series.line.color","value":palette[i]}),
+                json!({"target":target,"key":"series.line.stroke_width","value":0.5 + i as f64 * 0.25}),
+            ]
+        });
+        roundtrip(&mut a, &mut s, args);
+    }
+    // Plot-level and document-wide display properties preview too.
+    let plot = target(&a, 0);
+    let document = TargetRef::resource(plotium_core::automation::document_root_target().resource);
+    let args = json!({"expected_project_context":a.session.project_context,"expected_revision":a.doc.automation_revision,
+        "tool_id":"properties.set_many","parameters":{"writes":[
+            {"target":plot,"key":"object.axes.y_label","value":"Current (mA)"},
+            {"target":document,"key":"document.figure.typography.tick_pt","value":9.0}]}});
+    roundtrip(&mut a, &mut s, args);
+}
+
+#[test]
+fn candidate_variants_are_compared_while_pending_and_only_the_pick_commits() {
+    let (mut a, mut s, _) = fixture();
+    let plans: Vec<Value> = [0.5, 1.0, 1.5]
+        .into_iter()
+        .map(|width| {
+            let args = variant_args(&a, |target, _| {
+                vec![json!({"target":target,"key":"series.line.stroke_width","value":width})]
+            });
+            s.call(&mut a, "plotium_plan", args).unwrap()
+        })
+        .collect();
+    let before = content(&a);
+    let images: Vec<Value> = plans
+        .iter()
+        .map(|p| {
+            let q = preview_args(&a, p);
+            s.call(&mut a, "plotium_preview_plan", q).unwrap()["value"]["png_base64"].clone()
+        })
+        .collect();
+    assert_eq!(content(&a), before);
+    assert!(images[0] != images[1] && images[1] != images[2]);
+    s.call(
+        &mut a,
+        "plotium_execute",
+        json!({"plan_id":plans[1]["plan_id"]}),
+    )
+    .unwrap();
+    let args = image_args(&a);
+    let committed = s.call(&mut a, "plotium_render_preview", args).unwrap();
+    assert_eq!(committed["value"]["png_base64"], images[1]);
+    let q = preview_args(&a, &plans[0]);
+    assert_eq!(
+        s.call(&mut a, "plotium_preview_plan", q).unwrap_err().code,
+        "stale_revision"
+    );
+}

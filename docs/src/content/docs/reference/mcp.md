@@ -1598,14 +1598,20 @@ proof of occlusion.
 
 | Existing plan | Candidate support |
 | --- | --- |
-| `properties.set` / `properties.reset` | The five `object.guides.*` properties above, including their native multi-target batch |
+| `properties.set` / `properties.reset` / `properties.set_many` | Document and object display properties, including their native multi-target batch; not canvas, app preference or dataset processing properties, chart type or stack changes |
 | `figure.edit` local edits | `content_frame`, `image_replace`, `text_set`, `annotation_create`/`annotation_set`/`annotation_delete` (text and reference lines), including native batches |
 | `figure.edit` deletion-only batch | `content_delete`, originally empty `panel_delete`, explicit-column `series_delete`; all existing refusal rules remain |
 | Other operations, including save/export | `unsupported_operation`; their normal execution contract is unchanged |
 
+To let the user choose a style, such as a palette, line widths, legend
+placement or label layout, plan two or three alternatives, preview each and show
+the images side by side. Execute only the plan the user picks. The others are
+never committed: they then fail with `stale_revision`, but count toward the 32
+pending plans until submitted or the connection resets.
+
 Affected canvases must use ordinary line/scatter plots, native text, shapes and
 raster content; previews do not launch scientific computations. A cross-canvas
-guide plan applies its complete batch to the disposable native context; request
+property plan applies its complete batch to the disposable native context; request
 each affected canvas separately. It is still one plan and one Undo step.
 Automatic axes, guide dependencies and derived page height use the native action
 and renderer, not a second layout model. With identical baseline, settings and
