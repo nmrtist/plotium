@@ -206,6 +206,10 @@ pub struct Axis {
     /// values are then written in full instead of with a ×10ⁿ multiplier.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub thousands_separator: bool,
+    /// Distance between major ticks in the display unit; `None` chooses one.
+    /// Only linear numeric axes without a break honour it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub major_step: Option<f64>,
     pub min: f64,
     pub max: f64,
     /// If true, larger values draw toward the lower screen coordinate (left for
@@ -233,6 +237,7 @@ impl Axis {
             show_tick_labels: true,
             show_label: true,
             thousands_separator: false,
+            major_step: None,
             min,
             max,
             reversed: false,
@@ -252,6 +257,7 @@ impl Axis {
             show_tick_labels: true,
             show_label: true,
             thousands_separator: false,
+            major_step: None,
             min: -0.5,
             max: n - 0.5,
             reversed: false,

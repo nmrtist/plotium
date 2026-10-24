@@ -376,11 +376,17 @@ impl PropertyProvider for PlotDisplayProvider {
                     }
                     Some(target)
                 };
-                if x {
-                    overrides.x_display_unit = selected.map(Box::new);
+                let (unit, step) = if x {
+                    (&mut overrides.x_display_unit, &mut overrides.x_major_step)
                 } else {
-                    overrides.y_display_unit = selected.map(Box::new);
+                    (&mut overrides.y_display_unit, &mut overrides.y_major_step)
+                };
+                let selected = selected.map(Box::new);
+                // A major step is written in the display unit it replaces.
+                if *unit != selected {
+                    *step = None;
                 }
+                *unit = selected;
             }
             (X_RANGE | Y_RANGE, PropertyValue::AxisRange(value)) => {
                 let range = match value {

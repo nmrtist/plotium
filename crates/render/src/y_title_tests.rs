@@ -133,3 +133,30 @@ fn stacked_titles_align_beside_the_stacks_widest_tick_labels() {
         assert!((title.right() - expected).abs() < 1e-3, "{title:?}");
     }
 }
+
+#[test]
+fn script_overshoot_of_edge_titles_stays_inside_the_frame() {
+    let mut fig = bars(&["A", "B"]);
+    fig.title = "Cycling at 1 A g^{-1}".to_owned();
+    fig.x.label = "Li_{x}".to_owned();
+    let ty = fig.typography;
+    let (rise, _) = crate::rich_text::script_overshoot(&fig.y.label, ty.label_pt);
+    let (title_rise, _) = crate::rich_text::script_overshoot(&fig.title, ty.title_pt);
+    let (_, drop) = crate::rich_text::script_overshoot(&fig.x.label, ty.label_pt);
+    assert!(rise > 0.0 && title_rise > 0.0 && drop > 0.0);
+
+    let all = figure_text_boxes(&fig, [fig.width, fig.height]);
+    let y_title = boxes(&all, "axis.y.label").next().expect("y title");
+    assert!((y_title.left - rise).abs() < 1e-3, "{y_title:?}");
+    let title = boxes(&all, "title").next().expect("title");
+    assert!((title.top - title_rise).abs() < 1e-3, "{title:?}");
+    let x_title = boxes(&all, "axis.x.label").next().expect("x title");
+    assert!(
+        (fig.height - x_title.bottom() - drop).abs() < 1e-3,
+        "{x_title:?}"
+    );
+
+    let (y_gap, x_gap) = title_gaps(&all);
+    assert!((y_gap - AXIS_LABEL_GAP).abs() < 1e-3, "y gap {y_gap}");
+    assert!((x_gap - AXIS_LABEL_GAP).abs() < 1e-3, "x gap {x_gap}");
+}

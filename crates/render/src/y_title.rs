@@ -4,7 +4,19 @@ use crate::ticks::{self, AxisLayout};
 use crate::{AXIS_LABEL_GAP, Projector, Rect, StackPlacement, XFurniture};
 use plotium_figure::{AxisFrame, Figure};
 
-/// Left edge of the rotated y-axis title's `label_pt`-wide lane, in output
+/// How far the rotated y-axis title's superscripts reach past its line box
+/// toward the outer edge, in points.
+pub(crate) fn rise(fig: &Figure) -> f32 {
+    crate::rich_text::script_overshoot(&fig.y.label, fig.typography.label_pt).0
+}
+
+/// Width of the rotated y-axis title's lane: one line plus the [`rise`] of
+/// its superscripts, which the title's line box sits inside of.
+pub(crate) fn lane_width(fig: &Figure) -> f32 {
+    fig.typography.label_pt + rise(fig)
+}
+
+/// Left edge of the rotated y-axis title's [`lane_width`]-wide lane, in output
 /// units. The lane sits [`AXIS_LABEL_GAP`] left of the widest y tick label,
 /// the same gap the x title keeps below the x tick labels, so a plot pushed
 /// right by a wide left-end x label keeps its title beside the y ticks.
@@ -31,7 +43,7 @@ pub(crate) fn y_title_left(
         Some(placement) => placement.y_tick_clearance,
         None => layout.y_tick_clearance(fig),
     };
-    let beside_ticks = y_axis_x - (tick_clearance + AXIS_LABEL_GAP + ty.label_pt) * scale;
+    let beside_ticks = y_axis_x - (tick_clearance + AXIS_LABEL_GAP + lane_width(fig)) * scale;
     if beside_ticks <= edge {
         return edge;
     }
@@ -51,7 +63,7 @@ pub(crate) fn y_title_left(
     } else {
         f32::INFINITY
     };
-    let title_right = beside_ticks + (ty.label_pt + AXIS_LABEL_GAP) * scale;
+    let title_right = beside_ticks + (lane_width(fig) + AXIS_LABEL_GAP) * scale;
     if reaches_x_labels && x_labels_left < title_right {
         edge
     } else {

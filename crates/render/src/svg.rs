@@ -126,7 +126,7 @@ fn write_figure(
             s,
             r#"<text x="{cx}" y="{y}" text-anchor="middle" font-size="{font}" fill="{col}">{title}</text>"#,
             cx = frame.left + w / 2.0,
-            y = frame.top + ty.title_pt * crate::rich_text::TOP_TO_BASELINE,
+            y = frame.top + crate::rich_text::below_top(&fig.title, ty.title_pt),
             font = ty.title_pt,
             col = plotium_figure::Color::BLACK.to_hex(),
             title = svg_content(&fig.title, ty.title_pt),
@@ -272,7 +272,7 @@ fn write_figure(
             cx = (plot.left + plot.right()) / 2.0,
             y = x_lane_bottom
                 - multiplier_clearance
-                - ty.label_pt * crate::rich_text::BASELINE_TO_BOTTOM,
+                - crate::rich_text::above_bottom(&fig.x.label, ty.label_pt),
             font = ty.label_pt,
             lab = svg_content(&fig.x.label, ty.label_pt),
         );
@@ -283,7 +283,7 @@ fn write_figure(
         let _ = write!(
             s,
             r#"<text transform="translate({x:.2},{cy:.2}) rotate(-90)" text-anchor="middle" font-size="{font}" fill="{axis}">{lab}</text>"#,
-            x = y_title_left + ty.label_pt * crate::rich_text::TOP_TO_BASELINE,
+            x = y_title_left + crate::rich_text::below_top(&fig.y.label, ty.label_pt),
             cy = y_title_cy,
             font = ty.label_pt,
             lab = svg_content(&fig.y.label, ty.label_pt),
@@ -439,15 +439,17 @@ fn write_figure(
         } else {
             ""
         };
-        let _ = write!(
-            s,
-            r#"<text x="{x:.2}" y="{y:.2}" text-anchor="{anchor}"{baseline} font-size="{sz}" fill="{col}">{txt}</text>"#,
-            x = at.x,
-            y = at.y,
-            sz = a.size,
-            col = a.color.to_hex(),
-            txt = svg_content(&a.text, a.size),
-        );
+        for (line, at) in crate::text_place::lines(at, &a.text, a.size) {
+            let _ = write!(
+                s,
+                r#"<text x="{x:.2}" y="{y:.2}" text-anchor="{anchor}"{baseline} font-size="{sz}" fill="{col}">{txt}</text>"#,
+                x = at.x,
+                y = at.y,
+                sz = a.size,
+                col = a.color.to_hex(),
+                txt = svg_content(line, a.size),
+            );
+        }
     }
     let _ = write!(s, r#"</g>"#);
     // Spines go over the clipped data, so a bar or trace resting on an axis

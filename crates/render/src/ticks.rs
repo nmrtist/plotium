@@ -13,6 +13,9 @@ const Y_TICK_SPACING_FACTOR: f32 = 1.8;
 /// Closest label centres a short panel accepts: one label height plus a
 /// small gap, so the labels never touch.
 const Y_TICK_MIN_SPACING_FACTOR: f32 = 1.2;
+/// Most ticks a set major step may draw; a denser step falls back to
+/// automatic ticks.
+const MAX_FIXED_TICKS: usize = 100;
 /// f64 represents every integer below 2⁵³ ≈ 9×10¹⁵ exactly.
 const GROUPED_FULL_EXPONENT_LIMIT: i32 = 15;
 
@@ -148,6 +151,9 @@ fn adaptive_x_ticks(fig: &Figure, plot_width: f32, gap: f32, widest: f32) -> Axi
         return AxisTicks::empty();
     }
 
+    if let Some(ticks) = fixed_step_ticks(&fig.x) {
+        return ticks;
+    }
     let target = ((plot_width / slot_width).floor() as usize).clamp(2, MAX_X_TARGET);
     for candidate in (2..=target).rev() {
         let ticks = axis_ticks_for(&fig.x, candidate);
@@ -165,6 +171,9 @@ pub(crate) fn adaptive_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> A
     }
     if plot_height < 2.0 * spacing {
         return sparse_y_ticks(axis, tick_pt, plot_height);
+    }
+    if let Some(ticks) = fixed_step_ticks(axis) {
+        return ticks;
     }
 
     // A category axis names every slot that fits; the numeric cap only keeps
@@ -407,6 +416,9 @@ pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
     {
         return crate::axis_break::ticks(axis, pieces, target);
     }
+    if let Some(ticks) = fixed_step_ticks(axis) {
+        return ticks;
+    }
     if axis.categories.is_none() {
         if let Some(display) = &axis.display {
             let mut result = format_axis_ticks(
@@ -436,6 +448,52 @@ pub fn axis_ticks_for(axis: &Axis, target: usize) -> AxisTicks {
         scale_exponent: None,
         decades: false,
     }
+}
+
+/// Ticks on the multiples of the axis's set major step, in its display unit.
+/// `None` where the axis has no step, cannot honour one, or the step would
+/// draw fewer than two ticks or more than [`MAX_FIXED_TICKS`].
+fn fixed_step_ticks(axis: &Axis) -> Option<AxisTicks> {
+    let step = axis
+        .major_step
+        .filter(|step| step.is_finite() && *step > 0.0)?;
+    if axis.categories.is_some()
+        || !axis.effective_scale().is_linear()
+        || axis.break_pieces().is_some()
+    {
+        return None;
+    }
+    let to_display = |value: f64| axis.display.as_ref().map_or(value, |d| d.to_display(value));
+    let (a, b) = (to_display(axis.min), to_display(axis.max));
+    let (lo, hi) = (a.min(b), a.max(b));
+    let eps = step * 1e-9;
+    let first = ((lo - eps) / step).ceil();
+    let last = ((hi + eps) / step).floor();
+    if !first.is_finite()
+        || !last.is_finite()
+        || last - first < 1.0
+        || last - first >= MAX_FIXED_TICKS as f64
+    {
+        return None;
+    }
+    let values = (0..=(last - first) as usize)
+        .map(|k| {
+            let value = (first + k as f64) * step;
+            if value.abs() < eps { 0.0 } else { value }
+        })
+        .collect();
+    let mut ticks = label_tick_values(
+        values,
+        step,
+        lo.abs().max(hi.abs()),
+        axis.thousands_separator,
+    );
+    if let Some(display) = &axis.display {
+        for value in &mut ticks.values {
+            *value = display.to_coordinate(*value);
+        }
+    }
+    Some(ticks)
 }
 
 /// Minor tick positions: `count` evenly spaced values in every major interval,

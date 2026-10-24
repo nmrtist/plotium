@@ -50,6 +50,10 @@ pub struct AxisOverridesDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     y_thousands_separator: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    x_major_step: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y_major_step: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     guide_visibility: Option<GuideVisibility>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     guide_placement: Option<GuidePlacement>,
@@ -73,6 +77,8 @@ pub struct AxisOverridesDto {
     y2_show_tick_labels: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     y2_show_label: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    y2_major_step: Option<f64>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -281,6 +287,8 @@ impl AxisOverridesDto {
             y_show_label: overrides.y_show_label,
             x_thousands_separator: overrides.x_thousands_separator,
             y_thousands_separator: overrides.y_thousands_separator,
+            x_major_step: overrides.x_major_step,
+            y_major_step: overrides.y_major_step,
             guide_visibility: overrides.guide_visibility,
             guide_placement: overrides.guide_placement,
             guide_layout: overrides.guide_layout,
@@ -293,6 +301,7 @@ impl AxisOverridesDto {
             y2_scale: overrides.y2_scale,
             y2_show_tick_labels: overrides.y2_show_tick_labels,
             y2_show_label: overrides.y2_show_label,
+            y2_major_step: overrides.y2_major_step,
         })
     }
 
@@ -317,6 +326,8 @@ impl AxisOverridesDto {
             y_show_label: self.y_show_label,
             x_thousands_separator: self.x_thousands_separator,
             y_thousands_separator: self.y_thousands_separator,
+            x_major_step: self.x_major_step,
+            y_major_step: self.y_major_step,
             guide_visibility: self.guide_visibility,
             guide_placement: self.guide_placement,
             guide_layout: self.guide_layout,
@@ -333,6 +344,7 @@ impl AxisOverridesDto {
             y2_scale: self.y2_scale,
             y2_show_tick_labels: self.y2_show_tick_labels,
             y2_show_label: self.y2_show_label,
+            y2_major_step: self.y2_major_step,
         }
         .normalized()
     }
@@ -377,6 +389,21 @@ mod tests {
         let json = serde_json::to_string(&dto).expect("serializes");
         assert!(json.contains("\"y_thousands_separator\":true"));
         assert!(!json.contains("x_thousands_separator"));
+        let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
+        assert_eq!(restored.to_overrides(), overrides);
+    }
+
+    #[test]
+    fn major_step_overrides_round_trip_through_the_project_format() {
+        let overrides = AxisOverrides {
+            x_major_step: Some(100.0),
+            y_major_step: Some(20.0),
+            y2_major_step: Some(0.5),
+            ..AxisOverrides::default()
+        };
+        let dto = AxisOverridesDto::from_overrides(&overrides).expect("steps are stored");
+        let json = serde_json::to_string(&dto).expect("serializes");
+        assert!(json.contains("\"y_major_step\":20.0"));
         let restored: AxisOverridesDto = serde_json::from_str(&json).expect("deserializes");
         assert_eq!(restored.to_overrides(), overrides);
     }

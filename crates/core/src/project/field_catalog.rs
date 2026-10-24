@@ -48,6 +48,16 @@ pub(super) fn validate_series(
     if let plotium_figure::SeriesEncoding::Line(line) = encoding
         && line
             .appearance
+            .marker_every
+            .is_some_and(|n| !(2..=1000).contains(&n.get()))
+    {
+        return Err(ProjectError::Invalid(format!(
+            "{context} marker spacing must be between 2 and 1000 points"
+        )));
+    }
+    if let plotium_figure::SeriesEncoding::Line(line) = encoding
+        && line
+            .appearance
             .marker_edge_width
             .is_some_and(|w| w.get() > 5.)
     {

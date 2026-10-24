@@ -271,3 +271,51 @@ fn hand_chosen_colours_lock_the_curve_against_rethemes() {
     );
     assert!(line(&app, 0).color_locked);
 }
+
+#[test]
+fn marker_every_is_set_per_curve_and_one_marks_every_point() {
+    let mut app = fixture();
+    let a = target(&app, 0, 0);
+    assert_eq!(
+        value(&app, &a, line_display::MARKER_EVERY),
+        PropertyValue::Int(1)
+    );
+    let p = plan_tool(
+        &app,
+        request(&app, "series.line.marker_every", json!(5), vec![a.clone()]),
+    )
+    .unwrap();
+    execute_tool(&mut app, p, ExecutionAuthority::ReversibleModify).unwrap();
+    assert_eq!(appearance(&app, 0).marker_stride(), 5);
+    assert_eq!(appearance(&app, 1).marker_every, None);
+    assert_eq!(
+        plot(&app, 0).figure().series[0].appearance.marker_stride(),
+        5
+    );
+
+    let path = std::env::temp_dir().join(format!(
+        "plotium-marker-every-{}.plotium",
+        uuid::Uuid::new_v4()
+    ));
+    crate::project::save_project(&app, &path, false).unwrap();
+    let loaded = crate::project::load_project(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(appearance(&loaded, 0).marker_stride(), 5);
+
+    for rejected in [json!(0), json!(1001)] {
+        assert!(matches!(
+            plan_tool(
+                &app,
+                request(&app, "series.line.marker_every", rejected, vec![a.clone()])
+            ),
+            Err(AutomationError::InvalidParameters { .. })
+        ));
+    }
+    write(
+        &mut app,
+        line_display::MARKER_EVERY,
+        PropertyValue::Int(1),
+        std::slice::from_ref(&a),
+    );
+    assert_eq!(appearance(&app, 0).marker_every, None);
+}

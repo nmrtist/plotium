@@ -466,6 +466,7 @@ fn every_right_axis_property_reports_its_default_on_a_two_axis_plot() {
         right_axis::Y2_SCALE,
         right_axis::Y2_RANGE,
         right_axis::Y2_UNIT,
+        right_axis::Y2_MAJOR_STEP,
     ] {
         let resolved = app
             .resolve_property(&PropertyAddress::new(object.clone(), id))
@@ -572,4 +573,33 @@ fn a_dormant_right_display_unit_passes_display_validation() {
         super::super::axis_display::validate_display(&overrides, Some(&coordinates), &figure),
         Ok(())
     );
+}
+
+#[test]
+fn a_right_major_step_is_cleared_by_a_new_display_unit() {
+    let mut app = table_app();
+    let curves = vec![
+        curve(&app, CurveKind::Line, 1, YAxisSide::Left),
+        curve(&app, CurveKind::Line, 2, YAxisSide::Right),
+    ];
+    create(&mut app, curves).unwrap();
+    let object = app
+        .object_target(0, app.doc.canvases[0].objects[0].id)
+        .unwrap();
+    let step = |app: &PlotiumApp| plot(app).figure().y2.as_ref().unwrap().major_step;
+    write(
+        &mut app,
+        object.clone(),
+        right_axis::Y2_MAJOR_STEP,
+        PropertyValue::Float(2.0),
+    );
+    assert_eq!(step(&app), Some(2.0));
+    write(
+        &mut app,
+        object,
+        right_axis::Y2_UNIT,
+        PropertyValue::Text("kHz".into()),
+    );
+    assert_eq!(step(&app), None);
+    assert_eq!(plot(&app).axis_overrides.y2_major_step, None);
 }

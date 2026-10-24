@@ -234,6 +234,20 @@ pub(crate) fn shared_x_value(
     super::convert_curve_value(value, from, to, false)
 }
 
+/// A member's x major step, written in the unit `from` it displays, as a
+/// step in the unit `to` another member displays; it converts as a length.
+pub(crate) fn shared_x_step(
+    step: Option<f64>,
+    from: &Option<plotium_data::UnitSpec>,
+    to: &Option<plotium_data::UnitSpec>,
+) -> Result<Option<f64>, String> {
+    let Some(step) = step else {
+        return Ok(None);
+    };
+    let converted = shared_x_value(step, from, to)? - shared_x_value(0.0, from, to)?;
+    Ok((converted.is_finite() && converted > 0.0).then_some(converted))
+}
+
 impl CanvasDocument {
     /// Give the numeric-x plots of a stack one x window: the union of their
     /// current windows as a manual x range, written in each plot's own
@@ -259,18 +273,30 @@ impl CanvasDocument {
                             .coordinates
                             .as_ref()
                             .and_then(|c| c.horizontal().cloned());
+                        let shown = plot
+                            .axis_overrides
+                            .x_display_unit
+                            .as_deref()
+                            .cloned()
+                            .or_else(|| unit.clone());
                         (
                             id,
                             unit,
                             plot.viewport.full_x,
                             plot.axis_overrides.x_scale,
                             plot.axis_overrides.x_break,
+                            plot.axis_overrides.x_major_step,
+                            shown,
                         )
                     },
                 )
             })
             .collect();
-        let [(_, reference, _, scale, reference_break), ..] = members.as_slice() else {
+        let [
+            (_, reference, _, scale, reference_break, reference_step, reference_shown),
+            ..,
+        ] = members.as_slice()
+        else {
             return Ok(());
         };
         if members.len() < 2 {
@@ -281,7 +307,7 @@ impl CanvasDocument {
         };
         if members
             .iter()
-            .any(|(_, _, _, other, _)| linear(other) != linear(scale))
+            .any(|(_, _, _, other, ..)| linear(other) != linear(scale))
         {
             return Err(
                 "Give the plots the same x scale (linear or logarithmic) before stacking them on a shared x axis."
@@ -291,7 +317,7 @@ impl CanvasDocument {
         let incompatible =
             |error: String| format!("Plots in a shared-x stack need compatible x units: {error}");
         let mut union: Option<AxisRange> = None;
-        for (_, unit, full, _, _) in &members {
+        for (_, unit, full, ..) in &members {
             let min = shared_x_value(full.min, unit, reference).map_err(incompatible)?;
             let max = shared_x_value(full.max, unit, reference).map_err(incompatible)?;
             let range = AxisRange::new(min, max);
@@ -310,7 +336,8 @@ impl CanvasDocument {
         }
         let reference = reference.clone();
         let reference_break = *reference_break;
-        for (id, unit, _, _, _) in members {
+        let (reference_step, reference_shown) = (*reference_step, reference_shown.clone());
+        for (id, unit, _, _, _, _, shown) in members {
             let min = shared_x_value(union.min, &reference, &unit).map_err(incompatible)?;
             let max = shared_x_value(union.max, &reference, &unit).map_err(incompatible)?;
             if let Some(plot) = self.object_mut(id).and_then(|item| item.plot_mut()) {
@@ -321,7 +348,8 @@ impl CanvasDocument {
                 plot.viewport.full_x = range;
                 plot.viewport.view_x = range;
             }
-            // Members share one x mapping, so they take the first plot's break.
+            // Members share one x mapping, so they take the first plot's break
+            // and major step.
             let x_break = reference_break
                 .map(|brk| {
                     Ok::<_, String>(plotium_figure::AxisBreak {
@@ -331,7 +359,10 @@ impl CanvasDocument {
                     })
                 })
                 .transpose()?;
+            let step =
+                shared_x_step(reference_step, &reference_shown, &shown).map_err(incompatible)?;
             if let Some(plot) = self.object_mut(id).and_then(|item| item.plot_mut()) {
+                plot.axis_overrides.x_major_step = step;
                 plot.axis_overrides.x_break = x_break;
             }
         }
@@ -347,6 +378,7 @@ impl AxisOverrides {
             || self.x_break != other.x_break
             || self.x_display_unit != other.x_display_unit
             || self.x_thousands_separator != other.x_thousands_separator
+            || self.x_major_step != other.x_major_step
     }
 }
 

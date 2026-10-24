@@ -61,17 +61,20 @@ impl AxisOverrides {
         if let Some(show) = self.y2_show_label {
             axis.show_label = show;
         }
+        axis.major_step = self.y2_major_step;
     }
 
-    /// Drop the range and display unit of the y axis on `side`, which were
-    /// written in a coordinate unit that its first curve has just replaced.
+    /// Drop the range, display unit and major step of the y axis on `side`,
+    /// which were written in a unit that its first curve has just replaced.
     pub(crate) fn forget_axis_units(&mut self, side: YAxisSide) {
         if side.is_right() {
             self.y2_range = None;
             self.y2_display_unit = None;
+            self.y2_major_step = None;
         } else {
             self.y_range = None;
             self.y_display_unit = None;
+            self.y_major_step = None;
         }
     }
 
@@ -83,6 +86,7 @@ impl AxisOverrides {
             || self.y2_scale != other.y2_scale
             || self.y2_show_tick_labels != other.y2_show_tick_labels
             || self.y2_show_label != other.y2_show_label
+            || self.y2_major_step != other.y2_major_step
     }
 }
 

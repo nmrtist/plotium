@@ -192,5 +192,20 @@ fn copy_into(
         target.x_thousands_separator = after.x_thousands_separator;
         changed.push(axis::X_THOUSANDS_SEPARATOR);
     }
+    if before.x_major_step != after.x_major_step {
+        let shown = |display: &Option<Box<plotium_data::UnitSpec>>, unit| {
+            display.as_deref().cloned().or_else(|| Option::clone(unit))
+        };
+        target.x_major_step = crate::state::shared_x_step(
+            after.x_major_step,
+            &shown(&after.x_display_unit, source_unit),
+            &shown(&target.x_display_unit, &unit),
+        )
+        .map_err(|message| PropertyError::InvalidValue {
+            property: axis::X_MAJOR_STEP,
+            message,
+        })?;
+        changed.push(axis::X_MAJOR_STEP);
+    }
     Ok(changed)
 }

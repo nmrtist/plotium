@@ -75,7 +75,7 @@ pub fn figure_text_boxes_placed(
         "title",
         if xf.show_title { &fig.title } else { "" },
         size[0] * 0.5,
-        0.0,
+        crate::rich_text::script_overshoot(&fig.title, ty.title_pt).0,
         ty.title_pt,
         0.5,
         false,
@@ -158,7 +158,10 @@ pub fn figure_text_boxes_placed(
                 "axis.x.label",
                 &fig.x.label,
                 (plot.left + plot.right()) * 0.5,
-                x_lane_bottom - clearance - ty.label_pt,
+                x_lane_bottom
+                    - clearance
+                    - ty.label_pt
+                    - crate::rich_text::script_overshoot(&fig.x.label, ty.label_pt).1,
                 ty.label_pt,
                 0.5,
                 false,
@@ -169,7 +172,7 @@ pub fn figure_text_boxes_placed(
             add(
                 "axis.y.label",
                 &fig.y.label,
-                y_title_left + ty.label_pt * 0.5,
+                y_title_left + crate::y_title::rise(fig) + ty.label_pt * 0.5,
                 y_title_cy,
                 ty.label_pt,
                 0.5,
@@ -301,14 +304,10 @@ pub fn annotation_text_boxes(
     crate::label_placement::drawn_texts(fig, plot, &labels, 1.)
         .filter(|(a, _)| !a.text.trim().is_empty())
         .map(|(a, at)| {
-            let w = a
-                .text
-                .lines()
-                .map(|line| estimated_text_width(line, a.size))
-                .fold(0., f32::max);
+            let (w, h) = crate::label_placement::text_extent(&a.text, a.size);
             TextBox {
                 component: "annotation".into(),
-                bounds: crate::text_place::bounds(at, w, a.size),
+                bounds: crate::text_place::bounds(at, w, h),
                 container: None,
             }
         })

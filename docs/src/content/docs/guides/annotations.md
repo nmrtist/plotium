@@ -57,8 +57,9 @@ automatic placement.
   line here**. The new annotation sits at the clicked data point; an arrow
   points at it.
 - **Edit text**: double-click a text annotation or reference-line label, or
-  choose **Edit text…** from its right-click menu. `Enter` saves and `Esc`
-  cancels.
+  choose **Edit text…** from its right-click menu. In a text annotation
+  `Enter` starts a new line and `Ctrl`/`Cmd` + `Enter` saves; a reference-line
+  label is one line, saved with `Enter`. `Esc` cancels.
 - **Move**: drag an arrow to move it, or drag one of its ends to move only that
   end; drag a reference line across itself to change its value. Arrow keys
   nudge the selected annotation. Agents keep an arrow or line you moved where
