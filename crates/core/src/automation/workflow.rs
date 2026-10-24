@@ -289,8 +289,8 @@ pub fn execute_workflow(
     cancellation: &TaskCancellation,
     observer: &mut impl FnMut(TaskEvent),
 ) -> Result<RunManifest, AutomationError> {
-    let registry = ToolRegistry::built_in();
-    let order = workflow.validate(&registry)?;
+    let registry = ToolRegistry::shared();
+    let order = workflow.validate(registry)?;
     let workflow_value = serde_json::to_value(workflow)
         .map_err(|error| AutomationError::InvalidWorkflow(error.to_string()))?;
     let canonical = serde_json::to_vec(&workflow_value)

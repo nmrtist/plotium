@@ -5,6 +5,9 @@ use plotium_agent::Connection;
 use plotium_core::{settings::AgentAccess, state::PlotiumApp};
 use std::time::{Duration, Instant};
 
+/// How long after the last client request the indicator shows Active.
+const ACTIVE_WINDOW: Duration = Duration::from_secs(30);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Indicator {
     Off,
@@ -34,9 +37,7 @@ impl Indicator {
             Self::Off
         } else if fault {
             Self::Attention
-        } else if ready
-            && last.is_some_and(|t| now.saturating_duration_since(t) < Duration::from_secs(30))
-        {
+        } else if ready && last.is_some_and(|t| now.saturating_duration_since(t) < ACTIVE_WINDOW) {
             Self::Active
         } else if ready {
             Self::Ready
@@ -184,13 +185,36 @@ impl AgentConnections {
         app.session
             .result_follow
             .synchronize(app.session.project_context, source);
-        self.update_indicator(app, ctx, Instant::now());
-        if app.settings.agent.enabled
-            || self.cards.iter().any(|c| c.job.is_some())
-            || self.connector_job.is_some()
-        {
-            ctx.request_repaint_after(Duration::from_millis(100));
+        let now = Instant::now();
+        self.update_indicator(app, ctx, now);
+        if let Some(delay) = self.next_poll(app.settings.agent.enabled, now) {
+            ctx.request_repaint_after(delay);
         }
+    }
+    /// Requests and connection exits wake the UI themselves; poll often only
+    /// while work is in flight, otherwise at the next retry or indicator change.
+    fn next_poll(&self, enabled: bool, now: Instant) -> Option<Duration> {
+        if self.cards.iter().any(|c| c.job.is_some())
+            || self.connector_job.is_some()
+            || self
+                .connection
+                .as_ref()
+                .is_some_and(Connection::has_pending_work)
+        {
+            return Some(Duration::from_millis(100));
+        }
+        if !enabled {
+            return None;
+        }
+        let Some(connection) = &self.connection else {
+            return self.retry_at.map(|t| t.saturating_duration_since(now));
+        };
+        connection
+            .activity()
+            .last
+            .map(|t| t + ACTIVE_WINDOW)
+            .filter(|until| *until > now)
+            .map(|until| until - now)
     }
     fn failed(&mut self, app: &mut PlotiumApp, message: String) {
         app.session.status = format!("AI connection needs attention: {message}");
