@@ -935,7 +935,9 @@ Series 身份和来源绑定。已知目标可复用同步提交结果的 contex
 使用相同的 x 刻度类型；所有成员绘制最下面成员的 x 方向，但不保存该方向。各图共享
 x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位或 x 千位分隔符，都会
 写到所有成员，并合为一次 Undo；若任一成员不能接受该值则拒绝写入，`applied` 会
-列出各成员的修改。`shared_x: false` 恢复为自由布局并保留各 frame。结果在 `panel_edits` 中列出
+列出各成员的修改。同一批次若请求相互冲突的共享 x 设置，会整批拒绝且不留下修改；
+按兼容坐标单位表达的等价范围可以接受。
+`shared_x: false` 恢复为自由布局并保留各 frame。结果在 `panel_edits` 中列出
 每个操作的 `layout`、`gap_pt`、`members_top_to_bottom` 和 `merged_panels`。
 `plotium_document_inspect` 为每个面板返回 `layout`（`free`、`vertical_stack`、
 `horizontal_stack`、`grid` 或 `shared_x_stack`）；堆叠面板另含

@@ -1136,7 +1136,10 @@ unit), so members must already share an x scale; every member draws the bottom
 member's x direction without storing it. The plots share one x viewport, and
 later x range, x scale, x display unit and x thousands-separator edits on any
 member apply to all of them in one Undo step; the write is rejected when any
-member cannot take the value, and `applied` lists the member edits. `shared_x: false` returns the Panel to free layout and keeps
+member cannot take the value, and `applied` lists the member edits. A batch that
+requests conflicting shared x settings is rejected without changes; equivalent
+ranges expressed in compatible coordinate units are accepted.
+`shared_x: false` returns the Panel to free layout and keeps
 the frames. The result lists each operation in `panel_edits` with `layout`,
 `gap_pt`, `members_top_to_bottom` and `merged_panels`. `plotium_document_inspect` reports every
 Panel's `layout` (`free`, `vertical_stack`, `horizontal_stack`, `grid` or

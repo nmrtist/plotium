@@ -41,6 +41,7 @@ pub(crate) struct PropertyTransaction {
     bindings: BindingPlan,
     canvases: Vec<CanvasPlan>,
     axis_overrides: Vec<AxisOverridesPlan>,
+    shared_x_edits: Vec<super::PropertyAddress>,
     objects: ObjectPlans,
     typography: Option<(FigureTypography, FigureTypography)>,
     processing: Vec<(DatasetId, DatasetProcessingState, DatasetProcessingState)>,
