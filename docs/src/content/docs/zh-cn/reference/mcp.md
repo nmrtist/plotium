@@ -233,6 +233,12 @@ Plotium 仍在服务端检查条件约束：需要选择器时只提供一个非
 可用性或权限；首次访问、桌面编辑或 Undo/Redo 后、需要这些动态值时，以及
 stale/context 错误或结果不确定时，仍须读取状态。执行继续检查上下文、revision 与权限。
 
+图形编辑、曲线追加／绑定／展开、科学结果绘图、重命名、主题和删除数据集的计划返回
+`plan_id`、`project_context`、`basis_revision` 和 `preflight`，不再回显请求和冻结目标集。
+`preflight.summary` 统计可执行、跳过和失败的目标数，`preflight.targets` 只列出将被跳过或
+失败的目标。它们的执行结果用 `summary` 统计成功、跳过和失败数，`targets` 只列跳过或
+失败的行，已修改资源见 `produced` 和 `modified`。
+
 科学任务排队或提交并不代表修改已提交，不可复用即时响应的 `after_revision`。
 只有已知项目上下文中终态为 `succeeded` 且包含 `end_revision` 的回执才允许复用。
 科学有效性与收敛情况须单独检查：任务成功并不证明拟合有效。失败、取消、失效、
@@ -1126,7 +1132,10 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 和 `clip_children` 的裁剪另行列明。
 
 `ToolResult.value` 包含 `project_context`、`basis_revision`、`canvas`、`summary`、
-`output`、`items`、`coverage`、`budget`、`truncated` 和 `continuation`。`summary`
+`output`、`items`、`coverage`、`truncated` 和 `continuation`。默认的 compact 详情中，
+`output` 只含 `size_mm` 和 `size_pt`，`coverage` 给出状态、扫描计数以及不可用或不支持的
+条目数。`detail: "full"` 时 `output` 另含页面坐标说明，`coverage` 另含请求、支持和不支持的
+检查列表，并附 `budget`、`preview_request` 和 `read_policy`。`summary`
 统计本页的问题（`issues`、`by_code`、`by_severity`）；分页扫描时把各页计数相加。
 每个问题带完整原生 `target`、所属对象内的 `component`、`code`、`severity` 和说明；
 `detail: "full"` 时证据另带 bounds、clip 和交集几何。
@@ -1199,7 +1208,8 @@ stdio 结束时关闭；其他工具仍使用原来的单次调用 transport，�
 只读权限即可使用；对象、绑定、手动范围、几何、Undo 历史和 automation revision
 以及 dirty、edit generation 不变，不追加项目审计记录。不持久化诊断几何、问题、cursor 或 PNG 副本。
 
-按 `preview_request` 取得并实际查看原生 PNG。X 坐标转像素为
+用画布、上下文和 `basis_revision` 调用 `plotium_render_preview` 取得并实际查看原生 PNG。
+X 坐标转像素为
 `x * width_px / output.size_pt[0]`，Y 使用对应高度；核对其
 `render_revision` 与 `basis_revision` 一致。编辑器 zoom 不影响上述坐标。直接 core
 `figure.diagnose` 只返回一个有界 batch，不保留 cursor；MCP 查询提供继续读取。
@@ -1435,7 +1445,8 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 1. 用 `{}` 调用 `plotium_get_state`，取得 `project_context`、`revision`、项目概况、选择和连接权限。
 2. `plotium_resources_search` 接受 `expected_project_context`、`expected_revision` 和 `query`，例如
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}`。先将结果解析为
-   显式稳定 ID；`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
+   显式稳定 ID；所有匹配理由相同（例如无筛选搜索）时，`value.reason` 只给出一次，
+   不再返回 `value.reasons`。`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
 3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性及范围。
    使用 `plotium_properties_inspect` 查询曲线地址：
 
@@ -1443,7 +1454,8 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
    {"ids":["CANVAS_UUID/OBJECT_ID"],"key":"series.line.stroke_width","expected_project_context":"PROJECT_CONTEXT","expected_revision":7}
    ```
 
-   返回的 `value.readings` 为每条适用曲线提供一行。复制所选曲线的完整
+   返回的 `value.readings` 为每条适用曲线提供一行；各行 schema 或默认值相同时，改为在
+   `value.schema` 和 `value.default_value` 中给出一次。复制所选曲线的完整
    `value.readings[0].target`，例如：
 
    ```json

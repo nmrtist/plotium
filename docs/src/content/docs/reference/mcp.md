@@ -280,6 +280,15 @@ permissions. Read state initially, after desktop edits or Undo/Redo, when those
 dynamic values are needed, and on stale/context errors or uncertain outcomes.
 Execution still rechecks context, revision and permissions.
 
+Plans for figure edits, curve append/bind/expansion, scientific plots, renames,
+themes and dataset deletion return `plan_id`, `project_context`, `basis_revision`
+and a `preflight` without the echoed request or frozen target set.
+`preflight.summary` counts compatible, skipped and failed targets, and
+`preflight.targets` lists only the targets that will be skipped or fail. Their
+execution results carry `summary` counts of succeeded, skipped and failed
+targets, list only skipped or failed rows in `targets`, and report changed
+resources in `produced` and `modified`.
+
 A queued or submitted scientific task is not a committed edit; its immediate
 `after_revision` must not be reused. Only a terminal `succeeded` receipt in the
 known project context with `end_revision` permits reuse. Check scientific
@@ -1393,7 +1402,11 @@ clip; a panel border is **not** a general content clip. Native raster frame and
 `clip_children` clipping are reported separately.
 
 `ToolResult.value` contains `project_context`, `basis_revision`, `canvas`, `summary`,
-`output`, `items`, `coverage`, `budget`, `truncated` and `continuation`. `summary`
+`output`, `items`, `coverage`, `truncated` and `continuation`. In the default
+compact detail, `output` has `size_mm` and `size_pt`, and `coverage` reports its
+status, scan counts and unavailable or unsupported items. `detail: "full"` adds the
+page coordinate description to `output`, the requested, supported and unsupported
+check lists to `coverage`, and `budget`, `preview_request` and `read_policy`. `summary`
 counts the issues on this page (`issues`, `by_code`, `by_severity`); add the
 counts of every page of a continued scan. Each issue has a full native `target`,
 an owner-relative `component`, `code`, `severity` and explanation; with
@@ -1487,7 +1500,8 @@ range, geometry, Undo history, automation revision, edit generation or dirty sta
 They do not append project audit records. Geometry, issues, cursors and PNGs are
 not persisted as diagnostic copies.
 
-Use `preview_request` to obtain the native PNG, then inspect it. Convert a returned
+Call `plotium_render_preview` with the canvas, context and `basis_revision` to
+obtain the native PNG, then inspect it. Convert a returned
 X coordinate to pixels using `x * width_px / output.size_pt[0]`; use height
 for Y. Check its `render_revision` against `basis_revision`. Editor zoom does not
 change these units. Direct core `figure.diagnose` returns one bounded batch without
@@ -1782,6 +1796,8 @@ changing it to 1.5 pt, then apply the saved plan.” The tool sequence is:
    and connection permissions.
 2. `plotium_resources_search` with `expected_project_context`, `expected_revision` and a `query` such as
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}` locates resources.
+   When every match has the same reason, as in an unfiltered search, `value.reason`
+   states it once instead of `value.reasons`.
    Resolve results to explicit stable IDs; `plotium_resources_inspect` reads
    descriptors using `ids` and `expected_revision`.
 3. `plotium_properties_list` with `{}` lists supported IDs and scopes. Discover
@@ -1791,7 +1807,9 @@ changing it to 1.5 pt, then apply the saved plan.” The tool sequence is:
    {"ids":["CANVAS_UUID/OBJECT_ID"],"key":"series.line.stroke_width","expected_project_context":"PROJECT_CONTEXT","expected_revision":7}
    ```
 
-   The response's `value.readings` contains one row per applicable curve. Copy
+   The response's `value.readings` contains one row per applicable curve. When
+   every reading shares its schema or default, `value.schema` and
+   `value.default_value` hold it once instead. Copy
    the complete `value.readings[0].target` for the curve you want, for example:
 
    ```json
