@@ -1451,7 +1451,7 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}`。先将结果解析为
    显式稳定 ID；所有匹配理由相同（例如无筛选搜索）时，`value.reason` 只给出一次，
    不再返回 `value.reasons`。`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
-3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性及范围。
+3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性 ID 和值类型。
    使用 `plotium_properties_inspect` 查询曲线地址：
 
    ```json
