@@ -350,6 +350,14 @@ The mixed planning/execution tools use conservative hints. Keep client approval
 scoped to the intended tools and follow the
 [annotation and authorization guidance](/reference/mcp/#tool-annotations-and-client-approval).
 
+Before the AI creates a plot, Plotium asks it to check with you what the plot
+should show (compare groups, a trend, a distribution, a relationship, parts of a
+whole, a change or ratio, or a local detail) and the one claim it should
+support. Answer in your own words, or let the AI propose a reading and correct
+it. The intent is saved with the plot and never changes the drawing; edit it
+later under **Chart › Advanced** in the Object inspector. See
+[plot creation](/reference/mcp/#create-a-native-single-plot-from-an-imported-table).
+
 For different colours or labels across curves, ask for one atomic
 `properties.set_many` plan with 1–200 exact target/property/value writes and one
 Undo step. Reuse the complete targets returned by `plot.create`; see

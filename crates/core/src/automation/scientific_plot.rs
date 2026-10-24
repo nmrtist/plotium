@@ -340,6 +340,7 @@ pub(super) fn prepare(
                     panel_name: None,
                     panel_frame_pt: Some([36., 50., 438., 235.]),
                     series: vec![curve(0, CurveKind::Scatter), curve(1, CurveKind::Line)],
+                    intent: None,
                 },
             )
             .map_err(|e| invalid(tool, e))?;
@@ -357,6 +358,7 @@ pub(super) fn prepare(
                     panel_name: None,
                     panel_frame_pt: Some([36., 305., 438., 90.]),
                     series: vec![curve(2, CurveKind::Scatter)],
+                    intent: None,
                 },
             )
             .map_err(|e| invalid(tool, e))?;

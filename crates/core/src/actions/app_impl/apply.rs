@@ -164,6 +164,14 @@ impl PlotiumApp {
             } => {
                 self.set_object_flags(*canvas, *object, *after);
             }
+            Action::SetPlotIntent {
+                canvas,
+                object,
+                after,
+                ..
+            } => {
+                self.set_plot_intent(*canvas, *object, after.clone());
+            }
             Action::BoardViewInsert { index, view } => {
                 self.board_view_do_insert(*index, view);
             }

@@ -5,8 +5,8 @@ use super::routes::*;
 use super::types::*;
 use plotium_core::properties::{
     apodization, app_preferences, axis, baseline, bin, canvas, chart_layout, contour, export_dpi,
-    group_delay, guide, heatmap, ilt, line, line_display, normalize, object, phase, plot_display,
-    reference, right_axis, smooth, step_enabled, typography, zero_fill,
+    group_delay, guide, heatmap, ilt, intent, line, line_display, normalize, object, phase,
+    plot_display, reference, right_axis, smooth, step_enabled, typography, zero_fill,
 };
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
@@ -39,6 +39,8 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(chart_layout::SPREAD, "Replicate spread", LINE_HOME),
     object_entry(chart_layout::VALUE_LABELS, "Value labels", LINE_HOME),
     object_entry(chart_layout::ORIENTATION, "Chart orientation", AXIS_HOME),
+    object_entry(intent::PURPOSE, "Purpose", CHART_HOME),
+    object_entry(intent::CLAIM, "Claim", CHART_HOME),
     object_entry(
         line_display::MARKER_EDGE_COLOR,
         "Marker edge color",

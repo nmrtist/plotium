@@ -46,6 +46,18 @@ impl PlotiumApp {
         (object.visible, object.locked) = flags;
     }
 
+    pub(super) fn set_plot_intent(&mut self, canvas: usize, object: ObjectId, intent: PlotIntent) {
+        if let Some(plot) = self
+            .doc
+            .canvases
+            .get_mut(canvas)
+            .and_then(|canvas| canvas.object_mut(object))
+            .and_then(|object| object.plot_mut())
+        {
+            plot.intent = intent;
+        }
+    }
+
     pub(super) fn set_panel_meta(&mut self, canvas: usize, object: ObjectId, panel: PanelMeta) {
         let Some(page) = self.doc.canvases.get_mut(canvas) else {
             return;

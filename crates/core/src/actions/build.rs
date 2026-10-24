@@ -5,9 +5,9 @@ use super::*;
 use crate::layout::PageLayout;
 use crate::state::{
     AxisOverrides, CanvasObject, CanvasViewport, ChartSpec, CurveFitReference, DataBinding,
-    Dataset, NamedView, ObjectFrame, ObjectId, ObjectStyle, PanelMeta, PlotiumApp, Region,
-    Selection, StackSpec, StoredCurveFitAnalysis, StoredLineFit, StoredMultiplet, TableEditDelta,
-    TextBox,
+    Dataset, NamedView, ObjectFrame, ObjectId, ObjectStyle, PanelMeta, PlotIntent, PlotiumApp,
+    Region, Selection, StackSpec, StoredCurveFitAnalysis, StoredLineFit, StoredMultiplet,
+    TableEditDelta, TextBox,
 };
 use crate::theme::ThemeSnapshot;
 use crate::{Integral2D, IntegralResult};
@@ -195,6 +195,20 @@ impl Action {
         after: (bool, bool),
     ) -> Self {
         Self::SetObjectFlags {
+            canvas,
+            object,
+            before,
+            after,
+        }
+    }
+
+    pub fn set_plot_intent(
+        canvas: usize,
+        object: ObjectId,
+        before: PlotIntent,
+        after: PlotIntent,
+    ) -> Self {
+        Self::SetPlotIntent {
             canvas,
             object,
             before,
