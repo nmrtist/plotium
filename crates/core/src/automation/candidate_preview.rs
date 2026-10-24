@@ -1,7 +1,11 @@
 //! Borrow a frozen edit into a disposable native execution context. Never replan
 //! figure edits: doing so would reread files and mint different asset identities.
 use super::*;
-use crate::{actions::Action, properties::guide, state::*};
+use crate::{
+    actions::Action,
+    properties::{PropertyDefinition, ScopeKind, definition_by_key},
+    state::*,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -28,9 +32,9 @@ pub fn plan_preview_schema() -> Value {
     schema
 }
 pub fn plan_preview_contract() -> Value {
-    json!({"properties":["properties.set","properties.reset"],"property_keys":[guide::VISIBILITY.as_str(),guide::PLACEMENT.as_str(),guide::LAYOUT.as_str(),guide::TITLE.as_str(),guide::POSITION.as_str()],
+    json!({"properties":["properties.set","properties.reset","properties.set_many"],"property_keys":"document and object display properties; not canvas, app preference or dataset processing properties, chart type or stack changes","variants":"For a style choice, plan 2-3 alternatives, preview each, show them to the user and execute only the one they pick. The others then fail with stale_revision but stay pending against the 32-plan cap until submitted or the connection resets.",
         "figure_edits":["content_frame","image_replace","text_set","panel_stack","content_delete","panel_delete","series_delete"],
-        "batch":"Full native batch; deletion-only rules unchanged. Multi-canvas guide plans may be previewed one affected canvas at a time.",
+        "batch":"Full native batch; deletion-only rules unchanged. Multi-canvas property plans may be previewed one affected canvas at a time.",
         "rendering":"Ordinary line/scatter plots, native text, raster and shapes. No background scientific computation.",
         "snapshot_estimate_bytes":CANDIDATE_SNAPSHOT_BYTES,"snapshot_estimate":"Native canvas geometry plus source field dimensions at 64 bytes/element, metadata and frozen assets; not peak process memory.",
         "lifecycle":"Borrow only; no consumption, TTL extension or new authority. No candidate cache. Same single preview flight and image limits.",
@@ -53,6 +57,57 @@ fn budget(bytes: usize) -> Result<(), AutomationError> {
     } else {
         Ok(())
     }
+}
+
+/// Document and object display properties commit as one document action the
+/// disposable copy can replay. Canvas properties commit outside it, and app
+/// preferences and dataset processing need state the copy lacks.
+fn previewable(definition: &PropertyDefinition) -> bool {
+    matches!(
+        definition.scope_kind,
+        ScopeKind::Document | ScopeKind::Object
+    )
+}
+
+/// Chart type, stack and projection changes rebuild the figure into kinds the
+/// snapshot checks and budget did not see.
+fn redraws_in_place(action: &Action) -> bool {
+    match action {
+        Action::Composite(actions) => actions.iter().all(redraws_in_place),
+        Action::SetChartType { .. }
+        | Action::SetStackSpec { .. }
+        | Action::SetAxisProjections { .. } => false,
+        _ => true,
+    }
+}
+
+/// Canvases a property target changes. A document-wide value reaches every
+/// canvas, so the previewed one is enough.
+fn affected_canvases(
+    app: &PlotiumApp,
+    target: &TargetRef,
+    preview: &TargetRef,
+) -> Result<Vec<CanvasId>, AutomationError> {
+    if target.resource.kind.0 == KIND_DOCUMENT {
+        return Ok(app
+            .doc
+            .canvases
+            .iter()
+            .filter(|c| TargetRef::resource(c.resource_id.into()) == *preview)
+            .map(|c| c.resource_id)
+            .collect());
+    }
+    app.doc
+        .canvases
+        .iter()
+        .find(|c| {
+            ResourceRef::from(c.resource_id) == target.resource
+                || c.objects
+                    .iter()
+                    .any(|o| canvas_object_ref(c.resource_id, o.id) == target.resource)
+        })
+        .map(|c| vec![c.resource_id])
+        .ok_or_else(|| invalid("Property target disappeared"))
 }
 
 /// Checks which *existing* plans are previewable, without changing their execute contract.
@@ -105,33 +160,36 @@ pub fn validate_plan_preview(
                 .ok_or_else(|| invalid("Canvas disappeared"))?;
             canvases.insert(page.resource_id);
         }
-        TOOL_SET | TOOL_RESET => {
-            let key = plan
-                .request
-                .parameters
-                .get("key")
-                .and_then(Value::as_str)
-                .and_then(crate::properties::definition_by_key);
-            if !key.is_some_and(|k| guide::is_guide_property(k.id)) {
+        TOOL_SET | TOOL_RESET | TOOL_SET_MANY => {
+            let keys: Vec<Option<&'static PropertyDefinition>> =
+                if plan.request.tool_id == TOOL_SET_MANY {
+                    super::property_batch::decode(&plan.request.parameters)?
+                        .into_iter()
+                        .map(|(_, id, _)| crate::properties::definition(id))
+                        .collect()
+                } else {
+                    vec![
+                        plan.request.parameters["key"]
+                            .as_str()
+                            .and_then(definition_by_key),
+                    ]
+                };
+            if !keys.into_iter().all(|k| k.is_some_and(previewable)) {
                 return Err(unsupported(
-                    "only the five native guide properties are supported",
+                    "only document and object display properties are supported",
                 ));
             }
             for t in &plan.targets {
+                // A held hand-set value would show in the copy, which has no
+                // hand-edit record, yet be skipped on execution.
                 if t.status != TargetCompatibility::Compatible {
-                    return Err(invalid("All guide targets must remain compatible"));
+                    return Err(invalid(format!(
+                        "{} cannot be previewed: {}",
+                        t.target.describe(),
+                        t.reason
+                    )));
                 }
-                let page = app
-                    .doc
-                    .canvases
-                    .iter()
-                    .find(|c| {
-                        c.objects.iter().any(|o| {
-                            TargetRef::resource(canvas_object_ref(c.resource_id, o.id)) == t.target
-                        })
-                    })
-                    .ok_or_else(|| invalid("Guide target disappeared"))?;
-                canvases.insert(page.resource_id);
+                canvases.extend(affected_canvases(app, &t.target, target)?);
             }
         }
         _ => {
@@ -270,9 +328,22 @@ pub fn capture_plan_preview(
         let context = if p.is_deletion() { app } else { &candidate };
         context.figure_edit_action(p.clone()).map_err(invalid)?
     } else {
-        let targets: Vec<_> = plan.targets.iter().map(|t| t.target.clone()).collect();
-        let commit = super::properties::prepare_commit(&candidate, plan, &targets)?;
-        commit.document_action.unwrap_or(Action::Composite(vec![]))
+        let commit = if plan.request.tool_id == TOOL_SET_MANY {
+            super::property_batch::candidate_commit(&candidate, plan)?
+        } else {
+            let targets: Vec<_> = plan.targets.iter().map(|t| t.target.clone()).collect();
+            super::properties::prepare_commit(&candidate, plan, &targets)?
+        };
+        if !commit.canvas_direct.is_empty() {
+            return Err(unsupported("canvas properties are not supported"));
+        }
+        let action = commit.document_action.unwrap_or(Action::Composite(vec![]));
+        if !redraws_in_place(&action) {
+            return Err(unsupported(
+                "chart type and stack changes are not supported",
+            ));
+        }
+        action
     };
     candidate
         .apply_preview_action(&action)

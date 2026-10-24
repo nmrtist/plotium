@@ -1317,13 +1317,17 @@ target 调用 `plotium_preview_plan`：
 
 | 已有计划 | 候选支持范围 |
 | --- | --- |
-| `properties.set` / `properties.reset` | 上述五个 `object.guides.*` 属性及原生多目标批次 |
+| `properties.set` / `properties.reset` / `properties.set_many` | 文档和图对象的显示属性及原生多目标批次；不含画布属性、应用偏好、数据处理，以及图表类型和堆叠方式的修改 |
 | `figure.edit` 局部编辑 | `content_frame`、`image_replace`、`text_set`、`annotation_create`／`annotation_set`／`annotation_delete`（文字标注与参考线）及原生批次 |
 | `figure.edit` 纯删除批次 | `content_delete`、原本为空的 `panel_delete`、显式列绑定 `series_delete`；原拒绝规则不变 |
 | 其他操作，包括保存和导出 | 返回 `unsupported_operation`，不改变其正常 execute 合同 |
 
+想让用户挑选样式（配色、线宽、图例位置、标签布局等）时，规划两三个备选计划，逐个预览，
+把图并排给用户看。只执行用户选中的计划。其余计划从不提交，之后会返回 `stale_revision`，
+但在提交或连接重置前仍占用 32 个待执行计划的名额。
+
 受影响画布须使用普通折线／散点、原生文字、形状和栅格内容；预览不启动科学计算。
-跨画布 guide 计划在隔离原生上下文应用完整批次，可逐个请求受影响画布，仍是一个计划、
+跨画布属性计划在隔离原生上下文应用完整批次，可逐个请求受影响画布，仍是一个计划、
 一个 Undo 步骤。自动轴、guide 依赖和派生页高复用原生 action 与 renderer，不另建布局模型。
 基线、输出设置和字体相同时，候选内容和几何与 execute 一致；不保证跨机器字体／renderer
 不同情况下的像素相等。

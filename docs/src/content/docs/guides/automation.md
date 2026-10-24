@@ -300,12 +300,17 @@ PNG before explicitly executing that same plan; afterward read the real PNG and
 fresh diagnostics. Preserve my data, units, manual ranges, other same-name objects,
 and intentional clipping or overlap. Do not shrink text or hide data to clear warnings.”
 
-Candidate preview supports native guide edits, content geometry, image replacement,
+Candidate preview supports display property edits such as colours, line widths,
+axes, legends and typography, as well as content geometry, image replacement,
 text updates and exact deletion. It needs **Read and modify**, but leaves authored
 state, Undo/Redo, dirty state and edit generation untouched, and adds no project
 audit record. If you edit while the agent is reviewing a candidate, its old plan must be
 replaced. One execution remains one native Undo step. See the [support matrix and
 candidate metadata](/reference/mcp/#preview-a-plan-before-committing-it).
+
+For a style choice such as a palette, line widths or the legend position, ask
+the AI to show two or three options. It previews each without changing your
+project, and applies only the one you pick.
 
 ### Deliver the editable project and final figures
 
