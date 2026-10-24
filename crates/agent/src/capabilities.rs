@@ -79,7 +79,7 @@ fn tool_index() -> Vec<Value> {
             "plotium_capabilities_get"=>(vec!["capabilities.get"],"{} returns {capability_fingerprint,connection_capabilities:index}; {section,key?} returns {capability_fingerprint,section,key?,contract}; immutable contracts, not current authorization","static; no project or revision required; callable while busy"),
             "plotium_resources_search"=>(vec!["resources.search"],"ToolResult.value: FrozenTargetSet","ResourceQuery"),
             "plotium_resources_inspect"=>(vec!["resources.inspect"],"ToolResult.value: ResourceDescriptor[]","explicit resource IDs"),
-            "plotium_properties_list"=>(vec!["properties.list"],"{properties:[{id,label,scope,schema,access,applicability}]}","static; no target"),
+            "plotium_properties_list"=>(vec!["properties.list"],"{detail,properties:[{id,label,scope,schema,unit,access,applicability}]}; compact by default, keys/scope filter, detail full returns complete definitions","static; no target"),
             "plotium_properties_inspect"=>(vec!["properties.inspect"],"ToolResult.value: {property,canonical_label,tier,aggregate,readings}; ToolResult.targets reports skips","ids expand by property, or exact Series TargetRef[]"),
             "plotium_plan"=>(EDIT_OPERATIONS.to_vec(),"{plan_id,preflight:ToolPlan|property_preflight{required_authority,estimated_changes,summary:{compatible,skipped,failed},targets:non-compatible PlannedTarget[]}|save_preflight|export_preflight,save_id?,export_id?,import?:{status,items},transform?:{status,output},update?:{status,output,before_table_revision,changed}}; native import or table_data_only import/transform; import omits ids/targets, transform requires one DatasetId in ids; prepared is not committed","rename: dataset/canvas/content IDs; properties: ids or exact Series targets; transform: one DatasetId; creation: explicit parent inside parameters, no top-level selector"),
             "plotium_execute"=>(EDIT_OPERATIONS.to_vec(),"ToolResult for edits; properties.set/set_many/reset add summary {succeeded,skipped,failed,by_reason} and keep only non-succeeded targets and value.writes; {save:SaveReceipt} or {export:ExportReceipt} for external writes. Submitted plan is consumed even on failure","one-use plan_id"),
@@ -315,7 +315,7 @@ fn discovery() -> &'static Discovery {
 /// Everything an agent may cache under one fingerprint: the index, every
 /// detail section, the MCP tool definitions and the property catalog.
 fn contract(index: &Value, sections: &serde_json::Map<String, Value>) -> Value {
-    json!({"index":index,"sections":sections,"tools":crate::protocol::definitions(),"properties":crate::session::property_catalog()})
+    json!({"index":index,"sections":sections,"tools":crate::protocol::definitions(),"properties":crate::session::property_catalog(),"property_catalog_compact":crate::property_catalog::respond(json!({})).expect("static catalog")})
 }
 
 #[cfg(test)]

@@ -320,13 +320,19 @@ Series 详情包含可直接用于属性查询的完整 target、编码、可见
 不提供递归展开整个项目的接口。revision 变化会拒绝续页，须重读状态并重新列举。
 目标失效或身份伪造返回 `invalid_parameters`，不会改用当前选择。
 
-`plotium_properties_list {}` 只返回当前允许的静态定义，包括 `schema`、`unit`
-（无量纲时为空）、`scope`、`access` 和静态 `applicability`，不混入当前目标值。
-颜色 schema 以 `"format": "#rrggbb"` 说明输入格式。单位代码 schema 列出所有已注册的
-单位代码；某个坐标轴实际可用的代码以 `plotium_properties_inspect` 为该目标返回的为准，
-即与其坐标单位兼容的代码。
-用 `plotium_properties_inspect` 查询明确目标的当前值、默认值、范围和适用性。
-属性是否适用与连接是否允许修改分别表达。
+`plotium_properties_list {}` 默认以紧凑形式浏览全部支持属性。每项包含 ID、标签、
+scope、访问方式、静态适用能力，以及值类型、单位、范围和枚举 ID。紧凑 schema
+省略界面拖动步长和枚举标签；复杂输入标为 `requires_full`。可一次读取多个属性的完整定义：
+
+```json
+{"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
+```
+
+`scope` 使用目录中的范围名称筛选。`keys` 必须非空且不重复；不支持的键、未知 scope
+和键与 scope 冲突均明确报错，不会静默省略请求项。无筛选的 `detail: "full"` 返回完整目录。
+两种形式均为静态查询，忙碌时也可调用，不包含当前目标值。完整详情保留复杂输入约束、
+颜色格式 `#rrggbb` 和全部已注册单位代码。用 `plotium_properties_inspect` 查询目标值、
+默认值、范围和适用性；坐标轴只接受与其坐标单位兼容的代码。静态适用能力不授予连接修改权限。
 
 ## 导入 CSV/TSV 数据，不创建图
 

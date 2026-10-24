@@ -383,16 +383,25 @@ There is no recursive whole-project dump. Revision changes reject continuation;
 read state and restart the listing. Missing targets and forged identities return
 `invalid_parameters`, without using the current selection.
 
-`plotium_properties_list {}` returns the supported definitions:
-`schema`, `unit` (empty for dimensionless values), `scope`, `access` and static
-`applicability`. It contains no current target values. Colour schemas state
-their input form as `"format": "#rrggbb"`. Unit-code schemas list every
-registered unit code; the codes a given axis accepts are the ones
-`plotium_properties_inspect` returns for that target, which are compatible with
-its coordinate unit. Use
-`plotium_properties_inspect` to resolve values, defaults, bounds and applicability
-for explicit targets. Property applicability and connection write permission
-are separate facts.
+`plotium_properties_list {}` browses every supported property in compact form.
+Each row includes its ID, label, scope, access, static applicability and value
+schema with units, bounds and enum IDs. Compact schemas omit UI drag steps and
+enum labels; complex inputs are marked `requires_full`. Fetch complete definitions
+for the properties you need in one call:
+
+```json
+{"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
+```
+
+Use `scope` with a scope name from the catalog to filter the list. `keys` must be
+nonempty and unique; unsupported keys, unknown scopes and key/scope conflicts are
+errors, rather than silently omitting requested properties. `detail: "full"`
+without filters returns the complete catalog. Both forms are static, callable
+while busy, and contain no current target values. Full details preserve complex
+input constraints, colour format `#rrggbb` and every registered unit code.
+Use `plotium_properties_inspect` for target-specific values, defaults, bounds and
+applicability; an axis accepts only codes compatible with its coordinate unit.
+Static applicability does not grant connection write permission.
 
 ## Import CSV/TSV data without creating a plot
 

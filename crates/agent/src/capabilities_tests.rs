@@ -47,6 +47,7 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
         "/sections/limits/document_page_max",
         "/sections/tools/plotium_get_state/result_contract",
         "/properties/properties/0/schema/min",
+        "/property_catalog_compact/properties/0/schema/min",
         "/index/recovery_contract/unknown",
     ] {
         let mut changed = contract.clone();

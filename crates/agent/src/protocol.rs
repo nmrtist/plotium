@@ -1,4 +1,4 @@
-use crate::{Failure, PendingRequest, session::property_catalog};
+use crate::{Failure, PendingRequest};
 use rmcp::{ErrorData, RoleServer, ServerHandler, model::*, service::RequestContext};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -37,12 +37,13 @@ impl ServerHandler for Handler {
         }
         let arguments = Value::Object(request.arguments.unwrap_or_default());
         if request.name == "plotium_properties_list" {
-            return Ok(if arguments.as_object().is_some_and(|a| a.is_empty()) {
-                CallToolResult::structured(property_catalog())
-            } else {
-                CallToolResult::structured_error(
-                    Failure::new("invalid_parameters", "Expected empty arguments").value(),
-                )
+            return Ok(match crate::property_catalog::respond(arguments.clone()) {
+                Ok(value) => CallToolResult::structured(value),
+                Err(error) => CallToolResult::structured_error(
+                    error
+                        .for_request("plotium_properties_list", &arguments)
+                        .value(),
+                ),
             }
             .into());
         }
@@ -131,7 +132,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         ("plotium_capabilities_get", "Read a compact index of static tool, operation and contract summaries with a stable fingerprint; sections lists each detail section, its keys and sizes. Fetch one detail with {section,key?}, such as an operation schema with {section:\"operation_constraints\",key:<tool_id>}. Callable while busy; cached capabilities and annotations never authorize execution or retry. Read current permissions from plotium_get_state.", json!({"section":{"enum":crate::capabilities::SECTIONS},"key":{"type":"string","minLength":1}}), json!([])),
         ("plotium_resources_search", "Search current project resources using ResourceQuery.", json!({"expected_revision": revision, "query": query}), json!(["expected_revision", "query"])),
         ("plotium_resources_inspect", "Read descriptors for explicit stable resource IDs.", json!({"expected_revision": revision, "ids": ids}), json!(["expected_revision", "ids"])),
-        ("plotium_properties_list", "List supported display property definitions: schema, units, scope and static applicability. For 1-200 exact target/key/value writes use properties.set_many through plotium_plan, atomically with one Undo. Reuse full targets returned by plot.create. Does not create a run record.", json!({}), json!([])),
+        ("plotium_properties_list", "Browse supported display properties in compact form, or fetch full definitions with keys and detail full. Optional scope filters use catalog scope names. Complex schemas marked requires_full need full detail. For 1-200 exact target/key/value writes use properties.set_many through plotium_plan, atomically with one Undo. Reuse full targets returned by plot.create. Does not create a run record.", crate::property_catalog::schema(), json!([])),
         ("plotium_properties_inspect", "Read property values, defaults, bounds and applicability. Supply exactly one nonempty ids or targets array.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "key": key}), json!(["expected_revision", "key"])),
         ("plotium_plan", "Preflight a supported edit on resource IDs or exact series targets. Returns a one-use opaque plan_id; at most 32 pending plans. Use ids or targets exclusively; only properties.set/reset accept targets. Operations naming their own targets omit both; table operations require exactly one dataset id.", json!({"expected_revision": revision, "ids": ids, "targets": targets, "tool_id": {"enum": crate::capabilities::EDIT_OPERATIONS}, "parameters": {"type": "object", "description": "Operation arguments. Fetch the exact schema with plotium_capabilities_get {section:\"operation_constraints\",key:<tool_id>}. resource.rename {name}; dataset.delete {}; figure.apply_theme {theme_id}; properties.set {key,value,override_hand_edits?}; properties.reset {key,override_hand_edits?}; properties.set_many {writes:[{target,key,value}]}; data.import {paths,...}; data.transform {mode:table_data_only,name,plan}; table.patch {table_revision,edits}; table.refresh {table_revision}; plot.create {parent,name,series}; plot.series.append {plot,series}; plot.series.bind/materialize_default {edits}; figure.edit {canvas,edits}; project.save {path}; figure.export {canvas,outputs}. Property writes skip values the user set by hand unless override_hand_edits is true because the user asked."}}), json!(["expected_revision", "tool_id", "parameters"])),
         ("plotium_execute", "Submit a saved plan once. Edits require reversible-modify permission. project.save queues separate per-request desktop file authorization; poll plotium_save_status for completion. figure.export requests separate desktop authorization; poll plotium_export_status for per-file completion. External writes are not undoable.", json!({"plan_id": {"type": "string"}}), json!(["plan_id"])),

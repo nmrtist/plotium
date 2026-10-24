@@ -6,6 +6,7 @@ mod diagnostics;
 pub mod discovery;
 mod imports;
 mod preview;
+mod property_catalog;
 mod protocol;
 mod session;
 mod tool_effects;
