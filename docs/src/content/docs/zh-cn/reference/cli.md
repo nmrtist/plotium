@@ -218,7 +218,7 @@ plotium-cli tool run data.jdf --request operation.json --output result.plotium
 失败终态返回非零退出码；可选 `--output` 保存原生项目。`process` 同样通过
 共享处理方案服务执行后导出绘图。
 
-不给输入时，`tool run` 从空项目开始。CSV 和 TSV 表格不能作为输入加载，要用
+不给输入时，`tool run` 从空项目开始。CSV、TSV 和 XLSX 表格不能作为输入加载，要用
 `data.import` 导入，所以可以这样从表格起步（导入路径必须是绝对路径）：
 
 ```sh

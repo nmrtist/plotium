@@ -35,6 +35,18 @@ impl NativeImportParams {
                 "Native import requires 1–16 absolute explicit data files or atomic acquisition directories.",
             ));
         }
+        if let Some(table) = self.paths.iter().find(|path| {
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| {
+                    ["csv", "tsv", "xlsx"].contains(&ext.to_ascii_lowercase().as_str())
+                })
+        }) {
+            return Err(invalid(format!(
+                "{} is a table; import CSV, TSV and XLSX files with mode table_data_only.",
+                table.display()
+            )));
+        }
         Ok(())
     }
 }

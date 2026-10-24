@@ -70,7 +70,7 @@ including query inputs needed to reproduce those operations. Handshakes, tool li
 the static property catalog and save coordination (planning, submission and
 `plotium_save_status`), and export planning/submission/status do not add audit records.
 
-The connection supports native acquisition import and CSV/TSV data-only import, native table queries, canvas previews, figure geometry diagnostics,
+The connection supports native acquisition import and CSV/TSV/XLSX data-only import, native table queries, canvas previews, figure geometry diagnostics,
 document structure, native plot creation and page/panel/text/local-image authoring, explicit numeric curve bindings, supported table transforms, cell patches, explicit saved-recipe refreshes and resource queries, renaming datasets,
 canvases and canvas objects, applying built-in themes or saved canvas styles to canvases, and these display properties only:
 
@@ -377,7 +377,8 @@ reservations total at most 512 MiB across retained plans and the active prefligh
 oversized batches fail with `import_budget_exceeded`. A call with more than 16
 paths fails with a message that gives the number received; import the rest in
 further calls. Preflight responses are limited to 256 KiB. Scientific processing and DOSY use the separate shared scientific operations.
-CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and limits.
+CSV, TSV and XLSX files are tables: import them with `mode: "table_data_only"`.
+Native import rejects them with that hint.
 
 ## Discover structure without relying on names
 
@@ -475,9 +476,9 @@ Use `plotium_properties_inspect` for target-specific values, defaults, bounds an
 applicability; an axis accepts only codes compatible with its coordinate unit.
 Static applicability does not grant connection write permission.
 
-## Import CSV/TSV data without creating a plot
+## Import CSV/TSV/XLSX data without creating a plot
 
-Ask the agent to import an explicitly named UTF-8 CSV or TSV, inspect its columns,
+Ask the agent to import an explicitly named UTF-8 CSV or TSV, or an XLSX workbook, inspect its columns,
 and read the whole table in pages. Start with `plotium_get_state {}`, then call
 `plotium_plan`:
 
@@ -497,13 +498,25 @@ and read the whole table in pages. Start with `plotium_get_state {}`, then call
 Do not supply `ids` or `targets` for import. `header` accepts `auto` (default),
 `present` or `absent`; ambiguous auto detection fails. The `.csv` or `.tsv`
 extension selects comma or tab; `format: "csv" | "tsv"` overrides it explicitly.
+An `.xlsx` file (or `format: "xlsx"`) imports each visible worksheet that has
+cells as its own table, named after the worksheet, or after the file when the
+workbook holds a single table, the same way the desktop imports it.
+`sheets: ["Figure 3", …]` imports only the named worksheets; an unknown name
+fails that file and lists the visible worksheets. Each worksheet is prepared on
+its own: one that holds no table or exceeds a limit fails as its own item and
+the others still import. One file reads at most 8,000,000 worksheet cells,
+counted over each worksheet's used range. `header`, `schema` and `schema_path`
+apply to CSV/TSV only. If the summary of a batch with XLSX files would exceed
+128 KiB, the preflight fails and lists each workbook's worksheets, so you can
+import one workbook at a time and name fewer worksheets.
 Only named regular files are read. There is no directory discovery, adjacent
 sidecar lookup, source writeback, implicit plotting or X/Y binding.
 
 Preflight runs in the background and returns only when preparation finishes.
-`import.items` reports each file as `prepared` or `failed`, with proposed native
-IDs, metadata and diagnostics. No dataset exists yet. After reviewing the result,
-call `plotium_execute {"plan_id":"RETURNED_PLAN_ID"}`. Execution uses those frozen
+`import.items` reports each file, or each XLSX worksheet with its `sheet`, as
+`prepared` or `failed`, with proposed native IDs, metadata and diagnostics. No
+dataset exists yet. After reviewing the result, call
+`plotium_execute {"plan_id":"RETURNED_PLAN_ID"}`. Execution uses those frozen
 bytes and typed snapshots, even if a source file changed after preflight. It
 rechecks revision and permission before one atomic commit of all prepared items.
 `value.status` is `succeeded`, `partial` or `failed`; inspect every item and its
