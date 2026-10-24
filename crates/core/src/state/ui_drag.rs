@@ -62,6 +62,24 @@ pub enum FurnitureTarget {
         /// text's baseline centre, or a reference label's box centre.
         grab_offset: [f32; 2],
     },
+    /// An author arrow or reference line, moved whole or by one arrow end.
+    PlotMark {
+        before: Box<AxisOverrides>,
+        annotation: AnnotationId,
+        grip: MarkGrip,
+        /// Pointer position when the drag began, in screen px.
+        start: [f32; 2],
+    },
+}
+
+/// The part of an arrow or reference line a drag holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarkGrip {
+    Whole,
+    /// The arrow's tail (`at`).
+    Tail,
+    /// The arrow's head (`to`).
+    Head,
 }
 
 /// An in-progress integral-band edit on a 1D spectrum — the direct analogue of

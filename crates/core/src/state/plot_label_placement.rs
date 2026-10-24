@@ -67,6 +67,22 @@ pub(crate) fn request_placement<T: Copy>(
     Ok(())
 }
 
+/// Reject an automation move of an annotation the user positioned by hand,
+/// unless the caller says the user asked.
+pub(crate) fn guard_hand_position(
+    hand: bool,
+    id: AnnotationId,
+    override_hand_edits: bool,
+) -> Result<(), String> {
+    if hand && !override_hand_edits {
+        return Err(format!(
+            "the user positioned annotation {id} by hand; move it only when the user asks, by \
+             passing override_hand_edits: true"
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_offset(offset: [f32; 2]) -> Result<(), String> {
     if offset
         .iter()
@@ -137,7 +153,8 @@ fn side_name(orientation: ReferenceOrientation, side: ReferenceLabelSide) -> &'s
     }
 }
 
-/// The label positions the user set by hand, as hand-edit readings.
+/// The label and annotation positions the user set by hand, as hand-edit
+/// readings.
 pub(crate) fn hand_placed_label_readings(app: &PlotiumApp) -> Vec<Value> {
     let mut readings = Vec::new();
     for page in &app.doc.canvases {
@@ -146,18 +163,21 @@ pub(crate) fn hand_placed_label_readings(app: &PlotiumApp) -> Vec<Value> {
                 continue;
             };
             let target = TargetRef::resource(canvas_object_ref(page.resource_id, object.id));
-            readings.extend(
-                hand_placed_labels(&plot.axis_overrides.annotations)
-                    .into_iter()
-                    .map(|value| {
-                        json!({
-                            "target":target,
-                            "key":HAND_PLACED_LABEL_KEY,
-                            "label":"Label position",
-                            "value":value,
-                        })
-                    }),
-            );
+            let annotations = &plot.axis_overrides.annotations;
+            let labels = hand_placed_labels(annotations)
+                .into_iter()
+                .map(|value| (HAND_PLACED_LABEL_KEY, "Label position", value));
+            let moved = hand_moved_annotations(annotations)
+                .into_iter()
+                .map(|value| (HAND_MOVED_ANNOTATION_KEY, "Annotation position", value));
+            readings.extend(labels.chain(moved).map(|(key, label, value)| {
+                json!({
+                    "target":target,
+                    "key":key,
+                    "label":label,
+                    "value":value,
+                })
+            }));
         }
     }
     readings
@@ -165,6 +185,8 @@ pub(crate) fn hand_placed_label_readings(app: &PlotiumApp) -> Vec<Value> {
 
 /// Hand-edit key of a label the user dragged.
 pub const HAND_PLACED_LABEL_KEY: &str = "annotation.label_position";
+/// Hand-edit key of an arrow or reference line the user moved.
+pub const HAND_MOVED_ANNOTATION_KEY: &str = "annotation.position";
 
 fn hand_placed_labels(annotations: &PlotAnnotations) -> Vec<Value> {
     let texts = annotations.items.iter().filter_map(|a| match a.placement {
@@ -183,6 +205,20 @@ fn hand_placed_labels(annotations: &PlotAnnotations) -> Vec<Value> {
             _ => None,
         });
     texts.chain(lines).collect()
+}
+
+fn hand_moved_annotations(annotations: &PlotAnnotations) -> Vec<Value> {
+    let lines = annotations
+        .reference_lines
+        .iter()
+        .filter(|l| l.hand_moved)
+        .map(|l| json!({"annotation_id":l.id,"value":l.value}));
+    let arrows = annotations
+        .arrows
+        .iter()
+        .filter(|a| a.hand_moved)
+        .map(|a| json!({"annotation_id":a.id,"at":a.at,"to":a.to}));
+    lines.chain(arrows).collect()
 }
 
 /// The plot part the user selected on the canvas, with its current placement
@@ -228,6 +264,19 @@ pub(crate) fn plot_part_reading(app: &PlotiumApp) -> Option<Value> {
                 reading
             };
             reading["part"] = json!("label");
+            reading["annotation_id"] = json!(id);
+            reading["edit"] = json!("figure.edit annotation_set");
+            reading
+        }
+        PlotPart::Annotation(id) => {
+            let annotations = &plot.axis_overrides.annotations;
+            let mut reading = if let Some(arrow) = annotations.arrow(id) {
+                json!({"kind":"arrow","at":arrow.at,"to":arrow.to,"hand_moved":arrow.hand_moved})
+            } else {
+                let line = annotations.reference_line(id)?;
+                json!({"kind":"reference_line","value":line.value,"hand_moved":line.hand_moved})
+            };
+            reading["part"] = json!("annotation");
             reading["annotation_id"] = json!(id);
             reading["edit"] = json!("figure.edit annotation_set");
             reading

@@ -118,7 +118,7 @@ fn hand_placed_labels_survive_agent_edits_unless_overridden() {
     commit(
         &mut a,
         json!([
-            {"op":"annotation_set","target":target,"annotation_id":0,"text":"moved","at":[1.5,2.0]},
+            {"op":"annotation_set","target":target,"annotation_id":0,"text":"moved","at":[1.0,2.0]},
             {"op":"annotation_set","target":target,"annotation_id":1,"label":"start"}
         ]),
     );
@@ -128,6 +128,8 @@ fn hand_placed_labels_survive_agent_edits_unless_overridden() {
     );
     assert!(annotations(&a).reference_lines[0].label_placement.is_hand());
     for edit in [
+        // A new anchor would carry the hand-placed text along with it.
+        json!({"op":"annotation_set","target":target,"annotation_id":0,"at":[1.5,2.0]}),
         json!({"op":"annotation_set","target":target,"annotation_id":0,"offset_pt":[0,0]}),
         json!({"op":"annotation_set","target":target,"annotation_id":0,"placement":"auto"}),
         json!({"op":"annotation_set","target":target,"annotation_id":1,"placement":"auto"}),
@@ -138,10 +140,11 @@ fn hand_placed_labels_survive_agent_edits_unless_overridden() {
     commit(
         &mut a,
         json!([
-            {"op":"annotation_set","target":target,"annotation_id":0,"placement":"auto","override_hand_edits":true},
+            {"op":"annotation_set","target":target,"annotation_id":0,"at":[1.5,2.0],"placement":"auto","override_hand_edits":true},
             {"op":"annotation_set","target":target,"annotation_id":1,"placement":"auto","override_hand_edits":true}
         ]),
     );
+    assert_eq!(annotations(&a).items[0].at, [1.5, 2.0]);
     assert_eq!(annotations(&a).items[0].placement, LabelPlacement::Auto);
     assert_eq!(
         annotations(&a).reference_lines[0].label_placement,
@@ -206,4 +209,86 @@ fn label_placement_round_trips_through_the_project_file() {
         annotations(&loaded).items[1].placement,
         LabelPlacement::Fixed([-3.0, 2.0])
     );
+}
+
+/// Move the reference line and a new arrow by hand, as a canvas drag does.
+fn move_by_hand(a: &mut PlotiumApp, target: &TargetRef) {
+    commit(
+        a,
+        json!([{"op":"annotation_create","target":target,"kind":"arrow","at":[0.0,0.0],"to":[1.0,1.0]}]),
+    );
+    let id = object(a);
+    let mut overrides = annotations_overrides(a);
+    overrides.annotations.reference_lines[0].value = 1.25;
+    overrides.annotations.reference_lines[0].hand_moved = true;
+    overrides.annotations.arrows[0].to = [1.5, 1.0];
+    overrides.annotations.arrows[0].hand_moved = true;
+    a.set_axis_overrides_value(0, id, &overrides);
+}
+
+fn annotations_overrides(a: &PlotiumApp) -> AxisOverrides {
+    a.doc.canvases[0]
+        .object(object(a))
+        .and_then(ContentItem::plot)
+        .unwrap()
+        .axis_overrides
+        .clone()
+}
+
+#[test]
+fn hand_moved_lines_and_arrows_keep_their_position_unless_overridden() {
+    let (mut a, target) = fixture();
+    move_by_hand(&mut a, &target);
+    // Restyling and unchanged positions pass.
+    commit(
+        &mut a,
+        json!([
+            {"op":"annotation_set","target":target,"annotation_id":1,"value":1.25,"line":{"color":"#C03020"}},
+            {"op":"annotation_set","target":target,"annotation_id":2,"to":[1.5,1.0],"head":"open"}
+        ]),
+    );
+    for edit in [
+        json!({"op":"annotation_set","target":target,"annotation_id":1,"value":2.0}),
+        json!({"op":"annotation_set","target":target,"annotation_id":1,"orientation":"horizontal"}),
+        json!({"op":"annotation_set","target":target,"annotation_id":2,"at":[0.5,0.0]}),
+        json!({"op":"annotation_set","target":target,"annotation_id":2,"to":[2.0,1.0]}),
+    ] {
+        let error = try_plan(&a, json!([edit.clone()])).map(|_| ()).unwrap_err();
+        assert!(error.contains("override_hand_edits"), "{edit}: {error}");
+    }
+    let readings = hand_edit_readings(&a, 0, 16);
+    let moved: Vec<_> = readings["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|item| item["key"] == HAND_MOVED_ANNOTATION_KEY)
+        .collect();
+    assert_eq!(moved.len(), 2);
+    commit(
+        &mut a,
+        json!([
+            {"op":"annotation_set","target":target,"annotation_id":1,"value":2.0,"override_hand_edits":true},
+            {"op":"annotation_set","target":target,"annotation_id":2,"to":[2.0,1.0],"override_hand_edits":true}
+        ]),
+    );
+    let annotations = annotations(&a);
+    assert_eq!(annotations.reference_lines[0].value, 2.0);
+    assert_eq!(annotations.arrows[0].to, [2.0, 1.0]);
+    // The agent's position is no longer the user's.
+    assert!(!annotations.reference_lines[0].hand_moved);
+    assert!(!annotations.arrows[0].hand_moved);
+}
+
+#[test]
+fn hand_moves_round_trip_through_the_project_file() {
+    let (mut a, target) = fixture();
+    move_by_hand(&mut a, &target);
+    let dir = std::env::temp_dir().join(format!("plotium-moves-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&dir).unwrap();
+    let path = dir.join("moves.plotium");
+    crate::project::save_project(&a, &path, false).unwrap();
+    let loaded = crate::project::load_project(&path).unwrap();
+    std::fs::remove_dir_all(dir).unwrap();
+    assert_eq!(annotations(&loaded), annotations(&a));
+    assert!(annotations(&loaded).arrows[0].hand_moved);
 }

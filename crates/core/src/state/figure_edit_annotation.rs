@@ -1,5 +1,6 @@
 //! Data-anchored plot annotation edits inside a native figure transaction.
-use super::plot_label_placement::request_placement;
+use super::figure_edit_arrow::parse_color;
+use super::plot_label_placement::{guard_hand_position, request_placement};
 use super::*;
 use crate::automation::{TargetRef, canvas_object_ref};
 use serde_json::{Value, json};
@@ -50,10 +51,19 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
     } else {
         match edit {
             FigureEdit::AnnotationCreate {
-                text, at, font_pt, ..
+                text,
+                at,
+                font_pt,
+                color,
+                ..
             } => match (text, at, font_pt) {
                 (Some(text), Some(at), Some(font_pt)) => {
-                    annotations.add_text(*at, text.clone(), *font_pt)?
+                    let color = parse_color(color.as_deref())?;
+                    let id = annotations.add_text(*at, text.clone(), *font_pt)?;
+                    if let (Some(color), Some(annotation)) = (color, annotations.get_mut(id)) {
+                        annotation.color = color;
+                    }
+                    id
                 }
                 _ => return Err("A text annotation requires text, at and font_pt.".into()),
             },
@@ -62,6 +72,7 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
                 text,
                 at,
                 font_pt,
+                color,
                 offset_pt,
                 placement,
                 override_hand_edits,
@@ -70,11 +81,12 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
                 if text.is_none()
                     && at.is_none()
                     && font_pt.is_none()
+                    && color.is_none()
                     && offset_pt.is_none()
                     && placement.is_none()
                 {
                     return Err(
-                        "Annotation edit requires text, at, font_pt, offset_pt or placement."
+                        "Annotation edit requires text, at, font_pt, color, offset_pt or placement."
                             .into(),
                     );
                 }
@@ -84,7 +96,19 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
                     annotation.text.clone_from(text);
                 }
                 if let Some(at) = at {
+                    // A hand-placed text keeps its offset from the anchor, so
+                    // a new anchor would carry it away from where it was put.
+                    if *at != annotation.at {
+                        guard_hand_position(
+                            annotation.placement.is_hand(),
+                            id,
+                            *override_hand_edits,
+                        )?;
+                    }
                     annotation.at = *at;
+                }
+                if let Some(color) = parse_color(color.as_deref())? {
+                    annotation.color = color;
                 }
                 if let Some(pt) = font_pt {
                     annotation.font_size = *pt;
@@ -157,7 +181,7 @@ pub(crate) fn annotation_reading(
     annotation: &PlotAnnotation,
     drawn: Option<&plotium_render::TextLabelBox>,
 ) -> Value {
-    let mut reading = json!({"id":annotation.id,"kind":"text","text":annotation.text,"at":annotation.at,"font_pt":annotation.font_size,"anchor_space":"data"});
+    let mut reading = json!({"id":annotation.id,"kind":"text","text":annotation.text,"at":annotation.at,"font_pt":annotation.font_size,"color":annotation.color.to_hex(),"anchor_space":"data"});
     if let (Some(out), Value::Object(placement)) = (
         reading.as_object_mut(),
         super::text_placement_reading(annotation.placement, drawn),

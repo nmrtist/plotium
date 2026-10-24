@@ -184,12 +184,13 @@ at most 16 stable resource references. Pass `selection_offset` (default 0) and
 `selection.canvas` reports what the user selected on the active page:
 `{items,total,part}`. `items` holds at most `selection_limit` summaries
 (`target`, `kind`, `name`, `visible`) of the selected panels and items. `part`
-is the legend or label the user clicked inside the lead plot, or `null`. A
+is the legend, label or annotation the user clicked inside the lead plot, or `null`. A
 legend reads `{target,part:"legend",property:"object.guides.position",value}`,
 where a `null` value means automatic placement. A label reads
 `{target,part:"label",kind,annotation_id,edit:"figure.edit annotation_set",…}`
-with its current placement. When the user says "this", edit that target or
-part.
+with its current placement; an arrow or a reference line itself reads
+`{target,part:"annotation",kind,annotation_id,edit,…}` with its position and
+`hand_moved`. When the user says "this", edit that target or part.
 
 Every call reads the current selection; pages are not a frozen snapshot. GUI
 selection can change without changing the document revision. Do not combine pages
@@ -1069,10 +1070,10 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `text_create` | `parent: EXACT_CANVAS_OR_PANEL_TARGET`, `name`, `frame_pt`, `text`, `font_pt` |
 | `text_set` | `target: EXACT_TEXT_TARGET`, `text`; optional `font_pt` |
 | `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG or JPEG) |
-| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"` |
+| `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"`, `color: "#rrggbb"` |
 | `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
 | `annotation_create` (arrow) | `target: EXACT_PLOT_TARGET`, `kind: "arrow"`, tail `at: [x,y]`, head `to: [x,y]`; optional `head: none\|open\|filled\|double`, `line_width_pt`, `color: "#rrggbb"` |
-| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow); optional `override_hand_edits` |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `color`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow); optional `override_hand_edits` |
 | `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
@@ -1130,9 +1131,10 @@ value label or another label, the text moves to the nearest clear spot within
 about three text heights; an arrow pointing at it does not count.
 `offset_pt: [dx, dy]` (pt, x right, y up) pins the text there instead, with
 `[0, 0]` exactly at `at`, and `placement: "auto"` returns it to automatic
-placement. A label the user dragged on the canvas keeps its place through
-edits of `text`, `at` and `font_pt`; `offset_pt` or `placement` on it is
-rejected unless `override_hand_edits: true` says the user asked. Each text in
+placement. `color` (`#rrggbb`) sets the text colour, black by default. A label
+the user dragged on the canvas keeps its place through edits of `text` and
+`font_pt`; a new `at`, `offset_pt` or `placement` on it is rejected unless
+`override_hand_edits: true` says the user asked. Each text in
 `annotations` reports `placement` (`auto`, `fixed` or `hand`) and the drawn
 `offset_pt`, and `plotium_get_state` lists dragged labels under `hand_edits`
 with key `annotation.label_position`. An anchor outside the visible range is
@@ -1161,7 +1163,15 @@ same `override_hand_edits` rule. It uses the tick label size until `font_pt` set
 explicit size, which then stays until changed. An empty `label` removes it. Reference lines and text
 annotations share one id sequence and the 256-per-plot budget, and
 `plotium_document_inspect` lists both under `annotations`, each with its `kind`.
-Fields of the other kind are rejected rather than ignored.
+Fields of the other kind are rejected rather than ignored; a reference line
+takes its colour in `line.color`, not `color`.
+
+An arrow or reference line the user moved on the canvas reports
+`hand_moved: true` and is listed under `hand_edits` with key
+`annotation.position`. Restyling it is allowed, but a new `at` or `to` on such
+an arrow, or a new `value` or `orientation` on such a line, is rejected unless
+`override_hand_edits: true` says the user asked; the moved position then
+becomes the agent's again.
 
 ```json
 {"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"reference_line",

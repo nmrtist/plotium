@@ -1,5 +1,6 @@
 //! Arrow kind of the plot annotation edits in a figure transaction.
 use super::figure_edit_reference_line::MISSING_ANNOTATION;
+use super::plot_label_placement::guard_hand_position;
 use super::*;
 use plotium_figure::{ArrowHead, Color};
 use serde_json::{Value, json};
@@ -13,10 +14,12 @@ struct ArrowFields<'a> {
 
 impl ArrowFields<'_> {
     fn is_empty(&self) -> bool {
-        self.to.is_none()
-            && self.head.is_none()
-            && self.line_width_pt.is_none()
-            && self.color.is_none()
+        self.is_shape_empty() && self.color.is_none()
+    }
+
+    /// No arrow-only field; `color` is shared with text annotations.
+    fn is_shape_empty(&self) -> bool {
+        self.to.is_none() && self.head.is_none() && self.line_width_pt.is_none()
     }
 }
 
@@ -89,7 +92,7 @@ fn has_other_kind_fields(edit: &FigureEdit) -> bool {
     }
 }
 
-fn parse_color(color: Option<&str>) -> Result<Option<Color>, String> {
+pub(super) fn parse_color(color: Option<&str>) -> Result<Option<Color>, String> {
     color
         .map(|text| {
             crate::automation::parse_color(text)
@@ -98,7 +101,17 @@ fn parse_color(color: Option<&str>) -> Result<Option<Color>, String> {
         .transpose()
 }
 
-fn update(arrow: &mut PlotArrow, at: Option<[f64; 2]>, fields: &ArrowFields) -> Result<(), String> {
+fn update(
+    arrow: &mut PlotArrow,
+    at: Option<[f64; 2]>,
+    fields: &ArrowFields,
+    override_hand_edits: bool,
+) -> Result<(), String> {
+    let moves = at.is_some_and(|at| at != arrow.at) || fields.to.is_some_and(|to| to != arrow.to);
+    if moves {
+        guard_hand_position(arrow.hand_moved, arrow.id, override_hand_edits)?;
+        arrow.hand_moved = false;
+    }
     if let Some(at) = at {
         arrow.at = at;
     }
@@ -151,22 +164,25 @@ pub(super) fn apply(
                 )
                 .map(Some)
         }
-        FigureEdit::AnnotationCreate { .. } if !fields.is_empty() => Err(
-            "Set kind \"arrow\" to create an arrow; to, head, line_width_pt and color apply only to arrows."
+        FigureEdit::AnnotationCreate { .. } if !fields.is_shape_empty() => Err(
+            "Set kind \"arrow\" to create an arrow; to, head and line_width_pt apply only to arrows."
                 .into(),
         ),
         FigureEdit::AnnotationSet {
-            annotation_id, at, ..
+            annotation_id,
+            at,
+            override_hand_edits,
+            ..
         } => {
             let id = *annotation_id;
             let exists_elsewhere =
                 annotations.get(id).is_some() || annotations.reference_line(id).is_some();
             let Some(arrow) = annotations.arrow_mut(id) else {
-                if fields.is_empty() {
+                if fields.is_shape_empty() {
                     return Ok(None);
                 }
                 return Err(if exists_elsewhere {
-                    "to, head, line_width_pt and color apply only to arrows.".into()
+                    "to, head and line_width_pt apply only to arrows.".into()
                 } else {
                     MISSING_ANNOTATION.into()
                 });
@@ -177,7 +193,7 @@ pub(super) fn apply(
             if fields.is_empty() && at.is_none() {
                 return Err("Arrow edit requires at, to, head, line_width_pt or color.".into());
             }
-            update(arrow, *at, &fields)?;
+            update(arrow, *at, &fields, *override_hand_edits)?;
             Ok(Some(id))
         }
         FigureEdit::AnnotationDelete { annotation_id, .. } => Ok(annotations
@@ -188,5 +204,9 @@ pub(super) fn apply(
 }
 
 pub(crate) fn arrow_reading(arrow: &PlotArrow) -> Value {
-    json!({"id":arrow.id,"kind":"arrow","at":arrow.at,"to":arrow.to,"head":arrow.head,"line_width_pt":reference_line_width_bound(arrow.line_width),"color":arrow.color.to_hex(),"anchor_space":"data"})
+    let mut reading = json!({"id":arrow.id,"kind":"arrow","at":arrow.at,"to":arrow.to,"head":arrow.head,"line_width_pt":reference_line_width_bound(arrow.line_width),"color":arrow.color.to_hex(),"anchor_space":"data"});
+    if arrow.hand_moved {
+        reading["hand_moved"] = json!(true);
+    }
+    reading
 }

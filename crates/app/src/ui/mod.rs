@@ -22,6 +22,7 @@ mod export_dialog;
 mod feedback_banner;
 mod figure_typography;
 mod paused_results_notice;
+pub(crate) mod plot_annotations;
 use feedback_banner::feedback_banner;
 pub(crate) mod file_dialogs;
 pub(crate) mod file_drop;
@@ -222,6 +223,7 @@ pub fn render(
     figure_typography::figure_typography_window(app, &ctx);
     panel_note_edit_window(app, &ctx);
     text_edit_window(app, &ctx);
+    plot_text_edit_window(app, &ctx);
     import_feedback::results_window(app, &ctx);
     save_project_window(app, &ctx);
     external_save_window(app, &ctx);
