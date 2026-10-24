@@ -330,9 +330,13 @@ What you control directly:
 
 - Select one plot and use **Axes** in the Object inspector to override its X
   and Y titles or numeric ranges, or to hide either axis's tick labels and
-  title. For a true 2D NMR spectrum, **F1/F2 equal scale (1:1)** uses the same
-  data units per screen unit on both axes. Plotium sets its initial value when
-  the spectrum is imported; you can change it afterward without changing the
+  title. **Equal x/y scale (1:1)** uses the same data units per screen unit on
+  both axes, for example for a Nyquist plot, an AFM image or a 2D NMR
+  spectrum. The plot area shrinks to that shape inside the frame; the axis
+  ranges are kept. It needs linear, non-categorical axes and no right y axis,
+  and a plot in a shared-x stack cannot turn it on. AFM images start with it
+  on; for a true 2D NMR spectrum Plotium sets its initial value when the
+  spectrum is imported, and you can change it afterward without changing the
   import preference. Leave a title blank, or keep a range on **Auto**, to use
   the value derived from the data. A manual range becomes that axis's full
   range: zooming and panning stay inside it, and a double-click on the plot

@@ -53,7 +53,7 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
     );
 
     let cases: &[ResetCase] = &[
-        (axis::EQUAL_F1_F2_SCALE, |value: &AxisOverrides| {
+        (axis::EQUAL_SCALE, |value: &AxisOverrides| {
             value.lock_aspect.is_none()
         }),
         (axis::X_LABEL, |value: &AxisOverrides| {
@@ -158,7 +158,7 @@ fn equal_scale_write_changes_the_2d_plot_and_undo_restores_it() {
         .lock_aspect;
     let commit = app
         .plan_property_write(
-            axis::EQUAL_F1_F2_SCALE,
+            axis::EQUAL_SCALE,
             std::slice::from_ref(&target),
             &PropertyValue::Bool(!before),
         )

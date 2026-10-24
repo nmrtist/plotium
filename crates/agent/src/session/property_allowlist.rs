@@ -39,6 +39,7 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::axis::X_THOUSANDS_SEPARATOR,
     properties::axis::Y_THOUSANDS_SEPARATOR,
     properties::axis::FRAME,
+    properties::axis::EQUAL_SCALE,
     properties::axis::X_SCALE,
     properties::axis::Y_SCALE,
     properties::plot_display::X_UNIT,

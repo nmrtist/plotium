@@ -200,6 +200,23 @@ impl CanvasViewport {
     }
 }
 
+/// Why `figure` cannot draw equal data units per length on x and y, or `None`
+/// when it can: both axes must be visible, continuous and linear, and a right
+/// axis would leave the y scale ambiguous.
+pub fn equal_scale_unavailable(figure: &Figure) -> Option<&'static str> {
+    if figure.axis_frame == AxisFrame::Hidden {
+        Some("Choose a chart with visible axes to edit axis settings.")
+    } else if figure.x.categories.is_some() || figure.y.categories.is_some() {
+        Some("A categorical axis has no equal x/y scale.")
+    } else if figure.x.scale != AxisScale::Linear || figure.y.scale != AxisScale::Linear {
+        Some("Equal x/y scale needs linear axes; switch logarithmic axes to linear first.")
+    } else if figure.y2.is_some() {
+        Some("A plot with a right y axis cannot use equal x/y scale.")
+    } else {
+        None
+    }
+}
+
 /// Per-plot author overrides applied after rebuilding a figure from its data.
 /// `None` keeps the corresponding value derived by the chart builder.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -295,7 +312,10 @@ impl AxisOverrides {
             figure.y.min = range.min;
             figure.y.max = range.max;
         }
-        if let Some(lock) = self.lock_aspect {
+        // A stored lock outlives a rebinding that leaves no equal-scale axes.
+        if let Some(lock) = self.lock_aspect
+            && (!lock || equal_scale_unavailable(figure).is_none())
+        {
             figure.lock_aspect = lock;
         }
         self.apply_right_axis(figure);
@@ -508,6 +528,23 @@ mod tests {
         assert_eq!(overrides.y_label.as_deref(), Some("Signal"));
         assert_eq!(overrides.x_range, None);
         assert_eq!(overrides.y_range, None);
+    }
+
+    #[test]
+    fn a_stored_equal_scale_lock_skips_a_categorical_rebuild() {
+        let mut x = Axis::new("group", 0.0, 2.0);
+        x.categories = Some(vec!["a".to_owned(), "b".to_owned()]);
+        let mut figure = Figure::new("", x, Axis::new("y", 0.0, 1.0));
+        let lock = AxisOverrides {
+            lock_aspect: Some(true),
+            ..AxisOverrides::default()
+        };
+        lock.apply_to(&mut figure);
+        assert!(!figure.lock_aspect);
+
+        figure.x.categories = None;
+        lock.apply_to(&mut figure);
+        assert!(figure.lock_aspect);
     }
 
     #[test]

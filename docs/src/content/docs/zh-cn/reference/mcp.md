@@ -86,6 +86,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | 图对象 | 布尔值 |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | 图对象 | 布尔值；刻度数字按千分位分组 |
 | `object.axes.frame` | 图对象 | `open`（左、下两条轴）、`box`（四边框） |
+| `object.axes.equal_scale` | 图对象 | 布尔值；x、y 每单位长度对应相同的数据量（线性、非分类轴，且没有右 y 轴） |
 | `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
 | `object.axes.x_display_unit / object.axes.y_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
 | `object.axes.x_range / object.axes.y_range` | 图对象 | 自动或手动范围对象 |

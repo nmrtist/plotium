@@ -162,7 +162,7 @@ fn modified_marker(row: &Row, pending: &mut Option<Pending>, ui: &mut Ui) {
 
 fn property_hint(row: &Row) -> &'static str {
     match row.presentation.id {
-        axis::EQUAL_F1_F2_SCALE => "Use the same data units per screen unit on the F1 and F2 axes.",
+        axis::EQUAL_SCALE => "Use the same data units per screen unit on the x and y axes.",
         app_preferences::EQUAL_SCALE_HOMONUCLEAR_2D_IMPORTS => {
             "On import, use equal F1/F2 scale when both axes are frequency axes of the same nucleus and the wider range is no more than twice the narrower range."
         }
