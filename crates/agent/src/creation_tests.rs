@@ -109,7 +109,6 @@ fn creation_permissions_one_use_revision_and_invalid_batch_are_precise() {
         "frame_pt",
         "panel_frame_pt",
         "coordinate_units",
-        "series_defaults",
     ] {
         assert_eq!(r["value"]["creation"][key], created[key]);
     }
@@ -117,7 +116,10 @@ fn creation_permissions_one_use_revision_and_invalid_batch_are_precise() {
     assert!(r["value"]["creation"].get("created").is_none());
     assert!(r["value"].get("expected_revision").is_none());
     let binding = &r["value"]["bindings"][0];
-    assert_eq!(binding["target"], pre["bindings"][0]["target"]);
+    assert_eq!(
+        binding["target"],
+        pre["creation"]["series_defaults"][0]["target"]
+    );
     assert_eq!(binding["diagnostics"]["plotted_rows"], 3);
     assert!(binding.get("source").is_none());
     assert!(binding["diagnostics"].get("affected_rows").is_none());
@@ -398,7 +400,7 @@ fn bar_plots_are_created_and_resized_through_the_agent() {
             json!({"plan_id":plan["plan_id"]}),
         )
         .unwrap();
-    let defaults = &result["value"]["creation"]["series_defaults"][0];
+    let defaults = &plan["preflight"]["binding_plan"]["creation"]["series_defaults"][0];
     assert_eq!(defaults["kind"], "bar");
     let (bars, whiskers, width) = bar_summary(&app);
     assert_eq!((bars, whiskers), (3, 3));

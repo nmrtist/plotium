@@ -30,9 +30,12 @@ fn create(app: &mut PlotiumApp, s: &mut crate::Session) -> Value {
     let c = &r.snapshot.schema.columns;
     let curve = json!({"kind":"line","source":{"dataset_id":t.resource_id,"field_id":app.doc.datasets[0].default_field_id().unwrap(),"table_id":r.table_id,"table_revision":r.id,"x_column_id":c[0].id,"y_column_id":c[1].id,"y_error_column_id":c[2].id}});
     let p=s.call(app,"plotium_plan",json!({"expected_project_context":context,"expected_revision":0,"tool_id":"plot.create","parameters":{"parent":document_root_target(),"name":"R6","series":[curve.clone(),curve]}})).unwrap();
-    s.call(app, "plotium_execute", json!({"plan_id":p["plan_id"]}))
-        .unwrap()["value"]["creation"]
-        .clone()
+    let result = s
+        .call(app, "plotium_execute", json!({"plan_id":p["plan_id"]}))
+        .unwrap();
+    let mut creation = result["value"]["creation"].clone();
+    creation["bindings"] = result["value"]["bindings"].clone();
+    creation
 }
 fn plan(
     app: &mut PlotiumApp,
@@ -56,7 +59,7 @@ fn r6_session_discovery_target_validation_permissions_revision_and_batch_undo() 
     let mut s = crate::Session::default();
     s.allow_modify = true;
     let created = create(&mut app, &mut s);
-    let curve = created["series_defaults"][1]["target"].clone();
+    let curve = created["bindings"][1]["target"].clone();
     let object = created["plot"]["resource"]["id"].clone();
     let catalog = crate::session::property_catalog();
     assert!(
@@ -217,7 +220,7 @@ fn r6_real_http_discovers_all_display_properties_and_renders_same_revision() {
             let call=|name:&'static str,v:Value|CallToolRequestParams::new(name).with_arguments(v.as_object().unwrap().clone());
             let context=client.call_tool(call("plotium_get_state",json!({}))).await.unwrap().structured_content.unwrap()["project_context"].clone();
             let catalog=client.call_tool(call("plotium_properties_list",json!({}))).await.unwrap().structured_content.unwrap();assert_eq!(catalog["properties"].as_array().unwrap().len(),crate::session::PROPERTIES.len());
-            let curve=created["series_defaults"][1]["target"].clone();let object=created["plot"]["resource"]["id"].clone();let canvas=created["canvas"].clone();let mut revision=1;
+            let curve=created["bindings"][1]["target"].clone();let object=created["plot"]["resource"]["id"].clone();let canvas=created["canvas"].clone();let mut revision=1;
             for (key,value,series) in [
                 ("series.line.color",json!("#0072B2"),true),("series.line.stroke_width",json!(1.5),true),("series.line.style",json!("dash_dot"),true),("series.line.marker",json!("diamond"),true),("series.line.marker_size",json!(5.),true),("series.line.marker_fill",json!("#F2D797"),true),("series.line.marker_edge_color",json!("#404040"),true),("series.line.marker_edge_width",json!(0.5),true),("series.line.marker_hollow",json!(true),true),("series.label",json!("Target"),true),("series.visible",json!(false),true),("series.visible",json!(true),true),
                 ("object.axes.x_label",json!("Time"),false),("object.axes.y_label",json!("Current"),false),("object.axes.frame",json!("box"),false),("object.axes.x_display_unit",json!("ms"),false),("object.axes.y_display_unit",json!("A"),false),
@@ -243,7 +246,7 @@ fn r6_display_queries_and_plans_cannot_cross_equal_revision_project_contexts() {
     let mut session = crate::Session::default();
     session.allow_modify = true;
     let created = create(&mut app, &mut session);
-    let target = created["series_defaults"][1]["target"].clone();
+    let target = created["bindings"][1]["target"].clone();
     let state = session
         .call(&mut app, "plotium_get_state", json!({}))
         .unwrap();

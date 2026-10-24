@@ -976,20 +976,31 @@ and positive. Omission retains the original empty-page native placement contract
 an already plotted canvas requires the explicit frame. Existing content is never
 retiled or rebuilt into a replacement plot.
 
-`preflight.binding_plan.creation` returns proposed complete targets in
-`canvas`, `panel`, `plot` and `created`, plus `size_mm`, `panel_frame_pt`
-(page coordinates), `frame_pt` (panel-local content coordinates),
-`coordinate_units` and `series_defaults` (kind and line width in pt).
-`binding_plan.bindings` returns each exact owner+SeriesId target, actual source
-mapping/revision and full-row diagnostics. Preflight creates nothing. Execute
-the one-use plan; `ToolResult.value.creation` returns the same `canvas`,
-`panel`, `plot`, `size_mm`, any applied `size_preset`, `frame_pt`,
-`panel_frame_pt`, `coordinate_units` and `series_defaults`, and
-`value.bindings` returns each series `target` with its row counts
-(`total_rows`, `plotted_rows`, `missing_xy`, `non_finite_xy`, `missing_error`).
-The parent, source mappings and sample affected row IDs stay in the preflight;
-`ToolResult.targets` lists every created target, and the result's
-`after_revision` is the committed revision.
+The MCP plan returns `plan_id`, `project_context` and `basis_revision`.
+`preflight` includes `required_authority`, `created_target_count`, exceptional
+`targets` and `outputs`. `preflight.binding_plan.creation` contains the exact
+`parent`, proposed complete `canvas`, `panel`, `plot` and `created` targets
+(including all Series), plus `size_mm`, any `size_preset`, `panel_frame_pt`
+(page coordinates), `frame_pt` (panel-local coordinates), `coordinate_units`
+and `series_defaults` (kind and line width in pt). Keep these frozen identities
+when checking an uncertain execution outcome.
+
+`preflight.binding_plan.binding_count` counts curves, and `row_counts` sums
+`total_rows` and `plotted_rows` across them. `binding_plan.bindings` includes only
+curves with missing/non-finite data or missing errors, with each complete target
+and full diagnostics including sample `affected_rows`. An empty list means no
+such issues, not zero bindings. The response omits echoed requests, frozen-target
+duplicates, source mappings and successful-target explanations; the stored plan
+still retains the complete validated sources and candidate.
+
+Planning creates nothing. Executing the single-use plan returns
+`value.creation` with the same canvas/panel/plot and layout, and `value.bindings`
+with **every** Series target and its `total_rows`, `plotted_rows`, `missing_xy`,
+`non_finite_xy` and `missing_error` counts. Defaults are disclosed only in
+preflight. `produced` lists newly created resources; `summary` counts target
+outcomes, while `targets` retains only exceptional rows. Diagnostics and
+verification remain available. `project_context` and `after_revision` identify
+the committed result.
 
 The creation is atomic: a bad source, incompatible units, invalid error or
 changed parent/revision leaves no new canvas, panel or partial plot. Read-only
@@ -1671,7 +1682,8 @@ automation revision or Undo history. Discover these rules with `plotium_capabili
 
 ## Change display without rebuilding the plot
 
-Use the exact target returned in `creation.series_defaults[].target`, or discover
+Use an exact target from preflight `creation.series_defaults[].target` or execution
+`value.bindings[].target`, or discover
 it with `plotium_document_inspect`. The owner resource and stable SeriesId travel
 together: same-name curves remain separate targets. `plotium_properties_list`
 lists the allowed properties; `plotium_properties_inspect` supplies current values,

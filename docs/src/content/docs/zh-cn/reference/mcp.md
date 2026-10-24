@@ -803,18 +803,24 @@ y 轴，拥有自己的自动范围、刻度类型和标题，标题初始为第
 为有限正数。省略时保留原有空画布原生放置约定；已有成图的画布必须提供
 明确 frame。不重排已有内容，也不将已有图重建为替代对象。
 
-`preflight.binding_plan.creation` 返回拟建完整目标 `canvas`、`panel`、
-`plot`、`created`，以及 `size_mm`、`panel_frame_pt`（页坐标）、`frame_pt`
-（面板内内容局部坐标）、`coordinate_units` 和 `series_defaults`（图型及
-pt 线宽）。`binding_plan.bindings` 返回每条 owner+SeriesId 完整目标、实际
-来源映射/表 revision 和全行诊断。预检不创建对象；执行一次性 plan 后，
-`ToolResult.value.creation` 返回同一 `canvas`、`panel`、`plot`、`size_mm`、
-所用的 `size_preset`（如有）、`frame_pt`、`panel_frame_pt`、
-`coordinate_units` 和 `series_defaults`，`value.bindings` 返回每条曲线的
-`target` 及行数统计（`total_rows`、`plotted_rows`、`missing_xy`、
-`non_finite_xy`、`missing_error`）。父目标、来源映射和受影响行 ID 样例只在
-预检里给出；`ToolResult.targets` 列出全部新建目标，结果的 `after_revision`
-表示提交后的文档 revision。
+MCP 计划返回 `plan_id`、`project_context` 和 `basis_revision`。
+`preflight` 包含 `required_authority`、`created_target_count`、异常 `targets` 和 `outputs`。
+`preflight.binding_plan.creation` 包含精确 `parent`、拟建完整目标 `canvas`、`panel`、
+`plot` 和 `created`（含全部 Series），以及 `size_mm`、所用 `size_preset`（如有）、
+`panel_frame_pt`（页坐标）、`frame_pt`（面板内局部坐标）、`coordinate_units` 和
+`series_defaults`（图型及 pt 线宽）。结果不确定时保留这些冻结身份用于核查。
+
+`preflight.binding_plan.binding_count` 统计曲线数，`row_counts` 汇总各曲线的
+`total_rows` 和 `plotted_rows`。`binding_plan.bindings` 只列出数据缺失、非有限值或
+缺失误差的曲线，包含完整目标和全部诊断（含 `affected_rows` 样例）。空列表表示
+没有这些问题，不表示没有绑定。响应省略请求回显、冻结目标重复信息、来源映射和
+成功目标说明；存储的权威计划仍保留完整已验证来源及候选。
+
+预检不创建对象。执行一次性计划后，`value.creation` 返回同一 canvas/panel/plot 和
+布局；`value.bindings` 返回**每条** Series 的完整目标及 `total_rows`、`plotted_rows`、
+`missing_xy`、`non_finite_xy` 和 `missing_error`。默认值仅在预检披露一次。
+`produced` 列出新建资源，`summary` 统计目标结果，`targets` 只保留异常项；诊断与验证
+继续保留。`project_context` 和 `after_revision` 标识已提交结果。
 
 创建是原子的：来源错误、单位不兼容、非法误差或父目标/revision 变化时，
 不留下新画布、面板或半成品图。只读连接拒绝创建预检和执行。每图 1–200
@@ -1350,7 +1356,8 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 
 ## 精确修改显示，不重建图对象
 
-直接使用 `creation.series_defaults[].target`，或通过 `plotium_document_inspect`
+直接使用预检的 `creation.series_defaults[].target` 或执行的 `value.bindings[].target`，
+或通过 `plotium_document_inspect`
 发现完整目标。所属图对象与稳定 SeriesId 必须共同传递，同名曲线仍是不同目标。
 `plotium_properties_list` 列出允许的属性；`plotium_properties_inspect` 返回当前值、
 默认值、目标适用的单位选项和范围输入 schema。
