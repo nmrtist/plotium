@@ -90,6 +90,16 @@ impl PlotiumApp {
 
     /// Repair index-addressed session state after `datasets.remove(index)`.
     pub(crate) fn forget_removed_dataset(&mut self, index: usize, id: DatasetId) {
+        self.session.compute.invalidate_dataset(id);
+        if matches!(
+            self.session.ui.craft_feedback.get(&id),
+            Some(CraftRunFeedback::Running(_))
+        ) {
+            self.session
+                .ui
+                .craft_feedback
+                .insert(id, CraftRunFeedback::Cancelled);
+        }
         self.remap_dataset_indices(|stored| match stored.cmp(&index) {
             std::cmp::Ordering::Less => Some(stored),
             std::cmp::Ordering::Equal => None,

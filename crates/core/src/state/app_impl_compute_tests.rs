@@ -362,3 +362,6 @@ fn successful_processing_promotes_fresh_runtime_versions_for_each_scalar_field()
         );
     }
 }
+
+#[path = "analysis_collection_tests.rs"]
+mod analysis_collection_tests;

@@ -461,8 +461,8 @@ impl PlotiumApp {
                     self.doc.canvases.remove(*canvas_index);
                 }
                 if *dataset_index < self.doc.datasets.len() {
-                    self.doc.datasets.remove(*dataset_index);
-                    self.session.dataset_epoch += 1;
+                    let dataset = self.doc.datasets.remove(*dataset_index);
+                    self.forget_removed_dataset(*dataset_index, dataset.resource_id());
                 }
                 self.session.active_canvas = *active_canvas_before;
                 self.set_active_dataset(*active_dataset_before);

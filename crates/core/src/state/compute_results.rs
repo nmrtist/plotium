@@ -2,6 +2,30 @@
 use super::*;
 
 impl ComputeService {
+    /// Run an enqueued job synchronously and hold its success in the normal
+    /// completion channel, so tests can edit the document before delivery.
+    #[cfg(test)]
+    pub(in crate::state) fn controlled_for_test() -> (Self, impl FnOnce()) {
+        let (job_tx, job_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let service = Self {
+            job_tx,
+            done_rx,
+            ..Self::inactive()
+        };
+        let complete = move || {
+            let done = run_job(job_rx.try_recv().expect("one queued computation"));
+            assert!(matches!(
+                done,
+                Done::Craft { .. } | Done::Dosy { .. } | Done::Ilt { .. }
+            ));
+            done_tx
+                .send(done)
+                .expect("completion receiver remains live");
+        };
+        (service, complete)
+    }
+
     pub fn try_drain(&mut self) -> Vec<Done> {
         self.dispatch_ready_processing();
         let mut out = std::mem::take(&mut self.failures);
