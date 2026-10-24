@@ -360,3 +360,54 @@ fn aspect_locked_svg_x_title_sits_under_the_plot() {
     assert!((y - expected).abs() < 0.01);
     assert!(y < outer.bottom() - 10.0);
 }
+
+#[test]
+fn sparse_tick_axes_name_only_labelled_axes_with_too_few_ticks() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+    let short = [400.0, 40.0];
+    assert_eq!(
+        sparse_tick_axes(&fig, short, None),
+        vec![SparseTicks {
+            component: "axis.y",
+            drawn: 0,
+            available: axis_ticks_for(&fig.y, 5).values.len(),
+        }]
+    );
+    assert!(sparse_tick_axes(&fig, [400.0, 300.0], None).is_empty());
+    fig.y.show_tick_labels = false;
+    assert!(sparse_tick_axes(&fig, short, None).is_empty());
+}
+
+#[test]
+fn a_short_lower_stack_member_draws_and_reports_by_its_visible_labels() {
+    let fig = Figure::new("", Axis::new("x", 0.0, 10.0), Axis::new("y", 0.0, 10.0));
+    let below = StackPlacement {
+        left: 40.0,
+        right: 8.0,
+        joined_above: true,
+        ..Default::default()
+    };
+    let layout = axis_layout_placed(&fig, 400.0, 60.0, Some(&below));
+    let outer = Rect::new(0.0, 0.0, 400.0, 60.0);
+    let proj = Projector::new(&fig, outer, &layout.margins);
+    let furniture = XFurniture::of(&fig, Some(&below));
+    let shown = layout
+        .y_ticks
+        .values
+        .iter()
+        .filter(|&&value| {
+            let (_, py) = proj.project([fig.x.min, value]);
+            furniture.shows_y_label_at(py - proj.plot.top)
+        })
+        .count();
+    assert_eq!(shown, 2, "{:?}", layout.y_ticks.values);
+    assert!(sparse_tick_axes(&fig, [400.0, 60.0], Some(&below)).is_empty());
+
+    // An inner member draws no x labels, so its x axis is never reported.
+    let inner = StackPlacement {
+        joined_below: true,
+        ..below
+    };
+    let axes = sparse_tick_axes(&fig, [12.0, 300.0], Some(&inner));
+    assert!(axes.iter().all(|axis| axis.component != "axis.x"));
+}

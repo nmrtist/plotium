@@ -320,7 +320,8 @@ settings and do not affect source data or data exports.
 
 Plotium styles plots for print automatically: clean bottom-and-left axes with
 outward ticks, tick precision that follows the displayed range, tick density
-that thins as a panel narrows, and NMR isotope numbers set as superscripts.
+that thins as a panel narrows or shortens (a short panel still keeps two y
+ticks wherever they fit), and NMR isotope numbers set as superscripts.
 New dataset pages start at the 89 × 60 mm single-column size, so a plot
 spanning the page already shows text at its printed journal size; assemble
 multi-panel figures on a wider page later, keeping each panel at its natural

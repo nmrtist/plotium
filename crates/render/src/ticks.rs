@@ -2,10 +2,13 @@ use crate::{AXIS_LABEL_GAP, Margins, OUTER_PAD, Projector, Rect, TICK_LABEL_PAD}
 use plotium_figure::{Axis, AxisFrame, AxisScale, Figure};
 use unicode_width::UnicodeWidthChar;
 
-const MAX_X_TARGET: usize = 8;
-const MAX_Y_TARGET: usize = 5;
+pub(crate) const MAX_X_TARGET: usize = 8;
+pub(crate) const MAX_Y_TARGET: usize = 5;
 const LABEL_GAP_FACTOR: f32 = 0.8;
 const Y_TICK_SPACING_FACTOR: f32 = 1.8;
+/// Closest label centres a short panel accepts: one label height plus a
+/// small gap, so the labels never touch.
+const Y_TICK_MIN_SPACING_FACTOR: f32 = 1.2;
 /// f64 represents every integer below 2⁵³ ≈ 9×10¹⁵ exactly.
 const GROUPED_FULL_EXPONENT_LIMIT: i32 = 15;
 
@@ -140,8 +143,11 @@ fn adaptive_x_ticks(fig: &Figure, plot_width: f32, gap: f32, widest: f32) -> Axi
 
 pub(crate) fn adaptive_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> AxisTicks {
     let spacing = tick_pt * Y_TICK_SPACING_FACTOR;
-    if !plot_height.is_finite() || spacing <= 0.0 || plot_height < 2.0 * spacing {
+    if !plot_height.is_finite() || plot_height <= 0.0 || spacing <= 0.0 {
         return AxisTicks::empty();
+    }
+    if plot_height < 2.0 * spacing {
+        return sparse_y_ticks(axis, tick_pt, plot_height);
     }
 
     // A category axis names every slot that fits; the numeric cap only keeps
@@ -153,11 +159,66 @@ pub(crate) fn adaptive_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> A
     let target = ((plot_height / spacing).floor() as usize).clamp(2, cap);
     for candidate in (2..=target).rev() {
         let ticks = axis_ticks_for(axis, candidate);
-        if vertical_labels_fit(axis, &ticks, plot_height, tick_pt) {
+        // A coarse step can leave a single tick in range; one label shows no
+        // scale, so it is only the last resort below.
+        if ticks.values.len() >= 2 && vertical_labels_fit(axis, &ticks, plot_height, tick_pt) {
             return ticks;
         }
     }
-    AxisTicks::empty()
+    sparse_y_ticks(axis, tick_pt, plot_height)
+}
+
+/// Ticks for a panel too short for evenly spaced labels: the lowest and
+/// highest ticks of the coarsest set whose labels do not touch, otherwise
+/// the single tick nearest the middle, so the axis keeps a readable value. A
+/// panel shorter than one label keeps none.
+///
+/// Ticks within half a label of the top edge are passed over: a stacked
+/// member joined above skips those labels (`XFurniture::shows_y_label_at`),
+/// which would leave a chosen pair with one visible label.
+fn sparse_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> AxisTicks {
+    if plot_height < tick_pt {
+        return AxisTicks::empty();
+    }
+    let position = |value: f64| axis.normalize(value) as f32 * plot_height;
+    let highest = plot_height - tick_pt * 0.5;
+    let mut middle = None;
+    for candidate in 2..=MAX_Y_TARGET {
+        let ticks = axis_ticks_for(axis, candidate);
+        let mut order: Vec<usize> = (0..ticks.values.len())
+            .filter(|&index| position(ticks.values[index]) <= highest)
+            .collect();
+        order.sort_by(|&a, &b| position(ticks.values[a]).total_cmp(&position(ticks.values[b])));
+        let (Some(&low), Some(&high)) = (order.first(), order.last()) else {
+            continue;
+        };
+        if position(ticks.values[high]) - position(ticks.values[low])
+            >= tick_pt * Y_TICK_MIN_SPACING_FACTOR
+        {
+            // Index order keeps the values ascending, as every tick set is.
+            return ticks_subset(&ticks, &[low.min(high), low.max(high)]);
+        }
+        if middle.is_none() {
+            let offset = |index: usize| (position(ticks.values[index]) - plot_height * 0.5).abs();
+            let nearest = order
+                .iter()
+                .copied()
+                .min_by(|&a, &b| offset(a).total_cmp(&offset(b)));
+            middle = nearest.map(|index| ticks_subset(&ticks, &[index]));
+        }
+    }
+    middle.unwrap_or_else(AxisTicks::empty)
+}
+
+fn ticks_subset(ticks: &AxisTicks, indices: &[usize]) -> AxisTicks {
+    AxisTicks {
+        values: indices.iter().map(|&index| ticks.values[index]).collect(),
+        labels: indices
+            .iter()
+            .map(|&index| ticks.labels[index].clone())
+            .collect(),
+        ..ticks.clone()
+    }
 }
 
 fn widest_layout_label(axis: &Axis, ticks: &AxisTicks, tick_pt: f32) -> f32 {

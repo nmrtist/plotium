@@ -1139,6 +1139,8 @@ Series 候选批次最多访问 200 万剩余 curve-row；共享最多 32 个 pe
 - `text_container_overflow` 是基于原生宽度／行距**估计**的警告，不是精确字形边界；
   文字不会自动换行或缩小。
 - `content_frame_overlap` 是信息性事实，允许有意重叠。
+- `axis_ticks_sparse` 是警告：在输出尺寸下，显示刻度标签的坐标轴画出的刻度少于两个，
+  读不出刻度比例。增大面板，或调小 `object.figure.typography.tick_pt`。
 - `right_axis_untitled` 是警告：有曲线使用右 y 轴，但右轴没有显示标题。设置
   `object.axes.y2_label`（或重新打开 `object.axes.y2_show_label`）。
 - `legend_occlusion_potential` 表示潜在视觉冲突，不表示数据必然不可见。逐段／逐点

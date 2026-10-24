@@ -254,10 +254,11 @@ fn left_x_endpoint_stays_clear_when_y_ticks_are_dropped() {
         Axis::new("x", -8_000.0, 0.0),
         Axis::new("intensity", 0.0, 10.0),
     );
-    let layout = axis_layout(&fig, 400.0, 55.0);
+    // Shorter than one tick label, so even sparse y ticks are dropped.
+    let layout = axis_layout(&fig, 400.0, 40.0);
     assert!(layout.y_ticks.labels.is_empty());
 
-    let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 400.0, 55.0), &layout.margins);
+    let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 400.0, 40.0), &layout.margins);
     let leftmost_label_edge = layout
         .x_ticks
         .values
