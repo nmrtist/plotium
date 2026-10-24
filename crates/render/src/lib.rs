@@ -62,7 +62,6 @@ pub const PROJECTION_BAND_FRAC: f32 = 0.15;
 
 pub const TICK_LABEL_PAD: f32 = 2.5;
 pub const AXIS_LABEL_GAP: f32 = 5.0;
-pub const OUTER_PAD: f32 = 4.0;
 
 /// A rectangle in output space (pixels or points), y-axis pointing down.
 #[derive(Debug, Clone, Copy)]
@@ -590,31 +589,7 @@ pub fn color_scale_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
 
 /// Right margin an outside-right legend or colour scale adds beside the plot.
 pub fn outside_guide_width(fig: &Figure) -> f32 {
-    guide_extra_margins(fig).0
-}
-
-pub(crate) fn guide_extra_margins(fig: &Figure) -> (f32, f32) {
-    let mut right: f32 = 0.0;
-    let mut bottom: f32 = 0.0;
-    if renders_color_scale(fig) {
-        match fig.guide_placement {
-            plotium_figure::GuidePlacement::OutsideBottom => bottom = 22.0,
-            plotium_figure::GuidePlacement::Auto | plotium_figure::GuidePlacement::OutsideRight => {
-                right = 44.0
-            }
-            plotium_figure::GuidePlacement::Inside => {}
-        }
-    }
-    if renders_legend(fig) && fig.legend_position.is_none() {
-        let entries = legend_entries(fig);
-        let layout = legend_layout(fig, &entries);
-        match fig.guide_placement {
-            plotium_figure::GuidePlacement::OutsideRight => right = right.max(layout.width + 12.0),
-            plotium_figure::GuidePlacement::OutsideBottom => bottom += layout.height + 12.0,
-            plotium_figure::GuidePlacement::Auto | plotium_figure::GuidePlacement::Inside => {}
-        }
-    }
-    (right, bottom)
+    ticks::guide_extra_margins(fig).0
 }
 
 pub fn legend_position_for_origin(

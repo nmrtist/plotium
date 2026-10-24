@@ -295,7 +295,7 @@ fn panel_letter_clearance(
     let right = left + letters * font * 0.75;
     let top = panel.frame.y + panel.label.position[1];
     let bottom = top + font;
-    let title_column_right = frame.x + plotium_render::OUTER_PAD + figure.typography.label_pt * 1.2;
+    let title_column_right = frame.x + figure.typography.label_pt * 1.2;
     let overlaps = left < title_column_right
         && right > frame.x
         && bottom > frame.y

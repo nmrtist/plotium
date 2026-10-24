@@ -2,10 +2,11 @@
 //! Office/WPS paste it as an editable vector. Mirrors the [`crate::svg`]
 //! traversal one function per function.
 
+use crate::rich_text::{BASELINE_TO_BOTTOM, TOP_TO_BASELINE};
 use crate::{
-    Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OUTER_PAD, OverlayAlign,
-    OverlayKind, OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, YTitleClearance,
-    arrow_head, axis_layout_placed, color_scale_rect, error_bar_segments, heatmap_cells, integral,
+    Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OverlayAlign, OverlayKind,
+    OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, YTitleClearance, arrow_head,
+    axis_layout_placed, color_scale_rect, error_bar_segments, heatmap_cells, integral,
     legend_entries, legend_entry_origin, legend_layout, legend_rect_placed, minor_tick_values,
     polygon_outline, projection_points, range_label_layout, renders_legend,
 };
@@ -335,7 +336,7 @@ fn write_figure_content(
             &fig.title,
             (
                 frame.left + frame.width / 2.0,
-                frame.top + OUTER_PAD + ty.title_pt,
+                frame.top + ty.title_pt * TOP_TO_BASELINE,
             ),
             TextStyle::new(ty.title_pt, Color::BLACK, TA_CENTER),
         );
@@ -426,7 +427,10 @@ fn write_figure_content(
     {
         dc.text(
             &multiplier,
-            (plot.right(), x_lane_bottom - OUTER_PAD),
+            (
+                plot.right(),
+                x_lane_bottom - ty.tick_pt * BASELINE_TO_BOTTOM,
+            ),
             TextStyle::new(ty.tick_pt, Color::AXIS, TA_RIGHT),
         );
     }
@@ -441,7 +445,7 @@ fn write_figure_content(
             &fig.x.label,
             (
                 (plot.left + plot.right()) / 2.0,
-                x_lane_bottom - OUTER_PAD - multiplier_clearance,
+                x_lane_bottom - multiplier_clearance - ty.label_pt * BASELINE_TO_BOTTOM,
             ),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER),
         );
@@ -449,10 +453,7 @@ fn write_figure_content(
     if !hidden_frame && fig.y.show_label {
         dc.text(
             &fig.y.label,
-            (
-                y_title_left + ty.label_pt * crate::rich_text::TOP_TO_BASELINE,
-                y_title_cy,
-            ),
+            (y_title_left + ty.label_pt * TOP_TO_BASELINE, y_title_cy),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER).rotated(),
         );
     }

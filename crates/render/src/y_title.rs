@@ -1,7 +1,7 @@
 //! Placement of the rotated y-axis title around a panel letter.
 
 use crate::ticks::{self, AxisLayout};
-use crate::{AXIS_LABEL_GAP, OUTER_PAD, Projector, Rect, StackPlacement, XFurniture};
+use crate::{AXIS_LABEL_GAP, Projector, Rect, StackPlacement, XFurniture};
 use plotium_figure::{AxisFrame, Figure};
 
 /// Left edge of the rotated y-axis title's `label_pt`-wide lane, in output
@@ -24,7 +24,7 @@ pub(crate) fn y_title_left(
     scale: f32,
 ) -> f32 {
     let ty = fig.typography;
-    let edge = outer.left + OUTER_PAD * scale;
+    let edge = outer.left;
     let plot = proj.plot;
     let y_axis_x = proj.left_band.map_or(plot.left, |band| band.left);
     let tick_clearance = match stack {
@@ -77,7 +77,7 @@ pub(crate) fn y_title_center(
     let ty = fig.typography;
     let half = ticks::estimated_text_width(&fig.y.label, ty.label_pt) * 0.5 * scale;
     let clear = outer.top + clearance + half;
-    let lowest = outer.bottom() - (OUTER_PAD + ty.label_pt * 1.2) * scale - half;
+    let lowest = outer.bottom() - ty.label_pt * 1.2 * scale - half;
     centre.max(clear.min(lowest))
 }
 
@@ -103,7 +103,7 @@ impl YTitleClearance {
 /// The part of a plot frame its axes lay out in, and the clearance left for
 /// [`y_title_center`] there. A title longer than the room between the letter
 /// and the x-title row cannot move down past the letter, so the whole plot
-/// moves right of it instead; `OUTER_PAD` then separates letter and title.
+/// moves right of it instead, [`AXIS_LABEL_GAP`] clear of the letter.
 /// The renderers and the editor's plot-box geometry both go through this so
 /// the editor hit-tests the plot where it is drawn. Size-only geometry such as
 /// guide diagnostics and visual spacing does not see the shift.
@@ -119,11 +119,11 @@ pub fn y_title_area(
     }
     let ty = fig.typography;
     let length = ticks::estimated_text_width(&fig.y.label, ty.label_pt) * scale;
-    let room = outer.height - clearance.below - (OUTER_PAD + ty.label_pt * 1.2) * scale;
+    let room = outer.height - clearance.below - ty.label_pt * 1.2 * scale;
     if length <= room {
         return (outer, clearance.below);
     }
-    let inset = clearance.beside.min(outer.width);
+    let inset = (clearance.beside + AXIS_LABEL_GAP * scale).min(outer.width);
     let area = Rect::new(
         outer.left + inset,
         outer.top,

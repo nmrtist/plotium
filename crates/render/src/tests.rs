@@ -65,7 +65,7 @@ fn margins_follow_tick_width_and_keep_a_compact_label_gap() {
         .fold(0.0, f32::max);
     let tick_text_left =
         wide_margins.left - wide_ticks.typography.tick_outset() - TICK_LABEL_PAD - widest;
-    let y_title_right = OUTER_PAD + wide_ticks.typography.label_pt;
+    let y_title_right = wide_ticks.typography.label_pt;
     assert!((tick_text_left - y_title_right - AXIS_LABEL_GAP).abs() < 1e-3);
 }
 
@@ -100,8 +100,8 @@ fn hidden_axis_text_reduces_margins_but_keeps_tick_space() {
     let visible = Margins::for_figure(&visible);
     let hidden = Margins::for_figure(&hidden);
     assert!(hidden.left < visible.left && hidden.bottom < visible.bottom);
-    assert!(hidden.left >= OUTER_PAD + tick_outset);
-    assert!(hidden.bottom >= OUTER_PAD + tick_outset);
+    assert!(hidden.left >= tick_outset);
+    assert!(hidden.bottom >= tick_outset);
 }
 
 #[test]
@@ -111,8 +111,9 @@ fn empty_adaptive_ticks_do_not_reserve_tick_mark_space() {
     fig.y.show_label = false;
     let layout = axis_layout(&fig, 1.0, 1.0);
     assert!(layout.x_ticks.values.is_empty() && layout.y_ticks.values.is_empty());
-    assert_eq!(layout.margins.left, OUTER_PAD);
-    assert_eq!(layout.margins.bottom, OUTER_PAD);
+    let stroke = fig.typography.axis_line_pt * 0.5;
+    assert_eq!(layout.margins.left, stroke);
+    assert_eq!(layout.margins.bottom, stroke);
 }
 
 #[test]
@@ -255,10 +256,10 @@ fn left_x_endpoint_stays_clear_when_y_ticks_are_dropped() {
         Axis::new("intensity", 0.0, 10.0),
     );
     // Shorter than one tick label, so even sparse y ticks are dropped.
-    let layout = axis_layout(&fig, 400.0, 40.0);
+    let layout = axis_layout(&fig, 400.0, 30.0);
     assert!(layout.y_ticks.labels.is_empty());
 
-    let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 400.0, 40.0), &layout.margins);
+    let proj = Projector::new(&fig, Rect::new(0.0, 0.0, 400.0, 30.0), &layout.margins);
     let leftmost_label_edge = layout
         .x_ticks
         .values
@@ -269,7 +270,7 @@ fn left_x_endpoint_stays_clear_when_y_ticks_are_dropped() {
             center - estimated_text_width(label, fig.typography.tick_pt) * 0.5
         })
         .fold(f32::INFINITY, f32::min);
-    let y_title_lane_right = OUTER_PAD + fig.typography.label_pt;
+    let y_title_lane_right = fig.typography.label_pt;
     assert!(
         leftmost_label_edge >= y_title_lane_right + AXIS_LABEL_GAP - 1e-3,
         "x label edge {leftmost_label_edge} entered y-title lane ending at {y_title_lane_right}"
@@ -398,14 +399,14 @@ fn aspect_lock_and_projection_bands_constrain_the_adaptive_budget() {
 }
 
 #[test]
-fn hidden_frame_collapses_margins_to_outer_pad() {
+fn hidden_frame_collapses_margins_to_zero() {
     let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
     fig.axis_frame = plotium_figure::AxisFrame::Hidden;
     let m = Margins::for_figure(&fig);
-    assert_eq!(m.left, OUTER_PAD);
-    assert_eq!(m.right, OUTER_PAD);
-    assert_eq!(m.top, OUTER_PAD);
-    assert_eq!(m.bottom, OUTER_PAD);
+    assert_eq!(m.left, 0.0);
+    assert_eq!(m.right, 0.0);
+    assert_eq!(m.top, 0.0);
+    assert_eq!(m.bottom, 0.0);
 }
 
 #[test]
@@ -726,7 +727,7 @@ fn y_title_moves_down_only_as_far_as_the_corner_letter_needs() {
     );
     // Never pushed into the x-axis title row.
     let squeezed = y_title_center(&fig, plot, outer, 80.0, 1.0);
-    assert!(squeezed + half <= outer.bottom() - OUTER_PAD - fig.typography.label_pt + 1e-3);
+    assert!(squeezed + half <= outer.bottom() - fig.typography.label_pt + 1e-3);
 }
 
 #[test]
@@ -766,7 +767,7 @@ fn y_title_too_long_to_pass_a_letter_moves_right_of_it_with_the_plot() {
 
     let short = title_left(60.0, letter);
     assert!(short >= letter.beside, "title column starts at {short}");
-    assert!((title_left(60.0, YTitleClearance::default()) - OUTER_PAD).abs() < 0.01);
+    assert!(title_left(60.0, YTitleClearance::default()).abs() < 0.01);
     // A tall plot keeps its title column and moves the title down instead.
-    assert!((title_left(240.0, letter) - OUTER_PAD).abs() < 0.01);
+    assert!(title_left(240.0, letter).abs() < 0.01);
 }
