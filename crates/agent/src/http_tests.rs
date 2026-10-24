@@ -82,6 +82,10 @@ fn real_http_mcp_handshake_discovery_bridge_and_authentication() {
                     .len(),
                 crate::session::PROPERTIES.len()
             );
+            let args = json!({"keys":["series.line.stroke_width"],"detail":"full"});
+            let detail = client.call_tool(CallToolRequestParams::new("plotium_properties_list")
+                .with_arguments(args.as_object().unwrap().clone())).await.unwrap();
+            assert_eq!(detail.structured_content.unwrap(), crate::property_catalog::respond(args).unwrap());
             client.cancel().await.unwrap();
         });
         tokio::time::timeout(Duration::from_secs(15), async {

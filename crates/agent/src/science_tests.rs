@@ -156,7 +156,20 @@ fn scientific_discovery_is_core_derived_and_cancel_requires_modify() {
             crate::capabilities::respond(json!({"section":"scientific_operations","key":id}))
                 .unwrap()["contract"]
                 .take();
-        assert_eq!(operation["descriptor"], json!(descriptor));
+        let mut descriptor = json!(descriptor);
+        let schema = descriptor
+            .as_object_mut()
+            .unwrap()
+            .remove("parameter_schema")
+            .unwrap();
+        assert_eq!(operation["descriptor"], descriptor);
+        assert_eq!(
+            operation["input_schema_ref"],
+            json!({"section":"operation_constraints","key":id})
+        );
+        let canonical =
+            crate::capabilities::respond(operation["input_schema_ref"].clone()).unwrap();
+        assert_eq!(canonical["contract"]["schema"], schema);
         assert!(operation.get("currently_permitted").is_none());
         assert_eq!(operation["required_permission"], "reversible_modify");
     }

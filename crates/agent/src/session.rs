@@ -222,6 +222,9 @@ impl Session {
         mut arguments: Value,
         blocked: bool,
     ) -> Result<Value, Failure> {
+        if name == "plotium_properties_list" {
+            return crate::property_catalog::respond(arguments);
+        }
         let changed = self.synchronize_context(app);
         if matches!(
             name,

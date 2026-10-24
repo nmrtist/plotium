@@ -137,6 +137,9 @@ impl Failure {
             };
             if let Some(arguments) = query {
                 value["next_action"] = json!({"kind":"call_tool","tool":"plotium_capabilities_get","arguments":arguments});
+            } else if name == "plotium_properties_list" {
+                value["next_action"] =
+                    json!({"kind":"call_tool","tool":"plotium_properties_list","arguments":{}});
             }
         }
         if name == "plotium_execute" {

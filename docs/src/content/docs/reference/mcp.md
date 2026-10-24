@@ -215,9 +215,10 @@ input schemas and annotations are in `tools/list`; property definitions are in
 
 | Section | Key | Contract |
 | --- | --- | --- |
-| `tools` | optional tool name | result contract and target rules per tool |
+| `tools` | optional tool name | result contract and target rules; a keyed request also includes the tool input schema |
 | `operation_constraints` | required operation id | schema, permissions and result contract of one editable operation |
-| `scientific_operations` | required operation id | full core descriptor and required permission |
+| `operation_details` | required operation/suboperation key, or `keys` | focused figure-edit schema, permissions, result contract and example |
+| `scientific_operations` | required operation id | descriptor and required permission; editable operations link to their canonical input schema |
 | `guide_contract` | none | legend and colorbar placement rules |
 | `candidate_preview` | none | uncommitted plan preview contract |
 | `limits` | optional limit name | connection budgets |
@@ -227,6 +228,18 @@ For example, read the `figure.edit` schema with:
 ```json
 {"section":"operation_constraints","key":"figure.edit"}
 ```
+
+Known operations can request their detail directly without first reading the index.
+For a page edit, use `{"section":"operation_details","key":"figure.edit/page"}`.
+For several edits, pass `keys` instead of `key`, for example
+`{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`.
+The response has `keys` and a `contract` map keyed by the requested names. This
+section accepts 1–32 unique keys per call; other sections accept only `key`.
+The index lists all suboperation keys and their purposes. Each detail retains the
+shared edit restrictions and one exact edit schema. Replace example targets with
+full stable references from document inspection. Use `operation_constraints` for
+the complete mixed-edit schema. Editable scientific descriptors expose
+`input_schema_ref: {section,key}` instead of duplicating that schema.
 
 An unknown section or key fails with `invalid_parameters`; `error.details.sections`
 or `error.details.keys` lists the valid values.
@@ -383,16 +396,25 @@ There is no recursive whole-project dump. Revision changes reject continuation;
 read state and restart the listing. Missing targets and forged identities return
 `invalid_parameters`, without using the current selection.
 
-`plotium_properties_list {}` returns the supported definitions:
-`schema`, `unit` (empty for dimensionless values), `scope`, `access` and static
-`applicability`. It contains no current target values. Colour schemas state
-their input form as `"format": "#rrggbb"`. Unit-code schemas list every
-registered unit code; the codes a given axis accepts are the ones
-`plotium_properties_inspect` returns for that target, which are compatible with
-its coordinate unit. Use
-`plotium_properties_inspect` to resolve values, defaults, bounds and applicability
-for explicit targets. Property applicability and connection write permission
-are separate facts.
+`plotium_properties_list {}` browses every supported property in compact form.
+Each row includes its ID, label, scope, access, static applicability and value
+schema with units, bounds and enum IDs. Compact schemas omit UI drag steps and
+enum labels; complex inputs are marked `requires_full`. Fetch complete definitions
+for the properties you need in one call:
+
+```json
+{"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
+```
+
+Use `scope` with a scope name from the catalog to filter the list. `keys` must be
+nonempty and unique; unsupported keys, unknown scopes and key/scope conflicts are
+errors, rather than silently omitting requested properties. `detail: "full"`
+without filters returns the complete catalog. Both forms are static, callable
+while busy, and contain no current target values. Full details preserve complex
+input constraints, colour format `#rrggbb` and every registered unit code.
+Use `plotium_properties_inspect` for target-specific values, defaults, bounds and
+applicability; an axis accepts only codes compatible with its coordinate unit.
+Static applicability does not grant connection write permission.
 
 ## Import CSV/TSV data without creating a plot
 
