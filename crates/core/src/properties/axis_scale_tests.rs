@@ -222,3 +222,29 @@ fn log_scales_are_disabled_on_2d_maps_and_nmr_spectra() {
         .expect("write plans with a skip");
     assert!(commit.applied.is_empty());
 }
+
+#[test]
+fn major_step_is_unavailable_on_a_logarithmic_axis() {
+    let (mut app, target, id) = line_app();
+    let commit = app
+        .plan_property_write(
+            axis::X_SCALE,
+            std::slice::from_ref(&target),
+            &PropertyValue::Enum(axis::LOG),
+        )
+        .expect("log x plans");
+    app.commit_property(commit);
+    assert_eq!(figure(&app, id).x.effective_scale(), AxisScale::Log10);
+    let resolved = app
+        .resolve_property(&PropertyAddress::new(target.clone(), axis::X_MAJOR_STEP))
+        .expect("step reads");
+    assert!(matches!(resolved.availability, Availability::Disabled(_)));
+    let commit = app
+        .plan_property_write(
+            axis::X_MAJOR_STEP,
+            std::slice::from_ref(&target),
+            &PropertyValue::Float(10.0),
+        )
+        .expect("write plans with a skip");
+    assert!(commit.applied.is_empty());
+}

@@ -40,14 +40,30 @@ pub(in crate::ui) fn plot_text_edit_window(app: &mut PlotiumApp, ctx: &egui::Con
         let Some(edit) = app.session.ui.plot_text_edit.as_mut() else {
             return;
         };
-        let response = ui.add(egui::TextEdit::singleline(&mut edit.buffer).desired_width(320.0));
+        // Text annotations take several lines: Enter starts a new line and
+        // Command-Enter saves. Line labels stay on one line.
+        let response = if is_text {
+            ui.add(
+                egui::TextEdit::multiline(&mut edit.buffer)
+                    .desired_rows(2)
+                    .desired_width(320.0),
+            )
+        } else {
+            ui.add(egui::TextEdit::singleline(&mut edit.buffer).desired_width(320.0))
+        };
         if edit.focus {
             response.request_focus();
             edit.focus = false;
         }
         // A text annotation needs some text; an empty line label removes it.
         let valid = !is_text || !edit.buffer.trim().is_empty();
-        if valid && response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+        let submitted = if is_text {
+            response.has_focus()
+                && ui.input(|input| input.modifiers.command && input.key_pressed(egui::Key::Enter))
+        } else {
+            response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter))
+        };
+        if valid && submitted {
             save = true;
         }
         if ui.input(|input| input.key_pressed(egui::Key::Escape)) {

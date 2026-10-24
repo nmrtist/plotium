@@ -62,6 +62,9 @@ pub struct CurveAppearance {
     pub marker_edge_width: Option<PositiveFiniteF32>,
     /// Closed markers draw only their outline.
     pub marker_hollow: bool,
+    /// Markers sit on every n-th source point, starting with the first. No
+    /// override marks every point.
+    pub marker_every: Option<std::num::NonZeroU32>,
     /// Only line and scatter curves may be measured on the right axis.
     pub y_axis: YAxisSide,
 }
@@ -72,6 +75,10 @@ impl CurveAppearance {
         } else {
             Marker::None
         })
+    }
+    /// Source-point stride between drawn markers.
+    pub fn marker_stride(self) -> usize {
+        self.marker_every.map_or(1, |n| n.get() as usize)
     }
     pub fn marker_radius(self, width: f32) -> f32 {
         self.marker_size.map_or(width, |size| size.get() * 0.5)

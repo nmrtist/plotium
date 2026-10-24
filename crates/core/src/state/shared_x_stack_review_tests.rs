@@ -247,3 +247,91 @@ fn outside_legends_line_up_beside_the_widest_right_axis() {
         assert!(legend.right() <= width, "{legend:?} overflows {width}");
     }
 }
+
+#[test]
+fn a_major_step_reaches_every_member_in_its_own_x_unit() {
+    let (mut app, _, ids) = stacked(vec![
+        table(0, 1, "plotium.test.stack-step-a.v1"),
+        table(0, 500, "plotium.test.stack-step-b.v1"),
+    ]);
+    let step = |app: &PlotiumApp, id: ObjectId| {
+        app.doc.canvases[0]
+            .object(id)
+            .and_then(|item| item.plot())
+            .expect("plot")
+            .figure()
+            .x
+            .major_step
+    };
+    // Members whose curves carry different but compatible x units.
+    let registry = plotium_data::UnitRegistry::plotium_v1();
+    for (id, unit) in ids.iter().zip(["A", "mA"]) {
+        let plot = app.doc.canvases[0]
+            .object_mut(*id)
+            .and_then(|item| item.plot_mut())
+            .expect("plot");
+        plot.binding.coordinates = Some(crate::state::CurveCoordinates {
+            x: Some(registry.resolve(unit).expect("unit")),
+            y: None,
+            y2: None,
+            transposed: false,
+        });
+    }
+    let target = app.object_target(0, ids[1]).expect("bottom plot");
+    let commit = app
+        .plan_property_write(
+            axis::X_MAJOR_STEP,
+            std::slice::from_ref(&target),
+            &PropertyValue::Float(50.0),
+        )
+        .expect("shared step");
+    assert_eq!(commit.applied.len(), 2, "the peer edit is reported");
+    app.commit_property(commit);
+    assert_eq!(step(&app, ids[1]), Some(50.0));
+    let upper = step(&app, ids[0]).expect("peer step");
+    assert!((upper - 0.05).abs() < 1e-12, "{upper}");
+    app.undo();
+    assert_eq!((step(&app, ids[0]), step(&app, ids[1])), (None, None));
+}
+
+#[test]
+fn stacking_converts_the_top_major_step_from_its_display_unit() {
+    let (mut app, panel, ids) = stacked(vec![
+        table(0, 1, "plotium.test.stack-step-c.v1"),
+        table(0, 1, "plotium.test.stack-step-d.v1"),
+    ]);
+    let registry = plotium_data::UnitRegistry::plotium_v1();
+    let amp = registry.resolve("A").expect("unit");
+    for (index, id) in ids.iter().enumerate() {
+        let plot = app.doc.canvases[0]
+            .object_mut(*id)
+            .and_then(|item| item.plot_mut())
+            .expect("plot");
+        plot.binding.coordinates = Some(crate::state::CurveCoordinates {
+            x: Some(amp.clone()),
+            y: None,
+            y2: None,
+            transposed: false,
+        });
+        // The top plot shows its x in mA and steps 50 mA.
+        if index == 0 {
+            plot.axis_overrides.x_display_unit =
+                Some(Box::new(registry.resolve("mA").expect("unit")));
+            plot.axis_overrides.x_major_step = Some(50.0);
+        }
+    }
+    app.doc.canvases[0]
+        .unify_shared_x_window(panel)
+        .expect("unify");
+    let step = |id: ObjectId| {
+        app.doc.canvases[0]
+            .object(id)
+            .and_then(|item| item.plot())
+            .expect("plot")
+            .axis_overrides
+            .x_major_step
+    };
+    assert_eq!(step(ids[0]), Some(50.0));
+    let lower = step(ids[1]).expect("lower step");
+    assert!((lower - 0.05).abs() < 1e-12, "{lower}");
+}

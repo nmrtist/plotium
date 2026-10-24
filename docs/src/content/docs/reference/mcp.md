@@ -84,6 +84,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.line.marker_fill / series.line.marker_edge_color` | Object + Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline (0.5 pt while hollow) |
 | `series.line.marker_hollow` | Object + Series | boolean |
+| `series.line.marker_every` | Object + Series | 1–1000; markers on every n-th point from the first (default 1) |
 | `series.bar.width` | Object + Series | 0.05–1, fraction of the bar's slot (bar curves; default 0.8) |
 | `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
 | `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt, or the theme's supporting-line width) |
@@ -101,6 +102,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.x_show_label / object.axes.y_show_label` | Object | boolean; shows the axis title |
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | Object | boolean |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | Object | boolean; groups digits in tick labels |
+| `object.axes.x_major_step / object.axes.y_major_step` | Object | ≥ 0, distance between major ticks in the display unit; 0 chooses it automatically (linear axes without a break) |
 | `object.axes.frame` | Object | `open` (left and bottom), `box` (all four sides) |
 | `object.axes.equal_scale` | Object | boolean; same data units per length on x and y (linear, non-categorical axes without a right y axis) |
 | `object.axes.x_scale / object.axes.y_scale` | Object | `linear`, `log` (line, scatter and stick plots; a manual range must stay above zero) |
@@ -111,6 +113,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.y2_scale` | Object | `linear`, `log` |
 | `object.axes.y2_display_unit` | Object | compatible code from property inspection |
 | `object.axes.y2_range` | Object | auto or manual range object |
+| `object.axes.y2_major_step` | Object | as `y_major_step`, for the right y axis |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | Object | 1–72 pt |
 | `object.guides.visibility` | Object | `auto`, `show`, `hide` |
 | `object.guides.placement` | Object | `auto`, `inside`, `outside_right`, `outside_bottom`, `custom` |
@@ -1128,10 +1131,12 @@ their heights keep the proportions of their current frames, so change one with
 stack is turned on. Only the bottom plot draws x tick labels and the x title,
 only the top plot draws a figure title, inner boundaries touch with inward x
 ticks, and the plot areas share left and right edges. Entering the stack writes
-one x range covering every member's data to each member (in its own coordinate
-unit), so members must already share an x scale; every member draws the bottom
+one x range covering every member's data (in its own coordinate unit) and the
+top member's x major step (in the unit it displays) to each member, so members
+must already share an x scale; every member draws the bottom
 member's x direction without storing it. The plots share one x viewport, and
-later x range, x scale, x display unit and x thousands-separator edits on any
+later x range, x scale, x display unit, x thousands-separator and x major step
+edits on any
 member apply to all of them in one Undo step; the write is rejected when any
 member cannot take the value, and `applied` lists the member edits. `shared_x: false` returns the Panel to free layout and keeps
 the frames. The result lists each operation in `panel_edits` with `layout`,
@@ -1158,7 +1163,8 @@ clipped with the plot. `annotation_id` is local to the plot and never reused
 after deletion; read it from `annotation_edits` in the result or from the plot's
 `annotations` list in `plotium_document_inspect`. `at` uses the plot's source
 units reported in `coordinate_units`, not a display unit chosen for the tick
-labels. Annotation text permits 1024 UTF-8 bytes (nonblank), and a plot holds at
+labels. `\n` in `text` starts a new line.
+Annotation text permits 1024 UTF-8 bytes (nonblank), and a plot holds at
 most 256 annotations. The plot and its parent panel must be unlocked; Auto height
 may stay on.
 
@@ -1829,7 +1835,9 @@ width and outline width apply to bar, box and violin curves; the outline color t
 bar curves. Marker fill and edge color
 apply to closed markers and follow the curve color until set; reset returns
 them to it. A hollow marker draws no fill and keeps an outline, 0.5 pt when
-no edge width is set. A chart that owns semantic colors rejects a single series
+no edge width is set. `marker_every` thins markers to every n-th source point,
+starting with the first; the line still passes through every point. A chart
+that owns semantic colors rejects a single series
 color, marker fill or marker edge color override as inapplicable.
 
 Plot-local tick, axis-title and legend sizes inherit document typography until

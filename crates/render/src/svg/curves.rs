@@ -40,6 +40,7 @@ pub(super) fn write(
         let mut points: Vec<_> = series
             .points
             .iter()
+            .step_by(series.appearance.marker_stride())
             .map(|p| proj.project(*p))
             .filter(|p| crate::is_finite_point(*p))
             .collect();

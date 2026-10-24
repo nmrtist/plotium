@@ -202,7 +202,8 @@ pub(crate) fn drawn_texts<'a>(
 ) -> impl Iterator<Item = (&'a Annotation, PlacedText)> + 'a {
     let builder = fig.annotations.iter().filter_map(move |a| {
         let p = project(fig, plot, a.at, YAxisSide::Left);
-        crate::is_finite_point(p).then(|| (a, crate::text_place::place(a.anchor, p, a.size, scale)))
+        let (_, height) = text_extent(&a.text, a.size);
+        crate::is_finite_point(p).then(|| (a, crate::text_place::place(a.anchor, p, height, scale)))
     });
     let author = fig
         .author_annotations
@@ -229,7 +230,10 @@ pub(crate) fn text_extent(text: &str, size: f32) -> (f32, f32) {
         .lines()
         .map(|line| crate::ticks::estimated_text_width(line, size))
         .fold(0.0, f32::max);
-    (width, size * text.lines().count().max(1) as f32)
+    (
+        width,
+        crate::text_place::block_height(text.lines().count(), size),
+    )
 }
 
 fn reference_candidates(
@@ -461,9 +465,9 @@ impl Obstacles {
                 .filter(|a| !a.text.trim().is_empty())
                 .filter_map(|a| {
                     let p = placed(a.at)?;
-                    let (width, _) = text_extent(&a.text, a.size);
-                    let at = crate::text_place::place(a.anchor, p, a.size, 1.0);
-                    Some(crate::text_place::bounds(at, width, a.size))
+                    let (width, height) = text_extent(&a.text, a.size);
+                    let at = crate::text_place::place(a.anchor, p, height, 1.0);
+                    Some(crate::text_place::bounds(at, width, height))
                 }),
         );
         Self {

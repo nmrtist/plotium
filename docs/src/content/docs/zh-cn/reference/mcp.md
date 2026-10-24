@@ -72,6 +72,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.line.marker_fill / series.line.marker_edge_color` | 图对象＋Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | 图对象＋Series | 0–5 pt；0 表示无边框（空心时为 0.5 pt） |
 | `series.line.marker_hollow` | 图对象＋Series | 布尔值 |
+| `series.line.marker_every` | 图对象＋Series | 1–1000；从第一个点起每 n 个点画一个符号（默认 1） |
 | `series.bar.width` | 图对象＋Series | 0.05–1，占所在槽位宽度的比例（仅柱状曲线；默认 0.8） |
 | `series.bar.edge_color` | 图对象＋Series | `#RRGGBB`，柱描边颜色（仅柱状曲线；未设置时为带填充色色相的近黑色，并随曲线颜色变化） |
 | `series.bar.edge_width` | 图对象＋Series | 0–5 pt，柱描边宽度；0 表示无描边（仅柱状曲线；默认 0.5 pt，主题规定了辅助线宽时用它） |
@@ -89,6 +90,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.x_show_label / object.axes.y_show_label` | 图对象 | 布尔值；显示轴标题 |
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | 图对象 | 布尔值 |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | 图对象 | 布尔值；刻度数字按千分位分组 |
+| `object.axes.x_major_step / object.axes.y_major_step` | 图对象 | ≥ 0，按显示单位计的主刻度间隔；0 表示自动（无断轴的线性轴） |
 | `object.axes.frame` | 图对象 | `open`（左、下两条轴）、`box`（四边框） |
 | `object.axes.equal_scale` | 图对象 | 布尔值；x、y 每单位长度对应相同的数据量（线性、非分类轴，且没有右 y 轴） |
 | `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
@@ -99,6 +101,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.y2_scale` | 图对象 | `linear`、`log` |
 | `object.axes.y2_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
 | `object.axes.y2_range` | 图对象 | 自动或手动范围对象 |
+| `object.axes.y2_major_step` | 图对象 | 同 `y_major_step`，用于右 y 轴 |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | 图对象 | 1–72 pt |
 | `object.guides.visibility` | 图对象 | `auto`, `show`, `hide` |
 | `object.guides.placement` | 图对象 | `auto`, `inside`, `outside_right`, `outside_bottom`, `custom` |
@@ -929,9 +932,11 @@ Series 身份和来源绑定。已知目标可复用同步提交结果的 contex
 保持当前 frame 的比例，用 `content_frame` 修改某张图的高度即可调整其所占比例。
 开启堆叠时间距默认为 0 pt。只有最下面的图绘制 x 刻度数字和 x 轴标题，只有
 最上面的图绘制图标题，内部边界紧贴且 x 刻度朝内，各绘图区共用左右边缘。进入堆叠
-时，会把覆盖所有成员数据的 x 范围（按各自坐标单位）写入每个成员，因此各成员须先
+时，会把覆盖所有成员数据的 x 范围（按各自坐标单位）和最上面成员的 x 主刻度间隔
+（按各自显示的单位）写入每个成员，因此各成员须先
 使用相同的 x 刻度类型；所有成员绘制最下面成员的 x 方向，但不保存该方向。各图共享
-x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位或 x 千位分隔符，都会
+x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位、x 千位分隔符或
+x 主刻度间隔，都会
 写到所有成员，并合为一次 Undo；若任一成员不能接受该值则拒绝写入，`applied` 会
 列出各成员的修改。`shared_x: false` 恢复为自由布局并保留各 frame。结果在 `panel_edits` 中列出
 每个操作的 `layout`、`gap_pt`、`members_top_to_bottom` 和 `merged_panels`。
@@ -952,7 +957,8 @@ x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示�
 `plotium_get_state` 在 `hand_edits` 中以键 `annotation.label_position` 列出拖过的标签。
 `annotation_id` 只在所属图内有效，删除后不会复用；可从结果的 `annotation_edits`
 或 `plotium_document_inspect` 返回的图 `annotations` 列表读取。`at` 使用
-`coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。标注文字最多 1024
+`coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。`text` 中的 `\n`
+另起一行。标注文字最多 1024
 UTF-8 字节且不得空白，每张图最多 256 个标注。图及其父面板须未锁定；不要求关闭
 Auto height。
 
@@ -1473,7 +1479,7 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 现有基于 width 的半径，原线宽接口含义不变；reset 恢复原生符号/大小。
 显式空图例文字使该图例项不显示。线型仅适用于折线，散点目标会按规则跳过。
 符号适用于折线和散点，不适用于 stick、柱状、箱线和小提琴曲线；柱宽和描边宽度适用于柱状、箱线和小提琴曲线，描边颜色仅适用于柱状曲线。符号填充色和边框色作用于闭合符号，未设置时跟随
-曲线颜色，reset 恢复跟随。空心符号不填充并保留边框，未设置边框宽度时为 0.5 pt。颜色由图型语义决定时，单曲线改色、改符号填充色或边框色按不适用跳过。
+曲线颜色，reset 恢复跟随。空心符号不填充并保留边框，未设置边框宽度时为 0.5 pt。`marker_every` 从第一个源数据点起每 n 个点画一个符号，折线仍经过每个点。颜色由图型语义决定时，单曲线改色、改符号填充色或边框色按不适用跳过。
 
 单图刻度、轴标题和图例字号在未覆盖时继承文档设置，reset 只移除相应覆盖；
 改单图字体不影响其他图。字体/标题测量沿用原生渲染，不重排页面，不改变面板及

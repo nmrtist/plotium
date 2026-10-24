@@ -28,7 +28,11 @@ pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     if marker != Marker::None {
         let paint = MarkerPaint::new(series.appearance, series.color, series.width);
         let r = series.appearance.marker_radius(series.width);
-        for p in points.into_iter().filter(|p| crate::is_finite_point(*p)) {
+        for p in points
+            .into_iter()
+            .step_by(series.appearance.marker_stride())
+            .filter(|p| crate::is_finite_point(*p))
+        {
             marker_at(dc, p, marker, r, &paint);
         }
     }

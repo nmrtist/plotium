@@ -63,7 +63,7 @@ pub fn scan_curve(
             continue;
         }
         let marker = series.appearance.marker(series.kind);
-        if marker != Marker::None {
+        if marker != Marker::None && i.is_multiple_of(series.appearance.marker_stride()) {
             let radius = series.appearance.marker_radius(series.width);
             if matches!(marker, Marker::Plus | Marker::Cross) && series.width <= 0. {
                 continue;

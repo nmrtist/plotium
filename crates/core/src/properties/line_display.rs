@@ -14,6 +14,7 @@ pub const MARKER_FILL: PropertyId = PropertyId("series.line.marker_fill");
 pub const MARKER_EDGE_COLOR: PropertyId = PropertyId("series.line.marker_edge_color");
 pub const MARKER_EDGE_WIDTH: PropertyId = PropertyId("series.line.marker_edge_width");
 pub const MARKER_HOLLOW: PropertyId = PropertyId("series.line.marker_hollow");
+pub const MARKER_EVERY: PropertyId = PropertyId("series.line.marker_every");
 pub const BAR_WIDTH: PropertyId = PropertyId("series.bar.width");
 pub const BAR_EDGE_COLOR: PropertyId = PropertyId("series.bar.edge_color");
 pub const BAR_EDGE_WIDTH: PropertyId = PropertyId("series.bar.edge_width");
@@ -24,6 +25,7 @@ const Y_AXES: &[EnumVariant] = &[
     EnumVariant::new(LEFT, "Left"),
     EnumVariant::new(RIGHT, "Right"),
 ];
+const MAX_MARKER_EVERY: i64 = 1000;
 const MARKER_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
 const BAR_WIDTH_BOUNDS: FloatBounds = FloatBounds::inclusive(0.05, 1.);
 const BAR_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
@@ -91,6 +93,14 @@ const DEFINITIONS: &[PropertyDefinition] = &[
         "Marker edge width",
     ),
     advanced(MARKER_HOLLOW, ValueSchema::Bool, "Hollow marker"),
+    advanced(
+        MARKER_EVERY,
+        ValueSchema::Int {
+            min: 1,
+            max: MAX_MARKER_EVERY,
+        },
+        "Marker every N points",
+    ),
     advanced(Y_AXIS, ValueSchema::Enum { variants: Y_AXES }, "Y axis"),
     advanced(
         BAR_WIDTH,
@@ -218,6 +228,11 @@ impl PropertyProvider for DisplayProvider {
                 PropertyValue::Bool(false),
                 None,
             ),
+            MARKER_EVERY => (
+                PropertyValue::Int(line.appearance.marker_stride() as i64),
+                PropertyValue::Int(1),
+                Some(line.appearance.marker_every.is_some()),
+            ),
             Y_AXIS => (
                 PropertyValue::Enum(if line.appearance.y_axis.is_right() {
                     RIGHT
@@ -264,6 +279,7 @@ impl PropertyProvider for DisplayProvider {
                 | MARKER_EDGE_COLOR
                 | MARKER_EDGE_WIDTH
                 | MARKER_HOLLOW
+                | MARKER_EVERY
         );
         Ok(ResolvedProperty {
             address: address.clone(),
@@ -472,6 +488,21 @@ impl PropertyProvider for DisplayProvider {
                 };
             }
             (MARKER_HOLLOW, PropertyValue::Bool(hollow)) => line.appearance.marker_hollow = hollow,
+            (MARKER_EVERY, PropertyValue::Int(n)) => {
+                if !(1..=MAX_MARKER_EVERY).contains(&n) {
+                    return Err(PropertyError::InvalidValue {
+                        property: d.id,
+                        message: format!(
+                            "marker spacing {n} is out of range: it must be between 1 and {MAX_MARKER_EVERY}"
+                        ),
+                    });
+                }
+                // One is "every point", stored as no override.
+                line.appearance.marker_every = u32::try_from(n)
+                    .ok()
+                    .and_then(std::num::NonZeroU32::new)
+                    .filter(|n| n.get() > 1);
+            }
             (Y_AXIS, PropertyValue::Enum(v)) => {
                 line.appearance.y_axis = match v {
                     LEFT => plotium_figure::YAxisSide::Left,

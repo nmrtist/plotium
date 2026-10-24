@@ -2,7 +2,7 @@
 //! Office/WPS paste it as an editable vector. Mirrors the [`crate::svg`]
 //! traversal one function per function.
 
-use crate::rich_text::{BASELINE_TO_BOTTOM, TOP_TO_BASELINE};
+use crate::rich_text::{BASELINE_TO_BOTTOM, above_bottom, below_top};
 use crate::{
     Document, DocumentItem, DocumentObject, DocumentOverlay, LegendMark, OverlayAlign, OverlayKind,
     OverlayShapeKind, Projector, Rect, TICK_LABEL_PAD, TextAnchor, YTitleClearance, arrow_head,
@@ -336,7 +336,7 @@ fn write_figure_content(
             &fig.title,
             (
                 frame.left + frame.width / 2.0,
-                frame.top + ty.title_pt * TOP_TO_BASELINE,
+                frame.top + below_top(&fig.title, ty.title_pt),
             ),
             TextStyle::new(ty.title_pt, Color::BLACK, TA_CENTER),
         );
@@ -445,15 +445,16 @@ fn write_figure_content(
             &fig.x.label,
             (
                 (plot.left + plot.right()) / 2.0,
-                x_lane_bottom - multiplier_clearance - ty.label_pt * BASELINE_TO_BOTTOM,
+                x_lane_bottom - multiplier_clearance - above_bottom(&fig.x.label, ty.label_pt),
             ),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER),
         );
     }
     if !hidden_frame && fig.y.show_label {
+        let baseline = y_title_left + below_top(&fig.y.label, ty.label_pt);
         dc.text(
             &fig.y.label,
-            (y_title_left + ty.label_pt * TOP_TO_BASELINE, y_title_cy),
+            (baseline, y_title_cy),
             TextStyle::new(ty.label_pt, Color::AXIS, TA_CENTER).rotated(),
         );
     }
@@ -548,7 +549,9 @@ fn write_figure_content(
             };
             let style = TextStyle::new(a.size, a.color, align);
             let style = if at.middle { style.middle() } else { style };
-            dc.text(&a.text, (at.x, at.y), style);
+            for (line, at) in crate::text_place::lines(at, &a.text, a.size) {
+                dc.text(line, (at.x, at.y), style);
+            }
         }
     });
     // Spines go over the clipped data, so a bar or trace resting on an axis

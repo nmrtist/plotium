@@ -204,3 +204,70 @@ fn star_pentagon_and_hexagon_point_up_inside_the_shared_envelope() {
         .expect("a star marker exports as an SVG polygon");
     assert_eq!(star.split(' ').count(), 10, "{svg}");
 }
+#[test]
+fn marker_every_n_draws_every_nth_point_from_the_first() {
+    let mut figure = Figure::new("", Axis::new("x", 0., 10.), Axis::new("y", 0., 10.));
+    figure.series.push(Series::points(
+        "A",
+        (0..10).map(|i| [f64::from(i), 1.]).collect(),
+    ));
+    let centers = |svg: &str| -> Vec<String> {
+        svg.split("<circle cx=\"")
+            .skip(1)
+            .map(|rest| rest[..rest.find('"').unwrap()].to_owned())
+            .collect()
+    };
+    let all = centers(&svg::export(&figure));
+    assert_eq!(all.len(), 10);
+    figure.series[0].appearance.marker_every = std::num::NonZeroU32::new(4);
+    assert_eq!(
+        centers(&svg::export(&figure)),
+        [all[0].clone(), all[4].clone(), all[8].clone()]
+    );
+}
+#[test]
+fn a_set_major_step_places_ticks_on_its_multiples() {
+    let mut axis = Axis::new("Capacity", 75., 135.);
+    axis.major_step = Some(20.);
+    let ticks = axis_ticks_for(&axis, 5);
+    assert_eq!(ticks.values, [80., 100., 120.]);
+    assert_eq!(ticks.labels, ["80", "100", "120"]);
+    // Every tick budget gets the same set.
+    assert_eq!(axis_ticks_for(&axis, 2).values, ticks.values);
+    let mut figure = Figure::new("", Axis::new("x", 0., 500.), axis.clone());
+    figure.x.major_step = Some(100.);
+    let layout = crate::axis_layout(&figure, 120., 90.);
+    assert_eq!(layout.x_ticks.values, [0., 100., 200., 300., 400., 500.]);
+    assert_eq!(layout.y_ticks.values, ticks.values);
+
+    // The step is read in the display unit.
+    axis.display = Some(AxisDisplay {
+        scale: 1000.,
+        offset: 0.,
+        unit: "mA".into(),
+    });
+    axis.min = 0.075;
+    axis.max = 0.135;
+    let shown = axis_ticks_for(&axis, 5);
+    assert_eq!(shown.labels, ["80", "100", "120"]);
+    assert!((shown.values[0] - 0.08).abs() < 1e-12);
+
+    // A step giving one tick or too many, or a log scale, keeps automatic ticks.
+    let mut single = Axis::new("x", 75., 135.);
+    single.major_step = Some(50.);
+    assert_eq!(
+        axis_ticks_for(&single, 5).values,
+        axis_ticks_for(&Axis::new("x", 75., 135.), 5).values
+    );
+    let mut dense = Axis::new("x", 0., 1000.);
+    dense.major_step = Some(1.);
+    assert_eq!(
+        axis_ticks_for(&dense, 5).values,
+        axis_ticks_for(&Axis::new("x", 0., 1000.), 5).values
+    );
+    let mut log = Axis::new("x", 1., 1000.);
+    log.scale = plotium_figure::AxisScale::Log10;
+    let auto = axis_ticks_for(&log, 5);
+    log.major_step = Some(20.);
+    assert_eq!(axis_ticks_for(&log, 5), auto);
+}

@@ -4,8 +4,8 @@ use super::provider::PropertyProvider;
 use super::target::{require_plot_object_target, resolved_schema};
 use super::{
     AggregateValue, Applicability, Availability, ComponentKind, DefaultPolicy, EditOp, EnumVariant,
-    PropertyAccess, PropertyAddress, PropertyDefinition, PropertyError, PropertyId,
-    PropertyTransaction, PropertyValue, ResolvedProperty, ScopeKind, Tier, ValueCopies,
+    FloatBounds, FloatDisplay, PropertyAccess, PropertyAddress, PropertyDefinition, PropertyError,
+    PropertyId, PropertyTransaction, PropertyValue, ResolvedProperty, ScopeKind, Tier, ValueCopies,
     ValueSchema,
 };
 use crate::state::{FieldCapabilities, ObjectId, PlotObject, PlotiumApp};
@@ -23,6 +23,8 @@ pub const Y_THOUSANDS_SEPARATOR: PropertyId = PropertyId("object.axes.y_thousand
 pub const FRAME: PropertyId = PropertyId("object.axes.frame");
 pub const X_SCALE: PropertyId = PropertyId("object.axes.x_scale");
 pub const Y_SCALE: PropertyId = PropertyId("object.axes.y_scale");
+pub const X_MAJOR_STEP: PropertyId = PropertyId("object.axes.x_major_step");
+pub const Y_MAJOR_STEP: PropertyId = PropertyId("object.axes.y_major_step");
 
 pub const OPEN: &str = "open";
 pub const BOX: &str = "box";
@@ -41,6 +43,14 @@ const STACKED_EQUAL_SCALE: &str =
     "Plots in a shared-x stack keep the stack's width and cannot use equal x/y scale.";
 
 const OBJECT: Applicability = Applicability::component(ComponentKind::None);
+
+const MAJOR_STEP_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 1e15);
+/// Major tick step in the axis's display unit; 0 lets the axis choose.
+pub(crate) const MAJOR_STEP_SCHEMA: ValueSchema = ValueSchema::Float {
+    bounds: MAJOR_STEP_BOUNDS,
+    display: FloatDisplay::Linear(""),
+    drag_step: None,
+};
 
 const fn axis_definition(
     id: PropertyId,
@@ -167,6 +177,20 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         &["log y", "logarithmic y axis", "y log scale", "semilog"],
         Tier::Advanced,
     ),
+    axis_definition(
+        X_MAJOR_STEP,
+        MAJOR_STEP_SCHEMA,
+        "X major tick step",
+        &["x tick spacing", "x tick interval", "x major tick interval"],
+        Tier::Advanced,
+    ),
+    axis_definition(
+        Y_MAJOR_STEP,
+        MAJOR_STEP_SCHEMA,
+        "Y major tick step",
+        &["y tick spacing", "y tick interval", "y major tick interval"],
+        Tier::Advanced,
+    ),
 ];
 
 pub(crate) struct AxisProvider;
@@ -194,6 +218,10 @@ impl PropertyProvider for AxisProvider {
         {
             Availability::Disabled(NO_AXES)
         } else if let Some(reason) = scale_unavailable(app, definition.id, plot) {
+            Availability::Disabled(reason)
+        } else if let Some(reason) = major_step_axis(definition.id, plot.figure())
+            .and_then(|axis| major_step_unavailable(plot.figure(), axis))
+        {
             Availability::Disabled(reason)
         } else if definition.id == EQUAL_SCALE
             && let Some(reason) =
@@ -250,6 +278,17 @@ impl PropertyProvider for AxisProvider {
         {
             return Err(PropertyError::NotApplicable(reason.to_owned()));
         }
+        if !matches!(operation, EditOp::Reset)
+            && let Some(reason) = app.doc.canvases[canvas]
+                .object(object)
+                .and_then(|object| object.plot())
+                .and_then(|plot| {
+                    major_step_axis(definition.id, plot.figure())
+                        .and_then(|axis| major_step_unavailable(plot.figure(), axis))
+                })
+        {
+            return Err(PropertyError::NotApplicable(reason.to_owned()));
+        }
         let overrides = transaction.axis_overrides(app, canvas, object)?;
         match (definition.id, operation) {
             (EQUAL_SCALE, EditOp::Set(PropertyValue::Bool(value))) => {
@@ -303,6 +342,13 @@ impl PropertyProvider for AxisProvider {
                 *scale_slot(overrides, definition.id) = Some(AxisScale::Log10)
             }
             (X_SCALE | Y_SCALE, EditOp::Reset) => *scale_slot(overrides, definition.id) = None,
+            (X_MAJOR_STEP | Y_MAJOR_STEP, EditOp::Set(PropertyValue::Float(value))) => {
+                checked_major_step(definition.id, *value)?;
+                *major_step_slot(overrides, definition.id) = (*value > 0.0).then_some(*value);
+            }
+            (X_MAJOR_STEP | Y_MAJOR_STEP, EditOp::Reset) => {
+                *major_step_slot(overrides, definition.id) = None
+            }
             (EQUAL_SCALE, EditOp::Reset) => overrides.lock_aspect = None,
             (X_LABEL, EditOp::Reset) => overrides.x_label = None,
             (Y_LABEL, EditOp::Reset) => overrides.y_label = None,
@@ -357,6 +403,8 @@ fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Property
         FRAME => Ok(frame_value(plot.figure().axis_frame)),
         X_SCALE => Ok(scale_value(plot.figure().x.scale)),
         Y_SCALE => Ok(scale_value(plot.figure().y.scale)),
+        X_MAJOR_STEP => Ok(major_step_value(plot.figure().x.major_step)),
+        Y_MAJOR_STEP => Ok(major_step_value(plot.figure().y.major_step)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -398,6 +446,7 @@ fn default_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Pro
         EQUAL_SCALE => Ok(PropertyValue::Bool(plot.derived_axes().lock_aspect)),
         X_SCALE => Ok(scale_value(plot.derived_axes().x_scale)),
         Y_SCALE => Ok(scale_value(plot.derived_axes().y_scale)),
+        X_MAJOR_STEP | Y_MAJOR_STEP => Ok(major_step_value(None)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -421,6 +470,8 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
             .is_some_and(|lock| lock != plot.derived_axes().lock_aspect)),
         X_SCALE => Ok(plot.axis_overrides.x_scale.is_some()),
         Y_SCALE => Ok(plot.axis_overrides.y_scale.is_some()),
+        X_MAJOR_STEP => Ok(plot.axis_overrides.x_major_step.is_some()),
+        Y_MAJOR_STEP => Ok(plot.axis_overrides.y_major_step.is_some()),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
     }
 }
@@ -486,4 +537,52 @@ pub(crate) fn is_nmr_spectrum(app: &PlotiumApp, plot: &PlotObject) -> bool {
                 .capabilities
                 .contains(crate::automation::CAP_FIELD_NMR_SIGNAL)
         })
+}
+
+fn major_step_slot(
+    overrides: &mut crate::state::AxisOverrides,
+    id: PropertyId,
+) -> &mut Option<f64> {
+    if id == X_MAJOR_STEP {
+        &mut overrides.x_major_step
+    } else {
+        &mut overrides.y_major_step
+    }
+}
+
+fn major_step_axis(
+    id: PropertyId,
+    figure: &plotium_figure::Figure,
+) -> Option<&plotium_figure::Axis> {
+    match id {
+        X_MAJOR_STEP => Some(&figure.x),
+        Y_MAJOR_STEP => Some(&figure.y),
+        _ => None,
+    }
+}
+
+pub(crate) fn major_step_value(step: Option<f64>) -> PropertyValue {
+    PropertyValue::Float(step.unwrap_or(0.0))
+}
+
+pub(crate) fn checked_major_step(id: PropertyId, value: f64) -> Result<f64, PropertyError> {
+    MAJOR_STEP_BOUNDS.check(id, "major tick step", value)
+}
+
+/// Why `axis` cannot take a set major tick step.
+pub(crate) fn major_step_unavailable(
+    figure: &plotium_figure::Figure,
+    axis: &plotium_figure::Axis,
+) -> Option<&'static str> {
+    if figure.axis_frame == AxisFrame::Hidden {
+        Some(NO_AXES)
+    } else if axis.categories.is_some() {
+        Some("A category axis places one tick per category.")
+    } else if !axis.effective_scale().is_linear() {
+        Some("A logarithmic axis places its major ticks on powers of ten.")
+    } else if axis.axis_break.is_some() {
+        Some("A broken axis chooses its own ticks; remove the break to set a tick step.")
+    } else {
+        None
+    }
 }

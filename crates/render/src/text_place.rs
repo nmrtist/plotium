@@ -19,14 +19,22 @@ pub(crate) struct PlacedText {
     pub middle: bool,
 }
 
-/// Where to draw an annotation of `size` points anchored at the projected
-/// point. `scale` converts points to output units.
-pub(crate) fn place(anchor: TextAnchor, (x, y): (f32, f32), size: f32, scale: f32) -> PlacedText {
+/// Distance between the baselines of a multi-line text, in ems.
+pub(crate) const LINE_PITCH: f32 = 1.25;
+
+/// Height of a text block of `lines` lines at `size`.
+pub(crate) fn block_height(lines: usize, size: f32) -> f32 {
+    size * (1.0 + LINE_PITCH * lines.saturating_sub(1) as f32)
+}
+
+/// Where to draw an annotation of `size` points and `height` points tall,
+/// anchored at the projected point. `scale` converts points to output units.
+pub(crate) fn place(anchor: TextAnchor, (x, y): (f32, f32), height: f32, scale: f32) -> PlacedText {
     let gap = TextAnchor::GAP_PT * scale;
     let (x, y, align, middle) = match anchor {
         TextAnchor::Point => (x, y, TextAlign::Center, false),
         TextAnchor::Above => (x, y - gap, TextAlign::Center, false),
-        TextAnchor::Below => (x, y + gap + 0.5 * size * scale, TextAlign::Center, true),
+        TextAnchor::Below => (x, y + gap + 0.5 * height * scale, TextAlign::Center, true),
         TextAnchor::Left => (x - gap, y, TextAlign::End, true),
         TextAnchor::Right => (x + gap, y, TextAlign::Start, true),
     };
@@ -38,20 +46,45 @@ pub(crate) fn place(anchor: TextAnchor, (x, y): (f32, f32), size: f32, scale: f3
     }
 }
 
-/// Box of a placed text `width` wide and one `size` high.
-pub(crate) fn bounds(at: PlacedText, width: f32, size: f32) -> crate::Rect {
+/// Each line of `text` at `size` output units placed at `at`: a block sits
+/// on its last baseline, or a `middle` block is centred on `at.y`.
+pub(crate) fn lines(
+    at: PlacedText,
+    text: &str,
+    size: f32,
+) -> impl Iterator<Item = (&str, PlacedText)> {
+    let count = text.lines().count();
+    let pitch = LINE_PITCH * size;
+    let first = if at.middle {
+        at.y - 0.5 * pitch * count.saturating_sub(1) as f32
+    } else {
+        at.y - pitch * count.saturating_sub(1) as f32
+    };
+    text.lines().enumerate().map(move |(index, line)| {
+        (
+            line,
+            PlacedText {
+                y: first + pitch * index as f32,
+                ..at
+            },
+        )
+    })
+}
+
+/// Box of a placed text `width` wide and `height` high.
+pub(crate) fn bounds(at: PlacedText, width: f32, height: f32) -> crate::Rect {
     let left = match at.align {
         TextAlign::Center => at.x - 0.5 * width,
         TextAlign::Start => at.x,
         TextAlign::End => at.x - width,
     };
-    // A baseline-placed text rises one font size above its baseline.
+    // A baseline-placed block rises its whole height above its last baseline.
     let top = if at.middle {
-        at.y - 0.5 * size
+        at.y - 0.5 * height
     } else {
-        at.y - size
+        at.y - height
     };
-    crate::Rect::new(left, top, width, size)
+    crate::Rect::new(left, top, width, height)
 }
 
 #[cfg(test)]

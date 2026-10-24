@@ -249,6 +249,17 @@ the multiplier. Agents can set the same option through the
 `object.axes.x_thousands_separator` and `object.axes.y_thousands_separator`
 properties.
 
+To choose where major ticks fall, set **X major tick step** or **Y major tick
+step** under **Advanced** in the same section, or **Right Y major tick step**
+in the **Right Y axis** section. Ticks then sit on the multiples of the step in
+the axis's display unit — a step of 20 gives 80, 100, 120 — and minor ticks
+divide those intervals. 0 returns to automatic ticks. The step does not apply
+to logarithmic, category or broken axes, and a step that would draw fewer than
+two or more than 100 ticks falls back to automatic ticks. Changing the display
+unit clears the step. Agents use
+`object.axes.x_major_step`, `object.axes.y_major_step` and
+`object.axes.y2_major_step`.
+
 ## Stack plots on a shared x axis
 
 A Shared X Stack puts two or more plots in one Panel, one above the other, on a
@@ -280,12 +291,13 @@ In the stack:
   of a lower plot's y axis moves just inside its top-left corner, and a y tick
   number that would sit on the shared edge is left out.
 - The plots share one x window. Entering the stack sets an x range covering all
-  of their data on every plot, so the plots must use the same x scale (linear
-  or logarithmic) first. Every plot follows the bottom plot's x direction: an
+  of their data and the top plot's x major tick step on every plot, so the
+  plots must use the same x scale (linear or logarithmic) first. Every plot follows the bottom plot's x direction: an
   NMR spectrum, whose ppm axis runs right to left, stacked above an ascending
   plot is drawn left to right.
 - Zooming or panning x on one plot moves all of them. Changing the x range,
-  logarithmic scale, x display unit or thousands separator on one plot changes
+  logarithmic scale, x display unit, thousands separator or major tick step on
+  one plot changes
   every plot in the stack in one undoable step; a change that one of the plots
   cannot take, such as a logarithmic axis on an NMR spectrum, is refused.
 - The top-to-bottom order is the Panel's content order. Each plot's height sets
@@ -374,7 +386,8 @@ What you control directly:
   title; the title reads bottom to top like the left one and starts as the
   first right curve's column name and unit. The **Right Y axis** section of the
   Object inspector, shown only while the plot has a right axis, sets its
-  title, range, logarithmic scale, tick labels and display unit. Scrolling,
+  title, range, logarithmic scale, tick labels, display unit and major tick
+  step. Scrolling,
   dragging and box zoom move both y axes by the same fraction of their range,
   a double-click returns both to their full range, and the **Inspect** cursor
   reads the pointer on x and on both y axes. One legend lists every curve.
@@ -481,8 +494,11 @@ What you control directly:
   colour until set. **Marker edge width** draws that outline, from 0 (no
   outline, the default) to 5 pt. **Hollow marker** leaves closed markers
   unfilled and keeps their outline, 0.5 pt when the edge width is 0; the
-  fill colour returns when it is turned off. Plus and cross markers stay in the curve
-  colour. The legend swatch shows the same marker. Charts whose colours carry
+  fill colour returns when it is turned off. **Marker every N points** draws
+  a marker on the first point and every N-th point after it, for dense data
+  such as hundreds of cycles; the line still runs through every point. Plus
+  and cross markers stay in the curve colour. The legend swatch shows the same
+  marker. Charts whose colours carry
   meaning keep their marker colours.
 - **Canvas themes** carry matching sizes — the Presentation Dark theme, for
   example, enlarges the axis text for slides. The **Nature** theme follows the

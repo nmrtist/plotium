@@ -41,6 +41,8 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
             y_show_label: Some(false),
             x_thousands_separator: Some(true),
             y_thousands_separator: Some(true),
+            x_major_step: Some(2.0),
+            y_major_step: Some(2.0),
             axis_frame: Some(plotium_figure::AxisFrame::Open),
             x_scale: Some(plotium_figure::AxisScale::Linear),
             y_scale: Some(plotium_figure::AxisScale::Linear),
@@ -79,6 +81,12 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
         }),
         (axis::Y_THOUSANDS_SEPARATOR, |value: &AxisOverrides| {
             value.y_thousands_separator.is_none()
+        }),
+        (axis::X_MAJOR_STEP, |value: &AxisOverrides| {
+            value.x_major_step.is_none()
+        }),
+        (axis::Y_MAJOR_STEP, |value: &AxisOverrides| {
+            value.y_major_step.is_none()
         }),
         (axis::FRAME, |value: &AxisOverrides| {
             value.axis_frame.is_none()
@@ -488,4 +496,45 @@ fn thousands_separator_write_reaches_the_figure_and_undo_restores_plain_labels()
     app.undo();
     assert_eq!(overrides(&app, object).y_thousands_separator, None);
     assert!(!figure_groups(&app));
+}
+
+#[test]
+fn major_step_write_reaches_the_figure_and_zero_returns_to_automatic() {
+    let (mut app, target, object) = axis_app();
+    let figure_step = |app: &PlotiumApp| {
+        app.doc.canvases[0]
+            .object(object)
+            .and_then(|object| object.plot())
+            .expect("plot")
+            .figure()
+            .y
+            .major_step
+    };
+    let address = PropertyAddress::new(target.clone(), axis::Y_MAJOR_STEP);
+    let before = app.resolve_property(&address).expect("step reads");
+    assert_eq!(
+        before.value,
+        AggregateValue::Uniform(PropertyValue::Float(0.0))
+    );
+    assert_eq!(before.modified, Some(false));
+    assert_eq!(before.availability, Availability::Editable);
+
+    let write = |app: &mut PlotiumApp, value: f64| {
+        app.plan_property_write(
+            axis::Y_MAJOR_STEP,
+            std::slice::from_ref(&target),
+            &PropertyValue::Float(value),
+        )
+    };
+    assert!(write(&mut app, -1.0).is_err());
+    let commit = write(&mut app, 2.5).expect("step write plans");
+    app.commit_property(commit);
+    assert_eq!(overrides(&app, object).y_major_step, Some(2.5));
+    assert_eq!(figure_step(&app), Some(2.5));
+    let commit = write(&mut app, 0.0).expect("zero plans");
+    app.commit_property(commit);
+    assert_eq!(overrides(&app, object).y_major_step, None);
+    assert_eq!(figure_step(&app), None);
+    app.undo();
+    assert_eq!(figure_step(&app), Some(2.5));
 }
