@@ -14,8 +14,7 @@ use super::registry::*;
 use super::tool_executors::*;
 
 pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, AutomationError> {
-    let registry = ToolRegistry::built_in();
-    let descriptor = registry
+    let descriptor = ToolRegistry::shared()
         .get(&request.tool_id)
         .ok_or_else(|| AutomationError::UnknownTool(request.tool_id.clone()))?;
     if request.tool_version != descriptor.version {
@@ -400,7 +399,7 @@ impl PreparedToolRun {
 
 /// Whether an automation call needs durable project provenance.
 pub(super) fn persists_tool_run(tool_id: &str) -> bool {
-    ToolRegistry::built_in()
+    ToolRegistry::shared()
         .get(tool_id)
         .is_none_or(|descriptor| descriptor.effect != EffectLevel::ReadOnly)
 }
@@ -557,7 +556,7 @@ pub(super) fn execute_planned_tool(
 /// already computed, so "which bytes did this run produce" is answerable from
 /// the operation history alone.
 fn record_external_write(app: &mut PlotiumApp, plan: &ToolPlan, result: &ToolResult) {
-    let external = ToolRegistry::built_in()
+    let external = ToolRegistry::shared()
         .get(&plan.request.tool_id)
         .is_some_and(|descriptor| descriptor.effect == EffectLevel::ExternalWrite);
     if !external {

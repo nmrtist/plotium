@@ -23,7 +23,7 @@ impl ServerHandler for Handler {
         _: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         Ok(ListToolsResult {
-            tools: definitions(),
+            tools: catalog().to_vec(),
             ..Default::default()
         })
     }
@@ -32,7 +32,7 @@ impl ServerHandler for Handler {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        if !definitions().iter().any(|tool| tool.name == request.name) {
+        if !catalog().iter().any(|tool| tool.name == request.name) {
             return Err(ErrorData::invalid_params("Unknown tool", None));
         }
         let arguments = Value::Object(request.arguments.unwrap_or_default());
@@ -94,6 +94,12 @@ impl ServerHandler for Handler {
         .into())
     }
 }
+/// Tool definitions are static per binary; build them once per process.
+fn catalog() -> &'static [Tool] {
+    static TOOLS: std::sync::OnceLock<Vec<Tool>> = std::sync::OnceLock::new();
+    TOOLS.get_or_init(definitions)
+}
+
 pub(crate) fn definitions() -> Vec<Tool> {
     let revision = json!({"type": "integer", "minimum": 0});
     let ids = json!({"type": "array", "items": {"type": "string"}, "minItems": 1});
@@ -110,7 +116,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         }
     }});
     let key = json!({"type": "string", "enum": crate::session::PROPERTIES.iter().map(|id| id.as_str()).collect::<Vec<_>>()});
-    let registry = plotium_core::automation::ToolRegistry::built_in();
+    let registry = plotium_core::automation::ToolRegistry::shared();
     let mut query = registry
         .get("resources.search")
         .and_then(|d| d.parameter_schema.get("properties"))

@@ -115,3 +115,28 @@ fn indicator_priority_and_activity_window_use_controlled_time() {
         Indicator::Ready
     );
 }
+
+#[test]
+fn idle_connections_poll_only_for_work_retries_and_activity_changes() {
+    let now = Instant::now();
+    let mut connections = AgentConnections::default();
+    assert_eq!(connections.next_poll(false, now), None);
+    assert_eq!(connections.next_poll(true, now), None);
+    connections.retry_at = Some(now + Duration::from_secs(5));
+    assert_eq!(
+        connections.next_poll(true, now),
+        Some(Duration::from_secs(5))
+    );
+    assert_eq!(connections.next_poll(false, now), None);
+    connections.retry_at = None;
+    connections.connection = Some(Connection::start(|| {}).unwrap());
+    assert_eq!(connections.next_poll(true, now), None);
+    connections.connector_job = Some(std::thread::spawn(|| Err("test".into())));
+    assert_eq!(
+        connections.next_poll(true, now),
+        Some(Duration::from_millis(100))
+    );
+    if let Some(job) = connections.connector_job.take() {
+        assert!(job.join().unwrap().is_err());
+    }
+}
