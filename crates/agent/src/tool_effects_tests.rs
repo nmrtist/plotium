@@ -24,11 +24,11 @@ fn every_advertised_tool_has_explicit_conservative_annotations() {
         "plotium_export_status",
     ];
     let definitions = protocol::definitions();
-    assert_eq!(definitions.len(), reads.len() + 4);
+    assert_eq!(definitions.len(), reads.len() + 5);
     for tool in definitions {
         let (read, destructive, idempotent, external) = match tool.name.as_ref() {
             "plotium_plan" => (false, false, false, true),
-            "plotium_execute" => (false, true, false, true),
+            "plotium_execute" | "plotium_apply" => (false, true, false, true),
             "plotium_tasks_cancel" => (false, true, true, false),
             "plotium_figure_diagnose" => (true, false, false, false),
             name if reads.contains(&name) => (true, false, true, false),

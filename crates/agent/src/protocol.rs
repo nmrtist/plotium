@@ -15,7 +15,7 @@ impl ServerHandler for Handler {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("Plotium", env!("CARGO_PKG_VERSION")))
-            .with_instructions("Known operations can fetch their static detail directly; otherwise browse the plotium_capabilities_get index. Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. For known exact targets, committed synchronous results provide project_context and after_revision for the next call. Refresh state after desktop edits or Undo. Never replay a tool call after a disconnection.")
+            .with_instructions("Known operations can fetch their static detail directly; otherwise browse the plotium_capabilities_get index. Read plotium_get_state first. Supply its project_context as expected_project_context on project queries and planning. On project_changed, reread state and replan; never reuse targets or plans. For known exact targets, committed synchronous results provide project_context and after_revision for the next call. Refresh state after desktop edits or Undo. For a reversible edit, plotium_apply plans and commits in one call. Never replay a tool call after a disconnection.")
     }
     async fn list_tools(
         &self,
@@ -146,6 +146,15 @@ pub(crate) fn definitions() -> Vec<Tool> {
         let schema = json!({"type": "object", "properties": properties, "required": required, "additionalProperties": false});
         Tool::new(name, description, schema.as_object().expect("local schema is an object").clone())
     }).collect();
+    let mut apply = tools
+        .iter()
+        .find(|t| t.name == "plotium_plan")
+        .expect("plan tool")
+        .input_schema
+        .as_ref()
+        .clone();
+    apply["properties"]["tool_id"] = json!({"enum": crate::session::apply::APPLY_OPERATIONS});
+    tools.push(Tool::new("plotium_apply", "Plan and commit one reversible edit in a single call, with plotium_plan inputs; returns the plotium_execute result. Saving, export, deletions, imports, table and scientific operations use plotium_plan then plotium_execute. After a disconnection read state: an unchanged revision means nothing was committed. Never replay.", apply));
     tools.push(Tool::new("plotium_document_inspect", "Inspect bounded document structure and source bindings by full stable target. view self returns details; children pages direct children. Pagination is only valid with view children. Never uses selection.", document.as_object().expect("local schema is an object").clone()));
     let mut diagnostic = plotium_core::automation::figure_diagnostic_schema();
     diagnostic["properties"]["expected_revision"] = json!({"type":"integer","minimum":0});

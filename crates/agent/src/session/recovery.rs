@@ -101,7 +101,8 @@ pub(super) fn for_error(code: &str) -> Value {
 
 impl Failure {
     pub(crate) fn for_request(mut self, name: &str, arguments: &Value) -> Self {
-        if name == "plotium_plan"
+        let planning = matches!(name, "plotium_plan" | "plotium_apply");
+        if planning
             && self.code == "invalid_parameters"
             && self.details.as_ref().is_some_and(|details| {
                 details["field"].is_null()
@@ -116,7 +117,7 @@ impl Failure {
             let field = self.details.as_ref().and_then(|d| d["field"].as_str());
             let query = if name == "plotium_capabilities_get" {
                 Some(json!({}))
-            } else if name == "plotium_plan"
+            } else if planning
                 && !matches!(
                     field,
                     Some("expected_project_context" | "expected_revision")
@@ -163,8 +164,11 @@ impl Failure {
             }
         }
         self.recovery = Some(value);
-        if name == "plotium_plan" {
-            // Preflight can retain candidates, but never submits or commits execution.
+        // A desktop error means nothing was committed: apply plans and executes
+        // atomically. A cancelled or disconnected apply may still have committed.
+        let unknown = name == "plotium_apply"
+            && matches!(self.code, "request_cancelled" | "connection_stopped");
+        if planning && !unknown {
             self.not_submitted()
         } else {
             self

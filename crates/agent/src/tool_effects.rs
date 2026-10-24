@@ -32,7 +32,7 @@ impl ToolEffect {
             | "plotium_export_status" => Self::Read,
             "plotium_figure_diagnose" => Self::Diagnostic,
             "plotium_plan" => Self::Prepare,
-            "plotium_execute" => Self::Execute,
+            "plotium_execute" | "plotium_apply" => Self::Execute,
             "plotium_tasks_cancel" => Self::Cancel,
             _ => unreachable!("every advertised tool needs an effect classification"),
         }

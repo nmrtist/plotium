@@ -252,6 +252,16 @@ stale/context 错误或结果不确定时，仍须读取状态。执行继续检
 失败的目标。它们的执行结果用 `summary` 统计成功、跳过和失败数，`targets` 只列跳过或
 失败的行，已修改资源见 `produced` 和 `modified`。
 
+`plotium_apply` 的输入与 `plotium_plan` 相同，一次调用完成一项可撤销编辑的规划和提交，
+返回 `plotium_execute` 的结果。它接受 `properties.set`、`properties.set_many`、
+`properties.reset`、不含删除的 `figure.edit`、`plot.create`、`plot.series.append`、
+`plot.series.bind`、`plot.series.materialize_default`、`resource.rename` 和
+`figure.apply_theme`，需要“读取和修改”权限。预检、revision 与权限检查、Undo 和运行记录
+都与两步形式相同，且不保留计划。保存、导出、删除、导入、表格和科学操作仍用
+`plotium_plan` 加 `plotium_execute`，预览候选图也是如此。被拒绝的 apply 不提交任何内容。
+断线后先读状态：revision 等于请求的 `expected_revision` 表示编辑没有提交，否则检查目标；
+不要重放这次调用。
+
 科学任务排队或提交并不代表修改已提交，不可复用即时响应的 `after_revision`。
 只有已知项目上下文中终态为 `succeeded` 且包含 `end_revision` 的回执才允许复用。
 科学有效性与收敛情况须单独检查：任务成功并不证明拟合有效。失败、取消、失效、
