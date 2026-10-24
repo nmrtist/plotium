@@ -86,7 +86,9 @@ Panels. To work with an object inside a Panel, double-click the Panel or press
 `Enter`. Use the breadcrumb above the page or press `Esc` to return to the page.
 You can also `Ctrl`/`Cmd`-click an object to select it without entering first.
 A resize stops before any plot inside the Panel would lose the room for its
-data to its axes, ticks and colour scale.
+data to its axes, ticks and colour scale. While you move or resize a Panel or a
+plot, its plot area also snaps to the plot-area edges of the other plots, so
+axes line up even when their tick labels differ in width.
 
 With **Clip contents to panel** off, content can extend beyond its Panel and
 the page; drag the visible content to bring it back. With clipping on, dragging

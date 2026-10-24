@@ -1,4 +1,5 @@
 use super::*;
+use plotium_core::layout::{PlotEdges, PlotInsets};
 
 /// Distance (screen px) within which a dragged frame's edge snaps to a
 /// neighbour's edge or to one gutter clear of it. Converted to world pt via the
@@ -99,17 +100,47 @@ pub(crate) fn snap_object_frame(
     let zoom = app.session.board.zoom.max(0.01);
     let threshold = SNAP_PX / zoom;
     let mut targets = SnapTargets::from_page(canvas.size_pt(), &canvas.layout);
+    let moving =
+        |id: ObjectId| id == drag.object || drag.others.iter().any(|(other, _)| *other == id);
     for object in &canvas.objects {
-        let moving =
-            object.id == drag.object || drag.others.iter().any(|(oid, _)| *oid == object.id);
-        if !moving
+        if !moving(object.id)
             && object.visible
             && let Some(frame) = canvas.layout_frame(object.id)
         {
             targets.push_object(frame);
         }
     }
-    snap_layout_frame(drag.kind, candidate, &targets, threshold)
+    let plots = other_plot_areas(canvas, moving);
+    let insets = canvas
+        .plot_area(drag.object)
+        .zip(canvas.content_page_frame(drag.object))
+        .map(|(plot, frame)| PlotInsets::of(frame, plot));
+    snap_layout_frame(
+        drag.kind,
+        candidate,
+        &targets,
+        insets.map(|insets| (insets, &plots)),
+        threshold,
+    )
+}
+
+/// Plot-area edges of every visible plot on the page that `moving` excludes
+/// as being dragged.
+fn other_plot_areas(canvas: &CanvasDocument, moving: impl Fn(ObjectId) -> bool) -> PlotEdges {
+    let mut edges = PlotEdges::default();
+    for object in canvas.objects.iter().filter(|object| object.visible) {
+        let hidden_panel = canvas
+            .parent_panel(object.id)
+            .and_then(|id| canvas.panel(id))
+            .is_some_and(|panel| !panel.visible);
+        if !moving(object.id)
+            && !hidden_panel
+            && let Some(area) = canvas.plot_area(object.id)
+        {
+            edges.push(area);
+        }
+    }
+    edges
 }
 
 /// Snap a Panel child in Panel-local coordinates. Guides are translated back to
@@ -145,7 +176,7 @@ pub(crate) fn snap_panel_content_frame(
             targets.push_object(frame);
         }
     }
-    let (frame, guides) = snap_layout_frame(drag.kind, candidate, &targets, threshold);
+    let (frame, guides) = snap_layout_frame(drag.kind, candidate, &targets, None, threshold);
     let guides = guides
         .into_iter()
         .map(|mut guide| {
@@ -179,27 +210,43 @@ pub(crate) fn snap_panel_frame(
     };
     let threshold = SNAP_PX / app.session.board.zoom.max(0.01);
     let mut targets = SnapTargets::from_page(canvas.size_pt(), &canvas.layout);
+    let moving_panel =
+        |id: PanelId| id == drag.panel || drag.others.iter().any(|(other, _)| *other == id);
     for panel in &canvas.panels {
-        let moving = panel.id == drag.panel || drag.others.iter().any(|(id, _)| *id == panel.id);
-        if !moving && panel.visible {
+        if !moving_panel(panel.id) && panel.visible {
             targets.push_object(panel.frame);
         }
     }
-    snap_layout_frame(drag.kind, candidate, &targets, threshold)
+    let plots = other_plot_areas(canvas, |id| {
+        canvas.parent_panel(id).is_some_and(moving_panel)
+    });
+    let insets = canvas
+        .panel_plot_area(drag.panel)
+        .zip(canvas.panel(drag.panel))
+        .map(|(plot, panel)| PlotInsets::of(panel.frame, plot));
+    snap_layout_frame(
+        drag.kind,
+        candidate,
+        &targets,
+        insets.map(|insets| (insets, &plots)),
+        threshold,
+    )
 }
 
 fn snap_layout_frame(
     kind: ObjectDragKind,
     candidate: ObjectFrame,
     targets: &SnapTargets,
+    plot: layout::PlotSnap,
     threshold: f32,
 ) -> (ObjectFrame, Vec<SnapGuide>) {
     match kind {
-        ObjectDragKind::Move => layout::snap_move(candidate, targets, threshold),
-        ObjectDragKind::Resize(handle) => layout::snap_resize(
+        ObjectDragKind::Move => layout::snap_move_with_plot(candidate, targets, plot, threshold),
+        ObjectDragKind::Resize(handle) => layout::snap_resize_with_plot(
             candidate,
             movable_edges(handle),
             targets,
+            plot,
             threshold,
             MIN_OBJECT_SIZE_PT,
         ),
@@ -392,5 +439,87 @@ mod tests {
         drag.others = vec![(ids[0], app.doc.canvases[0].panel(ids[0]).unwrap().frame)];
         let (frame, guides) = snap_panel_frame(&app, 0, &drag, candidate, false);
         assert_eq!((frame, guides.len()), (candidate, 0));
+    }
+
+    /// A page with two plot panels in one column whose y tick labels differ in
+    /// width, so frames that line up hold plot areas that do not.
+    fn app_with_plot_panels() -> (PlotiumApp, [PanelId; 2]) {
+        use plotium_core::state::{Dataset, ElectrophysiologyDataset};
+        let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+        let recording = plotium_io::ElectrophysiologyData {
+            abf_version: "2.9.0.0".to_owned(),
+            sample_rate_hz: 10_000.0,
+            channels: vec![plotium_io::RecordedChannel {
+                name: "Current".to_owned(),
+                unit: plotium_io::ElectricalUnit::from_symbol("pA"),
+            }],
+            sweeps: vec![plotium_io::Sweep {
+                start_time_s: 0.0,
+                channels: vec![vec![0.0, -1.0, 0.5]],
+                commands: Vec::new(),
+            }],
+            protocol: None,
+            source: "snap.abf".to_owned(),
+            import_warnings: Vec::new(),
+        };
+        app.doc.datasets.push(Dataset::Electrophysiology(Box::new(
+            ElectrophysiologyDataset::load(recording),
+        )));
+        app.doc
+            .canvases
+            .push(CanvasDocument::new("p".to_owned(), [600.0, 600.0]));
+        app.session.active_canvas = Some(0);
+        app.session.board.zoom = 1.0;
+        let mut panels = Vec::new();
+        for (y, wide) in [(20.0, false), (260.0, true)] {
+            let id = app.doc.canvases[0].allocate_object_id();
+            let plot = app.build_plot_object(
+                0,
+                ObjectFrame::new(20.0, y, 300.0, 200.0),
+                id,
+                "plot".to_owned(),
+            );
+            app.doc.canvases[0].objects.push(plot);
+            panels.push(app.doc.canvases[0].create_panel_for_plot(id).unwrap());
+            if wide {
+                let mut overrides = app.doc.canvases[0]
+                    .object(id)
+                    .and_then(|object| object.plot())
+                    .unwrap()
+                    .axis_overrides
+                    .clone();
+                overrides.y_range = Some(AxisRange::new(-100_000.0, 100_000.0));
+                app.set_axis_overrides_value(0, id, &overrides);
+            }
+        }
+        (app, [panels[0], panels[1]])
+    }
+
+    #[test]
+    fn panel_move_lines_its_plot_area_up_with_a_sibling_plot() {
+        let (app, [upper, lower]) = app_with_plot_panels();
+        let page = &app.doc.canvases[0];
+        let upper_left = page.panel_plot_area(upper).unwrap().x;
+        let lower_inset = page.panel_plot_area(lower).unwrap().x - 20.0;
+        assert!(
+            (lower_inset - (upper_left - 20.0)).abs() > 3.0,
+            "tick labels differ"
+        );
+        let drag = panel_drag(&app, lower, ObjectDragKind::Move);
+        // Nearer lining the plot areas up than lining the frames up.
+        let x = upper_left - lower_inset + 1.5;
+        let candidate = ObjectFrame::new(x, 260.0, 300.0, 200.0);
+
+        let (frame, guides) = snap_panel_frame(&app, 0, &drag, candidate, false);
+
+        assert!(
+            (frame.x + lower_inset - upper_left).abs() < 1e-3,
+            "{frame:?}"
+        );
+        assert!(
+            guides
+                .iter()
+                .any(|guide| guide.vertical && (guide.pos - upper_left).abs() < 1e-3)
+        );
     }
 }
