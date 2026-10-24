@@ -261,12 +261,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotiumApp, di: usize, ui: &mut 
     });
     if let Some(result) = create {
         match result {
-            Ok((table, name, kind)) => {
-                let table_index = app.insert_typed_table_dataset(table, name.to_owned());
-                let source_id = app.doc.datasets[di].resource_id();
-                app.doc.datasets[table_index]
-                    .set_lineage(Some(DatasetLineage::new(kind, [source_id])));
-            }
+            Ok((table, name, kind)) => insert_result_table(app, di, table, name, kind),
             Err(error) => app.session.status = error.to_string(),
         }
     }
@@ -274,6 +269,25 @@ pub(super) fn electrophysiology_group(app: &mut PlotiumApp, di: usize, ui: &mut 
         app.apply_electrophysiology_invocation_edit(di);
     }
     dirty
+}
+
+/// The new canvas is the result to look at; the table stays one
+/// double-click away instead of opening over the board.
+fn insert_result_table(
+    app: &mut PlotiumApp,
+    source: usize,
+    table: plotium_core::state::TableDataset,
+    name: &str,
+    kind: DerivationKind,
+) {
+    let sheet_open = app.session.ui.sheet_open;
+    let table_index = app.insert_typed_table_dataset(table, name.to_owned());
+    app.session.ui.sheet_open = sheet_open;
+    let source_id = app.doc.datasets[source].resource_id();
+    app.doc.datasets[table_index].set_lineage(Some(DatasetLineage::new(kind, [source_id])));
+    app.session.status = format!(
+        "Created {name} on a new canvas. Double-click it in the Data list to open the table."
+    );
 }
 
 fn optional_number(ui: &mut Ui, label: &str, value: &mut Option<f64>, dirty: &mut bool) {
@@ -357,5 +371,35 @@ fn edit_stimulus(ui: &mut Ui, protocol: &mut StimulusProtocol, dirty: &mut bool)
                 });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn result_tables_reveal_their_canvas_without_opening_the_sheet() {
+        let mut app = PlotiumApp::new();
+        let source = plotium_core::state::materialized_float_series_table(
+            ("t".into(), "s".into(), vec![Some(0.0), Some(1.0)]),
+            vec![],
+            "plotium.test.ephys-source.v1",
+        )
+        .unwrap();
+        app.doc
+            .datasets
+            .push(Dataset::Table(Box::new(source.clone())));
+        let mut result = source;
+        result.resource_id = plotium_core::state::DatasetId::new();
+        result.typed_state.envelope.revision.table_id = plotium_core::data::TableId::new();
+
+        insert_result_table(&mut app, 0, result, "IV analysis", DerivationKind::IvTable);
+
+        assert_eq!(app.doc.datasets.len(), 2);
+        assert!(app.session.ui.sheet_open.is_none());
+        assert_eq!(app.doc.canvases.len(), 1);
+        assert_eq!(app.session.active_canvas, Some(0));
+        assert!(app.session.status.contains("open the table"));
     }
 }

@@ -244,16 +244,12 @@ fn data_sheet_interaction_pauses_following_before_results_are_applied() {
     let _ = ctx.run_ui(Default::default(), |ui| {
         begin_frame(ui.ctx());
         remember_workspace(ui);
-        super::super::data_sheet::data_sheet_window(&mut app, ui.ctx());
+        super::super::data_sheet::data_sheet_dock(&mut app, ui, false);
     });
-    let layer = ctx
-        .data(|data| data.get_temp::<Vec<egui::LayerId>>(egui::Id::new(EDITABLE_LAYERS)))
-        .unwrap()[0];
-    let position = ctx
-        .memory(|memory| memory.area_rect(layer.id))
-        .unwrap()
+    // The docked sheet is part of the remembered workspace.
+    let position = super::super::data_sheet::dock_rect(&ctx)
+        .expect("the sheet is docked")
         .center();
-    assert_eq!(ctx.layer_id_at(position), Some(layer));
     pause_on_input(
         &mut app,
         &ctx,

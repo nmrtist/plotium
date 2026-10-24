@@ -107,7 +107,15 @@ fn execute_inner(
             }
         }
         CommandId::SaveProject => app.request_save_project(),
-        CommandId::NewTable => app.new_table_dataset(),
+        CommandId::NewTable => {
+            let before = app.doc.datasets.len();
+            app.new_table_dataset();
+            if app.doc.datasets.len() > before
+                && let Some(table) = app.doc.datasets.last()
+            {
+                super::data_sheet::request_first_cell(ctx, table.resource_id());
+            }
+        }
         CommandId::ExportData => {
             if let Some(dataset) = app.active_dataset() {
                 app.open_data_export(dataset);

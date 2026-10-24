@@ -78,6 +78,10 @@ pub(super) fn resolve(app: &PlotiumApp, host_rect: Rect, ctx: &egui::Context) ->
     if let Some(sidebar) = sidebars.secondary.or(sidebars.primary) {
         task_card_bounds.max.y = sidebar.bottom();
     }
+    // Cards float over the board only, never over the docked data sheet.
+    if let Some(dock) = super::data_sheet::dock_rect(ctx) {
+        task_card_bounds.max.y = task_card_bounds.max.y.min(dock.top());
+    }
     let fit_occluders = super::tools::task_card::visible_area_id(app)
         .and_then(|id| ctx.memory(|memory| memory.area_rect(id)))
         .map(|rect| rect.expand(OCCLUDER_CLEARANCE).intersect(board_rect))

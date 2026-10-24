@@ -399,7 +399,7 @@ impl PlotiumApp {
             Action::SetFigureTypography { after, .. } => {
                 self.set_figure_typography_value(*after);
             }
-            Action::InsertTableData { dataset } => {
+            Action::InsertTableData { dataset } | Action::CreateTableData { dataset } => {
                 let id = dataset.resource_id();
                 if self.doc.dataset_index(id).is_some() {
                     return Err(ActionApplyError::StaleTarget(format!(
