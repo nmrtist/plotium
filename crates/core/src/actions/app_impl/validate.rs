@@ -226,7 +226,7 @@ pub(super) fn validate_action(
                 return Err(ActionApplyError::StaleTarget(format!("canvas {canvas}")));
             }
         }
-        Action::InsertTableData { dataset } => {
+        Action::InsertTableData { dataset } | Action::CreateTableData { dataset } => {
             let id = dataset.resource_id();
             if !matches!(dataset.as_ref(), crate::state::Dataset::Table(_))
                 || shape.has_dataset(app, id)

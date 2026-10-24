@@ -32,6 +32,109 @@ pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
     "plot.series.materialize_default",
 ];
 
+/// One line per editable operation, so a caller can map a task to an operation
+/// before fetching its schema.
+const PURPOSES: [(&str, &str); 28] = [
+    (
+        "analysis.diffusion.plot",
+        "Plot a diffusion fit with residuals on a new canvas",
+    ),
+    (
+        "plot.field.create",
+        "Plot a native 2D field such as a DOSY or ILT map",
+    ),
+    (
+        "analysis.dosy.build",
+        "Compute a DOSY map from a diffusion source field (task)",
+    ),
+    (
+        "analysis.regions.extract",
+        "Extract region metrics into a new table (task)",
+    ),
+    (
+        "analysis.diffusion.fit",
+        "Fit diffusion decay of a table response column (task)",
+    ),
+    (
+        "processing.edit",
+        "Edit a dataset's processing steps (task)",
+    ),
+    (
+        "processing.apply_scheme",
+        "Apply a saved processing scheme file",
+    ),
+    (
+        "diffusion.set_input",
+        "Set a dataset's diffusion encoding input",
+    ),
+    (
+        "project.save",
+        "Save the project file after desktop consent",
+    ),
+    (
+        "figure.export",
+        "Export a canvas as SVG, PDF or PNG after desktop consent",
+    ),
+    (
+        "resource.rename",
+        "Rename a dataset, canvas or canvas object",
+    ),
+    ("dataset.delete", "Delete unused datasets"),
+    (
+        "figure.apply_theme",
+        "Apply a built-in theme or saved style to canvases",
+    ),
+    ("properties.set", "Set one display property on targets"),
+    (
+        "properties.set_many",
+        "Set up to 200 display property values in one Undo step",
+    ),
+    (
+        "properties.reset",
+        "Reset one display property to its default",
+    ),
+    (
+        "data.import",
+        "Import CSV/TSV tables or native acquisitions",
+    ),
+    (
+        "data.transform",
+        "Derive a new table from an existing table",
+    ),
+    ("table.patch", "Edit table cells"),
+    (
+        "table.refresh",
+        "Recompute a derived table from its saved recipe",
+    ),
+    (
+        "plot.series.bind",
+        "Rebind existing curves to other table columns",
+    ),
+    (
+        "plot.create",
+        "Create a plot with curves from table columns",
+    ),
+    ("plot.series.append", "Add curves to an existing plot"),
+    (
+        "figure.edit",
+        "Edit page, panels, text, images and annotations; see operation_details",
+    ),
+    (
+        "plot.series.materialize_default",
+        "Expand a default table curve into explicit curves",
+    ),
+    (
+        "analysis.results.inspect",
+        "Read with plotium_analysis_results_inspect",
+    ),
+    ("diffusion.inspect", "Read with plotium_diffusion_inspect"),
+    ("processing.inspect", "Read with plotium_processing_inspect"),
+];
+
+fn purpose(id: &str) -> Option<&'static str> {
+    PURPOSES.iter().find(|(key, _)| *key == id).map(|(_, p)| *p)
+}
+
 /// Detail sections served by `plotium_capabilities_get {section,key?}`.
 pub(crate) const SECTIONS: [&str; 7] = [
     "tools",
@@ -201,15 +304,21 @@ fn build_index(sections: &serde_json::Map<String, Value>) -> Value {
         .collect::<Vec<_>>();
     let scientific = sections["scientific_operations"].as_object().expect("local section").values().map(|entry| {
         let d = &entry["descriptor"];
-        json!({"id":d["id"],"title":d["title"],"effect":d["effect"],"required_permission":entry["required_permission"]})
+        let id = d["id"].as_str().expect("descriptor id");
+        let mut row = json!({"id":id,"effect":d["effect"],"required_permission":entry["required_permission"]});
+        // Editable operations carry their purpose in sections.operation_constraints.
+        if !EDIT_OPERATIONS.contains(&id) {
+            row["purpose"] = purpose(id).map_or(d["title"].clone(), |p| json!(p));
+        }
+        row
     }).collect::<Vec<_>>();
     let listing = SECTIONS.iter().map(|name| {
         let detail = &sections[*name];
         let mut entry = json!({"bytes":size(detail),"key":if KEY_REQUIRED.contains(name) {"required"} else if KEYED.contains(name) {"optional"} else {"none"}});
         let entries = detail.as_object().expect("sections are objects");
-        // Keys repeat ids the index already lists, so only the large schemas show per-key sizes.
+        // Keys repeat ids the index already lists, so only the large schemas list their entries.
         match *name {
-            "operation_constraints" => entry["key_bytes"] = entries.iter().map(|(key, value)| (key.clone(), json!(size(value)))).collect::<serde_json::Map<_,_>>().into(),
+            "operation_constraints" => entry["entries"] = entries.iter().map(|(key, value)| json!({"key":key,"purpose":purpose(key),"bytes":size(value)})).collect::<Vec<_>>().into(),
             "scientific_operations" => entry["keys"] = json!("scientific_operations[].id"),
             "tools" => entry["keys"] = json!("tools[].name"),
             "operation_details" => entry["entries"] = entries.iter().map(|(key, value)| json!({"key":key,"purpose":value["purpose"]})).collect::<Vec<_>>().into(),

@@ -541,7 +541,7 @@ impl SheetHarness {
             |ui| {
                 command = shortcut_command(ui.ctx());
                 handle_delete_shortcut(app, ui.ctx());
-                super::data_sheet::data_sheet_window(app, ui.ctx());
+                super::data_sheet::data_sheet_dock(app, ui, false);
             },
         );
         (command, output)

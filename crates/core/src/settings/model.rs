@@ -234,6 +234,31 @@ pub struct WindowState {
     /// rendered size without overwriting them.
     #[serde(default)]
     pub task_cards: TaskCardSettings,
+    #[serde(default)]
+    pub data_sheet: DataSheetPanelSettings,
+}
+
+/// The docked data sheet below the board. Like the task cards these are UI
+/// preferences; a short window clamps the shown height without storing it.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DataSheetPanelSettings {
+    #[serde(default = "default_data_sheet_height")]
+    pub height: f32,
+    #[serde(default)]
+    pub collapsed: bool,
+}
+
+const fn default_data_sheet_height() -> f32 {
+    280.0
+}
+
+impl Default for DataSheetPanelSettings {
+    fn default() -> Self {
+        Self {
+            height: default_data_sheet_height(),
+            collapsed: false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

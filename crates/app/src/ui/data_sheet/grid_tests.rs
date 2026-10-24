@@ -440,7 +440,7 @@ fn sheet_frame(
             )),
             ..Default::default()
         },
-        |ui| super::super::data_sheet_window(app, ui.ctx()),
+        |ui| super::super::data_sheet_dock(app, ui, false),
     )
 }
 

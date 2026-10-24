@@ -192,6 +192,7 @@ pub fn render(
     // Same for an armed Reference pick: collapsing its editor or switching
     // datasets must not leave a live click trap on the plot.
     app.sync_reference_pick();
+    data_sheet_dock(app, ui, dark);
     egui::CentralPanel::default()
         .frame(egui::Frame::new().fill(workspace_fill(dark)).inner_margin(
             central_workspace_margin(
@@ -221,7 +222,6 @@ pub fn render(
     figure_typography::figure_typography_window(app, &ctx);
     panel_note_edit_window(app, &ctx);
     text_edit_window(app, &ctx);
-    data_sheet_window(app, &ctx);
     import_feedback::results_window(app, &ctx);
     save_project_window(app, &ctx);
     external_save_window(app, &ctx);

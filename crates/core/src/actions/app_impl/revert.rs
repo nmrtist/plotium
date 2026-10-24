@@ -400,7 +400,7 @@ impl PlotiumApp {
             Action::SetFigureTypography { before, .. } => {
                 self.set_figure_typography_value(*before);
             }
-            Action::InsertTableData { dataset } => {
+            Action::InsertTableData { dataset } | Action::CreateTableData { dataset } => {
                 if let Some(index) = self.doc.dataset_index(dataset.resource_id()) {
                     self.doc.datasets.remove(index);
                     // The import itself never changes selection. Undo must also

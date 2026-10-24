@@ -32,6 +32,8 @@ pub(super) struct GridOutcome {
     pub error: Option<String>,
     /// One-shot feedback for the app status line.
     pub notice: Option<String>,
+    /// A keyboard-selected cell the enclosing column scroll should reveal.
+    pub reveal: Option<egui::Rect>,
 }
 
 /// A keyboard or clipboard request to edit the selected cell.
@@ -120,10 +122,18 @@ pub(super) fn typed_table_grid(
     let row_height = ui.spacing().interact_size.y + 2.0;
     let header_height = row_height * 2.0 - 4.0;
     let gutter_width = 12.0 + 9.0 * (row_count.max(1).ilog10() as f32 + 1.0);
+    let body_height = (ui.available_height() - header_height).max(120.0);
+    // Per-table salt: switching tables in the dock keeps each table's scroll
+    // position and column widths.
     let mut builder = TableBuilder::new(ui)
+        .id_salt((
+            "typed_table_grid",
+            table.typed_state.envelope.revision.table_id,
+        ))
         .striped(true)
         .sense(Sense::click())
         .min_scrolled_height(120.0)
+        .max_scroll_height(body_height)
         .column(TableColumn::exact(gutter_width));
     for _ in &schema.columns {
         builder = builder.column(
@@ -133,6 +143,10 @@ pub(super) fn typed_table_grid(
                 .clip(true),
         );
     }
+    // Keyboard moves also reveal the cell horizontally in a wide table. The
+    // table's own vertical scroll area swallows horizontal scroll targets, so
+    // the enclosing column scroll applies it from `GridOutcome::reveal`.
+    let reveal = state.scroll_to.is_some();
     if let Some(row) = state.scroll_to.take() {
         builder = builder.scroll_to_row(row, Some(Align::Center));
     }
@@ -205,6 +219,9 @@ pub(super) fn typed_table_grid(
                     let (rect, response) = row.col(|ui| {
                         painted_value(ui, &value, column, copy_requested && selected);
                     });
+                    if selected && reveal {
+                        outcome.reveal = Some(rect);
+                    }
                     if selected {
                         ui_selection_stroke(&mut row, rect);
                     }
@@ -525,9 +542,7 @@ fn editor_cell(
     let mut cancel = false;
     let error = edit.error.clone();
     let take_focus = std::mem::take(&mut edit.take_focus);
-    // Auto ids shift when the edit starts mid-frame or the table scrolls to
-    // it, and a changed id drops keyboard focus from the editor.
-    let editor_id = egui::Id::new(("plotium_data_sheet_editor", edit.row, edit.column));
+    let editor_id = focus::editor_id(edit.row, edit.column);
     let (rect, _) = row.col(|ui| {
         let response = ui.add(
             egui::TextEdit::singleline(text)

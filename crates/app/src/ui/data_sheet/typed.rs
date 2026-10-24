@@ -45,32 +45,41 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
             }
         };
     let row_count = usize::try_from(snapshot.row_count).unwrap_or(usize::MAX);
-    let state_id = ui
-        .id()
-        .with(("typed_table_state", typed.envelope.revision.table_id));
+    // Keyed by table so switching tables in the dock restores each selection.
+    let state_id = egui::Id::new(("typed_table_state", typed.envelope.revision.table_id));
     let mut state = ui
         .ctx()
         .data_mut(|data| data.get_temp::<SheetState>(state_id))
         .unwrap_or_default();
-    let outcome =
-        grid::typed_table_grid(ui, table, &reader, &mut state, draft, &mut |ui, column| {
-            super::column_menu::column_header_menu(
-                ui,
-                table,
-                dataset,
-                column,
-                transform_running,
-                transform,
-            );
+    if super::focus::take_first_cell_request(ui.ctx(), table.resource_id)
+        && let Some(first) = snapshot.schema.columns.first()
+    {
+        state.cell = (row_count > 0).then_some((0, first.id));
+        state.row = None;
+        super::focus::claim(ui.ctx());
+    }
+    let status_height = ui.spacing().interact_size.y + ui.spacing().item_spacing.y;
+    let mut outcome = grid::GridOutcome::default();
+    let columns = egui::ScrollArea::horizontal()
+        .id_salt(("typed_table_columns", typed.envelope.revision.table_id))
+        .max_height((ui.available_height() - status_height).max(0.0))
+        .show(ui, |ui| {
+            outcome =
+                grid::typed_table_grid(ui, table, &reader, &mut state, draft, &mut |ui, column| {
+                    super::column_menu::column_header_menu(
+                        ui,
+                        table,
+                        dataset,
+                        column,
+                        transform_running,
+                        transform,
+                    );
+                });
         });
-    status_bar(
-        ui,
-        table,
-        row_count,
-        &state,
-        outcome.error.as_deref(),
-        editable,
-    );
+    if let Some(cell) = outcome.reveal {
+        reveal_column(ui.ctx(), columns, cell);
+    }
+    status_bar(ui, table, &state, outcome.error.as_deref());
     ui.ctx().data_mut(|data| data.insert_temp(state_id, state));
     if outcome.notice.is_some() {
         *notice = outcome.notice;
@@ -87,6 +96,25 @@ pub(super) fn typed_table_sheet(ui: &mut Ui, table: &TableDataset, context: Tabl
             }
         }
     }
+}
+
+fn reveal_column(
+    ctx: &egui::Context,
+    columns: egui::scroll_area::ScrollAreaOutput<()>,
+    cell: egui::Rect,
+) {
+    let view = columns.inner_rect;
+    let shift = if cell.right() > view.right() {
+        cell.right() - view.right()
+    } else if cell.left() < view.left() {
+        cell.left() - view.left()
+    } else {
+        return;
+    };
+    let mut state = columns.state;
+    state.offset.x = (state.offset.x + shift).max(0.0);
+    state.store(ctx, columns.id);
+    ctx.request_repaint();
 }
 
 fn toolbar(
@@ -126,25 +154,17 @@ fn toolbar(
     });
 }
 
-fn status_bar(
-    ui: &mut Ui,
-    table: &TableDataset,
-    row_count: usize,
-    state: &SheetState,
-    error: Option<&str>,
-    editable: bool,
-) {
+/// Size and editability live in the dock header; this line follows the
+/// selection.
+fn status_bar(ui: &mut Ui, table: &TableDataset, state: &SheetState, error: Option<&str>) {
     let schema = &table.typed_state.envelope.revision.snapshot.schema;
-    let mut status = format!("{row_count} rows × {} columns", schema.columns.len());
+    let mut status = String::new();
     if let Some((row, column)) = state.cell {
         if let Some(column) = schema.column(column) {
-            status.push_str(&format!(" · Row {}, {}", row + 1, column.name));
+            status = format!("Row {}, {}", row + 1, column.name);
         }
     } else if let Some(row) = state.row {
-        status.push_str(&format!(" · Row {}", row + 1));
-    }
-    if !editable {
-        status.push_str(" · Read-only live values");
+        status = format!("Row {}", row + 1);
     }
     ui.horizontal(|ui| {
         ui.weak(status);

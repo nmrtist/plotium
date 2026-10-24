@@ -213,7 +213,8 @@ input schemas and annotations are in `tools/list`; property definitions are in
 `plotium_properties_list`.
 
 `sections` names each detail section with its size in bytes and whether it takes a
-`key`. Fetch one detail with `{"section":...,"key":...}`, which returns
+`key`. `operation_constraints` and `operation_details` list each key with a
+one-line purpose, so you can match a task to an operation before fetching it. Fetch one detail with `{"section":...,"key":...}`, which returns
 `{capability_fingerprint,section,key,contract}`:
 
 | Section | Key | Contract |
@@ -238,8 +239,8 @@ For several edits, pass `keys` instead of `key`, for example
 `{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`.
 The response has `keys` and a `contract` map keyed by the requested names. This
 section accepts 1–32 unique keys per call; other sections accept only `key`.
-The index lists all suboperation keys and their purposes. Each detail retains the
-shared edit restrictions and one exact edit schema. Replace example targets with
+Each detail holds one exact edit schema with only the restrictions and result
+fields that apply to that edit. Replace example targets with
 full stable references from document inspection. Use `operation_constraints` for
 the complete mixed-edit schema. Editable scientific descriptors expose
 `input_schema_ref: {section,key}` instead of duplicating that schema.
@@ -424,17 +425,21 @@ There is no recursive whole-project dump. Revision changes reject continuation;
 read state and restart the listing. Missing targets and forged identities return
 `invalid_parameters`, without using the current selection.
 
-`plotium_properties_list {}` browses every supported property in compact form.
-Each row includes its ID, label, scope, access, static applicability and value
-schema with units, bounds and enum IDs. Compact schemas omit UI drag steps and
-enum labels; complex inputs are marked `requires_full`. Fetch complete definitions
-for the properties you need in one call:
+`plotium_properties_list {}` browses every supported property, one compact row
+each: `id`, `label`, value `type`, and where they apply `min`/`max`, `unit`,
+`format`, enum `values`, the curve `encoding` and required field capabilities
+(`requires`). An ID starting with `document.` has document scope; every other ID
+has object scope, and `series.` IDs target a Series. Rows marked `requires_full`
+(nested inputs and display-unit codes) need full detail. Fetch complete
+definitions for the properties you need in one call:
 
 ```json
 {"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
 ```
 
-Use `scope` with a scope name from the catalog to filter the list. `keys` must be
+Use `scope` with a scope name from the catalog, or `prefix` with the start of a
+property ID such as `series.line` or `object.axes`, to filter the list. A prefix
+that matches nothing fails with `error.details.prefixes`. `keys` must be
 nonempty and unique; unsupported keys, unknown scopes and key/scope conflicts are
 errors, rather than silently omitting requested properties. `detail: "full"`
 without filters returns the complete catalog. Both forms are static, callable
@@ -1800,7 +1805,7 @@ changing it to 1.5 pt, then apply the saved plan.” The tool sequence is:
    states it once instead of `value.reasons`.
    Resolve results to explicit stable IDs; `plotium_resources_inspect` reads
    descriptors using `ids` and `expected_revision`.
-3. `plotium_properties_list` with `{}` lists supported IDs and scopes. Discover
+3. `plotium_properties_list` with `{}` lists supported IDs and value types. Discover
    curve addresses with `plotium_properties_inspect`:
 
    ```json

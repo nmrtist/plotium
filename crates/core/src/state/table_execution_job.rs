@@ -141,7 +141,7 @@ impl crate::state::PlotiumApp {
             return true;
         }
         match result {
-            Ok(typed) => self.insert_transformed_table(typed, &job, false),
+            Ok(typed) => self.open_transformed_table(typed, &job),
             Err(_) if job.cancel.load(Ordering::Relaxed) => {
                 self.session.status = "Table transform cancelled.".into();
             }
@@ -247,18 +247,22 @@ impl crate::state::PlotiumApp {
         true
     }
 
-    fn insert_transformed_table(
-        &mut self,
+    fn transformed_table(
         typed: TypedTableState,
         job: &TableTransformJob,
-        reveal: bool,
-    ) {
+    ) -> crate::state::TableDataset {
         let mut table = crate::state::TableDataset::from_typed(typed);
         table.name = Some(job.name.clone());
         table.lineage = Some(crate::state::DatasetLineage::new(
             crate::state::DerivationKind::RelationalTransform,
             job.input_datasets.iter().copied(),
         ));
+        table
+    }
+
+    /// Automation results get their own canvas and selection.
+    fn insert_transformed_table(&mut self, typed: TypedTableState, job: &TableTransformJob) {
+        let table = Self::transformed_table(typed, job);
         let index = self.doc.datasets.len();
         let action = crate::actions::Action::insert_dataset_with_default_canvas(
             self,
@@ -267,14 +271,32 @@ impl crate::state::PlotiumApp {
             crate::state::DEFAULT_CANVAS_SIZE_MM,
         );
         self.execute_action(action);
-        if reveal {
-            self.focus_single(index);
-            self.session.view = crate::state::PrimaryView::Data;
-            self.session.ui.frame_selection = vec![crate::state::BoardFrameId::Sheet(
-                self.doc.datasets[index].resource_id(),
-            )];
-            self.session.ui.sheet_open = Some(index);
+        self.focus_single(index);
+        self.session.view = crate::state::PrimaryView::Data;
+        self.session.ui.frame_selection = vec![crate::state::BoardFrameId::Sheet(
+            self.doc.datasets[index].resource_id(),
+        )];
+        self.session.ui.sheet_open = Some(index);
+        self.session.status = "Table transform completed.".into();
+    }
+
+    /// A transform started from the data sheet stays in the sheet: the result
+    /// replaces the shown table there and gets no canvas of its own.
+    fn open_transformed_table(&mut self, typed: TypedTableState, job: &TableTransformJob) {
+        let mut table = Self::transformed_table(typed, job);
+        if table.board_sheet_visible() {
+            let sheet = table.board_rect_pt();
+            table.board_pos = crate::state::next_board_frame_pos(self, [sheet.width, sheet.height]);
         }
+        let id = table.resource_id;
+        let action = crate::actions::Action::CreateTableData {
+            dataset: Box::new(crate::state::Dataset::Table(Box::new(table))),
+        };
+        if let Err(error) = self.try_execute_action(action) {
+            self.session.status = format!("Table transform failed: {error}");
+            return;
+        }
+        self.session.ui.sheet_open = self.doc.dataset_index(id);
         self.session.status = "Table transform completed.".into();
     }
 
@@ -308,7 +330,7 @@ impl crate::state::PlotiumApp {
             cancel: Arc::new(AtomicBool::new(false)),
             rx: mpsc::channel().1,
         };
-        self.insert_transformed_table(typed, &job, true);
+        self.insert_transformed_table(typed, &job);
         Ok(index)
     }
 
@@ -408,8 +430,9 @@ mod tests {
         }
         assert!(app.session.table_transform_job.is_none());
         assert_eq!(app.doc.datasets.len(), 2);
+        assert!(app.doc.canvases.is_empty());
         assert!(app.session.view == crate::state::PrimaryView::Canvas);
-        assert_eq!(app.session.ui.sheet_open, Some(0));
+        assert_eq!(app.session.ui.sheet_open, Some(1));
         assert_eq!(
             app.session.ui.frame_selection,
             vec![crate::state::BoardFrameId::Sheet(
@@ -431,6 +454,7 @@ mod tests {
         );
         app.undo();
         assert_eq!(app.doc.datasets.len(), 1);
+        assert_ne!(app.session.ui.sheet_open, Some(1));
         app.redo();
         assert_eq!(app.doc.datasets.len(), 2);
     }
