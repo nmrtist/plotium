@@ -147,7 +147,10 @@ fn binding_schema_uses_exact_embedded_targets_without_changing_old_selectors() {
         .unwrap();
         assert_eq!(
             served["contract"]["schema"],
-            plotium_core::automation::curve_binding_schema(materialize)
+            crate::session::short_refs::widened(
+                id,
+                plotium_core::automation::curve_binding_schema(materialize)
+            )
         );
     }
     let constraint = crate::capabilities::respond(

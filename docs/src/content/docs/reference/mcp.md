@@ -175,6 +175,13 @@ with the revision-bound `plotium_document_inspect` pages or
 `plotium_resources_inspect`. Copy complete returned targets rather than names or
 collection positions.
 
+Two short forms save copying. A resource reference may omit `parent_id` and
+`local_id`; Plotium derives them from a nested ID such as `CANVAS_UUID/OBJECT_ID`.
+A Series target may be written `{"plot":"CANVAS_UUID/OBJECT_ID","series":0}` in
+plan and property-inspection targets and in curve-binding and `properties.set_many`
+writes. Both expand to the full target before planning; plans, results and audit
+records keep the full form.
+
 When idle, `selection` is `{items,total,next_offset}`. The default page contains
 at most 16 stable resource references. Pass `selection_offset` (default 0) and
 `selection_limit` (1–50) to read further pages, for example:
@@ -857,7 +864,7 @@ trace positions or a guessed field resource address. Call `plotium_plan`:
 
 Replace every placeholder, including the numeric IDs, with discovered values.
 Do not add top-level `ids` or `targets`: each edit carries its complete target.
-`y_error_column_id` is a ColumnId or explicit null to remove the error binding.
+`y_error_column_id` is a ColumnId, or null or omitted to remove the error binding.
 Review `preflight.binding_plan.bindings`, including source mappings and row
 diagnostics, then submit its one-use `plan_id` with `plotium_execute`.
 
@@ -937,8 +944,15 @@ top-level `ids` or `targets`:
 ```
 
 Replace every identity, including the example FieldId, with the actual returned
-identity. `kind` is `line`, `scatter`, `bar`, `box` or `violin`; explicitly set `y_error_column_id` to a
-ColumnId or `null`. A `bar` curve draws filled bars from zero with optional
+identity. `kind` is `line`, `scatter`, `bar`, `box` or `violin`; `y_error_column_id` is a
+ColumnId, `null` or omitted for no error bars. A source can instead name columns:
+`{"dataset_id":"DATASET_UUID","x":"time","y":"signal","y_error":"sd"}`. `x`, `y`
+and optional `y_error` are exact, case-sensitive column names or ColumnIds;
+Plotium fills in the default field, table and current table revision. A missing
+or repeated name fails with `invalid_parameters`, the path in
+`error.details.field` and the table's columns in `error.details.candidates`.
+The plan response lists each source resolved this way in `resolved_sources`.
+The same source forms apply to `plot.series.append` and `plot.series.bind`. A `bar` curve draws filled bars from zero with optional
 error whiskers, filled in the curve color with a thin outline. Whiskers use the
 outline's color and width, and their caps span 45% of the bar. A bar too small
 for its outline on paper (narrower than 4 or shorter than 2 outline widths, such
@@ -1930,8 +1944,8 @@ candidates in `error.details`. Invalid plan parameters point to that operation's
 `error.details.field` at the decoded request boundary, such as `plan_id`,
 `parameters`, or `parameters.writes[0].key`. Stale revisions and changed projects
 still require reading state and replanning. This guidance never permits replay.
-When creating or binding table curves, include `y_error_column_id: null` explicitly
-when there is no error column; omission is not a default.
+Nested source and target errors report their full path, such as
+`parameters.series[0].source.y`.
 
 Errors carry `error.recovery`; asynchronous save, export and task receipts carry
 `recovery`. `retryable: false` means do not repeat the failed call: follow the

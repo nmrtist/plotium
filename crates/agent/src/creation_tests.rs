@@ -201,7 +201,10 @@ fn creation_discovery_schema_and_pending_curve_budget_are_shared_with_bindings()
             json!({"section":"operation_constraints","key":PLOT_CREATE}),
         )
         .unwrap();
-    assert_eq!(constraint["contract"]["schema"], plot_create_schema());
+    assert_eq!(
+        constraint["contract"]["schema"],
+        crate::session::short_refs::widened(PLOT_CREATE, plot_create_schema())
+    );
     assert_eq!(
         constraint["contract"]["preflight_permission"],
         "reversible_modify"
