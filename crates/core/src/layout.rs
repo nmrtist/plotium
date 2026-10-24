@@ -1,7 +1,10 @@
 //! Page-layout geometry: a panel grid plus the snapping math that pulls a dragged
-//! or resized object onto page edges, centre lines, margins and cell boundaries.
+//! or resized object onto page edges, centre lines, margins, cell boundaries
+//! and other plots' plot areas.
 use crate::state::{MM_TO_PT, ObjectFrame, ObjectId};
+mod plot_area;
 mod visual_spacing;
+pub use plot_area::{PlotEdges, PlotInsets, PlotSnap, snap_move_with_plot, snap_resize_with_plot};
 pub use visual_spacing::{
     GutterPreset, LayoutItem, OccupiedGrid, SpacingMode, TilingDropRegion, arrange_grid,
     compute_tiling_plan_for_items, infer_occupied_grid, layout_item, outer_axis_cells,
@@ -148,23 +151,6 @@ pub struct MovableEdges {
     pub bottom: bool,
 }
 
-/// The best correction pulling one of `edges` onto a target within `threshold`,
-/// as `(delta_to_apply, snapped_target_pos)`; `None` when nothing is in range.
-fn best_snap(edges: &[f32], targets: &[f32], threshold: f32) -> Option<(f32, f32)> {
-    let mut best_dist = threshold;
-    let mut result = None;
-    for &e in edges {
-        for &t in targets {
-            let dist = (e - t).abs();
-            if dist <= best_dist {
-                best_dist = dist;
-                result = Some((t - e, t));
-            }
-        }
-    }
-    result
-}
-
 /// Snap a moving frame by translating it so its nearest edge/centre lands on a
 /// target line, independently per axis. Returns the corrected frame and the
 /// guide lines to draw.
@@ -173,34 +159,7 @@ pub fn snap_move(
     targets: &SnapTargets,
     threshold: f32,
 ) -> (ObjectFrame, Vec<SnapGuide>) {
-    let cx = frame.x + frame.width * 0.5;
-    let cy = frame.y + frame.height * 0.5;
-    let mut out = frame;
-    let mut guides = Vec::new();
-
-    if let Some((dx, pos)) = best_snap(
-        &[frame.x, cx, frame.x + frame.width],
-        &targets.xs,
-        threshold,
-    ) {
-        out.x += dx;
-        guides.push(SnapGuide {
-            vertical: true,
-            pos,
-        });
-    }
-    if let Some((dy, pos)) = best_snap(
-        &[frame.y, cy, frame.y + frame.height],
-        &targets.ys,
-        threshold,
-    ) {
-        out.y += dy;
-        guides.push(SnapGuide {
-            vertical: false,
-            pos,
-        });
-    }
-    (out, guides)
+    snap_move_with_plot(frame, targets, None, threshold)
 }
 
 /// Snap a resizing frame by pulling only the moving edges onto targets, keeping
@@ -213,62 +172,7 @@ pub fn snap_resize(
     threshold: f32,
     min_size: f32,
 ) -> (ObjectFrame, Vec<SnapGuide>) {
-    let mut left = frame.x;
-    let mut right = frame.x + frame.width;
-    let mut top = frame.y;
-    let mut bottom = frame.y + frame.height;
-    let mut guides = Vec::new();
-
-    let mut moving_x = Vec::new();
-    if edges.left {
-        moving_x.push(left);
-    }
-    if edges.right {
-        moving_x.push(right);
-    }
-    if let Some((dx, pos)) = best_snap(&moving_x, &targets.xs, threshold) {
-        let (nl, nr) = if edges.left {
-            (left + dx, right)
-        } else {
-            (left, right + dx)
-        };
-        if nr - nl >= min_size {
-            left = nl;
-            right = nr;
-            guides.push(SnapGuide {
-                vertical: true,
-                pos,
-            });
-        }
-    }
-
-    let mut moving_y = Vec::new();
-    if edges.top {
-        moving_y.push(top);
-    }
-    if edges.bottom {
-        moving_y.push(bottom);
-    }
-    if let Some((dy, pos)) = best_snap(&moving_y, &targets.ys, threshold) {
-        let (nt, nb) = if edges.top {
-            (top + dy, bottom)
-        } else {
-            (top, bottom + dy)
-        };
-        if nb - nt >= min_size {
-            top = nt;
-            bottom = nb;
-            guides.push(SnapGuide {
-                vertical: false,
-                pos,
-            });
-        }
-    }
-
-    (
-        ObjectFrame::new(left, top, right - left, bottom - top),
-        guides,
-    )
+    snap_resize_with_plot(frame, edges, targets, None, threshold, min_size)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

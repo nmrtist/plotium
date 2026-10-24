@@ -234,6 +234,40 @@ impl CanvasDocument {
         let stacked = self.shared_x_stack_placement(content).is_some();
         panel_letter_clearance(self, content, frame, plot.figure(), stacked)
     }
+
+    /// Where `content`'s plot area sits on the page, in pt, as it is drawn.
+    pub fn plot_area(&self, content: ContentId) -> Option<ObjectFrame> {
+        let figure = self.object(content)?.plot()?.figure();
+        let frame = self.content_page_frame(content)?;
+        let outer = plotium_render::Rect::new(frame.x, frame.y, frame.width, frame.height);
+        let (outer, _) =
+            plotium_render::y_title_area(figure, outer, self.y_title_clearance(content), 1.0);
+        let stack = self.shared_x_stack_placement(content);
+        let layout =
+            plotium_render::axis_layout_placed(figure, outer.width, outer.height, stack.as_ref());
+        let plot = plotium_render::Projector::new(figure, outer, &layout.margins).plot;
+        Some(ObjectFrame::new(
+            plot.left,
+            plot.top,
+            plot.width,
+            plot.height,
+        ))
+    }
+
+    /// The page area spanned by the plot areas of `panel`'s plots.
+    pub fn panel_plot_area(&self, panel: PanelId) -> Option<ObjectFrame> {
+        let areas = self
+            .panel(panel)?
+            .item_order
+            .iter()
+            .filter_map(|id| self.plot_area(*id));
+        areas.reduce(|a, b| {
+            let (left, top) = (a.x.min(b.x), a.y.min(b.y));
+            let right = (a.x + a.width).max(b.x + b.width);
+            let bottom = (a.y + a.height).max(b.y + b.height);
+            ObjectFrame::new(left, top, right - left, bottom - top)
+        })
+    }
 }
 
 /// How far below its frame top a plot's y-axis title must start to clear the
