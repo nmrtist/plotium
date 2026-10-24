@@ -13,7 +13,9 @@ pub enum ToolCommand {
     Properties,
     Describe(String),
     Run {
-        input: PathBuf,
+        /// `None` starts from an empty project, so `data.import` can bring in
+        /// delimited tables without an existing project.
+        input: Option<PathBuf>,
         request: PathBuf,
         output: Option<PathBuf>,
     },
@@ -33,10 +35,10 @@ pub fn parse(mut args: VecDeque<OsString>) -> Result<ParseOutcome, ParseError> {
         ),
         "run" => {
             let input = args
-                .pop_front()
-                .filter(|s| !s.to_string_lossy().starts_with('-'))
-                .map(PathBuf::from)
-                .ok_or_else(|| ParseError::new("tool run requires an input dataset or project"))?;
+                .front()
+                .is_some_and(|s| !s.to_string_lossy().starts_with('-'))
+                .then(|| args.pop_front().map(PathBuf::from))
+                .flatten();
             let mut request = None;
             let mut output = None;
             while let Some(flag) = args.pop_front() {
@@ -64,7 +66,7 @@ pub fn parse(mut args: VecDeque<OsString>) -> Result<ParseOutcome, ParseError> {
         }
         _ => {
             return Err(ParseError::new(
-                "usage: tool list | tool properties | tool describe <id> | tool run <input> --request <operation.json> [--output <project.plotium>]",
+                "usage: tool list | tool properties | tool describe <id> | tool run [<input>] --request <operation.json> [--output <project.plotium>]",
             ));
         }
     };
@@ -134,29 +136,46 @@ pub fn run(command: ToolCommand) -> Status {
     }
 }
 fn run_operation(
-    input: PathBuf,
+    input: Option<PathBuf>,
     request: PathBuf,
     output: Option<PathBuf>,
 ) -> Result<serde_json::Value, String> {
     let operation: Operation =
         serde_json::from_slice(&std::fs::read(request).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
-    let project = input.extension().is_some_and(|e| e == "plotium");
-    eprintln!("plotium-cli: loading {}", input.display());
-    let mut app = if project {
-        plotium_core::project::load_project(&input).map_err(|e| e.to_string())?
-    } else {
-        let loaded = plotium_core::workflow::load_dataset(&input).map_err(|e| e.to_string())?;
-        let mut app = PlotiumApp::new_with_settings(Default::default());
-        app.doc.datasets.push(loaded.dataset);
-        app
+    let native = input
+        .as_ref()
+        .filter(|path| path.extension().is_none_or(|e| e != "plotium"));
+    let mut app = match &input {
+        None => PlotiumApp::new_with_settings(Default::default()),
+        Some(path) if native.is_none() => {
+            eprintln!("plotium-cli: loading {}", path.display());
+            plotium_core::project::load_project(path).map_err(|e| e.to_string())?
+        }
+        Some(path) => {
+            eprintln!("plotium-cli: loading {}", path.display());
+            let loaded = plotium_core::workflow::load_dataset(path).map_err(|e| {
+                if path.is_file() && is_delimited_table(path) {
+                    format!(
+                        "{e}. Tables are imported with data.import: omit the input and \
+                         list the file's absolute path in parameters.paths with mode \
+                         table_data_only (and format csv or tsv for .txt files)."
+                    )
+                } else {
+                    e.to_string()
+                }
+            })?;
+            let mut app = PlotiumApp::new_with_settings(Default::default());
+            app.doc.datasets.push(loaded.dataset);
+            app
+        }
     };
     if operation.targets.is_some() && operation.field_key.is_some() {
         return Err("Supply targets or field_key, never both.".into());
     }
     let targets = if let Some(targets) = operation.targets {
         targets
-    } else if !project {
+    } else if native.is_some() {
         let dataset = &app.doc.datasets[0];
         let resource = if let Some(key) = operation.field_key {
             let field = dataset
@@ -184,7 +203,7 @@ fn run_operation(
     } else if let Some(targets) = parameter_targets(&operation.tool_id) {
         targets
     } else {
-        return Err("Project operations require explicit stable targets.".into());
+        return Err("Project and empty-project operations require explicit stable targets.".into());
     };
     let plan = match plan_tool(
         &app,
@@ -261,6 +280,12 @@ fn run_operation(
         plotium_core::project::save_project(&app, &path, false).map_err(|e| e.to_string())?;
     }
     serde_json::to_value(result).map_err(|e| e.to_string())
+}
+
+fn is_delimited_table(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| ["csv", "tsv", "txt"].contains(&e.to_ascii_lowercase().as_str()))
 }
 
 /// The empty selector for tools whose targets travel inside their parameters.

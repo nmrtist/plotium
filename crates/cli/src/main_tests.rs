@@ -233,3 +233,39 @@ fn tool_properties_lists_the_catalog_and_parameter_targets_default() {
     );
     assert_eq!(tool::parameter_targets("properties.set"), None);
 }
+
+#[test]
+fn tool_run_input_is_optional() {
+    assert_eq!(
+        parse(&["plotium-cli", "tool", "run", "--request", "op.json"]),
+        Ok(ParseOutcome::Command(Command::Tool(
+            tool::ToolCommand::Run {
+                input: None,
+                request: "op.json".into(),
+                output: None,
+            }
+        )))
+    );
+    assert_eq!(
+        parse(&["plotium-cli", "tool", "run", "a.dx", "--request", "op.json"]),
+        Ok(ParseOutcome::Command(Command::Tool(
+            tool::ToolCommand::Run {
+                input: Some("a.dx".into()),
+                request: "op.json".into(),
+                output: None,
+            }
+        )))
+    );
+    assert!(
+        parse(&[
+            "plotium-cli",
+            "tool",
+            "run",
+            "a.dx",
+            "b.dx",
+            "--request",
+            "op.json"
+        ])
+        .is_err()
+    );
+}
