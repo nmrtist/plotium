@@ -236,6 +236,7 @@ fn operation_constraints() -> serde_json::Map<String, Value> {
     constraints["dataset.delete"]["result_contract"] = json!(
         "Refused at preflight, naming the users, while a plot, projection, derived dataset or report uses a dataset; delete a derived dataset in its own request first. One Undo restores the datasets and their IDs."
     );
+    crate::session::short_refs::widen(&mut constraints);
     constraints
 }
 

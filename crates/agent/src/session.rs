@@ -16,6 +16,7 @@ mod recovery;
 mod result_context;
 pub(crate) mod save;
 mod science;
+pub(crate) mod short_refs;
 mod state;
 mod summaries;
 mod table;
@@ -158,7 +159,11 @@ impl Session {
             .background_activity
             .execution_source
             .replace(self.activity_source);
-        let result = self.call_inner(app, name, arguments.clone(), blocked);
+        let mut expanded = arguments.clone();
+        let result = short_refs::expand(app, &mut expanded).and_then(|resolved| {
+            let value = self.call_inner(app, name, expanded, blocked)?;
+            Ok(short_refs::annotate(name, resolved, value))
+        });
         app.session.background_activity.execution_source = previous;
         match result {
             Ok(mut value) => {

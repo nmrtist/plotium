@@ -150,6 +150,12 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 `plotium_document_inspect` 分页或 `plotium_resources_search` 发现精确目标，
 再用 `plotium_resources_inspect` 按明确 ID 读取详情。复制返回的完整目标，不用名称或集合位置代替。
 
+有两种简写可以少抄 ID。资源引用可以省略 `parent_id` 和 `local_id`，Plotium 会从
+`CANVAS_UUID/OBJECT_ID` 这类嵌套 ID 推出。规划和属性查询的 `targets`、曲线绑定和
+`properties.set_many` 的写入目标可以把 Series 写成
+`{"plot":"CANVAS_UUID/OBJECT_ID","series":0}`。两种简写都在规划前展开成完整目标；
+计划、结果和审计记录仍保存完整形式。
+
 空闲时 `selection` 为 `{items,total,next_offset}`，默认最多返回 16 个稳定资源引用。
 传入 `selection_offset`（默认 0）和 `selection_limit`（1–50）读取后续页，例如：
 
@@ -710,8 +716,8 @@ MCP 先通过 `plotium_document_inspect` 取得完整 Series target，再从
 ```
 
 将占位符和示例中的数值 ID 全部换成实际发现结果。不要另传顶层 `ids` 或
-`targets`，每项编辑已携带完整目标。`y_error_column_id` 为 ColumnId，或明确的
-null，后者移除误差绑定。检查 `preflight.binding_plan.bindings` 中的来源映射和
+`targets`，每项编辑已携带完整目标。`y_error_column_id` 为 ColumnId，或
+null／省略，后两者移除误差绑定。检查 `preflight.binding_plan.bindings` 中的来源映射和
 逐行诊断，再以返回的一次性 `plan_id` 调用 `plotium_execute`。
 
 一个默认表格 Series 可能代表多条显示曲线，须先调用
@@ -779,7 +785,12 @@ GUI 保存重开保留原生绑定和单位；MCP `project.save` 需桌面单独
 ```
 
 示例中的每个身份（包括 FieldId）均须替换成实际返回值。`kind` 为 `line`、
-`scatter`、`bar`、`box` 或 `violin`，误差列必须明确传 ColumnId 或 `null`。`bar` 曲线绘制从零起的
+`scatter`、`bar`、`box` 或 `violin`；`y_error_column_id` 为 ColumnId、`null`，或省略表示没有误差棒。
+source 也可以按列名写：`{"dataset_id":"DATASET_UUID","x":"time","y":"signal","y_error":"sd"}`。
+`x`、`y` 和可选的 `y_error` 是精确（区分大小写）的列名或 ColumnId；Plotium 补上默认字段、
+表格和当前表格 revision。列名不存在或重复时返回 `invalid_parameters`，`error.details.field`
+给出路径，`error.details.candidates` 列出该表的全部列。按列名解析的每个 source 会在计划响应的
+`resolved_sources` 中列出。`plot.series.append` 和 `plot.series.bind` 也接受同样的 source 写法。`bar` 曲线绘制从零起的
 实心柱，可带误差线，填充色即曲线颜色，并带细描边。误差线使用描边的颜色和宽度，横帽宽度为柱宽的 45%。按印刷尺寸，柱子过小、放不下描边时（宽度不足描边宽度的 4 倍，或高度不足 2 倍，例如接近 0 的值），只画填充、不画描边，误差线保留。数值型 x 上，槽位宽度取相邻位置的常见间距，只有相邻位置更近处才变窄。其 x 列可为数值列或 Utf8 文本列；文本值按
 表格行顺序成为类别，相同文本共用一个槽位。共用同一槽位的柱状曲线在槽位内
 并排分组；槽位内只有一根柱时占满整个宽度，因此每个类别一条柱状曲线即可得到居中、
@@ -1557,8 +1568,8 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 无效的规划参数指向该操作的 `operation_constraints`，而不是要求读取项目状态。
 输入错误在已解析的请求边界提供 `error.details.field`，例如 `plan_id`、
 `parameters` 或 `parameters.writes[0].key`。过期 revision 和项目切换仍须读取状态并重规划；
-这些指引不允许重放。创建或绑定表格曲线时，没有误差列也须显式提供
-`y_error_column_id: null`，不能省略该字段。
+这些指引不允许重放。嵌套的 source 和目标错误给出完整路径，例如
+`parameters.series[0].source.y`。
 
 错误提供 `error.recovery`，异步保存、导出和任务回执提供 `recovery`。
 `retryable: false` 表示不要重复失败的调用，应遵循下一步动作。`busy` 执行可能已经

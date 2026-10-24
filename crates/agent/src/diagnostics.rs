@@ -46,6 +46,7 @@ impl Session {
         blocked: bool,
     ) -> Result<(FigureDiagnosticScan, PreparedToolRun), Failure> {
         crate::session::check_context(app, &mut args)?;
+        crate::session::short_refs::expand(app, &mut args)?;
         barrier(app, blocked)?;
         let revision: DocumentRevision = serde_json::from_value(
             args.as_object_mut()
