@@ -8,6 +8,8 @@ use crate::state::{CanvasAnalysisBinding, CraftRunId, XViewportLinkGroup, XViewp
 mod panel_convert;
 #[path = "convert_series.rs"]
 mod series_convert;
+#[path = "convert_viewport.rs"]
+mod viewport_convert;
 use crate::state::{AxisProjection, AxisProjections, ProjectionSource};
 use crate::state::{
     GroupMember, LayoutGroup, Panel, PanelId, PanelLabelMode, PanelLabelSpec, PanelLayout,
@@ -610,31 +612,12 @@ pub fn view_to_canvas(
                 figure.author_annotations = axis_overrides.annotations.lower();
                 figure.reference_lines = axis_overrides.annotations.lower_reference_lines();
                 figure.author_arrows = axis_overrides.annotations.lower_arrows();
-                let mut viewport = view_object
-                    .viewport
-                    .as_ref()
-                    .map(ViewportDto::to_viewport)
-                    .unwrap_or_else(|| CanvasViewport::from_figure(&figure));
-                viewport.reset_unsupported_gain(&figure);
-                figure
-                    .check_display_gain(viewport.display_gain)
-                    .map_err(|error| {
-                        ProjectError::Invalid(format!("Invalid plot display gain: {error}"))
-                    })?;
-                if snapshot_backed {
-                    figure
-                        .set_display_gain(viewport.display_gain)
-                        .map_err(|error| {
-                            ProjectError::Invalid(format!("Invalid plot display gain: {error}"))
-                        })?;
-                }
-                if !snapshot_backed {
-                    if axis_overrides.y_range.is_some() && figure.y.categories.is_none() {
-                        viewport.auto_y = false;
-                    }
-                    viewport.sync_full_from(&figure);
-                    viewport.apply_to(&mut figure);
-                }
+                let viewport = viewport_convert::restore(
+                    view_object.viewport.as_ref(),
+                    &mut figure,
+                    &axis_overrides,
+                    snapshot_backed,
+                )?;
                 figure.title.clear();
                 let mut plot = PlotObject::from_materialized_figure(
                     display_owner,
