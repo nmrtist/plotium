@@ -135,6 +135,7 @@ mod peaks;
 mod peaks2d;
 mod plot_annotations;
 mod plot_arrows;
+mod plot_intent;
 mod plot_interaction;
 mod plot_label_placement;
 mod plot_object;
@@ -245,6 +246,7 @@ pub use peaks::*;
 pub use peaks2d::*;
 pub use plot_annotations::*;
 pub use plot_arrows::*;
+pub use plot_intent::*;
 pub use plot_interaction::*;
 pub use plot_label_placement::{
     HAND_PLACED_LABEL_KEY, LabelPlacement, MAX_LABEL_OFFSET_PT, PlacementRequest,
@@ -348,6 +350,9 @@ mod bar_curve_tests;
 
 #[cfg(test)]
 mod category_chart_tests;
+
+#[cfg(test)]
+mod plot_intent_tests;
 
 #[cfg(test)]
 mod display_tests;

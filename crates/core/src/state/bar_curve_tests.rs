@@ -79,6 +79,7 @@ fn params(series: Vec<NewCurve>) -> PlotCreateParams {
         panel_name: None,
         panel_frame_pt: None,
         series,
+        intent: None,
     }
 }
 

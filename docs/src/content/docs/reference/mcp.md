@@ -91,6 +91,8 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.points.spread` | Object + Series | 0–1 spread of replicate points across their mark (point and line curves; default 0) |
 | `series.value_labels` | Object + Series | boolean; write each bar's or point's value (bar, point and line curves) |
 | `object.chart.orientation` | Object | `vertical`, `horizontal` (explicit-column plots) |
+| `object.intent.purpose` | Object | `unspecified`, `compare`, `trend`, `distribution`, `relationship`, `composition`, `change`, `detail`; what the plot is meant to show |
+| `object.intent.claim` | Object | string of at most 500 characters; the one claim the plot should support |
 | `series.visible` | Object + Series | boolean |
 | `series.label` | Object + Series | string |
 | `object.axes.x_label / object.axes.y_label` | Object | string |
@@ -951,6 +953,15 @@ and arrows stay in left-axis coordinates. Multiple entries create independent na
 one plot, not separate plots. Source extraction and all numeric, missing-value,
 error and unit rules are the same as explicit curve binding above. Table-wide
 X/Y defaults and other plots are untouched; no source table is copied.
+
+Optional `intent: {purpose, claim}` records what the plot is meant to show.
+`purpose` is `compare`, `trend`, `distribution`, `relationship`, `composition`,
+`change` (ratio or fold difference) or `detail` (zoom or inset); `claim` is one
+sentence of at most 500 characters. Ask the user for both before creating a
+plot instead of guessing; if they leave it open, propose your reading and let
+them confirm or edit it. The intent never changes the drawing. It is saved with
+the project, edited later through `object.intent.purpose` (`unspecified` clears
+it) and `object.intent.claim`, and shown under **Chart › Advanced** in the Object inspector.
 
 The exact `parent` determines which objects are new:
 

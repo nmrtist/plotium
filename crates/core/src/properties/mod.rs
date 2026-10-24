@@ -22,6 +22,7 @@ pub mod guide;
 mod hand_edits;
 pub mod heatmap;
 pub mod ilt;
+pub mod intent;
 pub mod line;
 pub mod line_display;
 mod model;
@@ -64,6 +65,9 @@ pub(crate) static GROUPS: &[PropertyProviderGroup] = &[
     },
     PropertyProviderGroup {
         provider: &chart_layout::PROVIDER,
+    },
+    PropertyProviderGroup {
+        provider: &intent::PROVIDER,
     },
     PropertyProviderGroup {
         provider: &apodization::PROVIDER,

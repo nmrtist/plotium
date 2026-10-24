@@ -79,6 +79,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.points.spread` | 图对象＋Series | 0–1，重复数据点在所在柱宽度内的散开程度（散点和折线曲线；默认 0） |
 | `series.value_labels` | 图对象＋Series | 布尔值；写出每根柱或每个点的数值（柱状、散点和折线曲线） |
 | `object.chart.orientation` | 图对象 | `vertical`、`horizontal`（按列绑定的图） |
+| `object.intent.purpose` | 图对象 | `unspecified`、`compare`、`trend`、`distribution`、`relationship`、`composition`、`change`、`detail`；这张图要表达什么 |
+| `object.intent.claim` | 图对象 | 最多 500 个字符的字符串；这张图要支撑的那句结论 |
 | `series.visible` | 图对象＋Series | 布尔值 |
 | `series.label` | 图对象＋Series | 文本 |
 | `object.axes.x_label / object.axes.y_label` | 图对象 | 文本 |
@@ -784,6 +786,14 @@ y 轴，拥有自己的自动范围、刻度类型和标题，标题初始为第
 同一图对象内相互独立的原生曲线，不是多张图。全行提取、数值、缺失值、
 误差和单位规则与上文显式曲线绑定相同；不修改表格共享默认 X/Y、不影响
 其他图，也不复制源表。
+
+可选的 `intent: {purpose, claim}` 记录这张图要表达什么。`purpose` 取 `compare`
+（比较各组大小）、`trend`（随连续变量的趋势）、`distribution`（分布或离散程度）、
+`relationship`（两个量的关系）、`composition`（组成占比）、`change`（变化、比值或倍数差）
+或 `detail`（放大或插图）；`claim` 是一句话，最多 500 个字符。建图前先请用户选目的、
+写 claim，不要自己猜；用户没填时，给出你的理解，让用户确认或修改。意图不会改变图的画法。
+它随项目保存，之后通过 `object.intent.purpose`（设为 `unspecified` 即清除）和
+`object.intent.claim` 修改，也显示在对象检查器 **Chart** 区的 **Advanced** 中。
 
 完整 `parent` 决定新建范围：
 

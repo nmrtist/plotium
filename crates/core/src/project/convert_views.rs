@@ -125,6 +125,7 @@ pub fn canvas_to_view(
                     .unwrap_or(ParentPanelDto::Loose),
                 viewport: None,
                 axis_overrides: None,
+                intent: None,
                 text: None,
                 shape: None,
                 image: None,
@@ -190,6 +191,7 @@ pub fn canvas_to_view(
                         projections: projections_to_dto(&plot.projections, datasets)?,
                         viewport: Some(ViewportDto::from_viewport(&plot.viewport)),
                         axis_overrides: AxisOverridesDto::from_overrides(&plot.axis_overrides),
+                        intent: (!plot.intent.is_empty()).then(|| plot.intent.clone()),
                         ..base(kind)
                     })
                 }
@@ -619,7 +621,7 @@ pub fn view_to_canvas(
                     viewport.apply_to(&mut figure);
                 }
                 figure.title.clear();
-                CanvasObjectKind::Plot(Box::new(PlotObject::from_materialized_figure(
+                let mut plot = PlotObject::from_materialized_figure(
                     display_owner,
                     SeriesId::new(view_object.next_series_id),
                     binding,
@@ -630,7 +632,16 @@ pub fn view_to_canvas(
                     derived_axes,
                     figure,
                     viewport,
-                )))
+                );
+                if let Some(intent) = &view_object.intent {
+                    plot.intent = intent.normalized().map_err(|e| {
+                        ProjectError::Invalid(format!(
+                            "view {view_id} object {}: {e}",
+                            view_object.id
+                        ))
+                    })?;
+                }
+                CanvasObjectKind::Plot(Box::new(plot))
             }
             other => {
                 return Err(ProjectError::Invalid(format!(

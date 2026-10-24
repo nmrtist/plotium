@@ -1,6 +1,8 @@
 use super::{PropertyTransaction, TargetSnapshot};
 use crate::actions::Action;
-use crate::state::{ChartSpec, ObjectId, ObjectStyle, PanelMeta, PlotiumApp, StackSpec};
+use crate::state::{
+    ChartSpec, ObjectId, ObjectStyle, PanelMeta, PlotIntent, PlotiumApp, StackSpec,
+};
 
 type ObjectFlags = (bool, bool);
 type ObjectFlagPlan = (usize, ObjectId, ObjectFlags, ObjectFlags);
@@ -12,6 +14,7 @@ pub(super) struct ObjectPlans {
     panels: Vec<(usize, ObjectId, PanelMeta, PanelMeta)>,
     flags: Vec<ObjectFlagPlan>,
     styles: Vec<(usize, ObjectId, ObjectStyle, ObjectStyle)>,
+    intents: Vec<(usize, ObjectId, PlotIntent, PlotIntent)>,
 }
 
 pub(super) enum ObjectTargetSnapshot {
@@ -20,6 +23,7 @@ pub(super) enum ObjectTargetSnapshot {
     Panel(usize, ObjectId, PanelMeta),
     Flags(usize, ObjectId, ObjectFlags),
     Style(usize, ObjectId, ObjectStyle),
+    Intent(usize, ObjectId, PlotIntent),
 }
 
 impl ObjectPlans {
@@ -29,6 +33,7 @@ impl ObjectPlans {
             && self.panels.is_empty()
             && self.flags.is_empty()
             && self.styles.is_empty()
+            && self.intents.is_empty()
     }
 
     pub(super) fn target_changed(&self, snapshot: &ObjectTargetSnapshot) -> bool {
@@ -55,6 +60,11 @@ impl ObjectPlans {
                 .is_some_and(|entry| entry.3 != *before),
             ObjectTargetSnapshot::Style(canvas, object, before) => self
                 .styles
+                .iter()
+                .find(|entry| entry.0 == *canvas && entry.1 == *object)
+                .is_some_and(|entry| entry.3 != *before),
+            ObjectTargetSnapshot::Intent(canvas, object, before) => self
+                .intents
                 .iter()
                 .find(|entry| entry.0 == *canvas && entry.1 == *object)
                 .is_some_and(|entry| entry.3 != *before),
@@ -108,6 +118,15 @@ impl ObjectPlans {
                     entry.3 = before.clone();
                 }
             }
+            ObjectTargetSnapshot::Intent(canvas, object, before) => {
+                if let Some(entry) = self
+                    .intents
+                    .iter_mut()
+                    .find(|entry| entry.0 == *canvas && entry.1 == *object)
+                {
+                    entry.3 = before.clone();
+                }
+            }
         }
     }
 
@@ -151,6 +170,14 @@ impl ObjectPlans {
                 .filter(|(_, _, before, after)| before != after)
                 .map(|(canvas, object, before, after)| {
                     Action::set_object_style(canvas, vec![(object, before)], vec![(object, after)])
+                }),
+        );
+        actions.extend(
+            self.intents
+                .into_iter()
+                .filter(|(_, _, before, after)| before != after)
+                .map(|(canvas, object, before, after)| {
+                    Action::set_plot_intent(canvas, object, before, after)
                 }),
         );
         actions
@@ -322,6 +349,37 @@ impl PropertyTransaction {
         }
         Ok(&mut self.objects.styles[index].3)
     }
+
+    pub(crate) fn plot_intent(
+        &mut self,
+        app: &PlotiumApp,
+        canvas: usize,
+        object: ObjectId,
+    ) -> Result<&mut PlotIntent, crate::properties::PropertyError> {
+        let index = if let Some(index) = self
+            .objects
+            .intents
+            .iter()
+            .position(|entry| entry.0 == canvas && entry.1 == object)
+        {
+            index
+        } else {
+            let current = plot(app, canvas, object)?.intent.clone();
+            self.objects
+                .intents
+                .push((canvas, object, current.clone(), current));
+            self.objects.intents.len() - 1
+        };
+        if !has_object_snapshot(&self.target_before, canvas, object, "intent") {
+            self.target_before
+                .push(TargetSnapshot::Object(ObjectTargetSnapshot::Intent(
+                    canvas,
+                    object,
+                    self.objects.intents[index].3.clone(),
+                )));
+        }
+        Ok(&mut self.objects.intents[index].3)
+    }
 }
 
 fn has_object_snapshot(
@@ -340,6 +398,9 @@ fn has_object_snapshot(
             ObjectTargetSnapshot::Panel(c, o, _) => kind == "panel" && *c == canvas && *o == object,
             ObjectTargetSnapshot::Flags(c, o, _) => kind == "flags" && *c == canvas && *o == object,
             ObjectTargetSnapshot::Style(c, o, _) => kind == "style" && *c == canvas && *o == object,
+            ObjectTargetSnapshot::Intent(c, o, _) => {
+                kind == "intent" && *c == canvas && *o == object
+            }
         }
     })
 }

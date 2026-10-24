@@ -395,6 +395,9 @@ pub struct ViewCanvasObject {
     pub viewport: Option<ViewportDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub axis_overrides: Option<AxisOverridesDto>,
+    /// The author's stated purpose and claim of a plot; absent when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent: Option<crate::state::PlotIntent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<TextBoxDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

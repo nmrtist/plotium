@@ -29,6 +29,8 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::chart_layout::SPREAD,
     properties::chart_layout::VALUE_LABELS,
     properties::chart_layout::ORIENTATION,
+    properties::intent::PURPOSE,
+    properties::intent::CLAIM,
     properties::object::SERIES_VISIBLE,
     properties::axis::X_LABEL,
     properties::axis::Y_LABEL,

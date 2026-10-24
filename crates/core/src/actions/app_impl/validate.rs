@@ -354,6 +354,7 @@ pub(super) fn validate_action(
         | Action::SetObjectFlags { canvas, object, .. }
         | Action::SetDataBinding { canvas, object, .. }
         | Action::SetChartType { canvas, object, .. }
+        | Action::SetPlotIntent { canvas, object, .. }
         | Action::SetStackSpec { canvas, object, .. }
         | Action::SetAxisProjections { canvas, object, .. }
         | Action::SetObjectText { canvas, object, .. }

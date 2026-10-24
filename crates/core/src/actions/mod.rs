@@ -3,9 +3,9 @@ use crate::state::{
     AssetId, AssetRecord, AxisOverrides, AxisProjections, CanvasDocument, CanvasObject,
     CanvasViewport, ChartSpec, CurveFitReference, DataBinding, Dataset, DatasetId,
     ExtractedIonChromatogram, ExtractedMassSpectrum, ExtractionId, IonChromatogramId, LayoutGroup,
-    NamedView, ObjectFrame, ObjectId, ObjectStyle, Panel, PanelLabelStyle, PanelMeta, PlotiumApp,
-    PrimaryView, Region, Selection, StackSpec, StatAnalysis, StoredCurveFitAnalysis, StoredLineFit,
-    StoredMultiplet, TableEditDelta, TextBox, TypedTableState,
+    NamedView, ObjectFrame, ObjectId, ObjectStyle, Panel, PanelLabelStyle, PanelMeta, PlotIntent,
+    PlotiumApp, PrimaryView, Region, Selection, StackSpec, StatAnalysis, StoredCurveFitAnalysis,
+    StoredLineFit, StoredMultiplet, TableEditDelta, TextBox, TypedTableState,
 };
 use crate::theme::ThemeSnapshot;
 use crate::{Integral2D, IntegralResult};
@@ -313,6 +313,12 @@ pub enum Action {
         object: ObjectId,
         before: (bool, bool),
         after: (bool, bool),
+    },
+    SetPlotIntent {
+        canvas: usize,
+        object: ObjectId,
+        before: PlotIntent,
+        after: PlotIntent,
     },
     /// Insert a named board view at `index` of the session bookmark list;
     /// revert removes it again.
@@ -663,6 +669,7 @@ impl Action {
             Self::SetDataBinding { .. } => "plot data",
             Self::SetChartType { .. } => "chart type",
             Self::SetStackSpec { .. } => "stack setting",
+            Self::SetPlotIntent { .. } => "plot intent",
             Self::SetCanvasSize { .. } | Self::SetPageLayout { .. } => "page layout",
             _ => "edit",
         }
@@ -697,6 +704,7 @@ impl Action {
             } => before_layout == after_layout && before == after,
             Self::SetPanelMeta { before, after, .. } => before == after,
             Self::SetObjectFlags { before, after, .. } => before == after,
+            Self::SetPlotIntent { before, after, .. } => before == after,
             // Inserting or removing a bookmark always changes the list.
             Self::BoardViewInsert { .. } | Self::BoardViewRemove { .. } => false,
             Self::SetCurveBinding { before, after, .. } => before.binding == after.binding,

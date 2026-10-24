@@ -1,6 +1,6 @@
 use super::{
     AxisOverrides, AxisProjections, CanvasViewport, ChartSpec, DataBinding, DatasetId, DerivedAxes,
-    SeriesId, StackSpec,
+    PlotIntent, SeriesId, StackSpec,
 };
 use plotium_figure::{Figure, FigureTypography};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -32,6 +32,8 @@ pub struct PlotObject {
     /// Marginal 1D axis projections for a 2D contour (empty for other plots).
     pub projections: AxisProjections,
     pub axis_overrides: AxisOverrides,
+    /// What the author wants the plot to show; never read while drawing.
+    pub intent: PlotIntent,
     /// Axis presentation emitted by the latest figure build, before author
     /// overrides are applied. Derived property defaults read this artifact.
     derived_axes: DerivedAxes,
@@ -73,6 +75,7 @@ impl PlotObject {
             stack,
             projections,
             axis_overrides,
+            intent: PlotIntent::default(),
             derived_axes,
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),
@@ -115,6 +118,7 @@ impl PlotObject {
             stack,
             projections,
             axis_overrides,
+            intent: PlotIntent::default(),
             derived_axes,
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),

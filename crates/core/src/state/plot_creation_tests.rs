@@ -41,6 +41,7 @@ fn params(app: &PlotiumApp) -> PlotCreateParams {
             kind: CurveKind::Line,
             source: source(app, 0, 1, Some(2)),
         }],
+        intent: None,
     }
 }
 fn plan(app: &PlotiumApp, p: &PlotCreateParams) -> CurveEditPlan {

@@ -67,6 +67,7 @@ fn plot(rows: &[(&str, f64)], x: usize, kinds: &[CurveKind]) -> (PlotiumApp, Plo
         panel_name: None,
         panel_frame_pt: None,
         series,
+        intent: None,
     };
     let planned = app
         .plan_plot_creation(DocumentRevision(app.doc.automation_revision), &params)

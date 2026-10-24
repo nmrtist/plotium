@@ -81,6 +81,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 panel_name: Some(format!("Panel {}", i + 1)),
                 panel_frame_pt: Some(frame),
                 series,
+                intent: None,
             },
         )?;
         app.commit_curve_bindings(p)?;
