@@ -729,6 +729,9 @@ patch. It cannot insert/delete rows, change schema, reimport files or write to t
 original CSV/TSV. Preparation produces `update: {status:"prepared", output,
 before_table_revision, changed}`; nothing is applied until execution. A no-op
 returns `changed:false` without advancing the document revision or adding Undo.
+Before a patch or refresh is committed, its values must remain valid for existing
+curve bindings. For example, a column used as Y error cannot contain negative
+amplitudes. A rejected update preserves the table, plots and Undo history.
 
 Table metadata, row pages and Series sources include
 `freshness: {status, refreshable, reason, sources, mcp_refreshable, mcp_refresh_reason}`.

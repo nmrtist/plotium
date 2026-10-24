@@ -604,6 +604,8 @@ Int64 列；分类值只能指定已有 level 的索引。此操作不修改扩�
 旧 revision 均拒绝整批，不留下部分修改。不增删行、改 schema、重导入或回写源
 CSV/TSV。准备返回 `update:{status:"prepared",output,before_table_revision,changed}`，
 执行前不修改项目。相同值返回 `changed:false`，不推进文档 revision 或增加 Undo。
+补丁或刷新提交前，其数值必须仍满足已有曲线绑定的要求。例如，用作 Y 误差的列
+不能包含负幅度。拒绝更新时，表格、图和 Undo 历史均保持不变。
 
 表格元数据、行页和 Series 来源返回
 `freshness:{status,refreshable,reason,sources,mcp_refreshable,mcp_refresh_reason}`。
