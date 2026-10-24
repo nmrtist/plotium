@@ -1,6 +1,10 @@
-use crate::{AXIS_LABEL_GAP, Margins, OUTER_PAD, Projector, Rect, TICK_LABEL_PAD};
+use crate::{AXIS_LABEL_GAP, Margins, Projector, Rect};
 use plotium_figure::{Axis, AxisFrame, AxisScale, Figure};
 use unicode_width::UnicodeWidthChar;
+
+mod margins;
+use margins::{Overhang, TickLabelWidths, margins_for_ticks_with_widths};
+pub(crate) use margins::{guide_extra_margins, margins_for_ticks, y_tick_clearance};
 
 pub(crate) const MAX_X_TARGET: usize = 8;
 pub(crate) const MAX_Y_TARGET: usize = 5;
@@ -67,7 +71,13 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
         let y_ticks = AxisTicks::empty();
         let y2_ticks = AxisTicks::empty();
         return AxisLayout {
-            margins: margins_for_ticks(fig, &x_ticks, &y_ticks, &y2_ticks, outer_width),
+            margins: margins_for_ticks(
+                fig,
+                &x_ticks,
+                &y_ticks,
+                &y2_ticks,
+                [outer_width, outer_height],
+            ),
             x_ticks,
             y_ticks,
             y2_ticks,
@@ -95,7 +105,8 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
         &initial_x,
         [&initial_y, &initial_y2],
         initial_widths,
-        outer_width,
+        [outer_width, outer_height],
+        Overhang::WorstCase,
     );
     let outer = Rect::new(0.0, 0.0, outer_width.max(0.0), outer_height.max(0.0));
     let plot = Projector::new(fig, outer, &initial_margins).plot;
@@ -106,7 +117,13 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
     let y2_ticks = fig.y2.as_ref().map_or_else(AxisTicks::empty, |axis| {
         adaptive_y_ticks(axis, fig.typography.tick_pt, plot.height)
     });
-    let margins = margins_for_ticks(fig, &x_ticks, &y_ticks, &y2_ticks, outer_width);
+    let margins = margins_for_ticks(
+        fig,
+        &x_ticks,
+        &y_ticks,
+        &y2_ticks,
+        [outer_width, outer_height],
+    );
 
     AxisLayout {
         margins,
@@ -272,156 +289,6 @@ fn vertical_labels_fit(axis: &Axis, ticks: &AxisTicks, height: f32, tick_pt: f32
     centers
         .windows(2)
         .all(|pair| pair[1] - pair[0] >= tick_pt * Y_TICK_SPACING_FACTOR)
-}
-
-pub(crate) fn margins_for_ticks(
-    fig: &Figure,
-    x_ticks: &AxisTicks,
-    y_ticks: &AxisTicks,
-    y2_ticks: &AxisTicks,
-    outer_width: f32,
-) -> Margins {
-    let widths = TickLabelWidths {
-        x: widest_tick_label(x_ticks, fig.typography.tick_pt),
-        y: widest_tick_label(y_ticks, fig.typography.tick_pt),
-        y2: widest_tick_label(y2_ticks, fig.typography.tick_pt),
-    };
-    margins_for_ticks_with_widths(fig, x_ticks, [y_ticks, y2_ticks], widths, outer_width)
-}
-
-/// Room between the y axis line and the left edge of its widest tick label,
-/// for tick labels `widest_label` wide.
-pub(crate) fn y_tick_clearance(fig: &Figure, y_ticks: &AxisTicks, widest_label: f32) -> f32 {
-    let ty = fig.typography;
-    if y_ticks.values.is_empty() {
-        0.0
-    } else if fig.y.show_tick_labels {
-        widest_label + ty.tick_outset() + TICK_LABEL_PAD
-    } else {
-        ty.tick_outset()
-    }
-}
-
-/// How far the x tick labels reach left of the plot's left edge when
-/// `clearance`, this overhang itself or more, is reserved beside the plot.
-///
-/// A label at fraction `t` of the plot width reaches `half - t * plot_width`
-/// past the edge, and the plot width shrinks as the clearance grows. Solving
-/// `c = half - t * (available - c)` for each label gives the least clearance
-/// that holds every label, so labels centred inside the plot, such as the
-/// first category slot, need none.
-fn x_label_overhang(fig: &Figure, x_ticks: &AxisTicks, available: f32) -> f32 {
-    let tick_pt = fig.typography.tick_pt;
-    let mut widest_half = 0.0f32;
-    let overhang = x_ticks
-        .values
-        .iter()
-        .zip(&x_ticks.labels)
-        .filter_map(|(&value, label)| {
-            let half = estimated_text_width(label, tick_pt) * 0.5;
-            widest_half = widest_half.max(half);
-            let t = fig.x.normalize(value) as f32;
-            (t.is_finite() && t < 1.0).then(|| (half - t.max(0.0) * available) / (1.0 - t.max(0.0)))
-        })
-        .fold(0.0f32, f32::max);
-    // A degenerate plot width must not reserve more than a label edge-on.
-    overhang.min(widest_half)
-}
-
-#[derive(Clone, Copy)]
-struct TickLabelWidths {
-    x: f32,
-    y: f32,
-    y2: f32,
-}
-
-fn margins_for_ticks_with_widths(
-    fig: &Figure,
-    x_ticks: &AxisTicks,
-    [y_ticks, y2_ticks]: [&AxisTicks; 2],
-    widths: TickLabelWidths,
-    outer_width: f32,
-) -> Margins {
-    let ty = fig.typography;
-    let (guide_right, guide_bottom) = crate::guide_extra_margins(fig);
-    if fig.axis_frame == AxisFrame::Hidden {
-        let title_clearance = if fig.title.trim().is_empty() {
-            0.0
-        } else {
-            ty.title_pt + AXIS_LABEL_GAP
-        };
-        return Margins {
-            left: OUTER_PAD,
-            right: OUTER_PAD + guide_right,
-            top: OUTER_PAD + title_clearance,
-            bottom: OUTER_PAD + guide_bottom,
-        };
-    }
-
-    let y_tick_clearance = y_tick_clearance(fig, y_ticks, widths.y);
-    let x_tick_clearance = if x_ticks.values.is_empty() {
-        0.0
-    } else if fig.x.show_tick_labels {
-        ty.tick_pt + TICK_LABEL_PAD + ty.tick_outset()
-    } else {
-        ty.tick_outset()
-    };
-
-    let y_title_clearance = if fig.y.show_label {
-        ty.label_pt + AXIS_LABEL_GAP
-    } else {
-        0.0
-    };
-    let x_width = if fig.x.show_tick_labels {
-        widths.x
-    } else {
-        0.0
-    };
-    // A right axis needs its ticks, labels and title beside the plot.
-    let right_axis = crate::y2_axis::reserved_width(fig, y2_ticks, widths.y2);
-    let right = (OUTER_PAD + x_width * 0.5)
-        .max(8.0)
-        .max(OUTER_PAD + right_axis)
-        + guide_right;
-    // Keep a left-end x label out of the rotated y-title lane even when the
-    // y ticks themselves have been dropped on a short panel.
-    let x_endpoint_clearance = if !fig.x.show_tick_labels {
-        0.0
-    } else {
-        let available = outer_width - OUTER_PAD - y_title_clearance - right;
-        x_label_overhang(fig, x_ticks, available)
-    };
-    let left = OUTER_PAD + y_title_clearance + y_tick_clearance.max(x_endpoint_clearance);
-    let title_clearance = if fig.title.trim().is_empty() {
-        0.0
-    } else {
-        ty.title_pt + AXIS_LABEL_GAP
-    };
-    let y_multiplier = if fig.y.show_tick_labels {
-        y_ticks.multiplier_clearance(ty.tick_pt)
-    } else {
-        0.0
-    }
-    .max(crate::y2_axis::multiplier_clearance(fig, y2_ticks));
-    let x_multiplier = if fig.x.show_tick_labels {
-        x_ticks.multiplier_clearance(ty.tick_pt)
-    } else {
-        0.0
-    };
-    let x_title_clearance = if fig.x.show_label {
-        ty.label_pt + AXIS_LABEL_GAP
-    } else {
-        0.0
-    };
-    let top = OUTER_PAD + title_clearance + y_multiplier;
-    let bottom = OUTER_PAD + x_multiplier + x_title_clearance + x_tick_clearance + guide_bottom;
-
-    Margins {
-        left,
-        right,
-        top,
-        bottom,
-    }
 }
 
 /// The 1/2/5×10ⁿ spacing [`ticks`] uses for `target` ticks over `span`.

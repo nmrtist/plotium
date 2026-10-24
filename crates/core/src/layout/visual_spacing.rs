@@ -149,6 +149,16 @@ const GRID_ALIGNMENT_TOLERANCE_PT: f32 = 1.0;
 /// push frames outside the page. This is a geometry invariant, not visual padding.
 const MIN_CELL_EXTENT_PT: f32 = 1.0;
 
+/// Least room each plot side keeps toward a neighbouring frame. Plot margins
+/// end at the outermost text, so without it a gutter smaller than the axis
+/// furniture would let the text of neighbouring plots touch. Images have no
+/// insets and keep the plain gutter.
+const MIN_SIDE_ROOM_PT: f32 = 4.0;
+
+fn side_room(inset: f32) -> f32 {
+    if inset > 0.0 { MIN_SIDE_ROOM_PT } else { 0.0 }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OccupiedGrid {
     pub rows: u32,
@@ -251,15 +261,19 @@ fn arrange_grid_slots(
         if col + 1 < cols
             && let (Some(left), Some(right)) = (slots[index], slots[index + 1])
         {
-            col_gaps[col] = col_gaps[col].max((gutter - left.insets[1] - right.insets[3]).max(0.0));
+            let room = side_room(left.insets[1]) + side_room(right.insets[3]);
+            col_gaps[col] =
+                col_gaps[col].max((gutter - left.insets[1] - right.insets[3]).max(room));
         }
         let below = index + cols;
         if row + 1 < rows
             && below < slots.len()
             && let (Some(above), Some(below)) = (slots[index], slots[below])
         {
-            row_gaps[row] =
-                row_gaps[row].max((gutter - above.insets[2] - below.insets[0]).max(0.0));
+            row_gaps[row] = row_gaps[row].max(
+                (gutter - above.insets[2] - below.insets[0])
+                    .max(side_room(above.insets[2]) + side_room(below.insets[0])),
+            );
         }
     }
     let [mt, mr, mb, ml] = layout.margins_pt();

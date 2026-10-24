@@ -87,7 +87,7 @@ fn a_left_end_x_label_still_pushes_the_plot_but_not_the_title() {
     let layout = axis_layout(&fig, fig.width, fig.height);
     let ty = fig.typography;
     let half_label = ticks::estimated_text_width("-8,000", ty.tick_pt) * 0.5;
-    let reserved = OUTER_PAD + ty.label_pt + AXIS_LABEL_GAP;
+    let reserved = ty.label_pt + AXIS_LABEL_GAP;
     assert!((layout.margins.left - reserved - half_label).abs() < 1e-3);
 
     let (y_gap, _) = title_gaps(&figure_text_boxes(&fig, [fig.width, fig.height]));
@@ -105,11 +105,11 @@ fn a_title_reaching_into_a_protruding_x_label_row_stays_at_the_outer_edge() {
         let all = figure_text_boxes(fig, size);
         boxes(&all, "axis.y.label").next().expect("y title")
     };
-    assert!((title(&fig).left - OUTER_PAD).abs() < 1e-3);
+    assert!(title(&fig).left.abs() < 1e-3);
 
     // A short title clears the x label row, so it moves next to the axis.
     fig.y.label = "I".to_owned();
-    assert!(title(&fig).left > OUTER_PAD + 1.0);
+    assert!(title(&fig).left > 1.0);
 }
 
 #[test]

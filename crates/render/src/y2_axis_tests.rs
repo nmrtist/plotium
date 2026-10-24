@@ -36,7 +36,7 @@ fn the_right_margin_holds_the_right_ticks_labels_and_title() {
     assert!(!layout.y2_ticks.values.is_empty());
     let widest = widest_tick_label(&layout.y2_ticks, fig.typography.tick_pt);
     let reserved = reserved_width(&fig, &layout.y2_ticks, widest);
-    assert!(layout.margins.right >= crate::OUTER_PAD + reserved - 1e-3);
+    assert!(layout.margins.right >= reserved - 1e-3);
     assert!(layout.margins.right > without.margins.right);
     // A blank title reserves no title lane.
     let untitled = axis_layout(&figure(""), 260.0, 170.0);

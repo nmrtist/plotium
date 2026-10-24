@@ -553,6 +553,32 @@ mod tests {
     }
 
     #[test]
+    fn visual_mode_keeps_neighbouring_frames_apart_when_insets_exceed_the_gutter() {
+        let layout = PageLayout {
+            rows: 1,
+            cols: 2,
+            gutter_mm: 1.0,
+            spacing_mode: SpacingMode::Visual,
+            ..PageLayout::default()
+        };
+        let items = [
+            LayoutItem {
+                id: ObjectId::new(1),
+                insets: [0.0, 6.0, 20.0, 30.0],
+            },
+            LayoutItem {
+                id: ObjectId::new(2),
+                insets: [0.0, 6.0, 20.0, 30.0],
+            },
+        ];
+        let frames = arrange_grid([400.0, 200.0], &layout, &items);
+        let frame_gap = frames[1].1.x - (frames[0].1.x + frames[0].1.width);
+        assert!((frame_gap - 8.0).abs() < 0.001, "frame gap {frame_gap}");
+        assert!(approx(frames[0].1.x, 0.0));
+        assert!(approx(frames[1].1.x + frames[1].1.width, 400.0));
+    }
+
+    #[test]
     fn smaller_axis_insets_never_increase_visual_frame_gap() {
         let layout = PageLayout {
             rows: 1,

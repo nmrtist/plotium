@@ -84,3 +84,16 @@ fn one_tick_pieces_keep_decimal_labels() {
         ticks.labels
     );
 }
+
+#[test]
+fn margins_hold_break_marks_on_every_broken_spine() {
+    // Neither window ends on a tick, so no tick label reaches the top or
+    // right edge; only the marks on the boxed spines need room there.
+    let mut fig = Figure::new("", broken(0.0, 97.0, 20.0, 80.0), Axis::new("y", 0.0, 9.3));
+    fig.y.axis_break = Some(AxisBreak::new(3.0, 6.0));
+    fig.axis_frame = AxisFrame::Box;
+    let margins = crate::Margins::for_figure(&fig);
+    let reach = MARK_HALF_LONG + fig.typography.axis_line_pt * 0.5;
+    assert!(margins.top >= reach - 1e-4, "top {}", margins.top);
+    assert!(margins.right >= reach - 1e-4, "right {}", margins.right);
+}

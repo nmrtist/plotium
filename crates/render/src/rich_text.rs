@@ -14,6 +14,8 @@ use plotium_figure::{FontWeight, Typeface};
 pub const MIDDLE_TO_BASELINE: f32 = 0.35;
 /// Distance from a line's top down to its baseline, in ems.
 pub const TOP_TO_BASELINE: f32 = 0.75;
+/// Distance from a line's baseline down to its bottom, in ems.
+pub const BASELINE_TO_BOTTOM: f32 = 1.0 - TOP_TO_BASELINE;
 
 /// SVG font stack. Nature-portfolio journals ask for Arial or Helvetica; a
 /// bare `sans-serif` lets vector editors substitute their own default.

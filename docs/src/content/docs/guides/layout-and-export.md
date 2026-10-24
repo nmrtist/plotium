@@ -185,10 +185,16 @@ values.
   plots, counting the tick labels and axis titles that sit between them, so a
   panel with a long y title is given the room it needs. The value is a
   minimum: the gap you see can end up wider, never narrower, and frames never
-  overlap.
+  overlap. The axis text of neighboring plots always keeps at least 8 pt
+  apart.
 - **Frame** measures between the plot frames and ignores axis text. Frames
   then sit exactly the requested distance apart, and the visible space between
   data areas varies from pair to pair.
+
+A plot frame ends at its outermost text, tick, or axis line, with no blank
+border of its own. A panel placed against the page edge therefore reaches the
+edge of the exported figure, which suits journal sizes where the page is the
+finished figure.
 
 The basis applies wherever Plotium places plots for you — **Apply grid**, and
 dragging a plot onto a page that already holds one.
