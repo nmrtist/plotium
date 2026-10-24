@@ -56,6 +56,7 @@ fn scientific_receipts_survive_connection_loss_and_consumed_plan_retries() {
     let (plan, submitted) = submit(&mut session, &mut app, &path);
     let task_id = submitted["value"]["task"]["task_id"].clone();
     assert_eq!(submitted["value"]["task"]["status"], "queued");
+    assert!(submitted.get("project_context").is_none());
     assert_eq!(
         submitted["value"]["task"]["recovery"]["completion"],
         "pending"
@@ -73,6 +74,7 @@ fn scientific_receipts_survive_connection_loss_and_consumed_plan_retries() {
         )
         .unwrap();
     assert_eq!(repeat["value"]["task"]["task_id"], task_id);
+    assert!(repeat.get("project_context").is_none());
     drop(session);
     let mut reconnected = Session::default();
     let listed = reconnected

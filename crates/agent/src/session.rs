@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 mod candidate;
 mod compact;
+mod creation_response;
 mod export;
 pub(crate) use candidate::CandidateTicket;
 mod guides;
@@ -12,6 +13,7 @@ mod property_batch;
 pub use property_allowlist::PROPERTIES;
 mod input;
 mod recovery;
+mod result_context;
 pub(crate) mod save;
 mod science;
 mod state;
@@ -158,6 +160,7 @@ impl Session {
         app.session.background_activity.execution_source = previous;
         match result {
             Ok(mut value) => {
+                result_context::annotate(app, name, &mut value);
                 recovery::annotate(&mut value);
                 Ok(value)
             }
@@ -320,6 +323,9 @@ impl Session {
             }
             if compact::is_property_write(&result.tool_id) {
                 return Ok(compact::execute_response(result));
+            }
+            if result.tool_id == PLOT_CREATE {
+                return Ok(creation_response::execute_response(result));
             }
             return Ok(json!(result));
         }
@@ -487,7 +493,11 @@ impl Session {
                     ));
                 }
                 let id = format!("{}:{}", app.session.project_context, uuid::Uuid::new_v4());
-                let value = json!({"plan_id":id,"preflight":plan});
+                let value = if plan.request.tool_id == PLOT_CREATE {
+                    creation_response::plan_response(&id, &plan, app)
+                } else {
+                    json!({"plan_id":id,"preflight":plan})
+                };
                 if serde_json::to_vec(&value)
                     .map_err(|e| Failure::new("execution_failed", e.to_string()))?
                     .len()

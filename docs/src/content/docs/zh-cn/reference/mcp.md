@@ -224,6 +224,18 @@ Plotium 仍在服务端检查条件约束：需要选择器时只提供一个非
 `view: "children"`；诊断续页只接收 `cursor`、context 和 revision，首次诊断必须提供
 `canvas` 与 `output`。
 
+同步提交的 `plotium_execute` 结果包含 `project_context`、`before_revision` 和
+`after_revision`。已知该上下文中的精确目标时，可直接将返回的 context 和
+`after_revision` 用于下一次查询或规划，无须额外读取状态。这不刷新选择、手动值、
+可用性或权限；首次访问、桌面编辑或 Undo/Redo 后、需要这些动态值时，以及
+stale/context 错误或结果不确定时，仍须读取状态。执行继续检查上下文、revision 与权限。
+
+科学任务排队或提交并不代表修改已提交，不可复用即时响应的 `after_revision`。
+只有已知项目上下文中终态为 `succeeded` 且包含 `end_revision` 的回执才允许复用。
+科学有效性与收敛情况须单独检查：任务成功并不证明拟合有效。失败、取消、失效、
+缺失或不确定的回执继续遵循恢复流程，绝不授权自动重放。保存/导出回执描述文件操作，
+不提供新的文档 revision。
+
 ## 从欢迎页导入原生数据
 
 只打开 Plotium 即可调用 `plotium_get_state {}`；后台工作、恢复或保存阻塞项目访问时也可查询。
@@ -791,18 +803,24 @@ y 轴，拥有自己的自动范围、刻度类型和标题，标题初始为第
 为有限正数。省略时保留原有空画布原生放置约定；已有成图的画布必须提供
 明确 frame。不重排已有内容，也不将已有图重建为替代对象。
 
-`preflight.binding_plan.creation` 返回拟建完整目标 `canvas`、`panel`、
-`plot`、`created`，以及 `size_mm`、`panel_frame_pt`（页坐标）、`frame_pt`
-（面板内内容局部坐标）、`coordinate_units` 和 `series_defaults`（图型及
-pt 线宽）。`binding_plan.bindings` 返回每条 owner+SeriesId 完整目标、实际
-来源映射/表 revision 和全行诊断。预检不创建对象；执行一次性 plan 后，
-`ToolResult.value.creation` 返回同一 `canvas`、`panel`、`plot`、`size_mm`、
-所用的 `size_preset`（如有）、`frame_pt`、`panel_frame_pt`、
-`coordinate_units` 和 `series_defaults`，`value.bindings` 返回每条曲线的
-`target` 及行数统计（`total_rows`、`plotted_rows`、`missing_xy`、
-`non_finite_xy`、`missing_error`）。父目标、来源映射和受影响行 ID 样例只在
-预检里给出；`ToolResult.targets` 列出全部新建目标，结果的 `after_revision`
-表示提交后的文档 revision。
+MCP 计划返回 `plan_id`、`project_context` 和 `basis_revision`。
+`preflight` 包含 `required_authority`、`created_target_count`、异常 `targets` 和 `outputs`。
+`preflight.binding_plan.creation` 包含精确 `parent`、拟建完整目标 `canvas`、`panel`、
+`plot` 和 `created`（含全部 Series），以及 `size_mm`、所用 `size_preset`（如有）、
+`panel_frame_pt`（页坐标）、`frame_pt`（面板内局部坐标）、`coordinate_units` 和
+`series_defaults`（图型及 pt 线宽）。结果不确定时保留这些冻结身份用于核查。
+
+`preflight.binding_plan.binding_count` 统计曲线数，`row_counts` 汇总各曲线的
+`total_rows` 和 `plotted_rows`。`binding_plan.bindings` 只列出数据缺失、非有限值或
+缺失误差的曲线，包含完整目标和全部诊断（含 `affected_rows` 样例）。空列表表示
+没有这些问题，不表示没有绑定。响应省略请求回显、冻结目标重复信息、来源映射和
+成功目标说明；存储的权威计划仍保留完整已验证来源及候选。
+
+预检不创建对象。执行一次性计划后，`value.creation` 返回同一 canvas/panel/plot 和
+布局；`value.bindings` 返回**每条** Series 的完整目标及 `total_rows`、`plotted_rows`、
+`missing_xy`、`non_finite_xy` 和 `missing_error`。默认值仅在预检披露一次。
+`produced` 列出新建资源，`summary` 统计目标结果，`targets` 只保留异常项；诊断与验证
+继续保留。`project_context` 和 `after_revision` 标识已提交结果。
 
 创建是原子的：来源错误、单位不兼容、非法误差或父目标/revision 变化时，
 不留下新画布、面板或半成品图。只读连接拒绝创建预检和执行。每图 1–200
@@ -813,7 +831,7 @@ plan。执行响应丢失后，先查询当前状态及预检返回的目标，�
 使用返回目标进行结构发现与属性操作，以当前 revision 预览完整画布。
 结果可在 GUI 选择和继续编辑。一次 Undo 只移除本次新建子树，保留已有父
 容器及导入数据；Redo 恢复同一身份。后续原生尺寸和布局调整保留图对象、
-Series 身份和来源绑定。编辑或 Undo/Redo 后先读取最新 revision。
+Series 身份和来源绑定。已知目标可复用同步提交结果的 context 与 revision；桌面编辑或 Undo/Redo 后先读取状态。
 
 ## 原子编辑页面、面板、文字与本地图片
 
@@ -1338,7 +1356,8 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 
 ## 精确修改显示，不重建图对象
 
-直接使用 `creation.series_defaults[].target`，或通过 `plotium_document_inspect`
+直接使用预检的 `creation.series_defaults[].target` 或执行的 `value.bindings[].target`，
+或通过 `plotium_document_inspect`
 发现完整目标。所属图对象与稳定 SeriesId 必须共同传递，同名曲线仍是不同目标。
 `plotium_properties_list` 列出允许的属性；`plotium_properties_inspect` 返回当前值、
 默认值、目标适用的单位选项和范围输入 schema。
@@ -1466,7 +1485,8 @@ Series ID 仅在所属图对象内唯一，因此务必复制包含资源信息�
 数据集或报告；请先删除这些内容。派生数据集需单独一次请求先删除，再删除其来源。一次撤销即可按原 ID 和原位置恢复全部被删除的数据集。
 
 工具结果同时提供结构化内容及 JSON 文本。项目读取与预检要求当前
-`expected_revision`；修改或撤销后重新获取状态。执行时重新检查保存的 revision
+`expected_revision`；需要动态值、桌面编辑或撤销后重新获取状态。已知精确目标时可按上述规则
+复用同步提交结果。执行时重新检查保存的 revision
 和当前权限。计划仅可提交一次，失败后也需重新预检；最多保留 32 个待执行计划，
 重启连接会清空计划。桌面开始执行前已取消的请求不会修改项目；已进入原子
 提交的修改无法通过取消回滚，请使用 **Undo**。
