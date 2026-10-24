@@ -11,12 +11,29 @@ pub(crate) fn build(contract: &Value) -> Map<String, Value> {
             } else { op.to_owned() };
             let mut selected = schema.clone();
             selected["properties"]["edits"]["items"] = branch.clone();
+            selected["description"] = json!(relevant(schema["description"].as_str().expect("figure edit description"), DESCRIPTION, op));
+            let result = relevant(contract["result_contract"].as_str().expect("figure edit result contract"), RESULT, op);
             let purpose = match (op, kind) {
                 ("page", _) => "Set page size, margins and gutter",
+                ("panel_frame", _) => "Move or resize panels",
+                ("content_frame", _) => "Move or resize a plot, text box or image",
+                ("image_replace", _) => "Replace an image file in place",
                 ("panel_label", _) => "Set a panel letter or label",
+                ("panel_stack", _) => "Stack plots as shared-x subplots",
+                ("align", _) => "Align panel edges or centres",
+                ("distribute", _) => "Space panels evenly",
+                ("grid", _) => "Arrange panels in a grid",
+                ("text_create", _) => "Add a text box",
+                ("text_set", _) => "Change the text of a text box",
+                ("image_create", _) => "Add an image from a local file",
                 ("annotation_create", Some("arrow")) => "Add an arrow in source data coordinates",
                 ("annotation_create", Some("text")) => "Add a text label anchored to data",
                 ("annotation_create", Some("reference_line")) => "Add a vertical or horizontal reference line",
+                ("annotation_set", _) => "Change or move an existing annotation",
+                ("annotation_delete", _) => "Remove an annotation",
+                ("content_delete", _) => "Delete a plot, text box or image",
+                ("panel_delete", _) => "Delete an empty panel",
+                ("series_delete", _) => "Delete curves from a plot",
                 _ => "",
             };
             let purpose = if purpose.is_empty() { suffix.replace('_', " ") } else { purpose.to_owned() };
@@ -24,12 +41,104 @@ pub(crate) fn build(contract: &Value) -> Map<String, Value> {
                 "purpose":purpose,"operation":"figure.edit","schema":selected,
                 "preflight_permission":contract["preflight_permission"],
                 "execute_permission":contract["execute_permission"],
-                "result_contract":contract["result_contract"],
+                "result_contract":result,
                 "entry":{"tool":"plotium_plan","tool_id":"figure.edit","selectors":"omit ids/targets; supply expected_project_context and expected_revision"},
                 "example":{"tool_id":"figure.edit","parameters":example(op,kind)},
                 "example_targets":"Replace example canvas, panel and content targets with full stable references from plotium_document_inspect; file paths must name your intended local file."
             }))
         }).collect()
+}
+
+const PANEL_LAYOUT: &[&str] = &["panel_frame", "grid", "align", "distribute"];
+const NEW_CONTENT: &[&str] = &["text_create", "image_create"];
+const DELETION: &[&str] = &["content_delete", "panel_delete", "series_delete"];
+const ANNOTATION: &[&str] = &["annotation_create", "annotation_set", "annotation_delete"];
+/// Routes a clause to every op.
+const ALL: &[&str] = &[];
+
+/// Clauses of the shared figure.edit description routed to the ops they
+/// constrain, matched by prefix. Unmatched clauses go to every op.
+const DESCRIPTION: &[(&str, &[&str])] = &[
+    ("Atomic native authoring", ALL),
+    ("Panel frames [x,y,w,h]", PANEL_LAYOUT),
+    (
+        "New content frames",
+        &["text_create", "image_create", "content_frame"],
+    ),
+    ("Page size/margins/gutter", &["page"]),
+    ("margins [top", &["page"]),
+    ("Grid uses", &["grid"]),
+    ("no page-layout preference change", &["grid"]),
+    ("Align uses", &["align", "distribute"]),
+    ("Panel layout ops require", PANEL_LAYOUT),
+    ("new text/images need", NEW_CONTENT),
+    ("panel_stack needs", &["panel_stack"]),
+    ("content_frame requires", &["content_frame"]),
+    ("image_replace requires", &["image_replace"]),
+    ("Deletion-only batches", DELETION),
+    ("Reject overlaps", DELETION),
+    ("Preserve empty parents", DELETION),
+    ("preflight lists exact deletions", DELETION),
+    ("Hidden exact targets", ALL),
+    ("Annotation ops", ANNOTATION),
+    ("No top-level ids/targets", ALL),
+];
+
+/// Clauses of the figure.edit result contract, routed like [`DESCRIPTION`].
+const RESULT: &[(&str, &[&str])] = &[
+    ("ToolPlan.figure_plan/result", ALL),
+    ("annotation_edits list", ANNOTATION),
+    ("panel_edits list", &["panel_stack"]),
+    ("content_frame edits only", &["content_frame"]),
+    ("image_replace changes only", &["image_replace"]),
+    ("Frozen native assets", &["image_create", "image_replace"]),
+    ("one Undo/Redo restores", ALL),
+    ("Deletion-only plans report", DELETION),
+    ("Reject duplicates", DELETION),
+    ("Source datasets/assets remain", DELETION),
+    ("empty parents remain", DELETION),
+    ("Selection-effect changes", DELETION),
+    ("No automatic reflow", ALL),
+];
+
+fn sentences(text: &str) -> impl Iterator<Item = &str> {
+    text.trim_end_matches('.').split(". ")
+}
+
+#[cfg(test)]
+fn clauses(text: &str) -> impl Iterator<Item = &str> {
+    sentences(text).flat_map(|sentence| sentence.split("; "))
+}
+
+fn applies(clause: &str, rules: &[(&str, &[&str])], op: &str) -> bool {
+    rules
+        .iter()
+        .find(|(prefix, _)| clause.starts_with(prefix))
+        .is_none_or(|(_, ops)| ops.is_empty() || ops.contains(&op))
+}
+
+/// The clauses of `text` that apply to `op`, so a detail does not repeat
+/// rules for every other edit.
+fn relevant(text: &str, rules: &[(&str, &[&str])], op: &str) -> String {
+    let kept: Vec<String> = sentences(text)
+        .filter_map(|sentence| {
+            let parts: Vec<_> = sentence.split("; ").collect();
+            let kept: Vec<_> = parts
+                .iter()
+                .copied()
+                .filter(|c| applies(c, rules, op))
+                .collect();
+            let first = *kept.first()?;
+            let mut sentence = kept.join("; ");
+            // A dropped leading clause leaves a lowercase start; operation names stay as written.
+            let word = first.split(' ').next().unwrap_or_default();
+            if first != parts[0] && !word.contains('_') {
+                sentence[..1].make_ascii_uppercase();
+            }
+            Some(sentence)
+        })
+        .collect();
+    format!("{}.", kept.join(". "))
 }
 
 fn target(kind: &str, suffix: &str) -> Value {

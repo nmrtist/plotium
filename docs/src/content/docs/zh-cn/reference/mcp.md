@@ -179,7 +179,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 `sections`。工具说明、输入 schema 和 annotations 见 `tools/list`；属性定义见
 `plotium_properties_list`。
 
-`sections` 列出每个详情分区的字节大小及是否接受 `key`。用 `{"section":...,"key":...}`
+`sections` 列出每个详情分区的字节大小及是否接受 `key`。`operation_constraints` 和
+`operation_details` 为每个 key 附一句用途，便于先按任务找到操作再读取详情。用 `{"section":...,"key":...}`
 读取单项详情，返回 `{capability_fingerprint,section,key,contract}`：
 
 | 分区 | key | 内容 |
@@ -202,8 +203,8 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 `{"section":"operation_details","key":"figure.edit/page"}`。多项编辑用 `keys` 代替 `key`，
 例如 `{"section":"operation_details","keys":["figure.edit/panel_label","figure.edit/annotation_create.arrow"]}`。
 响应包含 `keys` 和以请求名称为键的 `contract` 映射。此分区每次接受 1–32 个不重复的 key；
-其他分区只接受 `key`。索引列出全部子操作 key 及用途。每项详情保留共享编辑限制和
-一个精确的编辑 schema；请将示例目标替换为文档检查返回的完整稳定引用。混合编辑的
+其他分区只接受 `key`。每项详情包含一个精确的编辑 schema，以及只适用于该编辑的限制和
+结果字段；请将示例目标替换为文档检查返回的完整稳定引用。混合编辑的
 完整 schema 仍见 `operation_constraints`。可编辑科学描述符通过
 `input_schema_ref: {section,key}` 引用规范输入 schema，不重复返回该 schema。
 
@@ -345,15 +346,18 @@ Series 详情包含可直接用于属性查询的完整 target、编码、可见
 不提供递归展开整个项目的接口。revision 变化会拒绝续页，须重读状态并重新列举。
 目标失效或身份伪造返回 `invalid_parameters`，不会改用当前选择。
 
-`plotium_properties_list {}` 默认以紧凑形式浏览全部支持属性。每项包含 ID、标签、
-scope、访问方式、静态适用能力，以及值类型、单位、范围和枚举 ID。紧凑 schema
-省略界面拖动步长和枚举标签；复杂输入标为 `requires_full`。可一次读取多个属性的完整定义：
+`plotium_properties_list {}` 默认以紧凑形式浏览全部支持属性，每个属性一行：`id`、`label`、
+值类型 `type`，以及适用时的 `min`/`max`、`unit`、`format`、枚举 `values`、曲线 `encoding`
+和所需字段能力 `requires`。以 `document.` 开头的 ID 属于文档范围，其他 ID 属于对象范围，
+`series.` 开头的 ID 以 Series 为目标。标为 `requires_full` 的行（嵌套输入和显示单位代码）
+需要读取完整定义。可一次读取多个属性的完整定义：
 
 ```json
 {"keys":["series.line.stroke_width","series.line.color"],"detail":"full"}
 ```
 
-`scope` 使用目录中的范围名称筛选。`keys` 必须非空且不重复；不支持的键、未知 scope
+`scope` 使用目录中的范围名称筛选，`prefix` 按属性 ID 开头筛选，例如 `series.line` 或
+`object.axes`；没有匹配的前缀会报错，并在 `error.details.prefixes` 中列出可用前缀。`keys` 必须非空且不重复；不支持的键、未知 scope
 和键与 scope 冲突均明确报错，不会静默省略请求项。无筛选的 `detail: "full"` 返回完整目录。
 两种形式均为静态查询，忙碌时也可调用，不包含当前目标值。完整详情保留复杂输入约束、
 颜色格式 `#rrggbb` 和全部已注册单位代码。用 `plotium_properties_inspect` 查询目标值、
@@ -1436,7 +1440,7 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 2. `plotium_resources_search` 接受 `expected_project_context`、`expected_revision` 和 `query`，例如
    `{"kinds":["plotium.canvas.object"],"name_contains":"Plot"}`。先将结果解析为
    显式稳定 ID；`plotium_resources_inspect` 用 `ids` 和 `expected_revision` 读取描述。
-3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性及范围。
+3. 用 `{}` 调用 `plotium_properties_list` 列出支持的属性 ID 和值类型。
    使用 `plotium_properties_inspect` 查询曲线地址：
 
    ```json
