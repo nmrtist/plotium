@@ -472,6 +472,8 @@ pub fn view_to_canvas(
                         label: sb.label.clone(),
                         encoding: sb.encoding.clone(),
                         visible: sb.visible,
+                        replicates: sb.replicates,
+                        error_bars: sb.error_bars,
                     });
                 }
                 let binding = DataBinding {

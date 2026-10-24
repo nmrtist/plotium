@@ -355,7 +355,11 @@ should show (compare groups, a trend, a distribution, a relationship, parts of a
 whole, a change or ratio, or a local detail) and the one claim it should
 support. Answer in your own words, or let the AI propose a reading and correct
 it. The intent is saved with the plot and never changes the drawing; edit it
-later under **Chart › Advanced** in the Object inspector. See
+later under **Chart › Advanced** in the Object inspector. When you ask the AI to
+check the figure, it compares the chart with this purpose and suggests forms
+that fit better; it never switches them on its own. For curves with error bars
+it also asks how many replicates each value summarises and whether the bars
+show SD, SEM or a 95 % CI. See
 [plot creation](/reference/mcp/#create-a-native-single-plot-from-an-imported-table).
 
 For different colours or labels across curves, ask for one atomic

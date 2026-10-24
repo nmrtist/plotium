@@ -357,6 +357,7 @@ impl FigureDiagnosticScan {
                 }
                 if self.checks(DiagnosticCheck::DataShape)
                     || self.checks(DiagnosticCheck::LayoutAesthetics)
+                    || self.checks(DiagnosticCheck::Intent)
                 {
                     let annotations =
                         geometry::annotation_text_boxes(&figure, size, stack.as_ref());
