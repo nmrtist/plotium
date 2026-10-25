@@ -193,11 +193,13 @@ CI or requiring extra secrets.
    runs `cargo pr-check` followed by `cargo dependency-check`. Resolve findings
    or document justified exceptions before submitting the version PR. Merge
    the change and wait for CI to pass on the release commit.
-2. Tag that commit with the Cargo version prefixed by `v`, then push the tag:
+2. Tag that commit with the Cargo version prefixed by `v`, then push the tag.
+   Replace `X.Y.Z` below with the complete Cargo version, including any
+   prerelease suffix:
 
    ```sh
-   git tag -a v0.1.0 -m "Plotium 0.1.0"
-   git push origin v0.1.0
+   git tag -a vX.Y.Z -m "Plotium X.Y.Z"
+   git push origin vX.Y.Z
    ```
 
 3. Download the packages from the generated Release draft, check the desktop
@@ -208,8 +210,8 @@ after local or PR checks can still stop packaging. Reproduce with
 `cargo dependency-check`, address the finding, and prepare a new release commit
 and tag rather than moving an existing tag.
 
-Use `v0.1.0` for a regular pre-1.0 release. Only `-alpha.N` and `-beta.N`
-suffixes are supported for prereleases; they also select the updater channel.
+Only `-alpha.N` and `-beta.N` suffixes are supported for prereleases; they also
+select the updater channel.
 
 The draft contains exactly four install packages: Windows and Linux ZIPs, and
 Intel and Apple Silicon macOS DMGs. License notices are inside the packages;
