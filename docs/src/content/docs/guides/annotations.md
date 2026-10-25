@@ -30,7 +30,7 @@ Drag on the canvas to create a shape, then move or resize it like any frame.
 ## Labels inside plots
 
 Text annotations and reference-line labels that belong to a plot (for example
-those an agent adds through [automation](/guides/automation/)) place
+those an AI client adds) place
 themselves clear of the data:
 
 - A reference-line label starts at the top of a vertical line or the right end
@@ -45,8 +45,8 @@ themselves clear of the data:
 Drag a label to place it yourself; `Esc` during the drag puts it back, and the
 move is one Undo step. A dragged text keeps its distance from its anchor and a
 dragged reference label keeps its place along the line, so both follow axis
-range changes, zoom and pan. Agent edits to the text or size keep your
-placement, and an agent moves a label you placed only when you ask it to.
+range changes, zoom and pan. Edits an AI client makes to the text or size keep
+your placement, and it moves a label you placed only when you ask it to.
 Right-click the label and choose **Automatic position** to return it to
 automatic placement.
 
@@ -62,8 +62,8 @@ automatic placement.
   label is one line, saved with `Enter`. `Esc` cancels.
 - **Move**: drag an arrow to move it, or drag one of its ends to move only that
   end; drag a reference line across itself to change its value. Arrow keys
-  nudge the selected annotation. Agents keep an arrow or line you moved where
-  you put it unless you ask them to move it.
+  nudge the selected annotation. An AI client keeps an arrow or line you moved
+  where you put it unless you ask it to move it.
 - **Style**: click an annotation to select it; the Object inspector shows its
   size and color (text), color, width, and style (reference lines), or color,
   width, and head (arrows).
@@ -76,7 +76,7 @@ After styling an object, you can set its look as the default for new objects
 of that kind ("set as default for new …"), so a series of labels comes out
 consistent without restyling each one. These defaults last for the session;
 axis and title text sizes are a document-level setting instead — see
-[Figure Typography](/guides/layout-and-export/#plot-styling-and-typography).
+[Figure typography](/guides/themes-and-styles/#figure-typography).
 
 ## Selecting, grouping, and locking
 
@@ -89,4 +89,16 @@ axis and title text sizes are a document-level setting instead — see
 - `Delete` or `Backspace` removes the selected annotation objects.
 
 Alignment, distribution, and z-ordering for annotations work exactly as for
-plot frames — see [the board](/guides/layout-and-export/).
+plot frames — see [the board](/guides/multi-panel-figures/#the-board).
+
+## With an AI client
+
+You can ask an AI client connected to Plotium to do this for you, for example:
+
+> On the plot named Kinetics, add a dashed vertical line at 30 s labelled
+> Injection, and an arrow pointing at the peak near 45 s. Show me a preview.
+
+The new labels place themselves clear of the data, a label you placed by hand
+stays where you put it, and the change is one Undo step. Check the preview
+before you agree. See
+[Access, review and undo](/ai/control-and-review/).

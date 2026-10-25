@@ -50,7 +50,8 @@ TIFF*——并且导出前的合规检查会按所选预设标出字号与线宽
 
 选中数据集后，可从 File 菜单、Data Ribbon 选项卡或命令面板选择
 **导出数据…**。对话框只显示当前数据集实际存在的内容，并提供
-**保存 CSV…**、**保存 TSV…**、**保存 XLSX…**和**复制 TSV**。
+**保存 CSV…**、**保存 TSV…**、**保存 XLSX…**和**复制 TSV**。空单元格保持为空；
+`NaN`、`+Inf` 和 `-Inf` 会写成这些字面标记，因为它们是真实取值而非空白。
 
 处理后的 NMR 数据可选择 Real、Imaginary 或 Magnitude 强度。真实 2D 与
 伪 2D 均支持 **Matrix** 和 **Long**：Matrix 首行是 F2/ppm，首列是
@@ -68,3 +69,12 @@ Bootstrap 分位数。CasaXPS 结果始终标为 `Imported (CasaXPS)`，不会�
 则把同样的信息保存在隐藏工作表中。可见的列在 Excel、Origin 或 Prism 中正常打开，
 而配套信息让 Plotium 日后能连同列类型、单位和误差棒一起重新打开该表。导出的 XLSX
 文件只包含确定值，没有需要重新计算的公式。
+
+## 使用 AI 客户端
+
+也可以让连接到 Plotium 的 AI 客户端替你完成，例如：
+
+> 把这张 180 × 90 mm 的画布导出到 /Users/me/figures/figure.svg，同时导出对应的 PDF 和 300 DPI 的 PNG。不要覆盖已有文件。
+
+写文件前 Plotium 会请你确认具体路径；覆盖已有文件还要单独勾选。导出不会保存项目。
+参见[权限、审阅与撤销](/zh-cn/ai/control-and-review/)。

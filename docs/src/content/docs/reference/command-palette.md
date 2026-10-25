@@ -87,11 +87,11 @@ Settings:
   thickness` all reach it.
 - **Tick-label size** in the Object inspector's **Figure typography** section.
   `font size`, `tick size`, `points` and `figure typography` reach it. See
-  [Layout and export](/guides/layout-and-export/).
+  [Typography, themes and styles](/guides/themes-and-styles/#figure-typography).
 - **Window**, **LB** and **GB** on an apodization step in Processing.
   `apodization`, `window function`, `exponential`, `gaussian`, `LB`, `line
   broadening`, `GB` and `gaussian broadening` reach them. See
-  [Processing](/guides/processing/).
+  [Processing pipeline](/guides/processing/).
 - **Raster resolution**, the pixel density bitmap exports start from, on the
   **Export** page of Preferences. `export DPI`, `bitmap DPI`, `bitmap
   resolution` and `raster resolution` reach it. It stays available whatever is

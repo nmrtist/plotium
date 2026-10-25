@@ -17,6 +17,8 @@ Plotium 有几个名字相近的分析工具。从你想测量什么出发：
 | 用数学模型拟合 x-y 数据 | **曲线拟合** | 数据表（含系列表） | 带不确定度与诊断的参数 |
 | 构建化学位移 × 扩散系数图 | **DOSY…** | 具有有效扩散输入的频域谱堆叠 | 逐列或 ILT DOSY 图 |
 | 组间比较、相关性或正态性检验 | **统计** | 数据表 | 已保存的统计结果 |
+| 直接把复数 FID 拟合为共振组分 | **CRAFT…**（Process 菜单） | 带原始 FID 的 1D NMR 采集 | 各组分的频率、幅度、线宽与相位 |
+| 从 LC–MS 数据中提取质谱或离子色谱图 | **Extract Mass Spectrum** | LC–MS 数据（Waters、WIFF、mzML） | 提取质谱与 XIC |
 
 两个工具都像能用时的判断准则：
 
@@ -36,5 +38,6 @@ Plotium 有几个名字相近的分析工具。从你想测量什么出发：
 [同核 2D 对称审核](/zh-cn/guides/symmetry-review/)、
 [曲线拟合](/zh-cn/guides/curve-fitting/)、
 [统计](/zh-cn/guides/statistics/)，以及按数据类型的
-[伪 2D](/zh-cn/guides/pseudo-2d/)、[DOSY](/zh-cn/guides/dosy/) 与
-[电生理](/zh-cn/guides/electrophysiology/)指南。
+[伪 2D](/zh-cn/guides/pseudo-2d/)、[DOSY](/zh-cn/guides/dosy/)、
+[CRAFT](/zh-cn/guides/craft/)、[质谱](/zh-cn/guides/mass-spectrometry/)、
+[XPS](/zh-cn/guides/xps/) 与[电生理](/zh-cn/guides/electrophysiology/)指南。

@@ -10,7 +10,8 @@ Plotium 的处理是应用于原始数据的**有序步骤列表**。步骤可�
 更新后的谱图稍后自动显示。
 
 XPS 为每个谱区使用独立的有序 recipe，而不是 NMR 管线。recipe 包含能量窗口、平滑和
-归一化；电荷校正由同一测量位置的所有谱区共享。详见 [XPS](/zh-cn/guides/xps/)。
+归一化；电荷校正由同一测量位置的所有谱区共享。详见 [XPS](/zh-cn/guides/xps/)。XRD 图样改用
+**XRD Processing** 卡片，见 [Rigaku 粉末 XRD](/zh-cn/guides/supported-formats/#rigaku-粉末-xrd)。
 
 ## 典型的 1D 谱
 
@@ -180,7 +181,7 @@ Plotium 根据受支持的 `DSPFVS`/`DECIM` 设置确定延迟；否则延迟保
 可以看到默认值，旁边的重置按钮把它改回去。
 
 你自己添加的步骤没有这样的默认值——标准管线里没有与它对应的步骤——因此它既
-没有圆点也没有重置按钮。通过[自动化](/zh-cn/guides/automation/)对这类步骤请求
+没有圆点也没有重置按钮。通过脚本或 AI 客户端（见[设置 ID](/zh-cn/reference/settings-ids/)）对这类步骤请求
 重置时，该步骤会被报告为跳过，而不会把你选定的窗函数变成 *None*。
 
 ### 暂停自动重算时
@@ -214,7 +215,7 @@ Plotium 根据受支持的 `DSPFVS`/`DECIM` 设置确定延迟；否则延迟保
 只有 **Mode** 为 *Manual* 时才能编辑 φ0、φ1 和 pivot；使用自动算法时，
 每一行都会写明要先切换哪个开关。
 
-通过[自动化](/zh-cn/guides/automation/)读写时，这些值保持各自的单位：相位角
+通过脚本或 AI 客户端读写时（见[设置 ID](/zh-cn/reference/settings-ids/)），这些值保持各自的单位：相位角
 为弧度，pivot 为分数。
 
 二维数据使用所选自动方法，从最强实部或虚部信号所在的谱线估计相位，再对整个系列
@@ -254,11 +255,20 @@ Source 既可以直接输入，也可以在谱图上拾取：展开该步骤并�
 [用 CRAFT 处理 1D NMR](/zh-cn/guides/craft/)。
 
 
-## 自动化接口
+## 使用 AI 客户端
 
-桌面、CLI 和 MCP 复用原生处理与科学计算语义。操作及参数 schema 见
-[MCP 科学操作与任务](/zh-cn/reference/mcp/#科学操作与任务)；命令行可用
-[`tool run`](/zh-cn/reference/cli/#单步科学操作)。处理管线与方案、区域提取、
-扩散拟合及 DOSY/ILT 使用应用级任务回执，查询终态后再消费结果。后台提交是
-一个 Undo 步骤，Redo 复用结果；计算期间修改文档会使任务过期。扩散检查报告
-SI 单位和来源证据，结果检查提供分页诊断；`empty` 不代表有效科学结论。
+也可以让连接到 Plotium 的 AI 客户端替你修改处理，例如：
+
+> 只改名为 Sample A 的谱：把 Exponential 窗的 LB 设为 0.3 Hz，其他步骤保持不变。
+
+> 把配方 `/absolute/path/routine.plotiumproc` 应用到我选中的、兼容的数据集上，并告诉我跳过了哪些。
+
+每次处理修改在计算完成后出现在 Plotium 里，是一步 Undo；计算期间若编辑了项目，
+结果会作废而不会被应用。使用结果前请先检查重新计算出的谱。参见
+[权限、审阅与撤销](/zh-cn/ai/control-and-review/)。
+
+## 脚本接口
+
+脚本和 AI 客户端运行的处理操作与桌面端相同；参见
+[MCP 科学运算](/zh-cn/reference/mcp/scientific/)和
+[`plotium-cli tool run`](/zh-cn/reference/cli/#单步科学操作)。

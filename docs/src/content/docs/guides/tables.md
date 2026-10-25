@@ -90,84 +90,46 @@ instead of guessing which row is which.
 These transforms can also run unattended as part of a batch job — see
 [Automation](/guides/automation/) and [the command line](/reference/cli/).
 
-## Chart types
+## Exporting a table
 
-Select a plot made from a table and pick a chart in the **Chart type** gallery
-of the Object inspector. **Chart** on the Ribbon's **Figure** tab jumps there
-directly: it selects the table's plot and opens the inspector.
+**Export Data…** exports the complete table as CSV, TSV, XLSX, or clipboard
+TSV. Empty cells stay empty, while `NaN`, `+Inf`, and `-Inf` are written as
+those literal tokens because they are real values, not blanks. CSV, TSV and
+XLSX carry the table's column types, units, and error-bar relationships
+alongside the data (clipboard TSV does too on Windows), so the table can be
+imported again without losing them; see
+[Plotium files](/reference/file-formats/#table-schema-companions). For export
+options, see [Export numerical data](/guides/exporting/#export-numerical-data).
 
-Picking a chart is picking the question it answers: to follow values along an
-axis, use **Line**; to compare quantities across categories, **Bar** or
-**Grouped bars**; to show how one column's values are distributed,
-**Histogram**; to compare distributions across several columns at a glance,
-**Box** or **Violin**; to show parts of a whole, **Pie**; and to see an
-entire matrix of values at once, **Heatmap** or **Surface 3D**.
+## Analyzing a table
 
-- **Line** — one point series per column against the x axis, with fitted
-  curves overlaid when present.
-- **Bar** — one chosen column as filled bars on the numeric x axis.
-- **Grouped bars** — every column side by side, one group per row; check
-  **Stacked** to pile the columns instead (positive values stack upward,
-  negative downward).
-- **Histogram** — the value distribution of one chosen column. Bins follow the
-  Freedman–Diaconis rule; uncheck **Auto bins** to set a fixed **Bins** count
-  between 1 and 512. The count you inherit is the one the automatic rule just
-  produced, so unchecking the box leaves the histogram as it was.
-- **Box** — one box per column: median, quartile box, 1.5 × IQR whiskers, and
-  individual outlier points.
-- **Violin** — one kernel-density silhouette per column with an inner quartile
-  bar (columns need at least two distinct values; degenerate columns fall back
-  to raw points).
-- **Heatmap** — the whole table as a colormapped matrix with rows reading
-  top-to-bottom; pick the colormap in the inspector.
-- **Pie** — one chosen column as wedges, one per row, labeled with
-  percentages. Negative and missing rows are excluded.
-- **Surface 3D** — the table as a height field in a fixed orthographic view;
-  adjust the azimuth/elevation angles and the colormap in the inspector.
+- To plot a table's columns and pick a chart type, see
+  [Plots and chart types](/guides/plots-and-charts/), including
+  [error bars](/guides/plots-and-charts/#error-bars).
+- To fit x-y values with a mathematical model, choose **Fit Curves** in the
+  **Curve Fit** group of the **Analyze** tab; see
+  [Curve fitting](/guides/curve-fitting/). The fitted curves and their results
+  stay with the table. A completed fit records which rows it used, and which it
+  excluded and why, so later edits to the table cannot quietly change the points
+  the result was based on. To export parameters, diagnostics, covariance, and
+  point predictions/residuals, use **Export Data…** and choose **Curve-fit
+  parameters**; the export lists the included and excluded rows.
+- To compare groups, test correlations, check normality, or run ANOVA, choose
+  **Statistics** in the **Analyze** tab; see [Statistics](/guides/statistics/).
+- To separate overlapping spectral peaks in a plotted trace, use **Peak Fit**
+  instead; see [Choosing an analysis tool](/guides/choosing-a-tool/).
 
-Grouped bars, Box, Violin, Heatmap, and Surface 3D use all columns at once;
-Bar, Histogram, and Pie read the single column selected next to the gallery.
-Every chart renders identically on screen and in SVG/PDF/EMF export.
+## With an AI client
 
-## Plotting from tables
+You can ask an AI client connected to Plotium to change table data for you, for
+example:
 
-Error bars come from a column holding the uncertainty of another column. Tables
-produced by Plotium's analysis tools already carry these, and an imported table
-carries whichever its file describes — a symmetric ±σ, separate lower and upper
-errors, or a confidence interval with its level. To add error bars to your own
-data, put a column named `<y>_sigma` immediately after a y column in a CSV or
-TSV, holding each point's uncertainty (zero or positive); on import Plotium links
-it to that y column as a symmetric standard deviation. Before plotting, Plotium
-checks that a value column and its uncertainty share compatible units. Line,
-Bar, and unstacked Grouped-bar charts draw these as vertical error bars and
-widen the y-axis range so the bars stay fully visible.
+> Change only this source cell, show which derived tables are out of date, then
+> refresh this table. Keep my colors, axis ranges and layout.
 
-To fit x-y values with a mathematical model, choose **Fit Curves** in the **Curve Fit** group of
-the **Analyze** tab. A Curve Fit task card opens at the upper-right of the
-canvas: choose a model, fit every curve or one selected curve, then choose
-**Run Fit**. See [Curve fitting](/guides/curve-fitting/) for the built-in
-models, custom models, shared (global) parameters, weighting and robust-loss
-options, and fit diagnostics. The fitted curves and their results stay with the
-table.
-Use **Export Data…** and choose **Curve-fit parameters** to export parameters,
-diagnostics, covariance, and point predictions/residuals.
-A completed fit records exactly which rows it used, and which it excluded and
-why, so later edits to the table cannot quietly change which points the result
-was based on. The curve-fit export lists those included and excluded rows.
+> Make a new table from this one with a column equal to current × 2, keep only
+> rows where time is not 0, and sort by time descending.
 
-**Export Data…** can also export the complete table as CSV, TSV, XLSX, or
-clipboard TSV. Empty cells stay empty, while `NaN`, `+Inf`, and `-Inf` are
-written as those literal tokens because they are real values, not blanks. Each
-of these formats carries the table's column types, units, and error-bar
-relationships alongside the data — in the `.plotium-schema.json` companion for
-CSV and TSV, on a hidden worksheet for XLSX, or in the clipboard payload for
-Copy TSV — so a `<y>_sigma` column name is only needed when you hand-build a
-file that has none.
-
-**Peak Fit** is a separate tool: use it when a plotted trace contains
-overlapping spectral peaks that need to be deconvolved — see
-[Choosing an analysis tool](/guides/choosing-a-tool/).
-
-To compare groups, test correlations, check normality, or run ANOVA on a
-table's columns, choose **Statistics** in the **Analyze** tab. See
-[Statistics](/guides/statistics/).
+Editing a cell and refreshing a derived table are separate Undo steps, and your
+plot styling stays. A derived table is a new table; its source is not changed.
+Check the refreshed values before you rely on them. See [Access, review and undo](/ai/control-and-review/).

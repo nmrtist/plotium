@@ -3,7 +3,7 @@ title: Organizing data
 description: Browse datasets and their derived results, and save your work as a project.
 ---
 
-## The data browser
+## The Data browser
 
 Switch the Primary Side Bar to **Data** to see a searchable tree of everything
 in the project. Imported datasets are roots. Slices, projections,
@@ -56,8 +56,7 @@ are hidden while browsing data.
 `Ctrl` + `S` opens the project save options. A `.plotium` project file stores the
 whole session — imported data, processing, analysis results, and layout — so
 it reopens exactly where you left off and can be shared as a single file. See
-[File formats](/reference/file-formats/) for what the file contains and how
-versions are handled.
+[Plotium files](/reference/file-formats/) for what the file contains.
 
 Saving runs in the background. If you continue editing while it runs, the
 completed file contains the revision captured when saving began and Plotium
