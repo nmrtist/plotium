@@ -250,7 +250,7 @@ nonzero exit code. Optional `--output` saves the native project. `process` also
 uses the shared scheme service before exporting its default plot.
 
 Without an input, `tool run` starts from an empty project. Use this to begin
-from CSV or TSV tables, which are imported with `data.import` rather than
+from CSV, TSV or XLSX tables, which are imported with `data.import` rather than
 loaded as an input. Import paths must be absolute.
 
 ```sh

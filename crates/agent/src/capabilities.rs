@@ -95,7 +95,7 @@ const PURPOSES: [(&str, &str); 28] = [
     ),
     (
         "data.import",
-        "Import CSV/TSV tables or native acquisitions",
+        "Import CSV/TSV/XLSX tables or native acquisitions",
     ),
     (
         "data.transform",

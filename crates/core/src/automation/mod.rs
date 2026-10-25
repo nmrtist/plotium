@@ -5,6 +5,7 @@
 mod native_import;
 pub use native_import::*;
 mod table_import;
+mod table_import_xlsx;
 mod table_provenance;
 mod table_read;
 mod table_transform;
