@@ -154,8 +154,10 @@ fn xlsx_rejects_csv_only_options_and_csv_rejects_sheets() {
 
 #[test]
 fn native_import_points_tables_at_table_data_only() {
-    let params: NativeImportParams =
-        serde_json::from_value(json!({"paths":["/data/Source Data.xlsx"]})).unwrap();
+    // A path that is absolute on every platform, so validation reaches the
+    // extension check.
+    let path = std::env::temp_dir().join("Source Data.xlsx");
+    let params: NativeImportParams = serde_json::from_value(json!({"paths":[path]})).unwrap();
     let message = params.validate().unwrap_err().to_string();
     assert!(message.contains("mode table_data_only"), "{message}");
 }
