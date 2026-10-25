@@ -50,8 +50,8 @@ Importing a table, from a file or the clipboard, first opens a **Review table
 import** dialog. It shows each column's inferred type and unit, whether the
 column allows empty cells, a preview of the first rows, and any import
 diagnostics. Choose **Import table** to add it, or **Cancel** to leave your
-project and recent-file list untouched. An XLSX workbook with several sheets
-adds a **Table** selector so you can preview each worksheet; a single **Import
+project and recent-file list untouched. An XLSX workbook with several tables
+adds a **Table** selector so you can preview each one; a single **Import
 table** brings them all in as separate tables. While a preview is pending,
 selecting a second table file is rejected; finish or cancel the current preview
 first.
@@ -111,6 +111,32 @@ Excel cached for each formula but does not recalculate formulas itself; a
 formula cell with no cached value imports as empty and is listed in the
 diagnostics. Exported XLSX files hold plain values, so they never depend on
 Excel recalculating them.
+
+### Source Data worksheets
+
+Worksheets laid out like journal Source Data are split into clean tables:
+
+- **Side-by-side panels.** Fully empty columns separate tables, and so do
+  panel letters (`a`, `b`, …) on the first row. Each table is named after the
+  worksheet and its panel letter, such as *Figure 3 b*; without a letter, the
+  name adds the panel's title row or its range, such as *Figure 2 H1:W2003*.
+- **Several header rows.** All rows above the first value form the header. A
+  row with a single cell is the table's title; the other rows are joined into
+  each column's name. Sample names written over only one column of each x/y
+  pair are shared by the whole pair. Columns without a header are named by
+  their letter, such as *Column AE*.
+- **Placeholders.** In numeric columns, placeholders such as `--`, `NaN`,
+  `N/A` and `n.d.`, and any other text among the values, are read as empty
+  cells; notes below the values are ignored.
+- **Stacked segments.** When a repeated header row interrupts the numeric
+  columns of a group, as cyclers export charge and discharge, each segment
+  becomes its own column, numbered *(1)*, *(2)*, … and aligned with the
+  matching x column. A group is the columns that share one sample name, or
+  the whole table when there are no sample names.
+
+The diagnostics give each table's range and every change, so you can check
+them in the review dialog. A worksheet with one row of distinct text headers
+over one block of plain data is read as it is.
 
 ## Supplying a missing NMR sampling table
 

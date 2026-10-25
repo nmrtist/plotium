@@ -22,7 +22,7 @@ Plotium 直接读取厂商 NMR、LC–MS、XRD、XPS、AFM 与电生理格式，
 | CasaXPS 文本 | `.txt` | 含原始谱、背景、包络、组件和拟合参数的结构化八行头导出 |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | 图像、力曲线、Force Volume 与 PeakForce Capture 数据立方体 |
 | Axon Binary Format 2 | `.abf` | int16/float32、多通道、多 sweep，以及文件内 DAC/epoch 刺激 |
-| 表格数据 | `.csv`、`.tsv`、`.txt`、`.xlsx` | 保留列类型与空单元格；每个 XLSX 工作表导入为独立数据表 |
+| 表格数据 | `.csv`、`.tsv`、`.txt`、`.xlsx` | 保留列类型与空单元格；每个 XLSX 工作表或 Source Data 面板导入为独立数据表 |
 | Origin 项目（实验性） | `.opj`、`.opju` | 两种经验证的 OPJ 配置中的工作表；不导入图形，`.opju` 仅作识别 |
 | Zip 压缩包 | `.zip` | 打包的数据文件夹 |
 | Plotium 项目 | `.plotium` | 完整项目：数据、处理与排版；见 [Plotium 文件](/zh-cn/reference/file-formats/) |

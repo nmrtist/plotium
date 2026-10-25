@@ -100,7 +100,7 @@ pub(super) fn import_xlsx_table_path(app: &mut PlotiumApp, path: &std::path::Pat
             .map(str::to_owned);
         source.metadata.insert(
             "space.nmrtist.plotium.import.worksheet".into(),
-            serde_json::Value::String(sheet.name.clone()),
+            serde_json::Value::String(sheet.worksheet.clone()),
         );
         source.metadata.insert(
             "space.nmrtist.plotium.import.formula_policy".into(),
@@ -129,7 +129,7 @@ pub(super) fn import_xlsx_table_path(app: &mut PlotiumApp, path: &std::path::Pat
             )
             .with_source("core.xlsx")
             .with_context("path", path.display().to_string())
-            .with_context("worksheet", sheet.name.clone()),
+            .with_context("worksheet", sheet.worksheet.clone()),
         );
         for diagnostic in sheet.diagnostics {
             report = report.with_diagnostic(
@@ -140,7 +140,7 @@ pub(super) fn import_xlsx_table_path(app: &mut PlotiumApp, path: &std::path::Pat
                 )
                 .with_source("core.xlsx")
                 .with_context("path", path.display().to_string())
-                .with_context("worksheet", sheet.name.clone()),
+                .with_context("worksheet", sheet.worksheet.clone()),
             );
         }
     }

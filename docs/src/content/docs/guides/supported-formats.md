@@ -23,7 +23,7 @@ see [Importing data](/guides/importing-data/).
 | CasaXPS text | `.txt` | Structured eight-line export with raw spectrum, background, envelope, components, and fitted parameters |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | Images, force curves, force-volume and PeakForce Capture cubes |
 | Axon Binary Format 2 | `.abf` | int16/float32, multiple channels and sweeps, embedded DAC/epoch stimuli |
-| Tabular data | `.csv`, `.tsv`, `.txt`, `.xlsx` | Column types and empty cells preserved; one table per XLSX worksheet |
+| Tabular data | `.csv`, `.tsv`, `.txt`, `.xlsx` | Column types and empty cells preserved; one table per XLSX worksheet or Source Data panel |
 | Origin project (experimental) | `.opj`, `.opju` | Worksheets from two verified OPJ profiles; graphs are not imported, and `.opju` is detection-only |
 | Zip archive | `.zip` | An archived dataset folder |
 | Plotium project | `.plotium` | Full project: data, processing, and layout; see [Plotium files](/reference/file-formats/) |

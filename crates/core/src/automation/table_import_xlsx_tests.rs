@@ -16,6 +16,7 @@ fn sheet(name: &str, rows: Vec<Vec<XlsxCell>>) -> XlsxSheet {
     XlsxSheet {
         name: name.into(),
         hidden: false,
+        origin: (0, 0),
         rows,
     }
 }
@@ -235,4 +236,32 @@ fn xlsx_rejects_a_declared_schema() {
         error.contains("declared schema applies to CSV/TSV"),
         "{error}"
     );
+}
+
+#[test]
+fn xlsx_regions_import_only_the_named_ranges_and_fail_alone() {
+    let path = workbook(vec![curve("Figure 1", 1.0), curve("Figure 2", 5.0)]);
+    let regions = json!([
+        {"sheet":"Figure 2","range":"B1:B3","name":"Current"},
+        {"sheet":"Figure 2","range":"F1:G3"}
+    ]);
+    let preflight =
+        prepare(json!({"mode":"table_data_only","paths":[path],"regions":regions})).preflight();
+    let items = preflight["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2, "{preflight}");
+    assert_eq!(items[0]["sheet"], "Figure 2");
+    assert_eq!(items[0]["range"], "B1:B3");
+    assert_eq!(items[0]["metadata"]["columns"][0]["name"], "Current (mA)");
+    assert_eq!(items[1]["status"], "failed");
+    assert_eq!(items[1]["range"], "F1:G3");
+
+    let unknown = prepare(
+        json!({"mode":"table_data_only","paths":[path],"regions":[{"sheet":"Figure 9","range":"A:B"}]}),
+    );
+    std::fs::remove_file(&path).unwrap();
+    let error = unknown.preflight()["items"][0]["error"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(error.contains("'Figure 9'"), "{error}");
 }
