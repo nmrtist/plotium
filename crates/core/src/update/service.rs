@@ -15,7 +15,6 @@ const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
 #[derive(Clone, Debug, PartialEq)]
 pub enum UpdateStatus {
     Idle,
-    ManualInstall,
     Checking,
     UpToDate,
     Downloading {
@@ -36,6 +35,9 @@ pub enum UpdateStatus {
         message: String,
         retry_after: Option<Duration>,
     },
+    Warning {
+        message: String,
+    },
 }
 
 impl UpdateStatus {
@@ -43,7 +45,6 @@ impl UpdateStatus {
     pub fn label(&self) -> String {
         match self {
             UpdateStatus::Idle => String::new(),
-            UpdateStatus::ManualInstall => "Install updates by replacing Plotium.app from a new DMG. Your projects and preferences are kept.".into(),
             UpdateStatus::Checking => "Checking for updates…".into(),
             UpdateStatus::UpToDate => "You're up to date.".into(),
             UpdateStatus::Downloading {
@@ -56,6 +57,7 @@ impl UpdateStatus {
                 format!("Update {version} ready — restart to install.")
             }
             UpdateStatus::Failed { message, .. } => format!("Update failed: {message}"),
+            UpdateStatus::Warning { message } => message.clone(),
         }
     }
 
@@ -66,6 +68,7 @@ impl UpdateStatus {
                 | UpdateStatus::Ready { .. }
                 | UpdateStatus::Installed { .. }
                 | UpdateStatus::Failed { .. }
+                | UpdateStatus::Warning { .. }
         )
     }
 }
@@ -75,7 +78,6 @@ impl UpdateStatus {
 /// the frame loop drains without blocking. Automatic checks fail silently
 /// (back to `Idle`); manual checks surface their errors.
 pub struct UpdateService {
-    manual_install: bool,
     status: UpdateStatus,
     rx: Option<Receiver<UpdateStatus>>,
     manual: bool,
@@ -86,14 +88,7 @@ pub struct UpdateService {
 
 impl UpdateService {
     pub fn new(settings: &UpdateSettings) -> Self {
-        let manual_install = std::env::current_exe()
-            .is_ok_and(|path| crate::installation::requires_manual_update(&path));
-        Self::new_with_delivery(settings, manual_install)
-    }
-
-    fn new_with_delivery(settings: &UpdateSettings, manual_install: bool) -> Self {
         let mut service = Self {
-            manual_install,
             status: UpdateStatus::Idle,
             rx: None,
             manual: false,
@@ -102,17 +97,23 @@ impl UpdateService {
             next_auto_check: None,
         };
         service.configure(settings);
+        if let Some(message) = super::install::take_warning() {
+            service.status = UpdateStatus::Warning { message };
+            service.next_auto_check = None;
+        }
+        if let Some(message) = super::install::take_failure() {
+            service.status = UpdateStatus::Failed {
+                message,
+                retry_after: None,
+            };
+            service.next_auto_check = None;
+        }
         service
     }
 
     /// Reconcile to a settings snapshot. Idempotent; safe to call on every
     /// settings edit. Enabling auto-check schedules a near-immediate check.
     pub fn configure(&mut self, settings: &UpdateSettings) {
-        if self.manual_install {
-            self.status = UpdateStatus::ManualInstall;
-            self.next_auto_check = None;
-            return;
-        }
         let channel = settings.channel.resolve();
         let channel_changed = channel != self.channel;
         self.channel = channel;
@@ -146,10 +147,6 @@ impl UpdateService {
         &self.status
     }
 
-    pub fn requires_manual_install(&self) -> bool {
-        self.manual_install
-    }
-
     pub fn is_busy(&self) -> bool {
         self.rx.is_some()
     }
@@ -163,9 +160,6 @@ impl UpdateService {
     /// check. Returns true while a check/download is in flight so the caller
     /// keeps repainting.
     pub fn tick(&mut self) -> bool {
-        if self.manual_install {
-            return false;
-        }
         if let Some(rx) = &self.rx {
             let mut finished = false;
             while let Ok(status) = rx.try_recv() {
@@ -215,10 +209,6 @@ impl UpdateService {
 
     /// Extract a downloaded update and prepare its post-exit helper.
     pub fn install(&mut self) {
-        if self.manual_install {
-            self.status = UpdateStatus::ManualInstall;
-            return;
-        }
         if self.rx.is_some() {
             return;
         }
@@ -228,7 +218,7 @@ impl UpdateService {
         let (tx, rx) = std::sync::mpsc::channel();
         self.rx = Some(rx);
         thread::spawn(move || {
-            let status = match super::install::prepare(&path) {
+            let status = match super::install::prepare(&path, &version) {
                 Ok(plan) => UpdateStatus::Installed { version, plan },
                 Err(e) => UpdateStatus::Failed {
                     message: e.to_string(),
@@ -254,10 +244,6 @@ impl UpdateService {
     }
 
     fn start_check(&mut self, manual: bool) {
-        if self.manual_install {
-            self.status = UpdateStatus::ManualInstall;
-            return;
-        }
         if self.rx.is_some() {
             self.manual = self.manual || manual;
             return;
@@ -351,21 +337,26 @@ mod tests {
     use crate::update::UpdateChannelSetting;
 
     #[test]
-    fn bundle_never_downloads_or_stages_binary_updates_and_keeps_settings() {
-        let settings = UpdateSettings::default();
-        let mut service = UpdateService::new_with_delivery(&settings, true);
-        assert!(service.requires_manual_install());
-        service.configure(&settings);
-        service.check_now();
-        service.install();
+    fn helper_failure_reaches_next_launch_and_waits_for_manual_retry() {
+        super::super::install::record_failure(&super::super::UpdateError::Integrity);
+        let mut service = UpdateService::new(&UpdateSettings::default());
+        assert!(
+            matches!(service.status(), UpdateStatus::Failed { message, .. } if message.contains("integrity"))
+        );
+        assert!(service.next_check_delay().is_none());
         assert!(!service.tick());
-        assert!(!service.is_busy());
-        assert_eq!(service.next_check_delay(), None);
-        assert_eq!(service.status(), &UpdateStatus::ManualInstall);
-        assert!(settings.auto_check);
-        let portable = UpdateService::new_with_delivery(&settings, false);
-        assert!(!portable.requires_manual_install());
-        assert!(portable.next_check_delay().is_some());
+        assert!(super::super::install::take_failure().is_none());
+        let message = "Update installed, but could not reopen Plotium; open it manually";
+        let warning = crate::settings::config_dir()
+            .unwrap()
+            .join("update-warning.txt");
+        std::fs::write(&warning, message).unwrap();
+        let mut service = UpdateService::new(&UpdateSettings::default());
+        assert!(matches!(service.status(), UpdateStatus::Warning { .. }));
+        assert_eq!(service.status().label(), message);
+        assert!(service.next_check_delay().is_none());
+        assert!(!service.tick());
+        assert!(!warning.exists());
     }
 
     #[test]

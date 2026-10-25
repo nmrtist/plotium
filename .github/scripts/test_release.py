@@ -115,14 +115,19 @@ class ReleaseTests(unittest.TestCase):
                 with self.subTest(outputs=outputs), patch("subprocess.check_output", side_effect=outputs), self.assertRaises(ValueError):
                     inspect_binary(binary, "arm64")
 
-    def test_collection_requires_the_exact_four_zip_and_two_dmg_names(self):
+    def test_collection_requires_two_zips_and_two_architecture_dmgs(self):
+        self.assertEqual(expected_assets("0.2.0"), [
+            "plotium-0.2.0-linux-x86_64.zip", "plotium-0.2.0-macos-aarch64.dmg",
+            "plotium-0.2.0-macos-x86_64.dmg",
+            "plotium-0.2.0-windows-x86_64.zip",
+        ])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             for name in expected_assets("0.1.0"):
                 (directory / name).write_bytes(b"release asset")
             collect(directory, "0.1.0")
             sums = (directory / "SHA256SUMS").read_text().splitlines()
-            self.assertEqual(len(sums), 6)
+            self.assertEqual(len(sums), 4)
             self.assertEqual([line.split("  ")[1] for line in sums], expected_assets("0.1.0"))
             (directory / "plotium-0.1.0-macos-aarch64.dmg").unlink()
             with self.assertRaises(ValueError):
@@ -131,13 +136,21 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 collect(directory, "0.1.0")
 
+    def test_collection_rejects_extra_macos_zip_downloads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for name in expected_assets("0.2.0") + ["plotium-0.2.0-macos-aarch64.zip"]:
+                (directory / name).write_bytes(b"package")
+            with self.assertRaises(ValueError):
+                collect(directory, "0.2.0")
+
     def test_flat_zip_retains_gui_connector_extension_and_licenses(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            target = "aarch64-apple-darwin"
+            target = "x86_64-pc-windows-msvc"
             binaries = root / "target" / target / "release"
             binaries.mkdir(parents=True)
-            for name in ("plotium", "plotium-mcp"):
+            for name in ("plotium.exe", "plotium-mcp.exe"):
                 (binaries / name).write_bytes(b"binary")
             for name in ("LICENSE", "COPYRIGHT.md", "README.md"):
                 (root / name).write_text(name)
@@ -156,9 +169,9 @@ class ReleaseTests(unittest.TestCase):
                     patch.dict("os.environ", {"CARGO_TARGET_DIR": str(root / "target")}):
                 package_portable.package(target, root / "dist", skip_build=True)
                 smoke.assert_called_once()
-            with zipfile.ZipFile(root / "dist/plotium-0.1.0-macos-aarch64.zip") as archive:
+            with zipfile.ZipFile(root / "dist/plotium-0.1.0-windows-x86_64.zip") as archive:
                 self.assertEqual(set(archive.namelist()), {
-                    "plotium", "plotium-mcp", "plotium.mcpb", "LICENSE", "COPYRIGHT.md",
+                    "plotium.exe", "plotium-mcp.exe", "plotium.mcpb", "LICENSE", "COPYRIGHT.md",
                     "README.md", "THIRD-PARTY-LICENSES.html", "MCP-THIRD-PARTY-LICENSES.html",
                 })
 

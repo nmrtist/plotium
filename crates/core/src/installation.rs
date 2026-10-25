@@ -12,8 +12,8 @@ pub fn macos_bundle_contents(executable: &Path) -> Option<&Path> {
     .then_some(contents)
 }
 
-/// Only macOS application bundles need whole-app replacement by DMG.
-pub fn requires_manual_update(executable: &Path) -> bool {
+/// Bundle installations select whole-app DMG updates instead of portable ZIPs.
+pub fn uses_bundle_updates(executable: &Path) -> bool {
     cfg!(target_os = "macos") && macos_bundle_contents(executable).is_some()
 }
 
@@ -35,11 +35,8 @@ mod tests {
             "/tmp/Plotium.app/Contents/plotium",
         ] {
             assert_eq!(macos_bundle_contents(Path::new(path)), None);
-            assert!(!requires_manual_update(Path::new(path)));
+            assert!(!uses_bundle_updates(Path::new(path)));
         }
-        assert_eq!(
-            requires_manual_update(executable),
-            cfg!(target_os = "macos")
-        );
+        assert_eq!(uses_bundle_updates(executable), cfg!(target_os = "macos"));
     }
 }

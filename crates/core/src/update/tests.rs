@@ -119,6 +119,46 @@ fn check_latest_accepts_github_asset_digest_without_fetching_checksums() {
 }
 
 #[test]
+fn bundle_delivery_selects_dmg_and_never_falls_back_to_portable_zip() {
+    let architecture = std::env::consts::ARCH;
+    let hash = "ab".repeat(32);
+    let filename = format!(
+        "plotium-0.2.1-{}-{}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+    let base = serve_sequence(|base| {
+        vec![MockResponse::json(
+            "/releases?per_page=100&page=1",
+            format!(
+                r#"[{{"tag_name":"v0.2.1","draft":false,"assets":[
+            {{"name":"{filename}.zip","browser_download_url":"{base}/portable.zip","digest":"sha256:{hash}"}},
+            {{"name":"plotium-0.2.1-macos-{architecture}.dmg","browser_download_url":"{base}/bundle.dmg","digest":"sha256:{hash}"}}
+        ]}}]"#
+            ),
+        )]
+    });
+    let asset = super::protocol::check_latest_for_delivery(&base, UpdateChannel::Stable, true)
+        .unwrap()
+        .unwrap();
+    assert!(asset.url.ends_with("/bundle.dmg"));
+    assert_eq!(asset.sha256, hash);
+    let base = serve_sequence(|base| {
+        vec![MockResponse::json(
+            "/releases?per_page=100&page=1",
+            format!(
+                r#"[{{"tag_name":"v0.2.1","draft":false,"assets":[
+            {{"name":"{filename}.zip","browser_download_url":"{base}/portable.zip","digest":"sha256:{hash}"}}
+        ]}}]"#
+            ),
+        )]
+    });
+    assert!(
+        super::protocol::check_latest_for_delivery(&base, UpdateChannel::Stable, true).is_err()
+    );
+}
+
+#[test]
 fn check_latest_scans_beyond_one_thousand_releases() {
     let hash = "ef".repeat(32);
     let base = serve_sequence(|base| {

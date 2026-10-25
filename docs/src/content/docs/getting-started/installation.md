@@ -23,9 +23,10 @@ These portable packages do not need an installer.
 | macOS Intel | `macos-x86_64.dmg` | macOS 13+ |
 | macOS Apple Silicon | `macos-aarch64.dmg` | macOS 13+ |
 
-The release's `SHA256SUMS` file covers all ZIPs and DMGs. The macOS portable
-ZIPs remain available under their existing names and contain the flat executables
-and MCP companions, not an application bundle.
+Choose **Intel Mac** for an Intel processor, or **Apple Silicon (M series)** for
+an M-series chip. You can check **Apple menu → About This Mac**. Each Mac has one
+matching DMG; macOS ZIPs are not published from 0.2.0 onward. Windows and Linux
+each have one ZIP download. `SHA256SUMS` covers all four packages.
 
 The current DMGs contain **ad-hoc-signed, unnotarized** apps. This verifies local
 bundle integrity, not an Apple-identified developer or approval for Internet
@@ -35,8 +36,8 @@ distribution. Gatekeeper can block a downloaded copy; see First launch below.
 
 The macOS application bundle already includes the MCP connector and Claude
 Desktop extension. Keep the app intact; do not move files out of its Contents.
-For portable ZIP installations, keep `plotium-mcp` (`plotium-mcp.exe` on Windows)
-beside the main executable. macOS and Windows ZIPs also include `plotium.mcpb`.
+For Windows and Linux ZIP installations, keep `plotium-mcp` (`plotium-mcp.exe` on Windows)
+beside the main executable. Windows ZIPs also include `plotium.mcpb`.
 
 When you are ready, follow [Connect an AI client](/ai/connect/).
 Each client only needs to be added once.
@@ -51,8 +52,11 @@ may warn before the first run:
 - **macOS** — follow the actual Gatekeeper message. Current DMGs are not
   Developer ID signed or notarized, so a local build launching successfully does
   not establish that a downloaded copy will be accepted. See Apple's
-  [safety guidance](https://support.apple.com/en-us/102445) before deciding whether
-  to allow an app. Do not ignore a malware or damaged-app warning.
+  [safety guidance](https://support.apple.com/en-us/102445). If you trust the
+  downloaded copy, try opening it once, then use **System Settings → Privacy &
+  Security → Open Anyway** if offered and confirm the app name. Do not disable
+  Gatekeeper or remove quarantine attributes. Do not ignore a malware or
+  damaged-app warning.
 
 On first launch Plotium shows a welcome screen. Drag a data file onto the window
 or use **File → Open File…** to get started — the
@@ -79,10 +83,10 @@ them. Deleting the folder resets Plotium to its defaults.
 
 ## Updating and uninstalling
 
-For a macOS `.app` installation, quit Plotium with **Command-Q**, download the
-new DMG, and replace Plotium.app in Applications. This keeps your projects and
-preferences. Bundle installations do not use the portable binary updater.
-Portable ZIP installations retain background updates; see [Updates](/reference/updates/).
+From Plotium 0.2.0, macOS `.app` and Windows/Linux ZIP installations support
+background updates; see [Updates](/reference/updates/). To update a macOS app
+manually, quit with **Command-Q**, download the new DMG, and replace Plotium.app
+in Applications. Projects and preferences are kept.
 To uninstall, delete Plotium.app (or the portable application folder) and,
 if you want a clean slate, the configuration folder above.
 

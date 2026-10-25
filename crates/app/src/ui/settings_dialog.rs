@@ -172,16 +172,11 @@ fn render_category(
     match cat {
         SettingsCategory::General => {
             properties::panel::preferences_section(app, SettingsCategory::General.section_id(), ui);
-            let automatic = !app.session.updates.requires_manual_install();
-            ui.add_enabled_ui(automatic, |ui| {
-                properties::panel::preferences_section(
-                    app,
-                    properties::panel::PREFERENCES_UPDATES_SECTION,
-                    ui,
-                );
-            })
-            .response
-            .on_disabled_hover_text("Install updates from a new DMG for this application bundle.");
+            properties::panel::preferences_section(
+                app,
+                properties::panel::PREFERENCES_UPDATES_SECTION,
+                ui,
+            );
             update_status_row(ui, &mut app.session.updates);
         }
         SettingsCategory::Appearance => {

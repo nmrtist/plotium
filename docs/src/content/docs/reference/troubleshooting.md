@@ -59,6 +59,12 @@ silent by design. Use **Check now** in **Preferences → General** to get an
 explicit result, and check your update channel — switching to a more stable
 channel never downgrades, it waits for the next release.
 
+**A macOS app cannot install its update.** Eject the installation DMG and run
+Plotium from Applications or a writable local folder. Allow application updates
+if macOS asks. A post-exit installation error appears under **Preferences →
+General** on the next launch; retry with **Check now** or install a new DMG
+manually. See [Updates](/reference/updates/).
+
 **A project opens with a missing-image placeholder.** The embedded resource is
 missing, damaged, or fails its integrity check. Check **Operation
 and Diagnostic History**, select the placeholder, and use **Replace Image…**.

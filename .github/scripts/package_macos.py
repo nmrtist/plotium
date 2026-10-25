@@ -11,7 +11,8 @@ import sys
 import tempfile
 
 from dmg_layout import validate_layout, write_layout
-from package_portable import PLATFORMS, package, run
+import package_mcp
+from package_portable import PLATFORMS, stage, run
 from release_version import ROOT, apple_versions
 
 TARGETS = {"aarch64-apple-darwin": "arm64", "x86_64-apple-darwin": "x86_64"}
@@ -160,8 +161,9 @@ def create_dmg(staging, dmg):
 def create(target, output, skip_build=False, skip_connector_smoke=False):
     if sys.platform != "darwin":
         raise RuntimeError("macOS packaging requires macOS and Apple command-line tools")
-    directory, version = package(target, output, skip_build, skip_connector_smoke)
+    directory, version = stage(target, output, skip_build)
     platform = PLATFORMS[target]
+    package_mcp.package(directory, platform, version, runtime_smoke=not skip_connector_smoke)
     staging = output / f"dmg-{platform}"
     if staging.exists():
         shutil.rmtree(staging)

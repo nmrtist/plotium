@@ -49,6 +49,8 @@ pub enum UpdateError {
     Http(String),
     #[error("update server sent an invalid response: {0}")]
     Protocol(String),
+    #[error("couldn't prepare or install the update: {0}")]
+    Installation(String),
     #[error("GitHub rate limit reached; retry in {retry_after:?}")]
     RateLimited { retry_after: Duration },
     #[error("invalid version string {version:?}: {source}")]
@@ -83,6 +85,16 @@ pub fn check_latest(
     base_url: &str,
     channel: UpdateChannel,
 ) -> Result<Option<ReleaseAsset>, UpdateError> {
+    let bundle =
+        std::env::current_exe().is_ok_and(|path| crate::installation::uses_bundle_updates(&path));
+    check_latest_for_delivery(base_url, channel, bundle)
+}
+
+pub(super) fn check_latest_for_delivery(
+    base_url: &str,
+    channel: UpdateChannel,
+    bundle: bool,
+) -> Result<Option<ReleaseAsset>, UpdateError> {
     let base_url = base_url.trim_end_matches('/');
     let mut latest: Option<(semver::Version, GithubRelease)> = None;
     let mut page_number = 1_u64;
@@ -115,14 +127,21 @@ pub fn check_latest(
         return Ok(None);
     };
 
-    let filename = format!(
-        "plotium-{}-{}-{}.zip",
-        version,
-        std::env::consts::OS,
-        std::env::consts::ARCH
-    );
+    let filename = if bundle {
+        format!("plotium-{version}-macos-{}.dmg", std::env::consts::ARCH)
+    } else {
+        format!(
+            "plotium-{}-{}-{}.zip",
+            version,
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        )
+    };
     let Some(asset) = release.assets.iter().find(|asset| asset.name == filename) else {
-        return Ok(None);
+        return Err(UpdateError::Protocol(format!(
+            "release {} is missing {filename}",
+            version
+        )));
     };
     let sha256 = match asset.digest.as_deref().and_then(sha256_digest) {
         Some(hash) => hash.to_owned(),

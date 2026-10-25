@@ -14,10 +14,14 @@ EXPECTED_TOOLS = {
     "plotium_properties_list", "plotium_properties_inspect", "plotium_plan", "plotium_execute",
     "plotium_document_inspect", "plotium_figure_diagnose", "plotium_render_preview", "plotium_preview_plan",
     "plotium_table_columns", "plotium_table_read_rows", "plotium_save_status", "plotium_export_status",
+    "plotium_capabilities_get", "plotium_apply", "plotium_analysis_results_inspect",
+    "plotium_diffusion_inspect", "plotium_processing_inspect",
+    "plotium_tasks_get", "plotium_tasks_list", "plotium_tasks_cancel",
 }
 UNBOUND_TOOLS = {
     "plotium_get_state", "plotium_properties_list", "plotium_execute",
     "plotium_save_status", "plotium_export_status",
+    "plotium_capabilities_get", "plotium_tasks_get", "plotium_tasks_list", "plotium_tasks_cancel",
 }
 
 

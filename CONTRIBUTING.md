@@ -98,9 +98,8 @@ job logs, with a status summary on the workflow run.
 
 ## Package a macOS application locally
 
-Build a DMG that can be dragged into Applications, together with the unchanged
-portable ZIP. On macOS with Python 3.10+, Apple command-line tools, and the matching
-Rust target:
+Build a DMG that can be dragged into Applications. On macOS with Python 3.10+,
+Apple command-line tools, and the matching Rust target:
 
 ```sh
 cargo install cargo-about --version 0.9.1 --locked --features cli
@@ -165,19 +164,27 @@ The pinned Python tools only write and inspect Finder layout metadata during
 packaging/tests; they are not application runtime dependencies. The optional
 xtask feature reuses the workspace SVG renderer.
 
-Trusted public distribution additionally requires authorized Developer ID
-signing with hardened runtime, notarization, stapling, and validation of the
-final Internet-downloaded DMG and installed app. Configure credentials and call
-Apple's service only with separate authorization; ad-hoc checks cannot replace
-that release gate.
+The current no-paid-account distribution uses ad-hoc signatures and explicitly
+advertises the lack of notarization. Test browser downloads on real Macs and
+record any first-launch approval needed under Privacy & Security; do not disable
+Gatekeeper or remove quarantine attributes. This is not equivalent to Developer ID
+publisher authentication or notarization. If a paid developer membership becomes
+available, add Developer ID signing, hardened runtime, notarization, and stapling;
+configure credentials and call Apple's service only with separate authorization.
+
+From 0.2.0, application bundles update from the matching processor's DMG by
+replacing the complete app after exit, with rollback on replacement failure.
+The Release workflow tests its actual DMG and shipping helper on both macOS
+architectures. This does not replace browser-download and GUI launch acceptance.
 
 ## Publish a release
 
 The [Release workflow](.github/workflows/release.yml) packages the desktop app
 and native MCP connector for Windows x86-64, Linux x86-64, and macOS
-Intel / Apple Silicon. macOS and Windows archives also contain the native
+Intel / Apple Silicon. macOS applications and Windows ZIPs also contain the native
 Claude Desktop extension. The workflow exercises the connector's actual stdio
-initialization and tool discovery before and after archive extraction.
+initialization and tool discovery in packaged installations. The macOS jobs
+also exercise their actual DMGs through the shipping update helper.
 It rechecks dependency policy before packaging, without rerunning the rest of
 CI or requiring extra secrets.
 
@@ -204,14 +211,15 @@ and tag rather than moving an existing tag.
 Use `v0.1.0` for a regular pre-1.0 release. Only `-alpha.N` and `-beta.N`
 suffixes are supported for prereleases; they also select the updater channel.
 
-The draft includes the existing four portable ZIPs, two macOS DMGs, license
-notices, and `SHA256SUMS` covering all six packages. macOS DMGs are ad-hoc signed
-and unnotarized; the portable ZIP contract is unchanged.
+The draft contains exactly four install packages: Windows and Linux ZIPs, and
+Intel and Apple Silicon macOS DMGs. License notices are inside the packages;
+`SHA256SUMS` covers all four. Do not publish macOS ZIPs or a universal DMG.
+macOS apps are ad-hoc signed and unnotarized.
 Platform requirements are in the
 [installation guide](https://plotium.nmrtist.space/getting-started/installation/).
 
 For a rehearsal, use **Actions → Release → Run workflow** on the chosen ref;
-this builds and validates the same six-package asset set and uploads it as
+this builds and validates the same four-package asset set and uploads it as
 `validated-release`, without creating a release. Per-architecture macOS validation
 reports are separate Actions artifacts. Failed runs can be
 retried to finish a draft; published releases require a new version.
