@@ -33,7 +33,7 @@ NUS 数据报告的形状包含未采样网格点，不等于实际观测数。�
 报告中的 `domain` 为 `"mixed"`。
 
 处理前请检查报告中的警告。缺失的校准或数字滤波延迟保持未知，详见
-[NMR 格式限制](/zh-cn/reference/file-formats/#nmr-数据与项目)。处理失败会指出
+[NMR 格式限制](/zh-cn/guides/supported-formats/#nmr)。处理失败会指出
 具体步骤，并返回非零退出码。
 
 `process` 是"一次导入、一个[处理配方](/zh-cn/guides/templates/)、一次
@@ -110,9 +110,9 @@ plotium-cli inspect experiment/ser --sampling-declaration sampling.json --json
 plotium-cli batch --workflow <workflow.json> --manifest <run-manifest.json>
 ```
 
-`batch` 运行一个工作流文件——与应用内自动化窗口使用同一种 JSON，因此
-最简单的做法是先在应用里构建并校验工作流，再把文件交给命令行做无人值守
-运行。
+`batch` 运行一个工作流文件，与应用内自动化窗口运行的是同一种 JSON。手动编写该
+文件（见[工作流文件结构](#工作流文件结构)），需要时可在自动化窗口中用 **Validate**
+校验，再交给命令行做无人值守运行。
 
 每次运行都会写出一份运行记录：工作流及其哈希、Plotium 版本、每一步作用的
 目标，以及每一步的参数、结果、警告和错误。同一份 JSON 同时写入
@@ -149,9 +149,8 @@ plotium-cli export <project.plotium> --output-dir <dir> [--format pdf|svg|png|ti
 
 ## 工作流文件结构
 
-工作流（`plotium.workflow.v1`）是无环的 JSON 步骤图。你很少需要从零手写
-——应用会生成它——但格式是纯文本、可编辑的。一个最小的导入 → 处理 →
-导出工作流：
+工作流（`plotium.workflow.v1`）是无环的 JSON 步骤图。应用不会生成工作流文件，
+可以从下面这个最小的导入 → 处理 → 导出示例开始修改：
 
 ```json
 {

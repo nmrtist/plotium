@@ -11,6 +11,21 @@ page automatically falls back to the English version with a notice banner.
 - `src/content/docs/zh-cn/` — Chinese translations (same filenames)
 - `astro.config.mjs` — site title, locales, and sidebar structure
 
+## Writing conventions
+
+- Each page is one of three kinds: a task guide (how to do something), a
+  concept page (why it works that way), or a reference (a complete list or
+  contract). Keep each section to one kind.
+- Property IDs, JSON, and error codes belong only in the Setting IDs and MCP
+  pages. A guide links there in at most one line.
+- Write a new feature into the page and section that own its task, not at the
+  end of the page edited most recently.
+- State each fact in one place and link to it from elsewhere.
+- A task page that an AI client can also perform ends with a "With an AI
+  client" section in the format used by the existing pages.
+- When adding or moving a page, update its Simplified Chinese counterpart and
+  the sidebar in `astro.config.mjs` in the same change.
+
 ## Commands
 
 Run from this directory:

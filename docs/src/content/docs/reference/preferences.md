@@ -92,12 +92,7 @@ Click the robot in the Ribbon to open this page directly.
 | **Add to Claude Desktop…** | Opens the extension installer on macOS and Windows; confirm installation in Claude Desktop |
 | **Manual configuration and diagnostics** | Provides configuration for other clients and connection details for troubleshooting |
 
-Permissions apply to every connected client and project and are remembered when
-you restart Plotium. Closing Preferences or switching projects keeps access
-available. Turning MCP off stops access immediately and discards pending edits;
-client configuration is retained. Exiting Plotium also stops access.
-
-**Configured** confirms client setup. Recent client activity shows whether a
-client has actually contacted Plotium. This page also shows recent operations and
-errors. See [AI client connections](/guides/automation/#local-agent-connections-mcp)
-for setup, example requests, robot status and troubleshooting.
+The settings are remembered across restarts. See
+[Connect an AI client](/ai/connect/) for setup, and
+[Access, review and undo](/ai/control-and-review/) for what each access level
+allows, the robot icon and troubleshooting.

@@ -51,7 +51,7 @@ introduces the same regions in walkthrough form.
   **Stats**, **CRAFT** —
   and shows one page at a time. Its Processing page lists one pipeline for a 1D
   or pseudo-2D dataset and two, **F2 (direct)** then **F1 (indirect)**, for a
-  true 2D spectrum. See [Processing](/guides/processing/).
+  true 2D spectrum. See [Processing pipeline](/guides/processing/).
 - **Ribbon** — the command strip organized into task tabs (**Data**,
   **Process**, **Analyze**, **Figure**, **Arrange**, **View**). On macOS its
   task row also holds the native window controls and project name. It is a
@@ -66,6 +66,10 @@ introduces the same regions in walkthrough form.
   operation reports. **Clear history** clears results, messages, and diagnostics; running
   tasks continue. Hover the button for the current status and result count.
   Errors and warnings also appear in the feedback banner.
+- **Follow button** — beside the AI connection button; shows whether the
+  workspace follows an AI client's results (active, paused or off), with a badge
+  counting results you have not viewed. See
+  [Follow AI results](/ai/control-and-review/#follow-ai-results).
 
 Scientific tasks in **Results** distinguish completion, failure, cancellation,
 and results that were **not applied**. Editing the project while a computation
@@ -75,40 +79,6 @@ data. If it is unavailable, hover the button for the required next step.
 Recomputing is always an explicit action. A completed calculation can still
 carry scientific warnings, such as an unconverged fit or an empty result;
 review those warnings before using the result.
-
-AI results are followed by default: the workspace focuses on the canvas affected by
-the latest completed operation. Results from one operation that affects multiple
-canvases are shown together. The follow button beside the AI connection button shows whether
-following is active, paused, or off. In **Results**, use **Pause**, **Resume**,
-**Stop following**, or **View latest**. Updates to a canvas already in view preserve its zoom.
-Opening or selecting other content, panning, zooming, or editing pauses following;
-hovering and inspecting operation details do not. Resume following when you want
-new results to appear again, or stop following to keep browsing independently.
-While paused, a badge on the follow button counts new or updated results you have
-not viewed. Repeated changes to the same object count once. Open **Results** to
-review them without resuming following. Updates to the object currently in view
-also show a brief, dismissible notification.
-Viewing a result marks that result as seen; **View latest** leaves older unseen
-results in the count. Resuming following clears the count.
-While following is paused, a notification also offers **Resume following**,
-**Dismiss**, and **Don't remind again**. Dismissing hides the current reminder
-without marking results as seen. Repeated changes to the same object do not
-reopen it; a new result object can trigger another reminder. The reminder closes
-automatically after about eight seconds. **Don't remind again** disables these
-reminders across restarts; restore them in **Preferences → General → Remind me
-about results while following is paused**. Result counts and error notifications
-remain available.
-Pausing immediately freezes the current view, including an unfinished automatic
-zoom. Resuming or viewing the latest result focuses the latest operation's results,
-without collecting earlier canvases. Viewing the latest result once does not turn following back on. Read-only requests
-and empty canvases do not move the workspace, and following does not cancel tasks.
-Changing projects or losing the AI connection stops following; resume it explicitly
-after the new project or connection is ready.
-
-A spinner on the AI connection button indicates a running scientific task.
-Hover for its operation, progress when available, and any risk of editing while
-it runs. This indicates known application work, not completion of the AI's
-overall task.
 
 Both Side Bars can be shown or hidden at any time: click the pair of layout
 buttons at the right end of the Ribbon's task row, press
@@ -179,14 +149,14 @@ the region is visible. Closing a task card remains a separate **×** button.
   to edit its parameters; move it with **Move earlier** / **Move later** in its
   ⋯ menu or with <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd>. Every step in the
   list is a step that runs, FFT included; an imported spectrum has no FFT row
-  because its recipe has no FFT. See [Processing](/guides/processing/).
+  because its recipe has no FFT. See [Processing pipeline](/guides/processing/).
 
 ## Data terms
 
 - **Dataset** — anything importable or derived that holds data: a spectrum, a
   recording, or a table.
 - **Derived data** — results that came from another dataset (slices,
-  projections, region tables, fit tables); the data browser lists them under
+  projections, region tables, fit tables); the Data browser lists them under
   their source.
 - **Pseudo-2D** — a stack of 1D spectra acquired while one parameter varies
   (gradient strength for DOSY, delay for T1/T2), as opposed to a **true 2D**

@@ -37,7 +37,7 @@ macOS 应用包已包含 MCP 连接器和 Claude Desktop 扩展，请保持应�
 （Windows 下为 `plotium-mcp.exe`）保留在主程序旁。macOS 和 Windows ZIP
 也包含 Claude Desktop 扩展 `plotium.mcpb`。
 
-准备好后，按[连接 AI 客户端](/zh-cn/guides/automation/#连接-ai-客户端)中的步骤操作。
+准备好后，按[连接 AI 客户端](/zh-cn/ai/connect/)中的步骤操作。
 每个客户端只需添加一次。
 
 ## 首次启动

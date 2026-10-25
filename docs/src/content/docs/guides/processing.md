@@ -1,5 +1,5 @@
 ---
-title: Processing
+title: Processing pipeline
 description: The ordered processing pipeline — apodization, FFT, phase, and baseline correction.
 ---
 
@@ -14,7 +14,8 @@ appears moments later.
 XPS uses its own ordered recipe per spectrum region rather than the NMR
 pipeline. It contains an energy window, smoothing, and normalization, while
 charge correction is shared by all regions at one measurement position. See
-[XPS](/guides/xps/).
+[XPS](/guides/xps/). XRD patterns use the **XRD Processing** card instead; see
+[Rigaku powder XRD](/guides/supported-formats/#rigaku-powder-xrd).
 
 ## A typical 1D spectrum
 
@@ -225,7 +226,7 @@ button beside it to go back.
 
 A step you added yourself has no such default — nothing in the standard pipeline
 corresponds to it — so it carries no marker and no reset button. Asking for a
-reset through [Automation](/guides/automation/) reports that step as skipped
+reset through a script or AI client (see [Setting IDs](/reference/settings-ids/)) reports that step as skipped
 rather than turning a window you chose into *None*.
 
 ### While auto-recompute is paused
@@ -266,7 +267,8 @@ places the pivot in ppm.
 φ0, φ1 and the pivot are editable only while **Mode** is *Manual*; under an
 automatic method each row says which switch to flip first.
 
-Through [Automation](/guides/automation/) these values keep their own units:
+When read or set through a script or AI client (see
+[Setting IDs](/reference/settings-ids/)), these values keep their own units:
 phase angles in radians, the pivot as a fraction.
 
 For 2D data, the selected automatic method estimates a correction from the trace
@@ -313,15 +315,24 @@ To reduce the original complex FID directly to fitted resonance parameters,
 see [CRAFT for 1D NMR](/guides/craft/).
 
 
-## Automation interface
+## With an AI client
 
-Desktop, CLI and MCP reuse native processing and scientific computation semantics.
-See [MCP scientific operations and tasks](/reference/mcp/#scientific-operations-and-tasks)
-for operations and parameter schemas, or use CLI
-[`tool run`](/reference/cli/#single-step-scientific-operations). Pipeline edits,
-schemes, region extraction, diffusion fitting and DOSY/ILT return process-owned
-task receipts; wait for termination before consuming results. Background commits
-form one Undo step and Redo reuses results. Document edits during computation make
-work stale. Diffusion inspection reports SI units and source evidence; result
-inspection provides paginated diagnostics. `empty` does not establish a scientific
-conclusion.
+You can ask an AI client connected to Plotium to change processing for you, for
+example:
+
+> On the spectrum named Sample A only, set the exponential window's LB to 0.3 Hz
+> and keep every other step as it is.
+
+> Apply the recipe `/absolute/path/routine.plotiumproc` to the compatible
+> datasets I selected and tell me which ones it skipped.
+
+Each processing change appears in Plotium when it finishes and is one Undo
+step; editing the project while it computes makes the result stale instead of
+applying it. Check the recomputed spectrum before you rely on it. See
+[Access, review and undo](/ai/control-and-review/).
+
+## Scripting interface
+
+Scripts and AI clients run the same processing operations as the desktop; see
+[MCP scientific operations](/reference/mcp/scientific/) and
+[`plotium-cli tool run`](/reference/cli/#single-step-scientific-operations).

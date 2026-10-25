@@ -18,6 +18,8 @@ what you want to measure:
 | Fit x-y data to a mathematical model | **Fit Curves** | Data tables (including series tables) | Parameters with uncertainties and diagnostics |
 | Build a chemical-shift × diffusion map | **DOSY…** | Frequency-domain spectrum stacks with valid diffusion input | Per-column or ILT DOSY map |
 | Compare groups, test correlation or normality | **Statistics** | Data tables | Saved statistical results |
+| Fit the complex FID directly to resonances | **CRAFT…** (Process menu) | 1D NMR acquisitions with their original FID | Component frequencies, amplitudes, linewidths, and phases |
+| Pull a mass spectrum or ion chromatogram out of an LC–MS run | **Extract Mass Spectrum** | LC–MS runs (Waters, WIFF, mzML) | Extracted spectra and XICs |
 
 Rules of thumb when two tools seem to apply:
 
@@ -40,5 +42,6 @@ Where to go next: [Peaks and regions](/guides/peaks-and-regions/),
 [Homonuclear 2D symmetry review](/guides/symmetry-review/),
 [Curve fitting](/guides/curve-fitting/), [Statistics](/guides/statistics/),
 and the per-technique guides for [pseudo-2D](/guides/pseudo-2d/),
-[DOSY](/guides/dosy/), and
+[DOSY](/guides/dosy/), [CRAFT](/guides/craft/),
+[mass spectrometry](/guides/mass-spectrometry/), [XPS](/guides/xps/), and
 [electrophysiology](/guides/electrophysiology/).

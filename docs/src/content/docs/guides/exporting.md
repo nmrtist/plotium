@@ -62,7 +62,8 @@ the receiving app chooses a format it supports.
 With a dataset selected, choose **Export Data…** from the File menu, the Data
 Ribbon tab, or the command palette. The dialog shows only content that exists
 for that dataset and offers **Save CSV…**, **Save TSV…**, **Save XLSX…**, and
-**Copy TSV**.
+**Copy TSV**. Empty cells stay empty, while `NaN`, `+Inf`, and `-Inf` are
+written as those literal tokens because they are real values, not blanks.
 
 Processed NMR data can export Real, Imaginary, or Magnitude intensity. For true
 2D and pseudo-2D data, **Matrix** puts F2/ppm across the first row and F1/ppm or
@@ -85,3 +86,14 @@ hidden worksheet. The visible columns open normally in Excel, Origin, or Prism,
 while the companion lets Plotium later reopen the table with its column types,
 units, and error bars intact. Exported XLSX files hold plain values, with no
 formulas to recalculate.
+
+## With an AI client
+
+You can ask an AI client connected to Plotium to do this for you, for example:
+
+> Export this 180 × 90 mm canvas to /Users/me/figures/figure.svg, plus a
+> matching PDF and a 300 DPI PNG. Do not overwrite existing files.
+
+Plotium asks you to confirm the exact file paths before writing anything;
+replacing a file needs its own checkbox. Exporting does not save the project.
+See [Access, review and undo](/ai/control-and-review/).

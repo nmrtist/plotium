@@ -1,13 +1,17 @@
 ---
 title: Plotium
-description: A desktop application for scientific data analysis and figure preparation.
+description: A desktop application for scientific data analysis and figure preparation, on its own or with an AI client.
 template: splash
 hero:
-  tagline: Import, process, analyze, and publish scientific data — all in one desktop application.
+  tagline: Import, process, analyze, and publish scientific data in one desktop application, by hand or together with your AI client.
   actions:
     - text: Get started
       link: /getting-started/installation/
       icon: right-arrow
+    - text: Connect an AI client
+      link: /ai/connect/
+      icon: right-arrow
+      variant: secondary
     - text: View on GitHub
       link: https://github.com/nmrtist/plotium
       icon: external
@@ -18,9 +22,15 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
 	<Card title="Import your data" icon="open-book">
-		Read NMR data from JEOL Delta (`.jdf`) and Bruker TopSpin,
-		patch-clamp recordings (ABF2), and tabular data from CSV or Excel —
-		no conversion step.
+		Read NMR (JEOL, Bruker, Varian/Agilent, JCAMP-DX), LC–MS (Waters,
+		SCIEX WIFF, mzML), powder XRD, XPS, AFM, and patch-clamp (ABF2) files,
+		plus CSV, TSV, Excel, and Origin tables, with no conversion step.
+		See [supported formats](/guides/supported-formats/).
+	</Card>
+	<Card title="Work with an AI client" icon="puzzle">
+		Connect Claude Desktop or another MCP client and ask it to import data,
+		build and style plots, and lay out panels. Its edits appear on your
+		board, can be previewed first, and can be undone.
 	</Card>
 	<Card title="Process interactively" icon="setting">
 		Build an ordered processing pipeline: apodization, FFT, phase and

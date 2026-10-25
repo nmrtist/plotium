@@ -73,7 +73,8 @@ Ribbon 是高频命令入口，不是完整菜单的重复。选择 **Data**、*
 4. **排版**：在画板上排布图形并**导出**。
 
 [第一张图](/zh-cn/getting-started/first-figure/)用一个真实数据集走完这
-四步。
+四步。其中任何一步也可以交给连接到 Plotium 的 AI 客户端完成；见
+[连接 AI 客户端](/zh-cn/ai/connect/)。
 
 ## 导航
 

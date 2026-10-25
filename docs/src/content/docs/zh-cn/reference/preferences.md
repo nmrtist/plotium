@@ -76,10 +76,5 @@ AI 连接启用状态和权限会持久保存，详见下文。
 | **Add to Claude Desktop…** | 在 macOS 和 Windows 上打开扩展安装包，请在 Claude Desktop 中确认安装 |
 | **Manual configuration and diagnostics** | 提供其他客户端所需的配置和排查连接问题的信息 |
 
-权限对所有已连接客户端和项目统一生效，重启 Plotium 后仍保留。关闭设置或切换
-项目不会停止访问。关闭 MCP 会立即停止访问并丢弃待执行修改，同时保留客户端配置；
-退出 Plotium 也会停止访问。
-
-**Configured** 表示客户端配置已完成；最近的客户端活动则表明客户端是否实际访问
-过 Plotium。页面也会显示最近操作和错误。连接步骤、示例请求、机器人状态和排障
-方法见 [AI 客户端连接](/zh-cn/guides/automation/#本机-agent-连接mcp)。
+这些设置在重启后保留。连接步骤见[连接 AI 客户端](/zh-cn/ai/connect/)；各权限允许
+什么、机器人图标和排障见[权限、审阅与撤销](/zh-cn/ai/control-and-review/)。

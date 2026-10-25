@@ -101,7 +101,7 @@ value with the peak and average response. Voltage stimuli require a current
 response; current stimuli require a voltage response. A unit mismatch is
 reported and calculation is stopped. Ramp protocols do not support IV
 analysis: the stimulus varies continuously within a sweep, so there is no
-single stimulus value to plot against. In the data browser the table stays
+single stimulus value to plot against. In the Data browser the table stays
 listed under the recording it came from, and its stimulus source remains part
 of the saved dataset.
 

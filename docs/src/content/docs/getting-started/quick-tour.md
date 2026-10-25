@@ -91,7 +91,8 @@ multi-selection, and saved board views.
 4. **Arrange** plots on the board and **export** the figure.
 
 [Your first figure](/getting-started/first-figure/) walks through these four
-steps with a real dataset.
+steps with a real dataset. You can also ask an AI client connected to Plotium
+to carry out any of them; see [Connect an AI client](/ai/connect/).
 
 ## Navigation
 

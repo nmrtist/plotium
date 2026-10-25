@@ -1,27 +1,36 @@
 ---
 title: Automation
-description: Apply one action to many datasets or figures, or run a saved workflow.
+description: Apply one action to many datasets or figures, run a read-only scientific script, or run a saved workflow.
 ---
 
 When the same operation has to happen to a whole series of experiments,
 automation replaces the click-per-dataset routine with one reviewed batch.
 
 Open **File → Automation…** (also on the command palette). The window has two
-tabs:
+tabs: **Current Project** works on what is already open, and **External
+Inputs** runs a saved workflow that starts from files on disk.
+
+To have an AI client do this kind of work from a plain-language request
+instead, see [Working with an AI client](/ai/working-with-ai/).
 
 ## Current Project
 
-Works on what is already open. Search for datasets or figures and check the
-ones you want — or press **Current selection** to pull in your current
-selection — then pick a tool and press **Preflight** to see which targets it
-will affect and which will be skipped. **Confirm and execute** applies
-it, and the whole batch collapses into a single **Undo automation** step.
+Search for datasets or figures and check the ones you want, or press **Current
+selection** to check what is selected in the workspace. Then choose one of the
+two modes below the list: **Scientific Script** or **Registered Tool**.
 
-### Settings
+### Apply a tool to the checked items
 
-Three tools reach the settings the **Object inspector** and the processing
-steps edit, so one level, colour, width, type size or window function can be
-applied across a whole project as a single reviewed batch:
+In **Registered Tool**, pick a tool from the list. The window shows what the
+tool does and the parameters it accepts; fill them in under **Parameters
+(JSON)**. Press **Preflight** to see which targets the tool will affect and
+which it will skip, then **Confirm and execute**. The whole batch collapses
+into a single **Undo automation** step.
+
+Three of the tools reach the settings that the **Object inspector**, the
+processing steps and Preferences edit, so one contour level, colour, line
+width, type size or window function can be applied across a whole project in
+one batch:
 
 | Tool | What it does |
 | --- | --- |
@@ -29,138 +38,81 @@ applied across a whole project as a single reviewed batch:
 | **Set a property** | Writes a value |
 | **Reset a property** | Re-derives the value from the current data, as the panel's reset button does |
 
-Name the setting in **Parameters (JSON)** by its id:
-`{"key": "series.contour.count", "value": 12}` for **Set a property**, and
-`{"key": "series.contour.count"}` for the other two.
+Name the setting by its ID. [Setting IDs](/reference/settings-ids/#reading-and-writing-settings)
+lists the IDs, the parameter format, which item each one lives on, and how
+results report skipped targets.
 
-The three tools reach every setting the panels edit: object and series styling,
-processing-step parameters, document and canvas settings, and application
-preferences. Which resource to name follows from the setting — a contour or
-line setting lives on a plot object, an apodization setting on a dataset,
-figure typography on the document (listed as **Plotium document**), a page size
-on a canvas, and a preference on the application (listed as **Plotium
-application**).
+A value outside the range is refused at **Preflight**, before you confirm.
+Past that point either every listed target takes the value or none does. A
+target that already holds the value is reported as skipped; if every target
+does, nothing is written and nothing is added to the undo stack.
 
-| Setting in the Object inspector | id | Accepts |
-| --- | --- | --- |
-| **Lowest level** | `series.contour.base.magnitude` | a number above 0; what it measures depends on the anchor |
-| **Anchor** | `series.contour.base.policy` | `absolute`, `noise_floor`, `background_scale`, `fraction_of_range` |
-| **Levels** | `series.contour.count` | 1 to 256 |
-| **Level ratio** | `series.contour.ratio` | above 1, at most 10 |
-| **Negative contours** | `series.contour.negative.enabled` | `true` or `false` |
-| **Positive colour** | `series.contour.positive_color` | `"#rrggbb"` |
-| **Negative colour** | `series.contour.negative_color` | `"#rrggbb"` |
-| **Line width** | `series.contour.line_width` | 0.05 to 10 pt; default 0.5 |
-| **Stroke width**, in the **Line** section | `series.line.stroke_width` | 0.05 to 10 pt; default 0.5 |
-| **Tick-label size**, in the **Figure typography** section | `document.figure.typography.tick_pt` | 1 to 72 |
+### Run a scientific script
 
-Application preferences take the same three tools. For
-`settings.appearance.accent.color`, **Set a property** accepts `"#rrggbb"` and
-pins the canvas accent to that colour; **Reset a property** clears it, and the
-accent follows the theme again.
+A scientific script reads LC–MS data and returns its own summary, for example
+the peaks it found in each chromatogram. It cannot change the project, open
+other files or reach the network.
 
-| Setting on an apodization step | id | Accepts |
-| --- | --- | --- |
-| **Window** | `dataset.processing.apodization.kind` | `none`, `cosine_bell`, `exponential`, `gaussian` |
-| **LB** | `dataset.processing.apodization.lb_hz` | −10000 to 10000 |
-| **GB** | `dataset.processing.apodization.gb_hz` | greater than 0, at most 10000 |
+1. Check the LC–MS datasets to analyse. Checking a canvas includes the datasets
+   it shows.
+2. Choose **Scientific Script**, press **Open script…** and pick a
+   `.plotiumscript` file. The window shows how many checked LC–MS datasets the
+   script will process.
+3. Press **Run Scientific Script**. The datasets are processed one after
+   another, with a progress bar.
+4. Each dataset gets a result card. If the script returns a `summary`, its
+   fields appear as a table; **Technical details** shows the complete result.
+   A dataset the script could not process shows the error instead, and the
+   others still run.
+5. Press **Save results…** to write all results to one JSON file.
 
-[Contour levels](/guides/contour-levels/) explains what each contour setting
-does and which data each anchor needs; [Processing](/guides/processing/) does
-the same for the apodization rows.
+**Run Scientific Script** in the command palette opens this mode and runs the
+chosen script on the checked datasets. Only LC–MS datasets, such as mzML and
+Waters MassLynx imports, are passed to a script, and the command is unavailable
+until one is loaded.
 
-#### What a checked target expands to
+Scripts are written in [Rhai](https://rhai.rs/). `load_input()` returns the
+dataset as a map: its `source` and `instrument`, the `chromatograms` stored in
+the file, the total-ion and base-peak `stream_chromatograms`, a summary of every
+scan under `scans`, and for Waters data the LC method under `lc_method`.
+Retention times are in minutes. The script's last expression is its result.
+These helpers are available:
 
-The resource you check is rarely the thing that is written — the setting decides
-what inside it is. A plot object expands to its series, a dataset to its
-processing steps, and the document to itself. Preflight and the result list show
-one row per component, so a plot holding three series produces three rows,
-naming the object and the series inside it.
+| Function | Returns |
+| --- | --- |
+| `moving_average(values, width)` | The values smoothed with a centred window of `width` points |
+| `rolling_percentile(values, width, q)` | The `q` quantile (0–1) in a centred window, for example as a baseline |
+| `estimate_noise(values)` | A noise estimate for the trace |
+| `detect_peaks(x, y, options)` | Peaks as maps with `index`, `x`, `y` and `prominence`; `options` may set `min_height`, `min_prominence`, `min_spacing` and `max_count` |
+| `format_number(value, decimals)` | The number as text with up to 12 decimals |
 
-A component the setting does not reach is listed as **Skipped** with the reason,
-and the rest still apply: a heatmap drawn under a contour, a zero-fill step when
-the setting belongs to apodization, or a **GB** asked of a step whose window is
-*Exponential*. A resource with nothing to address at all — a text box, a dataset
-with no pipeline — is skipped the same way.
+For example, this script reports the five most prominent peaks of the first
+total-ion or base-peak chromatogram:
 
-Result rows and the run record name the component beside the resource:
-
-```json
-{
-  "resource": { "id": "…", "kind": "plotium.dataset" },
-  "component": { "kind": "processing_step", "id": 3 }
+```rust
+let input = load_input();
+let trace = input.stream_chromatograms[0];
+let peaks = detect_peaks(trace.time_min, trace.values, #{ min_prominence: 1000.0, max_count: 5 });
+#{
+    summary: #{ "Peaks found": peaks.len() },
+    peaks: peaks
 }
 ```
 
-Series components read `{"kind": "series", "id": 2}`. Both ids are local to the
-resource they travel with, so a step id means nothing next to a different
-dataset.
-
-#### Why a target was skipped
-
-Every skipped row carries a sentence written to be read. Rows the write itself
-passed over also carry `skip_reason`, a stable token a workflow can branch on
-without matching on wording:
-
-| `skip_reason` | Means |
-| --- | --- |
-| `already_at_value` | The target already held that value, so nothing was written |
-| `not_applicable` | The setting does not apply to this target |
-| `target_missing` | The address no longer names anything in the document |
-
-Rows already ruled out at preflight carry the sentence alone. They are never
-same-value no-ops, so the absence of the token is itself the distinction.
-
-A **Set a property** whose every target already stores the requested value and
-override state writes nothing: each target is reported as skipped, the document revision does not move,
-and nothing is added to the undo stack. Setting an inherited value as an explicit
-override still records that author choice.
-
-A value outside the range is refused at **Preflight**, before you confirm, and
-names both the value you gave and the limit that rejected it. Past that point
-either every listed component takes the value or none does, and what is written
-collapses into one **Undo automation** step.
-
-**Inspect a property** returns its readings to whoever ran it: run it as a
-workflow step and the values land in the run record, which is also what
-[the command line](/reference/cli/) writes to its manifest file. In the window
-the numbers appear under **Result value (JSON)**, below the per-component rows:
-one reading per component, each with its current value, its default and the
-range it accepts.
-
-#### What a reading contains
-
-Each reading names its `target` and carries the current `value`, a
-`default_value` where the setting has one, `modified` — whether the value
-differs from that default — an `availability`, and the `schema` that bounds it.
-
-A setting the current state does not allow you to write is still read back:
-`availability` is `"disabled"` and `disabled_reason` names what has to change
-first, such as switching the phase mode to *Manual* before φ0 can be set.
-
-Schemas are tagged by `type`: `bool`, `text`, `int`, `stepped_int`, `float`,
-`enum`, `color`, `unit_code`, or `axis_range`.
-
-- `int` and `stepped_int` carry `min` and `max`, plus a `unit` where the setting
-  has one. `stepped_int` also carries the `step` its values must land on — a
-  Savitzky-Golay window, for instance, runs from 3 to 201 in steps of 2.
-- `float` carries `min`, `max` and `exclusive_min`, and where a setting refuses
-  particular values, `excluded` (one value) or `excluded_magnitude` (everything
-  at or below that magnitude). Its `display` — `linear`, `degrees` or `log10` —
-  is how the panel shows the number; the `unit` and `log` fields beside it
-  restate the same thing.
-- `enum` lists its variants, each with a stable id and a label.
-
-Bounds and values are always in the setting's own units, whatever `display`
-says: a phase whose `display` is `degrees` is radians on the wire.
+A script stops with an error when it runs too long, builds arrays or text that
+are too large, or returns more than 10 MB of results. Results stay in the window
+until you run a script again, so save them if you need them later.
 
 ## External Inputs
 
-Runs a saved workflow that starts from files on disk — for example: import
-every experiment in a folder, apply a processing recipe, and export each
-figure. Press **Open workflow…** to load it, **Validate** to check it, then
-**Confirm and run workflow**. Progress is reported step by step and a long run
-can be cancelled.
+Runs a saved workflow that starts from files on disk, for example: import every
+experiment in a folder, apply a processing recipe, and export each figure.
+Press **Open workflow…** to load it, **Validate** to check it, then **Confirm
+and run workflow**. Progress is reported step by step and a long run can be
+cancelled.
+
+The window runs workflow files; it does not create them. A workflow is a plain
+JSON file, described under [Workflow file anatomy](/reference/cli/#workflow-file-anatomy).
 
 ## What is recorded
 
@@ -168,251 +120,14 @@ A workflow run leaves a record of the workflow and its hash, the Plotium version
 and every step's targets, parameters and results. Run it here and that record is
 kept in the project; run it from [the command line](/reference/cli/) and the
 same record is written to a file. A batch from **Current Project** leaves no
-such record — it is an ordinary edit, in the document and on the undo stack.
+such record: it is an ordinary edit, in the document and on the undo stack. A
+scientific script changes nothing and leaves no record.
 
-Native workflow operations that write outside the project — exporting figures, for
-instance — is also listed under **Help → Operation and Diagnostic History**,
-with each file's path, size and SHA-256 checksum. An export that fails partway
-still names the files it had already written, so nothing reaches disk
-unaccounted for.
+Native workflow operations that write outside the project, such as exporting
+figures, are also listed under **Help → Operation and Diagnostic History**, with
+each file's path, size and SHA-256 checksum. An export that fails partway still
+names the files it had already written, so nothing reaches disk unaccounted for.
 
-Workflow files are plain JSON and can also be run without the desktop app —
-see [the command line](/reference/cli/), which executes the same workflows
-headlessly. [File formats](/reference/file-formats/) describes the workflow
-and run-record files themselves.
-
-## Local agent connections (MCP)
-
-Connect an AI client to ask questions about your open project, inspect a figure,
-or make supported edits in Plotium. MCP is the connection that lets the client
-use Plotium's tools; you continue chatting in Codex, Claude Code or Claude Desktop.
-
-### Discover capabilities when needed
-
-Ask the agent to read `plotium_get_state` for current permissions and project
-context, and call `plotium_capabilities_get` only when it needs static contracts
-or sees a different capability fingerprint. It returns a compact index; the agent
-fetches detailed schemas and limits one section at a time. State includes project counts,
-a bounded selection page and retained save receipt IDs; detailed targets and
-receipts have their own queries. Cached capabilities do not authorize edits or
-retry, and each save/export still requires desktop confirmation.
-See [state and discovery](/reference/mcp/#read-state-and-discover-capabilities-on-demand).
-
-### Connect your AI client
-
-Keep the complete Plotium release folder, including `plotium-mcp`
-(`plotium-mcp.exe` on Windows). Install the AI client you want to use before
-adding it to Plotium.
-
-1. Open Plotium.
-2. Open **Preferences → AI connections (MCP)**. You can also click the robot
-   beside Operation history in the Ribbon, or use **File → AI connections (MCP)…**.
-3. Turn on **Enable MCP**. Under **Access**, choose **Read only** to explore
-   without allowing edits, or **Read and modify** to allow supported changes.
-   The default is **Read and modify**.
-4. Add your client using the matching option below.
-
-| Client | What to do in Plotium | What to do in the client |
-| --- | --- | --- |
-| Codex | Press **Add** in the Codex card | Reload MCP configuration or restart the client if needed |
-| Claude Code | Press **Add** in the Claude Code card | Reload MCP configuration or restart the client if needed |
-| Claude Desktop (macOS and Windows) | Press **Add to Claude Desktop…** | Confirm installation of the extension, then reload or restart if needed |
-
-Start your AI client yourself; Plotium does not launch it. For Codex and Claude
-Code, **Configured** means the connection settings have been added. To check that
-the client can actually reach Plotium, send this first request:
-
-> Use Plotium to list the datasets and figures in my current project. Do not
-> change anything.
-
-The client should describe your project, and Plotium should show recent client
-activity. The robot turns green while the connection is active. Opening the
-Claude Desktop extension package alone does not confirm a working connection.
-
-New AI results appear in the workspace by default. Browsing or editing pauses
-following so incoming results do not interrupt your work; resume it when ready.
-Use Operation history to inspect results at any time. See
-[following results](/reference/ui-overview/#window-regions) for the controls and behavior.
-
-### Try a task
-
-Use plain language in your AI client. For example:
-
-- **Inspect a figure:** “Use Plotium to preview my canvas and describe the curves
-  and labels. Do not change anything.” Your client must support receiving images.
-- **Diagnose without editing:** “At 180 × 90 mm, locate text overflow and potential legend occlusion. Report coverage limits and inspect the native PNG. Keep intentional overlap and manual axis ranges.” See [figure diagnostics](/reference/mcp/#diagnose-figure-geometry-at-an-output-size).
-- **Adjust a line:** “Find the curve named Current, check its line width, then
-  change only that curve to 1.5 pt.” This requires **Read and modify** access.
-- **Arrange a figure:** “Make this page 180 × 90 mm, arrange these two panels
-  horizontally with 4 mm margins and a 5 mm gutter, label them a/b, add the
-  caption and my local PNG/JPEG, then show a preview. Leave other panels alone.”
-  Specify the target panels and absolute image paths. Continue editing each
-  native plot, text item and image in Plotium; Undo restores an entire layout batch.
-- **Update data:** “Change only this source cell, show which derived tables are out of date, then refresh this table’s saved recipe. Keep my colors, axis ranges and layout.” Patch and refresh have separate Undo steps.
-- **Create a plot:** “Import the CSV at `/absolute/path/experiment.csv`. Use time
-  as X and current as Y, with units s and mA. Create an editable line plot and
-  show me a preview.” Replace the path with your file's absolute path and state
-  the columns and units you want.
-
-The connection can import CSV/TSV tables, read table values, inspect project
-structure, preview canvases, create multiple native line or scatter panels,
-set page/panel geometry, align/distribute/grid explicitly chosen panels, add
-editable text and local PNG/JPEG images, change a curve's
-source columns, derive tables with supported native plans, patch existing cells,
-explicitly refresh saved recipes, apply built-in themes or saved canvas styles to canvases, and rename datasets,
-canvases or objects. Display edits cover exact-curve color, width, stroke style, markers, visibility
-and legend text; axis titles, display units and auto/manual ranges; plot-local
-tick, axis-title and legend sizes; and the existing contour/document font controls. Processing parameters, fitting and other
-computations beyond supported table transforms, other import formats are not available through this connection. Use Plotium's interface for
-those tasks. There is no built-in chat window.
-
-To save, ask “Save this desktop project to `/absolute/path/figure.plotium`.”
-Review the exact path in Plotium's **Allow AI to save this project?** prompt;
-existing files also need explicit replacement confirmation. Saving has separate,
-one-use authorization, is not undoable, and finishes only when the agent receives
-a completed save receipt. Later edits and reads may still be unsaved.
-
-### Refine a legend without changing the data
-
-Ask “On the left panel only, move the legend to its available bottom-left corner,
-keep it vertical and title it Samples. Keep all curves, units and manual ranges.
-Show me the before/after preview; report if the legend cannot fit.” The agent
-should discover the exact plot ID rather than match a duplicate plot name, then
-inspect the native PNG. You can continue dragging the legend in the GUI;
-double-click restores automatic placement. Check Undo/Redo before saving.
-See [guide coordinates and reset rules](/reference/mcp/#position-a-plots-legend-precisely).
-
-### Remove only an explicitly chosen item
-
-Ask “Delete this duplicate note and this exact redundant Series, keeping the
-other curve with the same name, its units and my manual ranges. Show the deletion
-list before executing, then show the actual PNG.” The agent must discover stable
-IDs, not use names or the current selection. One Undo restores the batch. Empty
-parents and source data remain; removing the last Series is rejected. An empty
-panel can be deleted explicitly, but nonempty panels cannot cascade through MCP.
-See [exact deletion and refusal rules](/reference/mcp/#delete-exact-content-or-selected-series).
-
-### Inspect a proposed correction before applying it
-
-Ask “Discover the exact objects, read diagnostics and the actual PNG, then propose
-the smallest local correction. For **every** plan, show and inspect its candidate
-PNG before explicitly executing that same plan; afterward read the real PNG and
-fresh diagnostics. Preserve my data, units, manual ranges, other same-name objects,
-and intentional clipping or overlap. Do not shrink text or hide data to clear warnings.”
-
-Candidate preview supports display property edits such as colours, line widths,
-axes, legends and typography, as well as content geometry, image replacement,
-text updates and exact deletion. It needs **Read and modify**, but leaves authored
-state, Undo/Redo, dirty state and edit generation untouched, and adds no project
-audit record. If you edit while the agent is reviewing a candidate, its old plan must be
-replaced. One execution remains one native Undo step. See the [support matrix and
-candidate metadata](/reference/mcp/#preview-a-plan-before-committing-it).
-
-For a style choice such as a palette, line widths or the legend position, ask
-the AI to show two or three options. It previews each without changing your
-project, and applies only the one you pick.
-
-### Deliver the editable project and final figures
-
-Have the agent import CSV/TSV and check explicit units, then create line-with-error
-and scatter panels, native text and PNG/JPEG images. Ask it to actually inspect
-the preview before making one local correction. Derive a new curve, then append
-it to the existing plot. You can take over colors, axis ranges and panel positions
-in the GUI; ask the agent to patch a precise source cell, inspect stale derived
-data, then explicitly refresh it. Use Undo/Redo to check patch and refresh
-separately while retaining your design.
-
-Save and reopen the `.plotium` file in the GUI to check that curves, text and
-images remain editable. Then ask: “Export this 180 × 90 mm canvas to
-`/absolute/path/figure.svg`, matching PDF and 300 DPI PNG. Do not overwrite files.”
-Review paths in **Allow AI to export this figure?** and approve; replacing existing
-outputs needs another explicit checkbox. Have the agent read every file's final
-receipt and actually open the results, rather than treating queued work as success.
-The PNG should be 2126 × 1063 pixels. Export does not replace the project or mark
-it saved. MCP export results live in this process's export receipts; after
-reconnecting inspect the original receipt instead of replaying unknown calls.
-
-### Control access and review changes
-
-**Access** applies to all clients using this Plotium connection and to every
-project you open. Plotium remembers both the permission and **Enable MCP** across
-restarts. Choose **Read only** to block further edits, including edits that have
-been prepared but not yet applied. You can still inspect data and preview figures.
-
-Supported changes appear in the desktop immediately and use Plotium's normal
-**Undo** and **Redo**. Ordinary queries, previews and diagnostics leave project
-audit records, dirty state, edit generation and automation revision unchanged.
-
-Turn off **Enable MCP** to stop access immediately. Your client setup is retained.
-Closing Preferences or switching projects keeps the connection running; exiting
-Plotium stops access. After restarting Plotium or turning MCP back on, you can
-continue in the same AI session without adding the client again. After a project
-switch, ask the AI to inspect the current project before continuing edits.
-
-MCP tool annotations describe tool effects and may inform client approval policy.
-They grant no Plotium permissions and do not remove desktop file confirmation.
-The mixed planning/execution tools use conservative hints. Keep client approval
-scoped to the intended tools and follow the
-[annotation and authorization guidance](/reference/mcp/#tool-annotations-and-client-approval).
-
-Before the AI creates a plot, Plotium asks it to check with you what the plot
-should show (compare groups, a trend, a distribution, a relationship, parts of a
-whole, a change or ratio, or a local detail) and the one claim it should
-support. Answer in your own words, or let the AI propose a reading and correct
-it. The intent is saved with the plot and never changes the drawing; edit it
-later under **Chart › Advanced** in the Object inspector. When you ask the AI to
-check the figure, it compares the chart with this purpose and suggests forms
-that fit better; it never switches them on its own. For curves with error bars
-it also asks how many replicates each value summarises and whether the bars
-show SD, SEM or a 95 % CI. See
-[plot creation](/reference/mcp/#create-a-native-single-plot-from-an-imported-table).
-
-For different colours or labels across curves, ask for one atomic
-`properties.set_many` plan with 1–200 exact target/property/value writes and one
-Undo step. Reuse the complete targets returned by `plot.create`; see
-[batch styling](/reference/mcp/#style-several-curves-in-one-plan).
-Follow [recovery actions](/reference/mcp/#recovery-actions-and-uncertain-outcomes)
-after errors. A queued task or save is still pending; inspect receipts before
-claiming completion. Refusal, cancellation or disconnection never authorizes
-automatic recomputation, file writes or replay of a consumed plan. Every new
-file request still needs desktop approval for its exact paths and overwrite scope.
-
-### Understand the robot icon
-
-Hover over the robot for the project, permission and last activity. Click it to
-open connection settings; it remains available when the Ribbon is collapsed.
-
-| Appearance | Status | What it means for you |
-| --- | --- | --- |
-| Gray, short slash | Off | Turn on **Enable MCP** when you want to connect |
-| Blue, hollow dot | Starting / Ready | Wait for startup, or send a request from your client |
-| Green, filled dot | Active | There has been client activity in the last 30 seconds; this does not confirm that a task has finished |
-| Orange, exclamation | Needs attention | Open connection settings, read the error and follow the suggested action |
-
-### If the connection does not work
-
-| What you see | What to try |
-| --- | --- |
-| Plotium cannot find Codex or Claude Code | Use **Installation help** to install the client, or **Choose executable…** to select it, then press **Add** |
-| An error mentions Node.js | Check the client's Node.js installation, or select a standalone client executable, then try again |
-| A different server named `plotium` already exists | Review the existing entry. Choose **Back up and replace this entry** only if you want to replace it; Plotium backs it up and leaves other servers unchanged |
-| **Configured**, but no client activity | Reload the client's MCP configuration or restart it, then send the first request above. Check whether the client has disabled or blocked the server |
-| The client reports outdated project state | Ask it to read `plotium_get_state` again before continuing |
-| Another Plotium instance owns the connection | Use the instance providing the connection, or exit it so this instance can connect. Switching window focus does not switch the AI's target |
-| Windows reports that the connector is in use during an update | Exit AI clients using Plotium, then press **Retry** in connection settings |
-| A connector or Claude Desktop extension is missing | Extract the complete Plotium release again; keep its files together |
-
-Startup failures retry automatically. Connection settings show recent operations
-and errors; use **Retry** when offered after resolving the cause. If a connection
-breaks during an edit, check the project before asking the AI to try again: the
-edit may already have completed, and repeating it could create duplicate content.
-
-### Other clients and technical details
-
-For another local MCP client, expand **Manual configuration and diagnostics** and
-press **Copy stable stdio configuration**. Use the copied configuration in your
-client. This connection supports clients on the same machine and user account;
-remote connections and access across Windows and WSL are not supported.
-
-See the [MCP reference](/reference/mcp/) for manual registration commands, tool
-parameters, examples and limits.
+Workflow files can also be run without the desktop app; see
+[the command line](/reference/cli/). [File formats](/reference/file-formats/)
+describes the workflow and run-record files themselves.

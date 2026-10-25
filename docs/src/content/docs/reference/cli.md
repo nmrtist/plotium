@@ -38,7 +38,7 @@ is not the number of acquired observations. A combination of time, frequency,
 or parameter axes is reported as `domain: "mixed"`.
 
 Check reported warnings before processing. Missing calibration or digital-filter
-delay remains unknown; see [NMR format limitations](/reference/file-formats/#nmr-data-and-projects).
+delay remains unknown; see [NMR format limitations](/guides/supported-formats/#nmr).
 Processing failures identify the failing step and return a nonzero exit code.
 
 `process` is the convenience path for a single import, one
@@ -128,9 +128,10 @@ retains the declaration without changing the vendor files.
 plotium-cli batch --workflow <workflow.json> --manifest <run-manifest.json>
 ```
 
-`batch` runs a workflow file — the same JSON the in-app Automation window
-uses, so the easiest way to get one is to build and validate it there first,
-then hand the file to the command line for unattended runs.
+`batch` runs a workflow file, the same JSON the in-app Automation window
+runs. Write the file by hand (see [Workflow file anatomy](#workflow-file-anatomy)),
+check it with **Validate** in the Automation window if you like, then hand it to
+the command line for unattended runs.
 
 Every run writes a run-manifest record of what happened: the workflow and its
 hash, the Plotium version, the targets each step ran on, and every step's
@@ -176,9 +177,9 @@ use `7`. Any other nonzero code indicates an internal error worth reporting.
 
 ## Workflow file anatomy
 
-A workflow (`plotium.workflow.v1`) is a JSON graph of steps with no loops. You
-rarely write one from scratch — the app produces them — but the format is
-plain and editable. A minimal import → process → export workflow:
+A workflow (`plotium.workflow.v1`) is a JSON graph of steps with no loops. The
+app does not generate workflow files, so start from an example like this
+minimal import → process → export workflow and edit it:
 
 ```json
 {

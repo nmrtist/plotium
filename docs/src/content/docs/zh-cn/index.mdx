@@ -1,13 +1,17 @@
 ---
 title: Plotium
-description: 面向科学数据分析与出版级图形制作的桌面应用。
+description: 面向科学数据分析与出版级图形制作的桌面应用，可以单独使用，也可以配合 AI 客户端。
 template: splash
 hero:
-  tagline: 导入、处理、分析、出版级导出——一个桌面应用完成全部流程。
+  tagline: 导入、处理、分析、出版级导出——一个桌面应用完成全部流程，可以自己动手，也可以和 AI 客户端一起完成。
   actions:
     - text: 快速上手
       link: /zh-cn/getting-started/installation/
       icon: right-arrow
+    - text: 连接 AI 客户端
+      link: /zh-cn/ai/connect/
+      icon: right-arrow
+      variant: secondary
     - text: 在 GitHub 查看
       link: https://github.com/nmrtist/plotium
       icon: external
@@ -18,8 +22,13 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
 	<Card title="导入数据" icon="open-book">
-		直接读取 JEOL Delta（`.jdf`）和 Bruker TopSpin 的 NMR 数据、
-		膜片钳记录（ABF2），以及 CSV / Excel 表格数据——无需转换。
+		直接读取 NMR（JEOL、Bruker、Varian/Agilent、JCAMP-DX）、LC–MS（Waters、
+		SCIEX WIFF、mzML）、粉末 XRD、XPS、AFM 和膜片钳（ABF2）文件，以及 CSV、TSV、
+		Excel 和 Origin 表格——无需转换。见[支持的格式](/zh-cn/guides/supported-formats/)。
+	</Card>
+	<Card title="配合 AI 客户端" icon="puzzle">
+		连接 Claude Desktop 或其他 MCP 客户端，让它导入数据、生成并调整图、排布面板。
+		它做的修改都出现在你的画板上，可以先预览，也可以撤销。
 	</Card>
 	<Card title="交互式处理" icon="setting">
 		以有序步骤列表构建处理管线：切趾、FFT、相位与基线校正——实时预览，完整撤销。

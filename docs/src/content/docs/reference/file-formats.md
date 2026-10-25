@@ -1,21 +1,25 @@
 ---
-title: File formats
-description: Native Plotium files, imported formats, and their compatibility boundaries.
+title: Plotium files
+description: The files Plotium writes itself — projects, processing recipes, styles, fit models, workflows, run records, and table schema companions.
 ---
+
+This page covers the files Plotium creates. For the instrument and table
+formats it reads, see [Supported formats](/guides/supported-formats/).
 
 ## `.plotium` projects
 
 A `.plotium` file stores the whole session in one file: imported data,
-processing pipelines, analysis results, board layout, any saved workflows, and
-a record of every automation run. That makes it self-contained — copy it to
-another machine or send it to a colleague and it opens exactly as you saved
-it, with no side files to remember. Keeping your original instrument data is
-still good practice, as with any analysis software.
+processing pipelines, analysis results, board layout, embedded images, any saved
+workflows, and a record of every automation run. That makes it self-contained —
+copy it to another machine or send it to a colleague and it opens exactly as you
+saved it, with no side files to remember. Keeping your original instrument data
+is still good practice, as with any analysis software.
 
 **Preferences → General → Project backup copies** keeps previous saves as
 hidden files beside the project, so an accidental overwrite can be recovered.
 Automatic crash-recovery checkpoints are separate internal files. They are
-updated only after new edits and are not portable project copies.
+updated only after new edits and are not portable project copies. See
+[Saving projects](/guides/organizing-data/#saving-projects).
 
 For homonuclear 2D review, the project stores cross-peak marks, reciprocal
 pair links, and each mark's review state. The pinned cursor position and
@@ -28,30 +32,10 @@ you on reopening if the map no longer matches the data the project
 reconstructs. The contour drawing is not stored — Plotium redraws it from the
 saved map when the project opens.
 
-## Embedded images
-
-Plotium accepts PNG, JPEG, TIFF, WebP, and BMP images and stores them in the
-`.plotium` project. Duplicating an image does not duplicate its stored source, but
-each copy can have its own crop, rotation, opacity, fit, and interpolation.
-Export and clipboard output sample the embedded pixels and preserve those
-settings, Panel clipping, and z-order. SVG output embeds image data and never
-depends on the original local path.
-
-SVG is not supported. For an animated PNG or WebP, **Add Images…** reports that
-the image is animated; use **Add Animated Image First Frame…** to display its
-first frame. **Add Images Without Metadata…** converts the pixels to PNG before
-storing them.
-
-Plotium rejects images above 500 megapixels or an estimated 2 GiB when decoded.
-It asks for confirmation above 100 megapixels or 512 MiB. For a multi-page TIFF,
-**Add Images…** imports the first page and **Add All TIFF Pages…** imports every
-page that Plotium can read. Each imported page can be edited independently.
-
-Plotium checks every embedded image when a project opens. A missing, damaged, or
-mismatched resource produces a diagnostic and a replaceable placeholder
-without discarding the page or image item. Plotium does not silently save that
-degraded state. Publication export blocks by default; an explicit Export-dialog
-option can emit a labelled placeholder for review.
+Images added to a page are stored inside the project. Duplicating an image does
+not duplicate its stored source. Plotium checks every embedded image when a
+project opens; a missing or damaged one becomes a replaceable placeholder. See
+[Images in figures](/guides/images/).
 
 ## `.plotiumproc` processing recipes
 
@@ -59,63 +43,22 @@ A `.plotiumproc` file stores one processing pipeline, without any data — save 
 recipe once and apply it to a whole series of similar experiments, on any
 machine. See [Recipes and templates](/guides/templates/).
 
-## NMR data and projects
+Named processing templates are kept in the `templates` folder of Plotium's
+[configuration directory](/getting-started/installation/#where-plotium-keeps-its-settings).
 
-Plotium supports 1D and 2D NMR, including series with a parameter axis.
-Choose the input that matches the data you want to work with:
+## `.plotiumstyle` canvas styles
 
-- **Bruker:** select an experiment directory for raw data, or a spectrum inside
-  `pdata` for processed data. If a directory contains ambiguous candidates,
-  select a specific file or processing directory. States 2D (`FnMODE=4`) is supported.
-  Processed spectra retain the real and imaginary components present in the files.
-- **JEOL:** select a `.jdf` file containing a supported raw or processed acquisition.
-- **JCAMP-DX:** ordinary XYDATA spectra with one intensity per coordinate,
-  version 5.00 or 5.01, are supported with Hz or ppm axes. LINK, NTUPLES, and
-  peak tables are not supported.
+**Save Canvas Style…** writes the active canvas's look as a `.plotiumstyle`
+file in the `styles` folder of the configuration directory. Copy the file to the
+same folder on another computer to use the style there. See
+[Typography, themes and styles](/guides/themes-and-styles/).
 
-Missing nucleus, frequency-reference, or digital-filter-delay information remains
-unknown. Hz spectra can be displayed directly, but some analyses need additional
-calibration. Raw data with unknown filter delay initially appears as an FID;
-see [Group-delay correction](/guides/processing/#group-delay-correction) to view
-an uncorrected spectrum, and [calibration requirements](/guides/processing/#check-calibration-before-analysis)
-before choosing an analysis. Unknown coordinates or unsupported data arrangements
-produce an import error or diagnostic.
+## Custom fit models
 
-JEOL and Bruker NUS support is experimental and does not cover every instrument
-or acquisition setting. Check import diagnostics and compare results with a trusted
-reference before relying on an unfamiliar acquisition type.
-
-Saving a `.plotium` project retains the imported NMR components, sampling order,
-source information, warnings, and processing settings. Reopening recomputes spectra
-from the saved settings without requiring the original vendor files.
-
-## Varian/Agilent VnmrJ raw NMR
-
-Select a `.fid` directory containing both `fid` and `procpar`, or the `fid` file
-inside it. Supported acquisitions are raw 1D, a series varying one ungrouped
-parameter, and 2D with `phase=[1,2]`. Samples may be big-endian 16-bit integers,
-32-bit integers, or 32-bit floating-point values.
-
-Grouped or multiple parameter arrays, other phase orders, Varian NUS, more than
-two dimensions, and processed spectra are unsupported. Import stops if the
-recorded dimensions or component arrangement do not match the data.
-
-## SCIEX legacy WIFF
-
-Plotium reads a legacy `.wiff` OLE metadata container together with the
-`.wiff.scan` payload whose name is formed by appending `.scan` to the complete
-`.wiff` filename. The importer is pure Rust and does not require SCIEX Analyst,
-SCIEX OS, or a ProteoWizard SDK installation.
-
-Only the validated legacy layout is supported. The native importer reads the
-sample subtree/index streams, preserves duplicate sample names as independent
-samples, and exposes each of the 11 verified experiment slots as its own
-acquisition stream and TIC channel. Records remain in cycle order, including
-zero-TIC and empty DDA slots; no cross-experiment time merging or interpolation
-is performed. Unknown or structurally different WIFF variants are rejected
-before a dataset is created. Encrypted or newer `.wiff2` and
-`.timeseries.data` input is outside this boundary and must first be converted
-to mzML.
+Custom fit models are written in the `.plotiumfit` model language in the Curve
+Fit editor and saved together in your model library, `fit-models.json` in the
+configuration directory. A model is plain data and never runs code. See
+[Custom fit models](/guides/custom-models/).
 
 ## Workflow and run-record files
 
@@ -128,77 +71,10 @@ are covered in [the command line](/reference/cli/).
 A workflow is not a recipe: a recipe holds one processing pipeline, while a
 workflow describes a whole run and may reference a recipe as one of its steps.
 
-## XPS import
+## Table schema companions
 
-VAMAS `.vms` support is intentionally limited to content-signed ISO 14976
-`NORM` / `REGULAR` XPS blocks with regular energy rulers. One file remains one
-experiment with stable measurement and region identities. Plotium retains native
-energy, counts, CPS, photon energy, dwell time, sweeps, position, acquisition
-conditions, and free metadata. Non-XPS blocks can be skipped with warnings only
-when their declared block boundaries are trusted; malformed XPS payloads reject
-the file. Ordinate extrema are metadata rather than data points, and ordinate
-labels plus signal mode determine whether pulse counts are converted to CPS.
-
-CasaXPS `.txt` is recognized by its eight-line structure, not by `.txt` alone.
-Its source arrays and fitted parameters are stored as an `Imported` result.
-Unstructured text continues through table import. See [XPS](/guides/xps/) for
-the energy conversion, processing, fitting, and export contract.
-
-## Origin project import (experimental)
-
-Origin project import is experimental. Successful import is limited to two
-exact, content-detected OPJ producer profiles:
-
-- Origin 7.0552 (`CPYA 4.2673 build 552`) imports verified `f64`, `f32`, signed
-  `i32`, signed `i16`, fixed-width ASCII text, mixed numeric/text cells, nulls,
-  and nonzero row offsets. Project parameters and notes are retained as source
-  metadata.
-- Origin 9.51 build 195 W64 (`CPYA 4.3268 build 195 W64`) imports worksheet
-  names, column names, numeric `f64` values, nulls, and validated empty columns.
-  This modern profile does not yet import text cells, project parameters, or
-  notes.
-
-Compatibility claims are limited to the committed Origin 7 regression fixture
-and the exact Origin 9.51 profile checked against two real projects, companion
-CSV exports, and an independent parser comparison. They do not extend to other
-files merely because the extension or major Origin version is the same.
-
-Plotium preserves validated Origin window or group names and column names. Each
-supported window is represented as one table under the generated worksheet
-name `Sheet1`; this release does not claim to decode original worksheet labels.
-Mixed Origin 7 columns are retained as text, and unequal column lengths are
-padded with nulls. There is no verified-support claim for long names, units,
-comments, column designations, dates, categorical values, or unverified code
-pages.
-
-An `.opju` file is recognized from its CPYUA content signature, but `.opju` is
-not importable in this release and Plotium creates no partial OPJU result.
-
-Unsupported content includes graphs, formulas, scripts, analysis
-recomputation, saved analysis results as executable analyses, matrices,
-embedded objects, modern OPJ text cells, non-ASCII text without a verified code
-page, encrypted or protected projects, unverified OPJ versions or profiles, and
-unverified OPJU containers. For the supported Origin 9.51 profile, Plotium stops
-after the validated window-list boundary and warns that the remaining project
-objects were not imported.
-
-Plotium never silently or heuristically guesses an import. Corrupt or truncated
-files, files above the current 128 MiB input cap, extension/signature-family
-mismatches, and malformed or otherwise unsupported files produce a clear error
-before any table is committed. Inside an otherwise supported OPJ, an
-unsupported worksheet column may be omitted, or an unsupported non-table object
-skipped, only when each is independently framed and its outer boundaries are
-trusted. Plotium shows warnings for every such omission; an imported worksheet
-may therefore contain only the supported columns, not every source column. If
-framing is ambiguous or untrusted, Plotium rejects the file rather than guessing
-boundaries or silently shifting data.
-
-Origin need not be installed, launched, or called during import.
-
-## Data you import and export
-
-See [Importing data](/guides/importing-data/) for the supported instrument and
-tabular formats, and [Exporting](/guides/exporting/) for figure and data
-export — including the `.plotium-schema.json` companion that lets an exported
-CSV/TSV round-trip back into Plotium with its column types, units, and error
-bars intact.
+When Plotium exports a table as CSV or TSV, it writes a `.plotium-schema.json`
+file next to it with the table's column types, units, and error-bar
+relationships. XLSX exports keep the same information on a hidden worksheet,
+and Copy TSV puts it on the clipboard (on Windows). Importing the table again restores those
+details; see [Tables exported by Plotium](/guides/importing-data/#tables-exported-by-plotium).

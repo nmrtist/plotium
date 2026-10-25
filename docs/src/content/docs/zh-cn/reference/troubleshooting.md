@@ -5,24 +5,20 @@ description: 导入、分析、导出或更新不符合预期时的检查清单�
 
 ## 导入
 
-**图片无法导入。** 请确认文件实际内容为 PNG、JPEG、TIFF、WebP 或 BMP；
-Plotium 检查文件签名，而不只看扩展名。Plotium 不支持 SVG；若是动画 PNG 或 WebP，
-请使用 **Add Animated Image First Frame…**。打开 **Operation and Diagnostic
-History** 可查看文件名、检测到的格式、失败环节和原因。导入失败不会改动项目。
+**图片无法导入。** Plotium 检查文件实际内容，而不只看扩展名；可接受的格式以及
+动画图片、多页图片的导入命令见[图中的图片](/zh-cn/guides/images/)。打开 **Operation and
+Diagnostic History** 可查看文件名、检测到的格式、失败环节和原因。导入失败不会改动项目。
 
-**ABF 文件打不开。** Plotium 读取 int16 或 float32 采样的 ABF 2.x。ABF1
-文件和压缩的 ABF2 数据目前不支持——请在采集软件中重新导出为未压缩的
-ABF2。
+**ABF 文件打不开。** ABF1 文件和压缩的 ABF2 数据目前不支持——请在采集软件中
+重新导出为未压缩的 ABF2。见[电生理（ABF2）](/zh-cn/guides/supported-formats/#电生理abf2)。
 
-**数值列被导入成了文本。** Plotium 只对无歧义的值自动定型：
-`true`/`false`、十进制整数、`YYYY-MM-DD` 日期和 UTC 时间戳。区域性格式
-（逗号小数、地区日期）和数字文本混排的列保持为文本，而不是被猜测。查看
-**Review table import** 对话框的诊断信息，修正源文件，或导入后再转换该
-列。
+**数值列被导入成了文本。** Plotium 只对无歧义的值自动定型，因此区域性格式
+（逗号小数、地区日期）和数字文本混排的列保持为文本。查看 **Review table import**
+对话框的诊断信息，修正源文件，或导入后再转换该列。见
+[列类型如何确定](/zh-cn/guides/importing-data/#列类型如何确定)。
 
 **Excel 表格里的单元格导入后是空的。** Plotium 读取 Excel 为每个公式缓存
-的值，但从不重新计算公式。没有缓存值的公式单元格导入为空，并列在导入
-诊断中——在 Excel 里打开工作簿保存一次即可刷新缓存值。
+的值，但从不重新计算公式。在 Excel 里打开工作簿保存一次即可刷新缓存值。
 
 ## 处理与分析
 
@@ -39,11 +35,6 @@ ABF2。
 
 ## 导出
 
-**打开项目后出现缺失图片占位项。** 嵌入资源缺失、损坏，或未通过完整性校验。
-请查看 **Operation and Diagnostic History**，选中占位项并使用 **Replace Image…**。
-Plotium 会保留页面供继续编辑，但阻止常规保存和导出，避免损坏状态被静默发布；若只需
-审阅稿，可在导出对话框中明确生成带标签的占位图。
-
 **导出预检标记了我的图。** 字号或线宽违反所选期刊预设。在画板上修正
 ——**Figure Typography…** 可一次设定全部坐标轴文字尺寸——或改选符合
 预期尺寸的预设。
@@ -57,9 +48,17 @@ copies** 已开启，历史保存以隐藏文件保留在项目文件旁。
 **Preferences → General** 中用 **Check now** 获得明确结果，并检查更新
 通道——切换到更稳定的通道不会降级，而是等待该通道的下一个版本。
 
+**打开项目后出现缺失图片占位项。** 嵌入资源缺失、损坏，或未通过完整性校验。
+请查看 **Operation and Diagnostic History**，选中占位项并使用 **Replace Image…**。
+Plotium 会保留页面供继续编辑，但阻止常规保存和导出，避免损坏状态被静默发布；若只需
+审阅稿，可在导出对话框中明确生成带标签的占位图。见
+[图片缺失或损坏](/zh-cn/guides/images/#图片缺失或损坏)。
+
 ## 报告问题
 
 以上都无法解决时，请在
 [GitHub issue 跟踪器](https://github.com/nmrtist/plotium/issues)报告，附上
 Plotium 版本（见 **Preferences → General**）、平台，以及（可能时）能复现
-问题的文件。
+问题的文件。崩溃后请附上 `crashes` 文件夹中最新的崩溃报告；其他问题请附上旁边
+`logs` 文件夹中最新的会话日志。macOS 上两者都在 `~/Library/Application Support/plotium`
+中；其他平台见[报告问题](/zh-cn/reference/reporting-problems/)。

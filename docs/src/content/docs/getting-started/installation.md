@@ -38,7 +38,7 @@ Desktop extension. Keep the app intact; do not move files out of its Contents.
 For portable ZIP installations, keep `plotium-mcp` (`plotium-mcp.exe` on Windows)
 beside the main executable. macOS and Windows ZIPs also include `plotium.mcpb`.
 
-When you are ready, follow [Connect your AI client](/guides/automation/#connect-your-ai-client).
+When you are ready, follow [Connect an AI client](/ai/connect/).
 Each client only needs to be added once.
 
 ## First launch

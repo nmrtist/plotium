@@ -75,9 +75,11 @@ available, you must provide valid input again.
 
 1. Display the **Stack**, then choose **Analyze → Draw Regions** and draw
    regions over the peaks of interest.
-2. In the Regions task card, choose **View extracted curves**. Each region
-   becomes a point series with b on the x axis; an auxiliary gradient column
-   is retained when available.
+2. In the Regions task card, choose **Extract curves** to prepare the table;
+   the button is unavailable while the source computation runs. When it is
+   ready, choose **View extracted curves**. Each region becomes a point series
+   with b on the x axis; an auxiliary gradient column is retained when
+   available. Completion does not switch panels on its own.
 3. In **Curve Fit**, check that **Diffusion (b values)** is selected and choose
    **Run Fit**. The model fits `I = I₀ exp(−Db)`, with D in `m²/s`.
 4. Inspect the fitted curve, parameter uncertainty, and diagnostics. Use
@@ -169,19 +171,18 @@ settings, and finally a verified acquisition suggestion. This preserves the
 input used for a result rather than silently substituting a later default.
 
 
-## Automation interface
+## With an AI client
 
-Desktop, CLI and MCP reuse native processing and scientific computation semantics.
-See [MCP scientific operations and tasks](/reference/mcp/#scientific-operations-and-tasks)
-for operations and parameter schemas, or use CLI
-[`tool run`](/reference/cli/#single-step-scientific-operations). Pipeline edits,
-schemes, region extraction, diffusion fitting and DOSY/ILT return process-owned
-task receipts; wait for termination before consuming results. Background commits
-form one Undo step and Redo reuses results. Document edits during computation make
-work stale. Diffusion inspection reports SI units and source evidence; result
-inspection provides paginated diagnostics. `empty` does not establish a scientific
-conclusion.
+You can ask an AI client connected to Plotium to run this analysis, for example:
 
-In desktop region tools, select **Extract curves** to prepare the table. While the
-source computation runs, extraction is disabled. Once ready, select **View
-extracted curves** to open it; completion does not switch panels automatically.
+> Check the diffusion inputs of this DOSY experiment and tell me what is
+> missing. Then fit the regions I drew and build a DOSY map. Report D with its
+> standard error and R² before plotting anything.
+
+Plotium does not fill in missing diffusion parameters for the AI: it reports
+what is missing and waits for values you confirm. A finished calculation is
+not a valid result by itself, so check the fit diagnostics it reports. Each
+computation is one Undo step. See [Access, review and undo](/ai/control-and-review/);
+scripts can use the same operations through
+[MCP scientific operations](/reference/mcp/scientific/) and
+[`plotium-cli tool run`](/reference/cli/#single-step-scientific-operations).

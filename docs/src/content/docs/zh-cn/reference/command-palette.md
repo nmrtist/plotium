@@ -76,7 +76,7 @@ description: 用键盘搜索命令、设置与数据。
   `stroke width`、`trace thickness` 与 `line thickness` 都能命中它。
 - 对象检查器 **Figure typography** 区域的 **Tick-label size**。`font size`、
   `tick size`、`points` 与 `figure typography` 都能命中它。参见
-  [版面与导出](/zh-cn/guides/layout-and-export/)。
+  [字体、主题与样式](/zh-cn/guides/themes-and-styles/#图形排印)。
 - 处理卡片中切趾步骤的 **Window**、**LB** 与 **GB**。`apodization`、
   `window function`、`exponential`、`gaussian`、`LB`、`line broadening`、
   `GB` 与 `gaussian broadening` 都能命中它们。参见
