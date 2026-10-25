@@ -48,6 +48,11 @@ copies** 已开启，历史保存以隐藏文件保留在项目文件旁。
 **Preferences → General** 中用 **Check now** 获得明确结果，并检查更新
 通道——切换到更稳定的通道不会降级，而是等待该通道的下一个版本。
 
+**macOS 应用无法安装更新。** 推出安装 DMG，从 Applications 或可写的本地
+文件夹运行 Plotium。若系统询问，请允许更新应用。退出后的安装错误会在下次
+启动的 **偏好设置 → 通用** 中显示，可用 **Check now** 重试，或从新
+DMG 手动安装。见[更新](/zh-cn/reference/updates/)。
+
 **打开项目后出现缺失图片占位项。** 嵌入资源缺失、损坏，或未通过完整性校验。
 请查看 **Operation and Diagnostic History**，选中占位项并使用 **Replace Image…**。
 Plotium 会保留页面供继续编辑，但阻止常规保存和导出，避免损坏状态被静默发布；若只需

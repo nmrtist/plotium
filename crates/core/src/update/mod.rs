@@ -4,6 +4,7 @@
 //! Release metadata comes directly from GitHub. Tests redirect requests to
 //! self-contained local servers with `PLOTIUM_UPDATE_URL`.
 
+mod bundle;
 mod channel;
 mod companions;
 mod install;
@@ -11,7 +12,7 @@ mod protocol;
 mod service;
 
 pub use channel::{UpdateChannel, UpdateChannelSetting};
-pub use install::{InstallPlan, cleanup_after_restart, run_helper_from_args};
+pub use install::{InstallPlan, cleanup_after_restart, record_failure, run_helper_from_args};
 pub use protocol::{DEFAULT_SERVER_URL, ReleaseAsset, UpdateError, server_url};
 pub use service::{UpdateService, UpdateStatus};
 

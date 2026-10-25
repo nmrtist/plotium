@@ -3,15 +3,14 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from package_portable import PLATFORMS
 from release_version import parse
 
 
 def expected_assets(version):
     parse(version)
     return sorted(
-        [f"plotium-{version}-{p}.zip" for p in PLATFORMS.values()]
-        + [f"plotium-{version}-{p}.dmg" for p in PLATFORMS.values() if p.startswith("macos-")]
+        [f"plotium-{version}-{p}.zip" for p in ("windows-x86_64", "linux-x86_64")]
+        + [f"plotium-{version}-macos-{architecture}.dmg" for architecture in ("aarch64", "x86_64")]
     )
 
 

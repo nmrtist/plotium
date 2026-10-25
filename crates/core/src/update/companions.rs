@@ -10,6 +10,10 @@ fn names() -> Vec<&'static str> {
             "plotium-mcp"
         },
         "MCP-THIRD-PARTY-LICENSES.html",
+        "THIRD-PARTY-LICENSES.html",
+        "LICENSE",
+        "COPYRIGHT.md",
+        "README.md",
     ];
     if cfg!(any(windows, target_os = "macos")) {
         names.push("plotium.mcpb");

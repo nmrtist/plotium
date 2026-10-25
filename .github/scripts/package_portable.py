@@ -1,4 +1,4 @@
-"""Build the existing flat ZIP contract; macOS also reuses its staged files."""
+"""Stage release files and build Windows/Linux ZIPs; macOS uses architecture-specific DMGs."""
 import argparse
 import os
 from pathlib import Path
@@ -23,7 +23,7 @@ def run(*args, **kwargs):
     return subprocess.run(list(map(str, args)), cwd=ROOT, check=True, **kwargs)
 
 
-def package(target, output, skip_build=False, skip_connector_smoke=False):
+def stage(target, output, skip_build=False):
     version = cargo_version()
     platform = PLATFORMS[target]
     environment = dict(os.environ, PLOTIUM_RELEASE_CHANNEL=parse(version).group(4) or "stable")
@@ -54,7 +54,16 @@ def package(target, output, skip_build=False, skip_connector_smoke=False):
         shutil.copy2(target_dir / target / "release" / (name + suffix), directory)
     for name in ("LICENSE", "COPYRIGHT.md", "README.md"):
         shutil.copy2(ROOT / name, directory)
-    package_mcp.package(directory, platform, version, runtime_smoke=not skip_connector_smoke)
+    return directory, version
+
+
+def package(target, output, skip_build=False):
+    platform = PLATFORMS[target]
+    if platform.startswith("macos-"):
+        raise ValueError("macOS releases use package_macos.py and architecture-specific DMGs")
+    directory, version = stage(target, output, skip_build)
+    suffix = ".exe" if platform.startswith("windows-") else ""
+    package_mcp.package(directory, platform, version)
     archive = output / f"plotium-{version}-{platform}.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zipped:
         for path in sorted(directory.iterdir()):
@@ -65,14 +74,13 @@ def package(target, output, skip_build=False, skip_connector_smoke=False):
         zipped.extractall(smoke)
         connector = Path(smoke) / ("plotium-mcp" + suffix)
         connector.chmod(0o755)
-        if not skip_connector_smoke:
-            package_mcp.smoke(connector)
+        package_mcp.smoke(connector)
     return directory, version
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", choices=PLATFORMS, required=True)
+    parser.add_argument("--target", choices=[t for t, p in PLATFORMS.items() if not p.startswith("macos-")], required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
     parser.add_argument("--skip-build", action="store_true")
     args = parser.parse_args()

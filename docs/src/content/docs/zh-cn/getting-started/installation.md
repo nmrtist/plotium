@@ -23,8 +23,10 @@ Windows 和 Linux 用户解压 ZIP 到任意位置，运行其中的 `plotium` �
 | macOS Intel | `macos-x86_64.dmg` | macOS 13+ |
 | macOS Apple Silicon | `macos-aarch64.dmg` | macOS 13+ |
 
-发行版的 `SHA256SUMS` 文件覆盖所有 ZIP 和 DMG。macOS 便携 ZIP 保留原有
-名称和内容，包含裸可执行文件及 MCP 配套文件，不包含应用包。
+Intel 处理器选择 **Intel Mac**；M 系列芯片选择 **Apple Silicon（M 系列）**。
+可通过 **Apple 菜单 → 关于本机** 确认。每台 Mac 对应一个 DMG；从 0.2.0
+开始不再发布 macOS ZIP。Windows、Linux 各提供一个 ZIP 下载。
+`SHA256SUMS` 覆盖全部四个安装包。
 
 当前 DMG 内的应用采用 **ad-hoc 签名，未公证**。这能验证本地应用包的完整性，
 不代表经过 Apple 认证的开发者身份或互联网分发许可。Gatekeeper 可能阻止
@@ -33,8 +35,8 @@ Windows 和 Linux 用户解压 ZIP 到任意位置，运行其中的 `plotium` �
 ### 可选：连接 AI 客户端
 
 macOS 应用包已包含 MCP 连接器和 Claude Desktop 扩展，请保持应用包完整，
-不要移出 Contents 内的文件。使用便携 ZIP 时，请将 `plotium-mcp`
-（Windows 下为 `plotium-mcp.exe`）保留在主程序旁。macOS 和 Windows ZIP
+不要移出 Contents 内的文件。使用 Windows 或 Linux ZIP 时，请将 `plotium-mcp`
+（Windows 下为 `plotium-mcp.exe`）保留在主程序旁。Windows ZIP
 也包含 Claude Desktop 扩展 `plotium.mcpb`。
 
 准备好后，按[连接 AI 客户端](/zh-cn/ai/connect/)中的步骤操作。
@@ -49,7 +51,9 @@ macOS 应用包已包含 MCP 连接器和 Claude Desktop 扩展，请保持应�
 - **macOS**——以 Gatekeeper 的实际提示为准。当前 DMG 未采用 Developer ID
   签名，也未公证，本地自建包能启动不能证明下载的副本会被接受。决定是否
   允许应用前，请阅读 [Apple 安全说明](https://support.apple.com/zh-cn/102445)。
-  不要忽视恶意软件或应用损坏警告。
+  若信任下载的副本，先尝试打开一次，再在系统提供此选项时前往
+  **系统设置 → 隐私与安全性 → 仍要打开**，核对应用名称并确认。
+  不要关闭 Gatekeeper 或移除隔离属性，也不要忽视恶意软件或应用损坏警告。
 
 首次启动后 Plotium 显示欢迎页。把数据文件拖进窗口，或使用
 **File → Open File…** 开始——[界面速览](/zh-cn/getting-started/quick-tour/)
@@ -75,9 +79,10 @@ macOS 应用包已包含 MCP 连接器和 Claude Desktop 扩展，请保持应�
 
 ## 更新与卸载
 
-macOS `.app` 用户先用 **Command-Q** 退出 Plotium，再下载新 DMG，替换
-Applications 中的 Plotium.app。工程和偏好设置会保留。应用包不使用便携包的
-二进制更新器；便携 ZIP 仍保留后台更新，详见[更新](/zh-cn/reference/updates/)。
+从 Plotium 0.2.0 开始，macOS `.app` 和 Windows/Linux ZIP 安装均支持后台更新，
+详见[更新](/zh-cn/reference/updates/)。若需手动更新 macOS 应用，先用
+**Command-Q** 退出，再下载新 DMG，替换 Applications 中的 Plotium.app。
+工程和偏好设置会保留。
 卸载时删除 Plotium.app 或便携应用文件夹即可；若想彻底清理，可一并删除
 上述配置文件夹。
 

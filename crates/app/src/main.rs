@@ -640,6 +640,7 @@ fn main() -> eframe::Result<()> {
         && let Err(error) = plan.launch(RELAUNCH_REQUESTED.load(Ordering::Relaxed))
     {
         log::error!("failed to launch update helper: {error}");
+        plotium_core::update::record_failure(&error);
     }
     log::logger().flush();
     Ok(())

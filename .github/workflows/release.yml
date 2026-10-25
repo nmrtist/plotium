@@ -87,12 +87,17 @@ jobs:
         run: cargo install cargo-about --version 0.9.1 --locked --features cli
       - name: Build release binaries
         run: cargo build --locked --release --target "$TARGET" -p plotium -p plotium-agent
-      - name: Package macOS app, DMG, and unchanged portable ZIP
+      - name: Package macOS app and DMG
         if: runner.os == 'macOS'
         run: |
           python3 -m venv "$RUNNER_TEMP/plotium-packaging-python"
           "$RUNNER_TEMP/plotium-packaging-python/bin/python" -m pip install -r .github/scripts/requirements-packaging.txt
           "$RUNNER_TEMP/plotium-packaging-python/bin/python" .github/scripts/package_macos.py --target "$TARGET" --skip-build
+      - name: Test whole-app update using the packaged DMG and shipping helper
+        if: runner.os == 'macOS'
+        env:
+          PLOTIUM_TEST_UPDATE_DMG: ${{ github.workspace }}/dist/plotium-${{ env.VERSION }}-${{ env.PLATFORM }}.dmg
+        run: cargo test --locked -p plotium-core update::bundle::tests -- --nocapture
       - name: Package existing portable ZIP
         if: runner.os != 'macOS'
         run: python3 .github/scripts/package_portable.py --target "$TARGET" --skip-build
@@ -126,7 +131,7 @@ jobs:
           pattern: release-*
           path: dist
           merge-multiple: true
-      - name: Require four ZIPs and both DMGs; generate and verify checksums
+      - name: Require Windows/Linux ZIPs and both macOS DMGs; generate and verify checksums
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
