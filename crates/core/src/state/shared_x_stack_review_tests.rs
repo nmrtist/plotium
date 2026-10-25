@@ -4,9 +4,13 @@ use crate::properties::{PropertyValue, axis};
 use crate::state::{Dataset, FloatSeries, PlotiumApp, materialized_float_series_table};
 
 fn table(first: i32, last: i32, tag: &str) -> Dataset {
+    table_in_unit(first, last, tag, "")
+}
+
+fn table_in_unit(first: i32, last: i32, tag: &str, unit: &str) -> Dataset {
     let xs: Vec<_> = (first..=last).map(|x| Some(f64::from(x))).collect();
     let table = materialized_float_series_table(
-        ("x".to_owned(), String::new(), xs.clone()),
+        ("x".to_owned(), unit.to_owned(), xs.clone()),
         vec![FloatSeries {
             name: "signal".to_owned(),
             unit: String::new(),
@@ -245,6 +249,264 @@ fn outside_legends_line_up_beside_the_widest_right_axis() {
     assert!((legends[0].0.left - legends[1].0.left).abs() < 1e-3);
     for (legend, width) in legends {
         assert!(legend.right() <= width, "{legend:?} overflows {width}");
+    }
+}
+
+fn range_value(min: f64, max: f64) -> PropertyValue {
+    PropertyValue::AxisRange(crate::properties::AxisRangeValue::Manual {
+        min,
+        max,
+        unit: None,
+    })
+}
+
+fn range_overrides(app: &PlotiumApp, ids: &[ObjectId]) -> Vec<AxisOverrides> {
+    ids.iter()
+        .map(|id| {
+            app.doc.canvases[0]
+                .object(*id)
+                .unwrap()
+                .plot()
+                .unwrap()
+                .axis_overrides
+                .clone()
+        })
+        .collect()
+}
+
+#[test]
+fn conflicting_shared_x_batch_is_rejected_without_changes() {
+    use crate::properties::plot_display::X_RANGE;
+    let (app, _, ids) = stacked(vec![
+        table(1, 10, "plotium.test.stack-conflict-a.v1"),
+        table(1, 10, "plotium.test.stack-conflict-b.v1"),
+    ]);
+    let before = range_overrides(&app, &ids);
+    let revision = app.doc.automation_revision;
+    let history = app.session.undo_stack.len();
+    let writes = vec![
+        (
+            app.object_target(0, ids[0]).unwrap(),
+            X_RANGE,
+            range_value(0.0, 10.0),
+        ),
+        (
+            app.object_target(0, ids[1]).unwrap(),
+            X_RANGE,
+            range_value(0.0, 20.0),
+        ),
+    ];
+    for writes in [writes.clone(), writes.into_iter().rev().collect()] {
+        let error = app
+            .plan_property_writes(&writes)
+            .expect_err("conflicting shared ranges");
+        assert!(
+            error.to_string().contains("Conflicting explicit settings"),
+            "{error}"
+        );
+        assert_eq!(range_overrides(&app, &ids), before);
+        assert_eq!(app.doc.automation_revision, revision);
+        assert_eq!(app.session.undo_stack.len(), history);
+    }
+}
+
+#[test]
+fn same_value_shared_x_request_cannot_be_overridden_by_another_member() {
+    use crate::properties::plot_display::X_RANGE;
+    let (app, _, ids) = stacked(vec![
+        table(1, 10, "plotium.test.stack-noop-a.v1"),
+        table(1, 10, "plotium.test.stack-noop-b.v1"),
+    ]);
+    let range = range_overrides(&app, &ids)[0].x_range.unwrap();
+    let error = app
+        .plan_property_writes(&[
+            (
+                app.object_target(0, ids[0]).unwrap(),
+                X_RANGE,
+                range_value(range.min, range.max),
+            ),
+            (
+                app.object_target(0, ids[1]).unwrap(),
+                X_RANGE,
+                range_value(0.0, 20.0),
+            ),
+        ])
+        .expect_err("the first request is explicit even though it changes nothing");
+    assert!(
+        error.to_string().contains("Conflicting explicit settings"),
+        "{error}"
+    );
+}
+
+#[test]
+fn compatible_shared_x_batch_commits_and_undoes_together() {
+    use crate::properties::plot_display::X_RANGE;
+    let (mut app, _, ids) = stacked(vec![
+        table(1, 10, "plotium.test.stack-compatible-a.v1"),
+        table(1, 10, "plotium.test.stack-compatible-b.v1"),
+    ]);
+    let before = range_overrides(&app, &ids);
+    let writes: Vec<_> = ids
+        .iter()
+        .map(|id| {
+            (
+                app.object_target(0, *id).unwrap(),
+                X_RANGE,
+                range_value(0.0, 20.0),
+            )
+        })
+        .collect();
+    let commit = app
+        .plan_property_writes(&writes)
+        .expect("equivalent shared ranges");
+    app.commit_property(commit);
+    assert_eq!(app.session.undo_stack.len(), 1);
+    for overrides in range_overrides(&app, &ids) {
+        assert_eq!(overrides.x_range, Some(AxisRange::new(0.0, 20.0)));
+    }
+    app.undo();
+    assert_eq!(range_overrides(&app, &ids), before);
+    app.redo();
+    assert_eq!(x_axis(&app, ids[0]), x_axis(&app, ids[1]));
+    assert_eq!(x_axis(&app, ids[0]).1, 20.0);
+}
+
+#[test]
+fn shared_x_batch_and_bulk_writes_respect_coordinate_units() {
+    use crate::properties::plot_display::X_RANGE;
+    let (mut app, panel, ids) = stacked(vec![
+        table_in_unit(1, 10, "plotium.test.stack-units-a.v1", "s"),
+        table_in_unit(1, 10, "plotium.test.stack-units-b.v1", "ms"),
+    ]);
+    let registry = plotium_data::UnitRegistry::plotium_v1();
+    for (id, code) in ids.iter().zip(["s", "ms"]) {
+        let plot = app.doc.canvases[0]
+            .object_mut(*id)
+            .unwrap()
+            .plot_mut()
+            .unwrap();
+        plot.binding
+            .coordinates
+            .get_or_insert_with(crate::state::CurveCoordinates::default)
+            .x = Some(registry.resolve(code).unwrap());
+    }
+    app.doc.canvases[0].unify_shared_x_window(panel).unwrap();
+    let targets: Vec<_> = ids
+        .iter()
+        .map(|id| app.object_target(0, *id).unwrap())
+        .collect();
+    let before = range_overrides(&app, &ids);
+    let revision = app.doc.automation_revision;
+    let history = app.session.undo_stack.len();
+    app.plan_property_write(X_RANGE, &targets, &range_value(0.0, 20.0))
+        .expect_err("known coordinate units require an explicit input unit");
+    assert_eq!(range_overrides(&app, &ids), before);
+    assert_eq!(app.doc.automation_revision, revision);
+    assert_eq!(app.session.undo_stack.len(), history);
+    let with_unit = |max, unit: &str| {
+        PropertyValue::AxisRange(crate::properties::AxisRangeValue::Manual {
+            min: 0.0,
+            max,
+            unit: Some(unit.into()),
+        })
+    };
+    let error = app
+        .plan_property_writes(&[
+            (targets[0].clone(), X_RANGE, with_unit(20.0, "s")),
+            (targets[1].clone(), X_RANGE, with_unit(30_000.0, "ms")),
+        ])
+        .expect_err("different physical windows still conflict across units");
+    assert!(
+        error.to_string().contains("Conflicting explicit settings"),
+        "{error}"
+    );
+    assert_eq!(range_overrides(&app, &ids), before);
+    assert_eq!(app.doc.automation_revision, revision);
+    assert_eq!(app.session.undo_stack.len(), history);
+    let commit = app
+        .plan_property_writes(&[
+            (targets[0].clone(), X_RANGE, with_unit(20.0, "s")),
+            (targets[1].clone(), X_RANGE, with_unit(20_000.0, "ms")),
+        ])
+        .expect("physically equivalent ranges in native units");
+    app.commit_property(commit);
+    let overrides = range_overrides(&app, &ids);
+    assert_eq!(overrides[0].x_range, Some(AxisRange::new(0.0, 20.0)));
+    assert_eq!(overrides[1].x_range, Some(AxisRange::new(0.0, 20_000.0)));
+    let commit = app
+        .plan_property_write(X_RANGE, &targets, &with_unit(30.0, "s"))
+        .expect("bulk writes convert one explicit unit for each member");
+    app.commit_property(commit);
+    let overrides = range_overrides(&app, &ids);
+    assert_eq!(overrides[0].x_range, Some(AxisRange::new(0.0, 30.0)));
+    assert_eq!(overrides[1].x_range, Some(AxisRange::new(0.0, 30_000.0)));
+}
+
+#[test]
+fn shared_x_break_endpoints_and_fraction_compose_across_members() {
+    use crate::properties::plot_display::{X_BREAK, X_BREAK_FRACTION};
+    let (mut app, _, ids) = stacked(vec![
+        table(1, 10, "plotium.test.stack-break-a.v1"),
+        table(1, 10, "plotium.test.stack-break-b.v1"),
+    ]);
+    let targets: Vec<_> = ids
+        .iter()
+        .map(|id| app.object_target(0, *id).unwrap())
+        .collect();
+    let commit = app
+        .plan_property_write(X_BREAK, &targets[..1], &range_value(3.0, 5.0))
+        .expect("initial shared break");
+    app.commit_property(commit);
+    let writes = vec![
+        (targets[0].clone(), X_BREAK, range_value(4.0, 6.0)),
+        (
+            targets[1].clone(),
+            X_BREAK_FRACTION,
+            PropertyValue::Float(0.3),
+        ),
+    ];
+    for writes in [writes.clone(), writes.into_iter().rev().collect()] {
+        let commit = app
+            .plan_property_writes(&writes)
+            .expect("disjoint break edits compose");
+        app.commit_property(commit);
+        for overrides in range_overrides(&app, &ids) {
+            let brk = overrides.x_break.unwrap();
+            assert_eq!((brk.from, brk.to), (4.0, 6.0));
+            assert_eq!(brk.lower_fraction, Some(0.3));
+        }
+        app.undo();
+    }
+}
+
+#[test]
+fn shared_x_scale_and_separator_conflicts_are_rejected() {
+    let (app, _, ids) = stacked(vec![
+        table(1, 10, "plotium.test.stack-settings-a.v1"),
+        table(1, 10, "plotium.test.stack-settings-b.v1"),
+    ]);
+    for (property, first, second) in [
+        (
+            axis::X_SCALE,
+            PropertyValue::Enum(axis::LOG),
+            PropertyValue::Enum(axis::LINEAR),
+        ),
+        (
+            axis::X_THOUSANDS_SEPARATOR,
+            PropertyValue::Bool(true),
+            PropertyValue::Bool(false),
+        ),
+    ] {
+        let error = app
+            .plan_property_writes(&[
+                (app.object_target(0, ids[0]).unwrap(), property, first),
+                (app.object_target(0, ids[1]).unwrap(), property, second),
+            ])
+            .expect_err("one shared axis cannot keep contradictory settings");
+        assert!(
+            error.to_string().contains("Conflicting explicit settings"),
+            "{error}"
+        );
     }
 }
 

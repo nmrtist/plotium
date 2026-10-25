@@ -758,6 +758,9 @@ patch. It cannot insert/delete rows, change schema, reimport files or write to t
 original CSV/TSV. Preparation produces `update: {status:"prepared", output,
 before_table_revision, changed}`; nothing is applied until execution. A no-op
 returns `changed:false` without advancing the document revision or adding Undo.
+Before a patch or refresh is committed, its values must remain valid for existing
+curve bindings. For example, a column used as Y error cannot contain negative
+amplitudes. A rejected update preserves the table, plots and Undo history.
 
 Table metadata, row pages and Series sources include
 `freshness: {status, refreshable, reason, sources, mcp_refreshable, mcp_refresh_reason}`.
@@ -1164,7 +1167,10 @@ member's x direction without storing it. The plots share one x viewport, and
 later x range, x scale, x display unit, x thousands-separator and x major step
 edits on any
 member apply to all of them in one Undo step; the write is rejected when any
-member cannot take the value, and `applied` lists the member edits. `shared_x: false` returns the Panel to free layout and keeps
+member cannot take the value, and `applied` lists the member edits. A batch that
+requests conflicting shared x settings is rejected without changes; equivalent
+ranges expressed in compatible coordinate units are accepted.
+`shared_x: false` returns the Panel to free layout and keeps
 the frames. The result lists each operation in `panel_edits` with `layout`,
 `gap_pt`, `members_top_to_bottom` and `merged_panels`. `plotium_document_inspect` reports every
 Panel's `layout` (`free`, `vertical_stack`, `horizontal_stack`, `grid` or

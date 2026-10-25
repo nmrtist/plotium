@@ -189,7 +189,11 @@ impl PlotiumApp {
                 .ok_or_else(|| PropertyError::UnknownProperty(property.as_str().to_owned()))?;
             let address = PropertyAddress::new(target.clone(), *property);
             transaction.begin_target();
-            match provider.edit(self, &mut transaction, &address, &EditOp::Set(value)) {
+            let result = provider.edit(self, &mut transaction, &address, &EditOp::Set(value));
+            if result.is_ok() {
+                transaction.record_shared_x_edit(&address);
+            }
+            match result {
                 Ok(()) if transaction.target_changed() => applied.push(address),
                 Ok(()) => skipped.push(PropertySkip::new(
                     target.clone(),
@@ -248,7 +252,11 @@ impl PlotiumApp {
             for target in targets {
                 let address = PropertyAddress::new(target.clone(), property);
                 transaction.begin_target();
-                match provider.edit(self, &mut transaction, &address, &EditOp::Reset) {
+                let result = provider.edit(self, &mut transaction, &address, &EditOp::Reset);
+                if result.is_ok() {
+                    transaction.record_shared_x_edit(&address);
+                }
+                match result {
                     Ok(()) if transaction.target_changed() => applied.push(address),
                     Ok(()) => {
                         released.push(address);
@@ -580,7 +588,11 @@ impl PlotiumApp {
         for target in targets {
             let address = PropertyAddress::new(target.clone(), property);
             transaction.begin_target();
-            match provider.edit(self, &mut transaction, &address, operation) {
+            let result = provider.edit(self, &mut transaction, &address, operation);
+            if result.is_ok() {
+                transaction.record_shared_x_edit(&address);
+            }
+            match result {
                 Ok(()) if transaction.target_changed() => applied.push(address),
                 Ok(()) => {
                     if matches!(operation, EditOp::Reset) {

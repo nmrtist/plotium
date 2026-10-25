@@ -7,6 +7,21 @@ use crate::state::{AxisOverrides, AxisRange, ObjectId, PlotObject, PlotiumApp};
 use plotium_figure::AxisScale;
 
 impl PropertyTransaction {
+    pub(crate) fn record_shared_x_edit(&mut self, address: &PropertyAddress) {
+        if matches!(
+            address.definition,
+            plot_display::X_RANGE
+                | plot_display::X_BREAK
+                | plot_display::X_BREAK_FRACTION
+                | plot_display::X_UNIT
+                | axis::X_SCALE
+                | axis::X_THOUSANDS_SEPARATOR
+        ) && !self.shared_x_edits.contains(address)
+        {
+            self.shared_x_edits.push(address.clone());
+        }
+    }
+
     /// Extend the staged axis edits to every stack peer, rejecting the whole
     /// commit when a peer cannot take a value, and report each peer edit.
     pub(crate) fn fan_out_shared_x(
@@ -14,10 +29,9 @@ impl PropertyTransaction {
         app: &PlotiumApp,
         applied: &mut Vec<PropertyAddress>,
     ) -> Result<(), PropertyError> {
-        let sources: Vec<_> = self
+        let requests: Vec<_> = self
             .axis_overrides
             .iter()
-            .filter(|plan| plan.before.shared_x_differs(&plan.after))
             .map(|plan| {
                 (
                     plan.canvas,
@@ -27,7 +41,11 @@ impl PropertyTransaction {
                 )
             })
             .collect();
-        for (canvas, object, before, after) in sources {
+        for (canvas, object, before, after) in &requests {
+            if !before.shared_x_differs(after) {
+                continue;
+            }
+            let (canvas, object) = (*canvas, *object);
             let Some(page) = app.doc.canvases.get(canvas) else {
                 continue;
             };
@@ -47,12 +65,38 @@ impl PropertyTransaction {
                     app,
                     plot,
                     &source_unit,
-                    &before,
-                    &after,
+                    before,
+                    after,
                     &mut self.axis_overrides[index].after,
                 )
                 .map_err(|error| peer_error(page.object(peer).map(|o| o.name.as_str()), error))?;
                 if let Some(target) = app.object_target(canvas, peer) {
+                    if let Some((_, _, _, requested)) = requests
+                        .iter()
+                        .find(|(c, o, _, _)| *c == canvas && *o == peer)
+                    {
+                        let proposed = &mut self.axis_overrides[index].after;
+                        for address in self.shared_x_edits.iter().filter(|a| a.target == target) {
+                            if !compatible(
+                                address.definition,
+                                requested,
+                                proposed,
+                                source_unit != x_unit(plot),
+                            ) {
+                                return Err(peer_error(
+                                    page.object(peer).map(|o| o.name.as_str()),
+                                    PropertyError::InvalidValue {
+                                        property: address.definition,
+                                        message:
+                                            "Conflicting explicit settings for one shared X axis."
+                                                .into(),
+                                    },
+                                ));
+                            }
+                            // Keep the exact authored value after allowing conversion roundoff.
+                            preserve(address.definition, requested, proposed);
+                        }
+                    }
                     for property in changed {
                         let address = PropertyAddress::new(target.clone(), property);
                         if !applied.contains(&address) {
@@ -80,6 +124,51 @@ impl PropertyTransaction {
             after: plot.axis_overrides.clone(),
         });
         self.axis_overrides.len() - 1
+    }
+}
+
+fn compatible(property: PropertyId, a: &AxisOverrides, b: &AxisOverrides, converted: bool) -> bool {
+    // Only unit conversion may introduce roundoff; distinct native values conflict.
+    let close =
+        |a: f64, b: f64| a == b || (converted && (a - b).abs() <= 1e-12 * a.abs().max(b.abs()));
+    match property {
+        plot_display::X_RANGE => match (a.x_range, b.x_range) {
+            (Some(a), Some(b)) => close(a.min, b.min) && close(a.max, b.max),
+            (a, b) => a == b,
+        },
+        plot_display::X_BREAK => match (a.x_break, b.x_break) {
+            (Some(a), Some(b)) => close(a.from, b.from) && close(a.to, b.to),
+            (a, b) => a == b,
+        },
+        plot_display::X_BREAK_FRACTION => {
+            a.x_break.map(|b| b.lower_fraction) == b.x_break.map(|b| b.lower_fraction)
+        }
+        plot_display::X_UNIT => a.x_display_unit == b.x_display_unit,
+        axis::X_SCALE => a.x_scale == b.x_scale,
+        axis::X_THOUSANDS_SEPARATOR => a.x_thousands_separator == b.x_thousands_separator,
+        _ => true,
+    }
+}
+
+fn preserve(property: PropertyId, from: &AxisOverrides, to: &mut AxisOverrides) {
+    match property {
+        plot_display::X_RANGE => to.x_range = from.x_range,
+        plot_display::X_BREAK => {
+            let fraction = to.x_break.and_then(|b| b.lower_fraction);
+            to.x_break = from.x_break.map(|b| plotium_figure::AxisBreak {
+                lower_fraction: fraction,
+                ..b
+            });
+        }
+        plot_display::X_BREAK_FRACTION => {
+            if let Some(brk) = &mut to.x_break {
+                brk.lower_fraction = from.x_break.and_then(|b| b.lower_fraction);
+            }
+        }
+        plot_display::X_UNIT => to.x_display_unit.clone_from(&from.x_display_unit),
+        axis::X_SCALE => to.x_scale = from.x_scale,
+        axis::X_THOUSANDS_SEPARATOR => to.x_thousands_separator = from.x_thousands_separator,
+        _ => {}
     }
 }
 
@@ -136,7 +225,11 @@ fn copy_into(
         changed.push(plot_display::X_RANGE);
     }
     if before.x_break != after.x_break {
-        target.x_break = after
+        let endpoints_changed =
+            before.x_break.map(|b| (b.from, b.to)) != after.x_break.map(|b| (b.from, b.to));
+        let fraction_changed =
+            before.x_break.map(|b| b.lower_fraction) != after.x_break.map(|b| b.lower_fraction);
+        let converted = after
             .x_break
             .map(|brk| {
                 let convert = |value| {
@@ -154,7 +247,23 @@ fn copy_into(
                 })
             })
             .transpose()?;
-        changed.push(plot_display::X_BREAK);
+        if endpoints_changed {
+            let fraction = target.x_break.and_then(|b| b.lower_fraction);
+            target.x_break = converted.map(|brk| plotium_figure::AxisBreak {
+                lower_fraction: if fraction_changed {
+                    brk.lower_fraction
+                } else {
+                    fraction
+                },
+                ..brk
+            });
+            changed.push(plot_display::X_BREAK);
+        } else if let Some(brk) = &mut target.x_break {
+            brk.lower_fraction = converted.and_then(|b| b.lower_fraction);
+        }
+        if fraction_changed {
+            changed.push(plot_display::X_BREAK_FRACTION);
+        }
     }
     if before.x_scale != after.x_scale {
         if after.x_scale == Some(AxisScale::Log10)

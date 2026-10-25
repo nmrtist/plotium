@@ -623,6 +623,8 @@ Int64 列；分类值只能指定已有 level 的索引。此操作不修改扩�
 旧 revision 均拒绝整批，不留下部分修改。不增删行、改 schema、重导入或回写源
 CSV/TSV。准备返回 `update:{status:"prepared",output,before_table_revision,changed}`，
 执行前不修改项目。相同值返回 `changed:false`，不推进文档 revision 或增加 Undo。
+补丁或刷新提交前，其数值必须仍满足已有曲线绑定的要求。例如，用作 Y 误差的列
+不能包含负幅度。拒绝更新时，表格、图和 Undo 历史均保持不变。
 
 表格元数据、行页和 Series 来源返回
 `freshness:{status,refreshable,reason,sources,mcp_refreshable,mcp_refresh_reason}`。
@@ -954,7 +956,9 @@ Series 身份和来源绑定。已知目标可复用同步提交结果的 contex
 x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位、x 千位分隔符或
 x 主刻度间隔，都会
 写到所有成员，并合为一次 Undo；若任一成员不能接受该值则拒绝写入，`applied` 会
-列出各成员的修改。`shared_x: false` 恢复为自由布局并保留各 frame。结果在 `panel_edits` 中列出
+列出各成员的修改。同一批次若请求相互冲突的共享 x 设置，会整批拒绝且不留下修改；
+按兼容坐标单位表达的等价范围可以接受。
+`shared_x: false` 恢复为自由布局并保留各 frame。结果在 `panel_edits` 中列出
 每个操作的 `layout`、`gap_pt`、`members_top_to_bottom` 和 `merged_panels`。
 `plotium_document_inspect` 为每个面板返回 `layout`（`free`、`vertical_stack`、
 `horizontal_stack`、`grid` 或 `shared_x_stack`）；堆叠面板另含

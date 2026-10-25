@@ -718,6 +718,18 @@ impl ComputeService {
         cancelled
     }
 
+    /// Retire work for a removed source even if undo later restores the same ID.
+    /// Other datasets keep their generations when collection positions change.
+    pub(crate) fn invalidate_dataset(&mut self, dataset: DatasetId) {
+        for ((id, _), active) in &self.active {
+            if *id == dataset {
+                active.token.cancel();
+            }
+        }
+        self.latest.retain(|(id, _), _| *id != dataset);
+        self.deferred_processing.remove(&dataset);
+    }
+
     pub(crate) fn latest_generation(&self, dataset: DatasetId, kind: ComputeKind) -> Option<u64> {
         self.latest.get(&(dataset, kind)).copied()
     }

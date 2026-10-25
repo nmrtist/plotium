@@ -309,6 +309,9 @@ impl PlotiumApp {
     /// until it lands).
     pub fn poll_compute(&mut self) -> bool {
         self.finish_phase_previews();
+        // Analysis jobs resolve stable dataset IDs and generations. The global
+        // epoch protects positional consumers; unrelated collection edits do
+        // not invalidate these sources. Removal explicitly retires their jobs.
         for done in self.session.compute.try_drain() {
             if self.finish_scientific_compute(&done) {
                 continue;
@@ -320,17 +323,16 @@ impl PlotiumApp {
                 Done::Ilt {
                     generation,
                     dataset,
-                    epoch,
+                    epoch: _,
                     result,
                     params,
                     provenance,
                     figure,
                 } => {
-                    if epoch != self.session.dataset_epoch
-                        || !self
-                            .session
-                            .compute
-                            .is_current(dataset, ComputeKind::Ilt, generation)
+                    if !self
+                        .session
+                        .compute
+                        .is_current(dataset, ComputeKind::Ilt, generation)
                     {
                         continue;
                     }
@@ -374,16 +376,15 @@ impl PlotiumApp {
                 Done::Dosy {
                     generation,
                     dataset,
-                    epoch,
+                    epoch: _,
                     result,
                     provenance,
                     figure,
                 } => {
-                    if epoch != self.session.dataset_epoch
-                        || !self
-                            .session
-                            .compute
-                            .is_current(dataset, ComputeKind::Dosy, generation)
+                    if !self
+                        .session
+                        .compute
+                        .is_current(dataset, ComputeKind::Dosy, generation)
                     {
                         continue;
                     }
@@ -421,16 +422,15 @@ impl PlotiumApp {
                 Done::Craft {
                     generation,
                     dataset,
-                    epoch,
+                    epoch: _,
                     result,
                     invocation,
                     parent_run,
                 } => {
-                    if epoch != self.session.dataset_epoch
-                        || !self
-                            .session
-                            .compute
-                            .is_current(dataset, ComputeKind::Craft, generation)
+                    if !self
+                        .session
+                        .compute
+                        .is_current(dataset, ComputeKind::Craft, generation)
                     {
                         continue;
                     }
@@ -482,14 +482,13 @@ impl PlotiumApp {
                 Done::CraftFailed {
                     generation,
                     dataset,
-                    epoch,
+                    epoch: _,
                     message,
                 } => {
-                    if epoch == self.session.dataset_epoch
-                        && self
-                            .session
-                            .compute
-                            .is_current(dataset, ComputeKind::Craft, generation)
+                    if self
+                        .session
+                        .compute
+                        .is_current(dataset, ComputeKind::Craft, generation)
                     {
                         self.session.status = format!("CRAFT analysis failed: {message}");
                         self.session.ui.craft_feedback.insert(

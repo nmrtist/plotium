@@ -33,6 +33,9 @@ when you want to inspect the FID without relying on a fully processed spectrum.
 7. Choose **Run CRAFT**. The calculation runs in the background; choose
    **Cancel CRAFT** to stop it.
 
+Deleting an unrelated dataset does not interrupt the run. Deleting its source
+dataset cancels the calculation; Undo restores the dataset, but does not restart it.
+
 The setup page shows the acquisition carrier, the applied reference shift, the
 acquisition duration, and the number of usable points. Invalid FID samples or
 acquisition metadata, an invalid reference, overlapping or out-of-band groups,

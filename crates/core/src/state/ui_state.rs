@@ -681,11 +681,9 @@ pub struct Session {
     /// Unified numerical export worker. Serialization and file I/O stay off the UI thread.
     pub data_export_job: Option<crate::data_export::DataExportJob>,
     pub data_export_operation: Option<OperationId>,
-    /// Bumped whenever a dataset index may now address a different dataset than
-    /// it did when a background job captured it, so index-addressed results can
-    /// be rejected. Only removal does that: datasets are always appended, so an
-    /// insertion leaves every existing index pointing at the same dataset and must
-    /// not invalidate work in flight.
+    /// Invalidates background jobs that still capture dataset positions when
+    /// collection edits can change what an index addresses. ID-based compute
+    /// completions use their source generation instead.
     pub dataset_epoch: u64,
     /// Latched once the user has confirmed (Save or Discard) a close on a dirty
     /// project, so the re-issued close request passes through instead of looping
