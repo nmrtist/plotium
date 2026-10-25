@@ -20,6 +20,9 @@ pub const TABLE_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
 pub const TABLE_IMPORT_TOTAL_BYTES: u64 = 64 * 1024 * 1024;
 pub const TABLE_IMPORT_COLUMNS: usize = 256;
 pub const TABLE_IMPORT_ROWS: usize = 1_000_000;
+/// Worksheet ranges are read densely, so XLSX is bounded by cells read rather
+/// than by its compressed size.
+pub const TABLE_IMPORT_XLSX_CELLS: usize = 8_000_000;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -39,6 +42,7 @@ pub enum ImportHeader {
 pub enum ImportFormat {
     Csv,
     Tsv,
+    Xlsx,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -48,6 +52,8 @@ pub struct TableImportParams {
     #[serde(default)]
     pub header: ImportHeader,
     pub format: Option<ImportFormat>,
+    /// XLSX worksheets to import by name; every visible worksheet when absent.
+    pub sheets: Option<Vec<String>>,
     /// An explicit ordered schema, not display-name-based resource addressing.
     pub schema: Option<TableSchema>,
     pub schema_path: Option<PathBuf>,
@@ -58,9 +64,10 @@ pub fn is_table_import(value: &Value) -> bool {
 pub fn table_import_schema() -> Value {
     json!({"type":"object","additionalProperties":false,"required":["mode","paths"],"properties":{
         "mode":{"const":"table_data_only"},"paths":{"type":"array","minItems":1,"maxItems":TABLE_IMPORT_FILES,"items":{"type":"string"}},
-        "header":{"enum":["auto","present","absent"],"default":"auto"},"format":{"enum":["csv","tsv"]},
+        "header":{"enum":["auto","present","absent"],"default":"auto","description":"CSV/TSV only."},"format":{"enum":["csv","tsv","xlsx"]},
+        "sheets":{"type":"array","minItems":1,"items":{"type":"string"},"description":"XLSX worksheet names, each imported as its own table. Default: every visible worksheet."},
         "schema":table_declaration_schema(),
-        "schema_path":{"type":"string","description":"Explicit PlotiumDelimitedSchemaV1 JSON file. Never discovered automatically."}},
+        "schema_path":{"type":"string","description":"Explicit PlotiumDelimitedSchemaV1 JSON file for CSV/TSV. Never discovered automatically."}},
         "not":{"required":["schema","schema_path"]}})
 }
 pub fn table_declaration_schema() -> Value {
@@ -75,7 +82,7 @@ pub fn table_declaration_schema() -> Value {
         "business_keys":{"type":"array","maxItems":0},"metadata":{"type":"object"}}})
 }
 pub fn table_import_limits() -> Value {
-    json!({"files":TABLE_IMPORT_FILES,"file_bytes":TABLE_IMPORT_FILE_BYTES,"total_bytes":TABLE_IMPORT_TOTAL_BYTES,"columns":TABLE_IMPORT_COLUMNS,"rows_per_file":TABLE_IMPORT_ROWS,"prepared_plans":4,"in_flight":1,"schema_file_bytes":TABLE_RESPONSE_BYTES,"prepared_summary_bytes":TABLE_RESPONSE_BYTES/2,"preflight_response_bytes":TABLE_RESPONSE_BYTES})
+    json!({"files":TABLE_IMPORT_FILES,"file_bytes":TABLE_IMPORT_FILE_BYTES,"total_bytes":TABLE_IMPORT_TOTAL_BYTES,"columns":TABLE_IMPORT_COLUMNS,"rows_per_file":TABLE_IMPORT_ROWS,"xlsx_cells_per_file":TABLE_IMPORT_XLSX_CELLS,"prepared_plans":4,"in_flight":1,"schema_file_bytes":TABLE_RESPONSE_BYTES,"prepared_summary_bytes":TABLE_RESPONSE_BYTES/2,"preflight_response_bytes":TABLE_RESPONSE_BYTES})
 }
 fn invalid(message: impl Into<String>) -> AutomationError {
     AutomationError::InvalidParameters {
@@ -96,6 +103,9 @@ impl TableImportParams {
         if self.paths.is_empty() {
             return Err(invalid("Import requires 1–16 explicit files."));
         }
+        if self.sheets.as_ref().is_some_and(Vec::is_empty) {
+            return Err(invalid("sheets must name at least one worksheet."));
+        }
         if self.schema.is_some() && self.schema_path.is_some() {
             return Err(invalid("Supply schema or schema_path, not both."));
         }
@@ -115,9 +125,21 @@ impl TableImportParams {
 }
 struct ImportItem {
     path: PathBuf,
+    /// The source worksheet of an XLSX table.
+    sheet: Option<String>,
     dataset: Option<Dataset>,
     summary: Value,
     error: Option<String>,
+}
+impl ImportItem {
+    fn json(&self, status: &str) -> Value {
+        let mut value =
+            json!({"path":self.path,"status":status,"metadata":self.summary,"error":self.error});
+        if let Some(sheet) = &self.sheet {
+            value["sheet"] = json!(sheet);
+        }
+        value
+    }
 }
 pub struct PreparedTableImport {
     items: Vec<ImportItem>,
@@ -160,20 +182,30 @@ impl PreparedTableImport {
             if cancelled() {
                 return Err(AutomationError::PreviewCancelled);
             }
-            let result = prepare_file(path, &params, schema.clone(), source, &mut budget);
-            let (dataset, summary, error) = match result {
-                Ok(dataset) => {
-                    let summary = table_metadata(&dataset)?;
-                    (Some(dataset), summary, None)
+            match prepare_file(path, &params, schema.clone(), source, &mut budget) {
+                Ok(tables) => {
+                    for (sheet, dataset) in tables {
+                        let (summary, dataset, error) = match dataset {
+                            Ok(dataset) => (table_metadata(&dataset)?, Some(dataset), None),
+                            Err(error) => (Value::Null, None, Some(error)),
+                        };
+                        items.push(ImportItem {
+                            path: path.clone(),
+                            sheet,
+                            summary,
+                            dataset,
+                            error,
+                        });
+                    }
                 }
-                Err(error) => (None, Value::Null, Some(error)),
-            };
-            items.push(ImportItem {
-                path: path.clone(),
-                dataset,
-                summary,
-                error,
-            });
+                Err(error) => items.push(ImportItem {
+                    path: path.clone(),
+                    sheet: None,
+                    dataset: None,
+                    summary: Value::Null,
+                    error: Some(error),
+                }),
+            }
         }
         let prepared = Self { items, params };
         if serde_json::to_vec(&prepared.preflight())
@@ -181,12 +213,41 @@ impl PreparedTableImport {
             .len()
             > TABLE_RESPONSE_BYTES / 2
         {
-            return Err(AutomationError::ResponseTooLarge);
+            let mut workbooks: Vec<(&Path, Vec<String>)> = Vec::new();
+            for item in &prepared.items {
+                let Some(sheet) = &item.sheet else { continue };
+                let name = format!("'{sheet}'");
+                match workbooks.iter_mut().find(|(path, _)| *path == item.path) {
+                    Some((_, names)) => names.push(name),
+                    None => workbooks.push((&item.path, vec![name])),
+                }
+            }
+            if workbooks.is_empty() {
+                return Err(AutomationError::ResponseTooLarge);
+            }
+            let listed = workbooks
+                .iter()
+                .map(|(path, names)| format!("{}: {}", path.display(), names.join(", ")))
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(invalid(format!(
+                "The import summary exceeds 128 KiB; import one workbook at a time and name fewer worksheets in sheets. Worksheets by file: {listed}."
+            )));
         }
         Ok(prepared)
     }
     pub fn preflight(&self) -> Value {
-        json!({"phase":"preflight","prepared_files":self.items.iter().filter(|i|i.dataset.is_some()).count(),"failed_files":self.items.iter().filter(|i|i.error.is_some()).count(),"status":if self.status()=="succeeded"{"prepared"}else{self.status()},"items":self.items.iter().map(|item| json!({"path":item.path,"status":if item.error.is_some(){"failed"}else{"prepared"},"metadata":item.summary,"error":item.error})).collect::<Vec<_>>()})
+        json!({"phase":"preflight","prepared_files":self.files(|i|i.dataset.is_some()),"failed_files":self.files(|i|i.error.is_some()),"status":if self.status()=="succeeded"{"prepared"}else{self.status()},"items":self.items.iter().map(|item| item.json(if item.error.is_some(){"failed"}else{"prepared"})).collect::<Vec<_>>()})
+    }
+    /// Counts distinct files with a matching item; a workbook has an item per table.
+    fn files(&self, matches: impl Fn(&ImportItem) -> bool) -> usize {
+        let mut paths = Vec::new();
+        for item in self.items.iter().filter(|item| matches(item)) {
+            if !paths.contains(&&item.path) {
+                paths.push(&item.path);
+            }
+        }
+        paths.len()
     }
     fn status(&self) -> &'static str {
         let success = self.items.iter().filter(|i| i.dataset.is_some()).count();
@@ -218,9 +279,9 @@ impl PreparedTableImport {
         );
         let mut actions = Vec::new();
         let mut values = Vec::new();
-        for item in self.items {
+        for mut item in self.items {
             let success = item.dataset.is_some();
-            if let Some(dataset) = item.dataset {
+            if let Some(dataset) = item.dataset.take() {
                 result.produced.push(dataset.resource_id().into());
                 actions.push(Action::InsertTableData {
                     dataset: Box::new(dataset),
@@ -238,14 +299,14 @@ impl PreparedTableImport {
                 } else {
                     TargetOutcome::Failed
                 },
-                message: item
-                    .error
-                    .clone()
-                    .unwrap_or_else(|| "Imported native table data.".into()),
+                message: item.error.clone().unwrap_or_else(|| match &item.sheet {
+                    Some(sheet) => format!("Imported worksheet '{sheet}' as native table data."),
+                    None => "Imported native table data.".into(),
+                }),
                 skip_reason: None,
                 fingerprints: Vec::new(),
             });
-            values.push(json!({"path":item.path,"status":if success{"succeeded"}else{"failed"},"metadata":item.summary,"error":item.error}));
+            values.push(item.json(if success { "succeeded" } else { "failed" }));
         }
         if !actions.is_empty() {
             app.try_execute_action(Action::Composite(actions))
@@ -309,26 +370,47 @@ fn read_selected(path: &Path, budget: &mut u64, limit: u64) -> Result<Vec<u8>, S
     }
     Ok(bytes)
 }
+/// Prepares every table in one file, paired with its XLSX worksheet name.
 fn prepare_file(
     path: &Path,
     params: &TableImportParams,
     schema: Option<TableSchema>,
     source: &str,
     budget: &mut u64,
-) -> Result<Dataset, String> {
+) -> Result<Vec<super::table_import_xlsx::PreparedTable>, String> {
     let format = params
         .format
         .or_else(|| match path.extension().and_then(|s| s.to_str()) {
             Some(ext) if ext.eq_ignore_ascii_case("csv") => Some(ImportFormat::Csv),
             Some(ext) if ext.eq_ignore_ascii_case("tsv") => Some(ImportFormat::Tsv),
+            Some(ext) if ext.eq_ignore_ascii_case("xlsx") => Some(ImportFormat::Xlsx),
             _ => None,
         })
-        .ok_or("Specify CSV or TSV format for this file.")?;
+        .ok_or("Specify CSV, TSV or XLSX format for this file.")?;
+    if format == ImportFormat::Xlsx {
+        if params.header != ImportHeader::Auto {
+            return Err(
+                "header applies to CSV/TSV; XLSX detects each worksheet's header row.".into(),
+            );
+        }
+        if schema.is_some() {
+            return Err(
+                "A declared schema applies to CSV/TSV; XLSX keeps the column types stored in the workbook."
+                    .into(),
+            );
+        }
+        let bytes = read_selected(path, budget, TABLE_IMPORT_FILE_BYTES)?;
+        return super::table_import_xlsx::prepare(path, bytes, params.sheets.as_deref());
+    }
+    if params.sheets.is_some() {
+        return Err("sheets applies to XLSX workbooks only.".into());
+    }
     let bytes = read_selected(path, budget, TABLE_IMPORT_FILE_BYTES)?;
     let input = std::str::from_utf8(&bytes).map_err(|e| format!("CSV/TSV must be UTF-8: {e}"))?;
     let delimiter = match format {
         ImportFormat::Csv => Delimiter::Comma,
         ImportFormat::Tsv => Delimiter::Tab,
+        ImportFormat::Xlsx => unreachable!("XLSX returned above"),
     };
     let parsed = crate::delimited::parse_delimited_columns(
         input,
@@ -375,11 +457,12 @@ fn prepare_file(
         match format {
             ImportFormat::Csv => "text/csv",
             ImportFormat::Tsv => "text/tab-separated-values",
+            ImportFormat::Xlsx => unreachable!("XLSX returned above"),
         },
     );
     retained.name = path.file_name().map(|s| s.to_string_lossy().into_owned());
     table.import_sources.push(retained);
-    Ok(Dataset::Table(Box::new(table)))
+    Ok(vec![(None, Ok(Dataset::Table(Box::new(table))))])
 }
 
 #[cfg(test)]

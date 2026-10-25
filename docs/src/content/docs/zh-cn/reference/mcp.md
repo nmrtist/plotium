@@ -59,7 +59,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 已认证状态查询、每五秒心跳、静态属性目录以及保存协调（预检、提交与
 `plotium_save_status`），以及导出预检／提交／状态查询均不生成审计记录。
 
-连接支持原生采集导入、CSV/TSV 仅数据导入、原生表格查询、画布预览、图面几何诊断、文档结构、原生建图及页面／面板／文字／本地图片编辑、显式数值曲线绑定、受支持的表格处理、单元格补丁、已存配方显式刷新和
+连接支持原生采集导入、CSV/TSV/XLSX 仅数据导入、原生表格查询、画布预览、图面几何诊断、文档结构、原生建图及页面／面板／文字／本地图片编辑、显式数值曲线绑定、受支持的表格处理、单元格补丁、已存配方显式刷新和
 资源查询、数据集／画布／画布对象重命名、为画布套用内置主题或已保存的画布风格，以及以下显示属性：
 
 | 属性 ID | 目标 | 取值 |
@@ -72,6 +72,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `series.line.marker_fill / series.line.marker_edge_color` | 图对象＋Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | 图对象＋Series | 0–5 pt；0 表示无边框（空心时为 0.5 pt） |
 | `series.line.marker_hollow` | 图对象＋Series | 布尔值 |
+| `series.line.marker_every` | 图对象＋Series | 1–1000；从第一个点起每 n 个点画一个符号（默认 1） |
 | `series.bar.width` | 图对象＋Series | 0.05–1，占所在槽位宽度的比例（仅柱状曲线；默认 0.8） |
 | `series.bar.edge_color` | 图对象＋Series | `#RRGGBB`，柱描边颜色（仅柱状曲线；未设置时为带填充色色相的近黑色，并随曲线颜色变化） |
 | `series.bar.edge_width` | 图对象＋Series | 0–5 pt，柱描边宽度；0 表示无描边（仅柱状曲线；默认 0.5 pt，主题规定了辅助线宽时用它） |
@@ -89,6 +90,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.x_show_label / object.axes.y_show_label` | 图对象 | 布尔值；显示轴标题 |
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | 图对象 | 布尔值 |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | 图对象 | 布尔值；刻度数字按千分位分组 |
+| `object.axes.x_major_step / object.axes.y_major_step` | 图对象 | ≥ 0，按显示单位计的主刻度间隔；0 表示自动（无断轴的线性轴） |
 | `object.axes.frame` | 图对象 | `open`（左、下两条轴）、`box`（四边框） |
 | `object.axes.equal_scale` | 图对象 | 布尔值；x、y 每单位长度对应相同的数据量（线性、非分类轴，且没有右 y 轴） |
 | `object.axes.x_scale / object.axes.y_scale` | 图对象 | `linear`、`log`（仅折线、散点和棒状图；手动范围须大于零） |
@@ -99,6 +101,7 @@ dirty、edit generation 或 automation revision。纯查询工作流同样不改
 | `object.axes.y2_scale` | 图对象 | `linear`、`log` |
 | `object.axes.y2_display_unit` | 图对象 | 属性查询返回的兼容单位代码 |
 | `object.axes.y2_range` | 图对象 | 自动或手动范围对象 |
+| `object.axes.y2_major_step` | 图对象 | 同 `y_major_step`，用于右 y 轴 |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | 图对象 | 1–72 pt |
 | `object.guides.visibility` | 图对象 | `auto`, `show`, `hide` |
 | `object.guides.placement` | 图对象 | `auto`, `inside`, `outside_right`, `outside_bottom`, `custom` |
@@ -249,6 +252,16 @@ stale/context 错误或结果不确定时，仍须读取状态。执行继续检
 失败的目标。它们的执行结果用 `summary` 统计成功、跳过和失败数，`targets` 只列跳过或
 失败的行，已修改资源见 `produced` 和 `modified`。
 
+`plotium_apply` 的输入与 `plotium_plan` 相同，一次调用完成一项可撤销编辑的规划和提交，
+返回 `plotium_execute` 的结果。它接受 `properties.set`、`properties.set_many`、
+`properties.reset`、不含删除的 `figure.edit`、`plot.create`、`plot.series.append`、
+`plot.series.bind`、`plot.series.materialize_default`、`resource.rename` 和
+`figure.apply_theme`，需要“读取和修改”权限。预检、revision 与权限检查、Undo 和运行记录
+都与两步形式相同，且不保留计划。保存、导出、删除、导入、表格和科学操作仍用
+`plotium_plan` 加 `plotium_execute`，预览候选图也是如此。被拒绝的 apply 不提交任何内容。
+断线后先读状态：revision 等于请求的 `expected_revision` 表示编辑没有提交，否则检查目标；
+不要重放这次调用。
+
 科学任务排队或提交并不代表修改已提交，不可复用即时响应的 `after_revision`。
 只有已知项目上下文中终态为 `succeeded` 且包含 `end_revision` 的回执才允许复用。
 科学有效性与收敛情况须单独检查：任务成功并不证明拟合有效。失败、取消、失效、
@@ -298,7 +311,7 @@ stale/context 错误或结果不确定时，仍须读取状态。执行继续检
 所有保留计划及在途预检的原生冻结负载保守预留合计最多 512 MiB；超限返回
 `import_budget_exceeded`。超过 16 个路径时调用失败，报错写明收到的数量；其余文件请分批
 导入。预检响应最多 256 KiB。科学处理与 DOSY 使用独立的共享科学操作。
-CSV/TSV 的 `mode: "table_data_only"` 保持既有仅创建数据的行为和限制。
+CSV、TSV 和 XLSX 文件是表格，用 `mode: "table_data_only"` 导入；原生导入收到它们会报错并给出这一提示。
 
 ## 不依赖名称发现结构
 
@@ -378,9 +391,9 @@ Series 详情包含可直接用于属性查询的完整 target、编码、可见
 颜色格式 `#rrggbb` 和全部已注册单位代码。用 `plotium_properties_inspect` 查询目标值、
 默认值、范围和适用性；坐标轴只接受与其坐标单位兼容的代码。静态适用能力不授予连接修改权限。
 
-## 导入 CSV/TSV 数据，不创建图
+## 导入 CSV/TSV/XLSX 数据，不创建图
 
-让 agent 导入明确指定的 UTF-8 CSV/TSV，检查列信息，再分页读完整张表。先调用
+让 agent 导入明确指定的 UTF-8 CSV/TSV 或 XLSX 工作簿，检查列信息，再分页读完整张表。先调用
 `plotium_get_state {}`，然后调用 `plotium_plan`：
 
 ```json
@@ -398,10 +411,16 @@ Series 详情包含可直接用于属性查询的完整 target、编码、可见
 
 导入不提供 `ids` 或 `targets`。`header` 可为默认的 `auto`、`present` 或 `absent`；
 自动判断有歧义则失败。`.csv` 与 `.tsv` 分别选择逗号和制表符；可显式用
-`format: "csv" | "tsv"` 指定。只读所列普通文件，不扫描目录、不自动寻找邻接
+`format: "csv" | "tsv"` 指定。`.xlsx` 文件（或 `format: "xlsx"`）把每个有内容的可见
+工作表各导入成一张表，表名取工作表名，工作簿只有一张表时取文件名，与桌面端导入一致。
+`sheets: ["Figure 3", …]` 只导入列出的工作表；名字不存在时该文件失败，并列出可见工作表。
+每个工作表单独准备：没有表格或超出限制的工作表作为单独一项失败，其余照常导入。一个文件
+最多读取 8,000,000 个工作表单元格，按各工作表的已用范围计算。`header`、`schema` 和
+`schema_path` 只用于 CSV/TSV。含 XLSX 的批次摘要超过 128 KiB 时预检失败，并按文件列出
+工作表，可每次导入一个工作簿并减少 `sheets` 中的工作表。只读所列普通文件，不扫描目录、不自动寻找邻接
 sidecar、不回写源文件、不创建图或 X/Y 绑定。
 
-预检在后台完成准备后才返回。`import.items` 逐文件报告 `prepared` 或 `failed`，
+预检在后台完成准备后才返回。`import.items` 逐文件（XLSX 逐工作表，带 `sheet`）报告 `prepared` 或 `failed`，
 包含拟建原生 ID、元数据和诊断，此时项目尚未新增数据集。确认结果后调用
 `plotium_execute {"plan_id":"RETURNED_PLAN_ID"}`。执行使用预检冻结的字节和 typed
 snapshot，不重新读取可能已变化的文件；提交前重验 revision 和权限，将全部已准备
@@ -931,9 +950,11 @@ Series 身份和来源绑定。已知目标可复用同步提交结果的 contex
 保持当前 frame 的比例，用 `content_frame` 修改某张图的高度即可调整其所占比例。
 开启堆叠时间距默认为 0 pt。只有最下面的图绘制 x 刻度数字和 x 轴标题，只有
 最上面的图绘制图标题，内部边界紧贴且 x 刻度朝内，各绘图区共用左右边缘。进入堆叠
-时，会把覆盖所有成员数据的 x 范围（按各自坐标单位）写入每个成员，因此各成员须先
+时，会把覆盖所有成员数据的 x 范围（按各自坐标单位）和最上面成员的 x 主刻度间隔
+（按各自显示的单位）写入每个成员，因此各成员须先
 使用相同的 x 刻度类型；所有成员绘制最下面成员的 x 方向，但不保存该方向。各图共享
-x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位或 x 千位分隔符，都会
+x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示单位、x 千位分隔符或
+x 主刻度间隔，都会
 写到所有成员，并合为一次 Undo；若任一成员不能接受该值则拒绝写入，`applied` 会
 列出各成员的修改。同一批次若请求相互冲突的共享 x 设置，会整批拒绝且不留下修改；
 按兼容坐标单位表达的等价范围可以接受。
@@ -956,7 +977,8 @@ x 视窗；之后在任一成员上修改 x 范围、x 刻度类型、x 显示�
 `plotium_get_state` 在 `hand_edits` 中以键 `annotation.label_position` 列出拖过的标签。
 `annotation_id` 只在所属图内有效，删除后不会复用；可从结果的 `annotation_edits`
 或 `plotium_document_inspect` 返回的图 `annotations` 列表读取。`at` 使用
-`coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。标注文字最多 1024
+`coordinate_units` 给出的源单位，而不是刻度标签所选的显示单位。`text` 中的 `\n`
+另起一行。标注文字最多 1024
 UTF-8 字节且不得空白，每张图最多 256 个标注。图及其父面板须未锁定；不要求关闭
 Auto height。
 
@@ -1477,7 +1499,7 @@ edit generation、automation revision 或 Undo 历史。能力发现见 `plotium
 现有基于 width 的半径，原线宽接口含义不变；reset 恢复原生符号/大小。
 显式空图例文字使该图例项不显示。线型仅适用于折线，散点目标会按规则跳过。
 符号适用于折线和散点，不适用于 stick、柱状、箱线和小提琴曲线；柱宽和描边宽度适用于柱状、箱线和小提琴曲线，描边颜色仅适用于柱状曲线。符号填充色和边框色作用于闭合符号，未设置时跟随
-曲线颜色，reset 恢复跟随。空心符号不填充并保留边框，未设置边框宽度时为 0.5 pt。颜色由图型语义决定时，单曲线改色、改符号填充色或边框色按不适用跳过。
+曲线颜色，reset 恢复跟随。空心符号不填充并保留边框，未设置边框宽度时为 0.5 pt。`marker_every` 从第一个源数据点起每 n 个点画一个符号，折线仍经过每个点。颜色由图型语义决定时，单曲线改色、改符号填充色或边框色按不适用跳过。
 
 单图刻度、轴标题和图例字号在未覆盖时继承文档设置，reset 只移除相应覆盖；
 改单图字体不影响其他图。字体/标题测量沿用原生渲染，不重排页面，不改变面板及

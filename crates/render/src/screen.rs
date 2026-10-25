@@ -139,7 +139,10 @@ fn paint_with_detail_and_stats_impl(
             painter,
             Pos2::new(
                 frame.left + frame.width / 2.0,
-                frame.top + ty.title_pt * 0.5 * scale,
+                frame.top
+                    + (ty.title_pt * 0.5
+                        + crate::rich_text::script_overshoot(&fig.title, ty.title_pt).0)
+                        * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.title,
@@ -281,7 +284,11 @@ fn paint_with_detail_and_stats_impl(
             painter,
             Pos2::new(
                 (plot.left + plot.right()) / 2.0,
-                x_lane_bottom - (multiplier_clearance + ty.label_pt * 0.5) * scale,
+                x_lane_bottom
+                    - (multiplier_clearance
+                        + ty.label_pt * 0.5
+                        + crate::rich_text::script_overshoot(&fig.x.label, ty.label_pt).1)
+                        * scale,
             ),
             Align2::CENTER_CENTER,
             &fig.x.label,
@@ -303,7 +310,10 @@ fn paint_with_detail_and_stats_impl(
             col(Color::AXIS),
         )
         .with_angle_and_anchor(-std::f32::consts::FRAC_PI_2, Align2::CENTER_CENTER);
-        y_label.pos += Vec2::new(y_title_left + ty.label_pt * 0.5 * scale, y_title_cy);
+        y_label.pos += Vec2::new(
+            y_title_left + (crate::y_title::rise(fig) + ty.label_pt * 0.5) * scale,
+            y_title_cy,
+        );
         painter.add(y_label);
     }
 
@@ -404,14 +414,16 @@ fn paint_with_detail_and_stats_impl(
             (crate::text_place::TextAlign::Start, _) => Align2::LEFT_CENTER,
             (crate::text_place::TextAlign::End, _) => Align2::RIGHT_CENTER,
         };
-        crate::rich_text::paint(
-            &clipped,
-            Pos2::new(at.x, at.y),
-            align,
-            &a.text,
-            crate::rich_text::plot_font(a.size * scale, &ty),
-            col(a.color),
-        );
+        for (line, at) in crate::text_place::lines(at, &a.text, a.size * scale) {
+            crate::rich_text::paint(
+                &clipped,
+                Pos2::new(at.x, at.y),
+                align,
+                line,
+                crate::rich_text::plot_font(a.size * scale, &ty),
+                col(a.color),
+            );
+        }
     }
 
     // Spines go over the clipped data, so a bar or trace resting on an axis

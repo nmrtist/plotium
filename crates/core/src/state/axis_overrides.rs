@@ -274,6 +274,9 @@ pub struct AxisOverrides {
     pub y_show_label: Option<bool>,
     pub x_thousands_separator: Option<bool>,
     pub y_thousands_separator: Option<bool>,
+    /// Major tick steps in each axis's display unit.
+    pub x_major_step: Option<f64>,
+    pub y_major_step: Option<f64>,
     pub guide_visibility: Option<GuideVisibility>,
     pub guide_placement: Option<GuidePlacement>,
     pub guide_layout: Option<GuideLayout>,
@@ -289,6 +292,7 @@ pub struct AxisOverrides {
     pub y2_scale: Option<AxisScale>,
     pub y2_show_tick_labels: Option<bool>,
     pub y2_show_label: Option<bool>,
+    pub y2_major_step: Option<f64>,
 }
 
 impl AxisOverrides {
@@ -306,6 +310,7 @@ impl AxisOverrides {
             &mut self.x_thousands_separator,
             &mut self.y_thousands_separator,
         );
+        std::mem::swap(&mut self.x_major_step, &mut self.y_major_step);
         let annotations = &mut self.annotations;
         for item in &mut annotations.items {
             item.at.swap(0, 1);
@@ -385,6 +390,8 @@ impl AxisOverrides {
         if let Some(group) = self.y_thousands_separator {
             figure.y.thousands_separator = group;
         }
+        figure.x.major_step = self.x_major_step;
+        figure.y.major_step = self.y_major_step;
         if let Some(visibility) = self.guide_visibility {
             figure.guide_visibility = visibility;
         }

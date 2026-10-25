@@ -30,9 +30,19 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         RIGHT_AXIS_HOME,
     ),
     object_entry(right_axis::Y2_UNIT, "Right Y display unit", RIGHT_AXIS_HOME),
+    object_entry(
+        right_axis::Y2_MAJOR_STEP,
+        "Right Y major tick step",
+        RIGHT_AXIS_HOME,
+    ),
     object_entry(line_display::MARKER_SIZE, "Marker diameter", LINE_HOME),
     object_entry(line_display::MARKER_FILL, "Marker fill", LINE_HOME),
     object_entry(line_display::MARKER_HOLLOW, "Hollow marker", LINE_HOME),
+    object_entry(
+        line_display::MARKER_EVERY,
+        "Marker every N points",
+        LINE_HOME,
+    ),
     object_entry(line_display::BAR_WIDTH, "Bar width", LINE_HOME),
     object_entry(line_display::BAR_EDGE_COLOR, "Bar outline color", LINE_HOME),
     object_entry(line_display::BAR_EDGE_WIDTH, "Bar outline width", LINE_HOME),
@@ -159,6 +169,8 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         "Y thousands separator",
         AXIS_HOME,
     ),
+    object_entry(axis::X_MAJOR_STEP, "X major tick step", AXIS_HOME),
+    object_entry(axis::Y_MAJOR_STEP, "Y major tick step", AXIS_HOME),
     PropertyPresentation {
         id: axis::FRAME,
         localized_label: LocalizedText("Frame"),

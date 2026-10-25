@@ -153,7 +153,7 @@ mod shared_x_stack;
 pub use curve_binding::*;
 pub use curve_extract::*;
 pub use curve_service::*;
-pub(crate) use shared_x_stack::shared_x_value;
+pub(crate) use shared_x_stack::{shared_x_step, shared_x_value};
 mod size_presets;
 mod stack;
 mod statistics;

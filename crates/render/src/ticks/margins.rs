@@ -1,6 +1,7 @@
 //! Plot margins: the room the axis furniture needs around the plot area.
 
 use super::{AxisTicks, estimated_text_width, widest_tick_label};
+use crate::rich_text::script_overshoot;
 use crate::{AXIS_LABEL_GAP, Margins, TICK_LABEL_PAD};
 use plotium_figure::{AxisFrame, Figure};
 
@@ -139,7 +140,7 @@ pub(super) fn margins_for_ticks_with_widths(
     let title_clearance = if fig.title.trim().is_empty() {
         0.0
     } else {
-        ty.title_pt + AXIS_LABEL_GAP
+        ty.title_pt + script_overshoot(&fig.title, ty.title_pt).0 + AXIS_LABEL_GAP
     };
     if fig.axis_frame == AxisFrame::Hidden {
         return Margins {
@@ -159,7 +160,7 @@ pub(super) fn margins_for_ticks_with_widths(
         ty.tick_outset()
     };
     let y_title_clearance = if fig.y.show_label {
-        ty.label_pt + AXIS_LABEL_GAP
+        crate::y_title::lane_width(fig) + AXIS_LABEL_GAP
     } else {
         0.0
     };
@@ -175,7 +176,7 @@ pub(super) fn margins_for_ticks_with_widths(
         0.0
     };
     let x_title_clearance = if fig.x.show_label {
-        ty.label_pt + AXIS_LABEL_GAP
+        ty.label_pt + script_overshoot(&fig.x.label, ty.label_pt).1 + AXIS_LABEL_GAP
     } else {
         0.0
     };

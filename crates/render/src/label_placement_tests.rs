@@ -293,3 +293,43 @@ fn arrows_push_reference_labels_along_their_line() {
     let label = label_layout(&f, plot, 1.0).reference[0].expect("label");
     assert_ne!(label.position, clear.position);
 }
+
+#[test]
+fn multi_line_texts_stack_upward_from_the_placed_baseline() {
+    let mut f = figure(vec![]);
+    f.author_annotations
+        .push(text([5.0, 5.0], "3.2 mAh g^{-1}\nICE = 97.9%"));
+    let label = text_label(&f, 0);
+    assert!((label.bounds.height - 8.0 * 2.25).abs() < 1e-4);
+    assert!((label.bounds.bottom() - label.y).abs() < 1e-4);
+    let svg = crate::svg::export(&f);
+    let ys: Vec<f32> = svg
+        .split("<text x=\"")
+        .skip(1)
+        .filter(|tag| tag.contains("ICE") || tag.contains("mAh"))
+        .map(|tag| {
+            let y = &tag[tag.find("y=\"").unwrap() + 3..];
+            y[..y.find('"').unwrap()].parse().unwrap()
+        })
+        .collect();
+    assert_eq!(ys.len(), 2, "{svg}");
+    assert!((ys[1] - ys[0] - 8.0 * 1.25).abs() < 0.02);
+    assert!((ys[1] - label.y).abs() < 0.02);
+}
+
+#[test]
+fn a_multi_line_text_below_its_anchor_keeps_its_gap() {
+    let one = crate::text_place::place(plotium_figure::TextAnchor::Below, (0.0, 0.0), 8.0, 1.0);
+    let two = crate::text_place::place(
+        plotium_figure::TextAnchor::Below,
+        (0.0, 0.0),
+        crate::text_place::block_height(2, 8.0),
+        1.0,
+    );
+    let top = |at, lines| {
+        crate::text_place::bounds(at, 10.0, crate::text_place::block_height(lines, 8.0)).top
+    };
+    assert!((top(one, 1) - top(two, 2)).abs() < 1e-4);
+    let (_, first) = crate::text_place::lines(two, "a\nb", 8.0).next().unwrap();
+    assert!((first.y - (top(two, 2) + 4.0)).abs() < 1e-4);
+}

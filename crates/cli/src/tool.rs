@@ -155,7 +155,7 @@ fn run_operation(
         Some(path) => {
             eprintln!("plotium-cli: loading {}", path.display());
             let loaded = plotium_core::workflow::load_dataset(path).map_err(|e| {
-                if path.is_file() && is_delimited_table(path) {
+                if path.is_file() && is_table_file(path) {
                     format!(
                         "{e}. Tables are imported with data.import: omit the input and \
                          list the file's absolute path in parameters.paths with mode \
@@ -282,10 +282,10 @@ fn run_operation(
     serde_json::to_value(result).map_err(|e| e.to_string())
 }
 
-fn is_delimited_table(path: &std::path::Path) -> bool {
+fn is_table_file(path: &std::path::Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| ["csv", "tsv", "txt"].contains(&e.to_ascii_lowercase().as_str()))
+        .is_some_and(|e| ["csv", "tsv", "txt", "xlsx"].contains(&e.to_ascii_lowercase().as_str()))
 }
 
 /// The empty selector for tools whose targets travel inside their parameters.

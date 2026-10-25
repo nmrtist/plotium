@@ -1,5 +1,6 @@
 //! Desktop-thread capability boundary. No project state crosses the bridge.
 use std::collections::HashMap;
+pub(crate) mod apply;
 mod candidate;
 mod compact;
 mod creation_response;
@@ -232,6 +233,9 @@ impl Session {
         mut arguments: Value,
         blocked: bool,
     ) -> Result<Value, Failure> {
+        if name == "plotium_apply" {
+            return self.apply(app, arguments, blocked);
+        }
         if name == "plotium_properties_list" {
             return crate::property_catalog::respond(arguments);
         }

@@ -1,5 +1,6 @@
-//! Right y axis title, visibility, scale, range and display unit. Every
-//! property applies only while some curve of the plot is on the right axis.
+//! Right y axis title, visibility, scale, range, display unit and major tick
+//! step. Every property applies only while some curve of the plot is on the
+//! right axis.
 use super::provider::PropertyProvider;
 use super::target::require_plot_object_target;
 use super::*;
@@ -13,6 +14,7 @@ pub const Y2_SHOW_LABEL: PropertyId = PropertyId("object.axes.y2_show_label");
 pub const Y2_SCALE: PropertyId = PropertyId("object.axes.y2_scale");
 pub const Y2_RANGE: PropertyId = PropertyId("object.axes.y2_range");
 pub const Y2_UNIT: PropertyId = PropertyId("object.axes.y2_display_unit");
+pub const Y2_MAJOR_STEP: PropertyId = PropertyId("object.axes.y2_major_step");
 
 const SCALES: &[EnumVariant] = &[
     EnumVariant::new(super::axis::LINEAR, "Linear"),
@@ -81,6 +83,13 @@ const DEFINITIONS: &[PropertyDefinition] = &[
         ValueSchema::UnitCode,
         "Right y display unit",
         &["y2 unit"],
+        Tier::Advanced,
+    ),
+    def(
+        Y2_MAJOR_STEP,
+        super::axis::MAJOR_STEP_SCHEMA,
+        "Right y major tick step",
+        &["y2 tick spacing", "right tick interval"],
         Tier::Advanced,
     ),
 ];
@@ -240,6 +249,16 @@ impl PropertyProvider for RightAxisProvider {
                     overrides.y2_display_unit.is_some(),
                 )
             }
+            Y2_MAJOR_STEP => {
+                if let Some(reason) = super::axis::major_step_unavailable(plot.figure(), axis) {
+                    availability = Availability::Disabled(reason);
+                }
+                (
+                    super::axis::major_step_value(axis.major_step),
+                    super::axis::major_step_value(None),
+                    overrides.y2_major_step.is_some(),
+                )
+            }
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
         Ok(ResolvedProperty {
@@ -302,7 +321,12 @@ impl PropertyProvider for RightAxisProvider {
             (Y2_RANGE, PropertyValue::AxisRange(value)) => {
                 overrides.y2_range = manual_range(d.id, value, &coordinate, &shown, overrides)?;
             }
+            (Y2_MAJOR_STEP, PropertyValue::Float(step)) => {
+                super::axis::checked_major_step(d.id, step)?;
+                overrides.y2_major_step = (!reset && step > 0.0).then_some(step);
+            }
             (Y2_UNIT, PropertyValue::Text(code)) => {
+                let before = overrides.y2_display_unit.clone();
                 overrides.y2_display_unit = if reset {
                     None
                 } else {
@@ -319,6 +343,10 @@ impl PropertyProvider for RightAxisProvider {
                     }
                     Some(Box::new(target))
                 };
+                // A major step is written in the display unit it replaces.
+                if overrides.y2_display_unit != before {
+                    overrides.y2_major_step = None;
+                }
             }
             _ => return Err(error(d.id, "Value does not match the property schema.")),
         }

@@ -70,7 +70,7 @@ including query inputs needed to reproduce those operations. Handshakes, tool li
 the static property catalog and save coordination (planning, submission and
 `plotium_save_status`), and export planning/submission/status do not add audit records.
 
-The connection supports native acquisition import and CSV/TSV data-only import, native table queries, canvas previews, figure geometry diagnostics,
+The connection supports native acquisition import and CSV/TSV/XLSX data-only import, native table queries, canvas previews, figure geometry diagnostics,
 document structure, native plot creation and page/panel/text/local-image authoring, explicit numeric curve bindings, supported table transforms, cell patches, explicit saved-recipe refreshes and resource queries, renaming datasets,
 canvases and canvas objects, applying built-in themes or saved canvas styles to canvases, and these display properties only:
 
@@ -84,6 +84,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `series.line.marker_fill / series.line.marker_edge_color` | Object + Series | `#RRGGBB` |
 | `series.line.marker_edge_width` | Object + Series | 0–5 pt; 0 draws no outline (0.5 pt while hollow) |
 | `series.line.marker_hollow` | Object + Series | boolean |
+| `series.line.marker_every` | Object + Series | 1–1000; markers on every n-th point from the first (default 1) |
 | `series.bar.width` | Object + Series | 0.05–1, fraction of the bar's slot (bar curves; default 0.8) |
 | `series.bar.edge_color` | Object + Series | `#RRGGBB` bar outline (bar curves; unset, a near-black shade of the fill's hue that follows color edits) |
 | `series.bar.edge_width` | Object + Series | 0–5 pt bar outline; 0 draws none (bar curves; default 0.5 pt, or the theme's supporting-line width) |
@@ -101,6 +102,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.x_show_label / object.axes.y_show_label` | Object | boolean; shows the axis title |
 | `object.axes.x_show_tick_labels / object.axes.y_show_tick_labels` | Object | boolean |
 | `object.axes.x_thousands_separator / object.axes.y_thousands_separator` | Object | boolean; groups digits in tick labels |
+| `object.axes.x_major_step / object.axes.y_major_step` | Object | ≥ 0, distance between major ticks in the display unit; 0 chooses it automatically (linear axes without a break) |
 | `object.axes.frame` | Object | `open` (left and bottom), `box` (all four sides) |
 | `object.axes.equal_scale` | Object | boolean; same data units per length on x and y (linear, non-categorical axes without a right y axis) |
 | `object.axes.x_scale / object.axes.y_scale` | Object | `linear`, `log` (line, scatter and stick plots; a manual range must stay above zero) |
@@ -111,6 +113,7 @@ canvases and canvas objects, applying built-in themes or saved canvas styles to 
 | `object.axes.y2_scale` | Object | `linear`, `log` |
 | `object.axes.y2_display_unit` | Object | compatible code from property inspection |
 | `object.axes.y2_range` | Object | auto or manual range object |
+| `object.axes.y2_major_step` | Object | as `y_major_step`, for the right y axis |
 | `object.figure.typography.tick_pt / object.figure.typography.label_pt / object.figure.typography.legend_pt` | Object | 1–72 pt |
 | `object.guides.visibility` | Object | `auto`, `show`, `hide` |
 | `object.guides.placement` | Object | `auto`, `inside`, `outside_right`, `outside_bottom`, `custom` |
@@ -300,6 +303,19 @@ execution results carry `summary` counts of succeeded, skipped and failed
 targets, list only skipped or failed rows in `targets`, and report changed
 resources in `produced` and `modified`.
 
+`plotium_apply` takes the same inputs as `plotium_plan` and plans and commits one
+reversible edit in a single call, returning the `plotium_execute` result. It
+accepts `properties.set`, `properties.set_many`, `properties.reset`,
+`figure.edit` without deletions, `plot.create`, `plot.series.append`,
+`plot.series.bind`, `plot.series.materialize_default`, `resource.rename` and
+`figure.apply_theme`, and requires Read and modify. Preflight, revision and
+permission checks, Undo and run records are those of the two-step form, and no
+plan is retained. Saving, export, deletions, imports, table and scientific
+operations still use `plotium_plan` and `plotium_execute`, as does previewing a
+candidate. A rejected apply commits nothing. After a disconnection, read state:
+a revision equal to the request's `expected_revision` means the edit was not
+committed; otherwise inspect the targets. Never replay the call.
+
 A queued or submitted scientific task is not a committed edit; its immediate
 `after_revision` must not be reused. Only a terminal `succeeded` receipt in the
 known project context with `end_revision` permits reuse. Check scientific
@@ -361,7 +377,8 @@ reservations total at most 512 MiB across retained plans and the active prefligh
 oversized batches fail with `import_budget_exceeded`. A call with more than 16
 paths fails with a message that gives the number received; import the rest in
 further calls. Preflight responses are limited to 256 KiB. Scientific processing and DOSY use the separate shared scientific operations.
-CSV/TSV `mode: "table_data_only"` retains its existing data-only behavior and limits.
+CSV, TSV and XLSX files are tables: import them with `mode: "table_data_only"`.
+Native import rejects them with that hint.
 
 ## Discover structure without relying on names
 
@@ -459,9 +476,9 @@ Use `plotium_properties_inspect` for target-specific values, defaults, bounds an
 applicability; an axis accepts only codes compatible with its coordinate unit.
 Static applicability does not grant connection write permission.
 
-## Import CSV/TSV data without creating a plot
+## Import CSV/TSV/XLSX data without creating a plot
 
-Ask the agent to import an explicitly named UTF-8 CSV or TSV, inspect its columns,
+Ask the agent to import an explicitly named UTF-8 CSV or TSV, or an XLSX workbook, inspect its columns,
 and read the whole table in pages. Start with `plotium_get_state {}`, then call
 `plotium_plan`:
 
@@ -481,13 +498,25 @@ and read the whole table in pages. Start with `plotium_get_state {}`, then call
 Do not supply `ids` or `targets` for import. `header` accepts `auto` (default),
 `present` or `absent`; ambiguous auto detection fails. The `.csv` or `.tsv`
 extension selects comma or tab; `format: "csv" | "tsv"` overrides it explicitly.
+An `.xlsx` file (or `format: "xlsx"`) imports each visible worksheet that has
+cells as its own table, named after the worksheet, or after the file when the
+workbook holds a single table, the same way the desktop imports it.
+`sheets: ["Figure 3", …]` imports only the named worksheets; an unknown name
+fails that file and lists the visible worksheets. Each worksheet is prepared on
+its own: one that holds no table or exceeds a limit fails as its own item and
+the others still import. One file reads at most 8,000,000 worksheet cells,
+counted over each worksheet's used range. `header`, `schema` and `schema_path`
+apply to CSV/TSV only. If the summary of a batch with XLSX files would exceed
+128 KiB, the preflight fails and lists each workbook's worksheets, so you can
+import one workbook at a time and name fewer worksheets.
 Only named regular files are read. There is no directory discovery, adjacent
 sidecar lookup, source writeback, implicit plotting or X/Y binding.
 
 Preflight runs in the background and returns only when preparation finishes.
-`import.items` reports each file as `prepared` or `failed`, with proposed native
-IDs, metadata and diagnostics. No dataset exists yet. After reviewing the result,
-call `plotium_execute {"plan_id":"RETURNED_PLAN_ID"}`. Execution uses those frozen
+`import.items` reports each file, or each XLSX worksheet with its `sheet`, as
+`prepared` or `failed`, with proposed native IDs, metadata and diagnostics. No
+dataset exists yet. After reviewing the result, call
+`plotium_execute {"plan_id":"RETURNED_PLAN_ID"}`. Execution uses those frozen
 bytes and typed snapshots, even if a source file changed after preflight. It
 rechecks revision and permission before one atomic commit of all prepared items.
 `value.status` is `succeeded`, `partial` or `failed`; inspect every item and its
@@ -1131,10 +1160,12 @@ their heights keep the proportions of their current frames, so change one with
 stack is turned on. Only the bottom plot draws x tick labels and the x title,
 only the top plot draws a figure title, inner boundaries touch with inward x
 ticks, and the plot areas share left and right edges. Entering the stack writes
-one x range covering every member's data to each member (in its own coordinate
-unit), so members must already share an x scale; every member draws the bottom
+one x range covering every member's data (in its own coordinate unit) and the
+top member's x major step (in the unit it displays) to each member, so members
+must already share an x scale; every member draws the bottom
 member's x direction without storing it. The plots share one x viewport, and
-later x range, x scale, x display unit and x thousands-separator edits on any
+later x range, x scale, x display unit, x thousands-separator and x major step
+edits on any
 member apply to all of them in one Undo step; the write is rejected when any
 member cannot take the value, and `applied` lists the member edits. A batch that
 requests conflicting shared x settings is rejected without changes; equivalent
@@ -1164,7 +1195,8 @@ clipped with the plot. `annotation_id` is local to the plot and never reused
 after deletion; read it from `annotation_edits` in the result or from the plot's
 `annotations` list in `plotium_document_inspect`. `at` uses the plot's source
 units reported in `coordinate_units`, not a display unit chosen for the tick
-labels. Annotation text permits 1024 UTF-8 bytes (nonblank), and a plot holds at
+labels. `\n` in `text` starts a new line.
+Annotation text permits 1024 UTF-8 bytes (nonblank), and a plot holds at
 most 256 annotations. The plot and its parent panel must be unlocked; Auto height
 may stay on.
 
@@ -1835,7 +1867,9 @@ width and outline width apply to bar, box and violin curves; the outline color t
 bar curves. Marker fill and edge color
 apply to closed markers and follow the curve color until set; reset returns
 them to it. A hollow marker draws no fill and keeps an outline, 0.5 pt when
-no edge width is set. A chart that owns semantic colors rejects a single series
+no edge width is set. `marker_every` thins markers to every n-th source point,
+starting with the first; the line still passes through every point. A chart
+that owns semantic colors rejects a single series
 color, marker fill or marker edge color override as inapplicable.
 
 Plot-local tick, axis-title and legend sizes inherit document typography until

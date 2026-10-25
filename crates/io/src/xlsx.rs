@@ -7,7 +7,10 @@ use calamine::{Data, HeaderRow, Reader, SheetVisible, Xlsx, open_workbook};
 use rust_xlsxwriter::{Workbook, XlsxError as WriteError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::path::Path;
+use std::{
+    io::{Cursor, Read, Seek},
+    path::Path,
+};
 
 pub const PLOTIUM_SCHEMA_SHEET: &str = "_Plotium_schema_v1";
 const PLOTIUM_SCHEMA_MARKER: &str = "plotium-schema-v1";
@@ -90,50 +93,146 @@ pub enum XlsxIoError {
     Unsupported1904DateSystem,
     #[error("worksheet row or column exceeds the XLSX format limit")]
     SheetTooLarge,
+    #[error("worksheet '{sheet}' spans more than {max_cells} cells")]
+    SheetOverBudget { sheet: String, max_cells: usize },
 }
 
 pub fn read_xlsx(path: impl AsRef<Path>) -> Result<XlsxWorkbook, XlsxIoError> {
-    let mut reader: Xlsx<_> = open_workbook(path)?;
-    reader.with_header_row(HeaderRow::Row(0));
-    let uses_1904_date_system = reader.has_1904_epoch();
-    let metadata = reader.sheets_metadata().to_vec();
-    let mut sheets = Vec::new();
-    let mut plotium_schema = None;
-    let mut diagnostics = Vec::new();
+    let mut reader = XlsxReader::new(open_workbook(path)?, usize::MAX)?;
+    let names = reader.sheets.clone();
+    let sheets = names
+        .iter()
+        .map(|sheet| reader.read_sheet(&sheet.name, usize::MAX))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(reader.into_workbook(sheets))
+}
 
-    for metadata in metadata {
-        let values = reader.worksheet_range(&metadata.name)?;
-        let formulas = reader.worksheet_formula(&metadata.name)?;
-        if metadata.name == PLOTIUM_SCHEMA_SHEET {
+/// A worksheet's name and visibility, known before its cells are read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XlsxSheetInfo {
+    pub name: String,
+    pub hidden: bool,
+}
+
+/// Reads worksheets one at a time, so callers can select worksheets and bound
+/// each one's size before its cells are materialized.
+pub struct XlsxReader<RS> {
+    reader: Xlsx<RS>,
+    /// Data worksheets in workbook order, without the hidden schema sheet.
+    pub sheets: Vec<XlsxSheetInfo>,
+    pub uses_1904_date_system: bool,
+    pub plotium_schema: Option<JsonValue>,
+    pub diagnostics: Vec<XlsxDiagnostic>,
+}
+
+impl<'a> XlsxReader<Cursor<&'a [u8]>> {
+    /// Opens a workbook already held in memory, so callers that budget and
+    /// retain the source bytes parse exactly what they retain. `max_cells`
+    /// bounds the hidden schema sheet.
+    pub fn from_bytes(bytes: &'a [u8], max_cells: usize) -> Result<Self, XlsxIoError> {
+        Self::new(Xlsx::new(Cursor::new(bytes))?, max_cells)
+    }
+}
+
+impl<RS: Read + Seek> XlsxReader<RS> {
+    fn new(mut reader: Xlsx<RS>, max_cells: usize) -> Result<Self, XlsxIoError> {
+        reader.with_header_row(HeaderRow::Row(0));
+        let uses_1904_date_system = reader.has_1904_epoch();
+        let metadata = reader.sheets_metadata().to_vec();
+        let mut diagnostics = Vec::new();
+        let mut plotium_schema = None;
+        if metadata
+            .iter()
+            .any(|sheet| sheet.name == PLOTIUM_SCHEMA_SHEET)
+        {
+            check_extent(&mut reader, PLOTIUM_SCHEMA_SHEET, max_cells)?;
+            let values = reader.worksheet_range(PLOTIUM_SCHEMA_SHEET)?;
             plotium_schema = read_schema(&values, &mut diagnostics);
-            continue;
         }
+        let sheets = metadata
+            .into_iter()
+            .filter(|sheet| sheet.name != PLOTIUM_SCHEMA_SHEET)
+            .map(|sheet| XlsxSheetInfo {
+                hidden: sheet.visible != SheetVisible::Visible,
+                name: sheet.name,
+            })
+            .collect();
+        Ok(Self {
+            reader,
+            sheets,
+            uses_1904_date_system,
+            plotium_schema,
+            diagnostics,
+        })
+    }
+
+    /// Reads one worksheet, failing before materializing it when its used
+    /// range spans more than `max_cells` cells. Cell diagnostics accumulate
+    /// in `diagnostics`.
+    pub fn read_sheet(&mut self, name: &str, max_cells: usize) -> Result<XlsxSheet, XlsxIoError> {
+        let hidden = self
+            .sheets
+            .iter()
+            .find(|sheet| sheet.name == name)
+            .ok_or_else(|| calamine::XlsxError::WorksheetNotFound(name.to_owned()))?
+            .hidden;
+        check_extent(&mut self.reader, name, max_cells)?;
+        let values = self.reader.worksheet_range(name)?;
+        let formulas = self.reader.worksheet_formula(name)?;
         let start = union_start(values.start(), formulas.start());
         let end = union_end(values.end(), formulas.end());
         let rows = match (start, end) {
-            (Some(start), Some(end)) => read_rows(
-                &metadata.name,
-                start,
-                end,
-                &values,
-                &formulas,
-                &mut diagnostics,
-            ),
+            (Some(start), Some(end)) => {
+                read_rows(name, start, end, &values, &formulas, &mut self.diagnostics)
+            }
             _ => Vec::new(),
         };
-        sheets.push(XlsxSheet {
-            name: metadata.name,
-            hidden: metadata.visible != SheetVisible::Visible,
+        Ok(XlsxSheet {
+            name: name.to_owned(),
+            hidden,
             rows,
-        });
+        })
     }
 
-    Ok(XlsxWorkbook {
-        sheets,
-        uses_1904_date_system,
-        plotium_schema,
-        diagnostics,
-    })
+    pub fn into_workbook(self, sheets: Vec<XlsxSheet>) -> XlsxWorkbook {
+        XlsxWorkbook {
+            sheets,
+            uses_1904_date_system: self.uses_1904_date_system,
+            plotium_schema: self.plotium_schema,
+            diagnostics: self.diagnostics,
+        }
+    }
+}
+
+/// Streams a worksheet's cell positions and fails when the used range they
+/// span exceeds `max_cells`, since reading a range allocates it densely.
+fn check_extent<RS: Read + Seek>(
+    reader: &mut Xlsx<RS>,
+    name: &str,
+    max_cells: usize,
+) -> Result<(), XlsxIoError> {
+    if max_cells == usize::MAX {
+        return Ok(());
+    }
+    let mut cells = reader.worksheet_cells_reader(name)?;
+    let mut extent: Option<((u32, u32), (u32, u32))> = None;
+    while let Some(cell) = cells.next_cell_with_formula()? {
+        let (row, column) = cell.pos;
+        let ((top, left), (bottom, right)) = extent.get_or_insert(((row, column), (row, column)));
+        *top = (*top).min(row);
+        *left = (*left).min(column);
+        *bottom = (*bottom).max(row);
+        *right = (*right).max(column);
+        let rows = (*bottom - *top) as usize + 1;
+        let columns = (*right - *left) as usize + 1;
+        if rows.saturating_mul(columns) > max_cells {
+            return Err(XlsxIoError::SheetOverBudget {
+                sheet: name.to_owned(),
+                max_cells,
+            });
+        }
+    }
+    Ok(())
 }
 
 pub fn write_xlsx(path: impl AsRef<Path>, workbook: &XlsxWorkbook) -> Result<(), XlsxIoError> {

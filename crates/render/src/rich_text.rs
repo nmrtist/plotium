@@ -148,6 +148,42 @@ pub fn runs(text: &str) -> Vec<Run> {
     out
 }
 
+/// How far the scripts of `text` at `font_size` reach past its line box: a
+/// raised run above the top and a lowered run below the bottom.
+pub fn script_overshoot(text: &str, font_size: f32) -> (f32, f32) {
+    if !has_scripts(text) {
+        return (0.0, 0.0);
+    }
+    let runs = runs(text);
+    let has = |script| runs.iter().any(|run| run.script == script);
+    let above = SUPER_RISE + SCRIPT_SCALE * TOP_TO_BASELINE - TOP_TO_BASELINE;
+    let below = SUB_DROP + SCRIPT_SCALE * BASELINE_TO_BOTTOM - BASELINE_TO_BOTTOM;
+    (
+        if has(Script::Super) {
+            above.max(0.0) * font_size
+        } else {
+            0.0
+        },
+        if has(Script::Sub) {
+            below.max(0.0) * font_size
+        } else {
+            0.0
+        },
+    )
+}
+
+/// Distance from a top edge down to the baseline of `text` set against it,
+/// with its superscripts inside the edge.
+pub(crate) fn below_top(text: &str, font_size: f32) -> f32 {
+    font_size * TOP_TO_BASELINE + script_overshoot(text, font_size).0
+}
+
+/// Distance from a bottom edge up to the baseline of `text` set against it,
+/// with its subscripts inside the edge.
+pub(crate) fn above_bottom(text: &str, font_size: f32) -> f32 {
+    font_size * BASELINE_TO_BOTTOM + script_overshoot(text, font_size).1
+}
+
 /// `text` with markup removed and scripts flattened, for plain-text sinks.
 pub fn plain(text: &str) -> String {
     runs(text).into_iter().map(|run| run.text).collect()

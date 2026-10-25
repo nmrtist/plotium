@@ -43,7 +43,11 @@ pub(super) fn paint(
     if marker != Marker::None {
         let r = series.appearance.marker_radius(series.width) * scale;
         let paint = MarkerPaint::new(series.appearance, series.color, series.width).scaled(scale);
-        for p in &series.points {
+        for p in series
+            .points
+            .iter()
+            .step_by(series.appearance.marker_stride())
+        {
             let p = proj.project(*p);
             if crate::is_finite_point(p) {
                 marker_at(painter, p, marker, r, &paint);
