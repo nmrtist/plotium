@@ -131,6 +131,8 @@ mod tests {
             values: vec![-408.733, 421.99],
             x_bounds: [0.0, 10.0],
             y_bounds: [0.0, 10.0],
+            x_edges: None,
+            y_edges: None,
             colormap: plotium_figure::ColormapId::Viridis,
             value_range: [-408.733, 421.99],
         });

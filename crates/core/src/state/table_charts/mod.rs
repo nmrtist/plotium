@@ -9,6 +9,7 @@ mod dist;
 pub(crate) mod marks;
 mod matrix;
 mod pie;
+mod sequence;
 
 pub(crate) use bars::grouped_bar_figure;
 pub(crate) use dist::{box_figure, histogram_figure, violin_figure};

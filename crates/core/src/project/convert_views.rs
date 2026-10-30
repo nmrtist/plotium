@@ -118,6 +118,7 @@ pub fn canvas_to_view(
                 chart_stacked: false,
                 chart_colormap: None,
                 chart_view: None,
+                chart_transpose: false,
                 stack: None,
                 projections: None,
                 frame: FrameDto::from_frame(object.frame),
@@ -189,6 +190,7 @@ pub fn canvas_to_view(
                         .then(|| plot.chart.colormap.id().to_owned()),
                         chart_view: (plot.chart.view_angles != crate::state::SURFACE_DEFAULT_VIEW)
                             .then_some(plot.chart.view_angles),
+                        chart_transpose: plot.chart.transpose,
                         stack,
                         projections: projections_to_dto(&plot.projections, datasets)?,
                         viewport: Some(ViewportDto::from_viewport(&plot.viewport)),
@@ -531,6 +533,7 @@ pub fn view_to_canvas(
                     view_angles: view_object
                         .chart_view
                         .unwrap_or(crate::state::SURFACE_DEFAULT_VIEW),
+                    transpose: view_object.chart_transpose,
                 };
                 let size_mm = [
                     frame.width / crate::state::MM_TO_PT,

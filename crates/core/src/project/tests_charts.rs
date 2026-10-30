@@ -87,6 +87,7 @@ fn project_roundtrip_preserves_chart_options() {
         stacked: true,
         colormap: plotium_figure::ColormapId::Plasma,
         view_angles: [-30.0, 55.0],
+        transpose: true,
     };
 
     let path = temp_project("chartopts");
@@ -101,6 +102,7 @@ fn project_roundtrip_preserves_chart_options() {
     assert!(chart.stacked);
     assert_eq!(chart.colormap, plotium_figure::ColormapId::Plasma);
     assert_eq!(chart.view_angles, [-30.0, 55.0]);
+    assert!(chart.transpose);
     assert_eq!(chart.column, Some(selected_column));
 }
 

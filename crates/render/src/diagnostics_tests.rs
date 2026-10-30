@@ -462,6 +462,8 @@ fn color_scale_values_stay_inside_the_frame() {
             values: vec![-12_345.0, 3.0],
             x_bounds: [0.0, 100.0],
             y_bounds: [0.0, 100.0],
+            x_edges: None,
+            y_edges: None,
             colormap: plotium_figure::ColormapId::Viridis,
             value_range: [-12_345.0, 3.0],
         });

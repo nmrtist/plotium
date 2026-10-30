@@ -57,6 +57,9 @@ pub struct ChartContext {
     pub colormap: plotium_figure::ColormapId,
     /// 3D surface view as `[azimuth°, elevation°]`.
     pub view_angles: [f32; 2],
+    /// Heatmap: the x ruler across and the columns up, instead of the sheet's
+    /// own layout.
+    pub transpose: bool,
 }
 
 /// A chart registration. `recommended_domains` preserves sensible defaults for
@@ -375,6 +378,8 @@ pub struct ChartSpec {
     pub colormap: plotium_figure::ColormapId,
     /// 3D surface view as `[azimuth°, elevation°]`.
     pub view_angles: [f32; 2],
+    /// Heatmap: the x ruler across and the columns up.
+    pub transpose: bool,
 }
 
 impl Default for ChartSpec {
@@ -386,6 +391,7 @@ impl Default for ChartSpec {
             stacked: false,
             colormap: plotium_figure::ColormapId::default(),
             view_angles: SURFACE_DEFAULT_VIEW,
+            transpose: false,
         }
     }
 }
@@ -405,6 +411,7 @@ impl ChartSpec {
             stacked: self.stacked,
             colormap: self.colormap,
             view_angles: self.view_angles,
+            transpose: self.transpose,
         }
     }
 }

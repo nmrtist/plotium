@@ -221,6 +221,20 @@ fn every_chart_property_supports_reset() {
         &mut app,
         &target,
         object::CHART_TYPE_ID,
+        PropertyValue::Enum("table_heatmap"),
+    );
+    set(
+        &mut app,
+        &target,
+        object::CHART_TRANSPOSE,
+        PropertyValue::Bool(true),
+    );
+    reset(&mut app, &target, object::CHART_TRANSPOSE);
+
+    set(
+        &mut app,
+        &target,
+        object::CHART_TYPE_ID,
         PropertyValue::Enum("table_surface"),
     );
     set(
@@ -243,6 +257,41 @@ fn every_chart_property_supports_reset() {
         set(&mut app, &target, property, changed);
         reset(&mut app, &target, property);
     }
+}
+
+#[test]
+fn transposing_a_heatmap_moves_axis_overrides_with_the_data() {
+    let (mut app, target, id) = table_app();
+    set(
+        &mut app,
+        &target,
+        object::CHART_TYPE_ID,
+        PropertyValue::Enum("table_heatmap"),
+    );
+    let overrides = crate::state::AxisOverrides {
+        x_label: Some("Column".to_owned()),
+        y_label: Some("Angle".to_owned()),
+        y_range: Some(crate::state::AxisRange::new(100.0, 200.0)),
+        ..Default::default()
+    };
+    app.set_axis_overrides_value(0, id, &overrides);
+    set(
+        &mut app,
+        &target,
+        object::CHART_TRANSPOSE,
+        PropertyValue::Bool(true),
+    );
+    let plot = app.doc.canvases[0].object(id).unwrap().plot().unwrap();
+    assert_eq!(plot.axis_overrides.x_label.as_deref(), Some("Angle"));
+    assert_eq!(plot.axis_overrides.y_label.as_deref(), Some("Column"));
+    let figure = plot.figure();
+    assert_eq!((figure.x.min, figure.x.max), (100.0, 200.0));
+    assert_eq!(figure.x.label, "Angle");
+
+    app.undo();
+    let plot = app.doc.canvases[0].object(id).unwrap().plot().unwrap();
+    assert_eq!(plot.axis_overrides, overrides);
+    assert!(!plot.chart.transpose);
 }
 
 #[test]

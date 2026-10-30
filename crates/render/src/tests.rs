@@ -570,6 +570,8 @@ fn heatmap_auto_reserves_a_color_scale_and_hide_removes_it() {
         values: vec![0.0, 1.0, 2.0, 3.0],
         x_bounds: [0.0, 2.0],
         y_bounds: [0.0, 2.0],
+        x_edges: None,
+        y_edges: None,
         colormap: plotium_figure::ColormapId::Viridis,
         value_range: [0.0, 3.0],
     });
@@ -589,6 +591,8 @@ fn heatmap_cells_project_every_finite_cell() {
         values: vec![0.0, 1.0, f32::NAN, 3.0],
         x_bounds: [0.0, 2.0],
         y_bounds: [0.0, 2.0],
+        x_edges: None,
+        y_edges: None,
         colormap: plotium_figure::ColormapId::Viridis,
         value_range: [0.0, 3.0],
     };

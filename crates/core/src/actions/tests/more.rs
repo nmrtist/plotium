@@ -96,6 +96,71 @@ fn single_table_color_override_recolors_bar_polygons() {
 }
 
 #[test]
+fn transposing_a_heatmap_refits_the_swapped_axes_and_undoes() {
+    use crate::state::ChartSpec;
+    let (mut app, id) = table_app();
+    let line = first_plot(&app).chart.clone();
+    let heatmap = ChartSpec {
+        type_id: "table_heatmap".to_owned(),
+        ..ChartSpec::default()
+    };
+    app.execute_action(Action::set_chart_type(0, id, line, heatmap.clone()));
+    let upright = first_plot(&app).figure();
+    let (x, y) = (
+        (upright.x.min, upright.x.max),
+        (upright.y.min, upright.y.max),
+    );
+    let upright_rows = upright.heatmap.as_ref().unwrap().rows;
+
+    let transposed = ChartSpec {
+        transpose: true,
+        ..heatmap.clone()
+    };
+    app.execute_action(Action::set_chart_type(0, id, heatmap, transposed));
+    let figure = first_plot(&app).figure();
+    assert_eq!((figure.x.min, figure.x.max), y);
+    assert_eq!((figure.y.min, figure.y.max), x);
+    assert_eq!(figure.heatmap.as_ref().unwrap().cols, upright_rows);
+
+    app.undo();
+    let figure = first_plot(&app).figure();
+    assert_eq!((figure.x.min, figure.x.max), x);
+    assert_eq!((figure.y.min, figure.y.max), y);
+}
+
+#[test]
+fn a_heatmap_ignores_a_line_chart_range_that_misses_its_cells() {
+    use crate::state::{AxisOverrides, AxisRange, ChartSpec};
+    use plotium_figure::AxisBreak;
+    let (mut app, id) = table_app();
+    let overrides = AxisOverrides {
+        x_range: Some(AxisRange::new(1000.0, 2000.0)),
+        y_range: Some(AxisRange::new(-100.0, 100.0)),
+        y_break: Some(AxisBreak::new(0.5, 1.5)),
+        ..AxisOverrides::default()
+    };
+    app.set_axis_overrides_value(0, id, &overrides);
+    let line = first_plot(&app).chart.clone();
+    let heatmap = ChartSpec {
+        type_id: "table_heatmap".to_owned(),
+        ..ChartSpec::default()
+    };
+    app.execute_action(Action::set_chart_type(0, id, line, heatmap));
+
+    let figure = first_plot(&app).figure();
+    let grid = figure.heatmap.as_ref().unwrap();
+    let edges = grid.y_edges.as_ref().unwrap();
+    assert_eq!(
+        (figure.y.min, figure.y.max),
+        (edges[0], edges[edges.len() - 1]),
+        "the window stays on the cells"
+    );
+    assert!(figure.x.categories.is_some());
+    assert!(figure.y.axis_break.is_none());
+    assert_eq!(first_plot(&app).axis_overrides, overrides);
+}
+
+#[test]
 fn set_chart_type_switches_table_to_categorical_bars_and_undoes() {
     use crate::state::{AxisOverrides, AxisRange, ChartSpec};
     let (mut app, id) = table_app();

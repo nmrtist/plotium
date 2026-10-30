@@ -69,8 +69,12 @@ entire matrix of values at once, **Heatmap** or **Surface 3D**.
   bar (columns need at least two distinct values; degenerate columns fall back
   to raw points).
 - **Heatmap** — the whole table as a colormapped matrix with rows reading
-  top-to-bottom; pick the colormap in the inspector. To set which values the
-  colours span, see [Heatmap colour range](/guides/heatmap-range/).
+  top-to-bottom; pick the colormap in the inspector. An x column that only
+  rises or only falls gives a numeric axis, and so do column names that differ
+  only in such a number, like `300 K`, `t=10 min`, or `scan 12`; uneven steps
+  keep their true spacing. Anything else keeps one slot per row or column. Turn on **Transpose** to put the x column across and the columns
+  up, as in an in-situ map of 2θ against time. To set which values the colours
+  span, see [Heatmap colour range](/guides/heatmap-range/).
 - **Pie** — one chosen column as wedges, one per row, labeled with
   percentages. Negative and missing rows are excluded.
 - **Surface 3D** — the table as a height field in a fixed orthographic view;
