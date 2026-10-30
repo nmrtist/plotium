@@ -450,7 +450,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         }
         CommandId::SpectrumArithmetic => requires(
             !app.spectrum_arithmetic_targets().is_empty(),
-            "Load a non-empty 1D NMR spectrum before using Spectrum Arithmetic.",
+            "Load a 1D spectrum, pattern or plotted table curve before using Spectrum Arithmetic.",
         ),
         CommandId::AlignSpectra => requires(
             app.can_align_spectra(),

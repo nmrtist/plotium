@@ -31,14 +31,16 @@ pub enum SpectrumArithmeticOp {
     SubtractDataset,
     MultiplyConstant,
     AddConstant,
+    Average,
 }
 
 impl SpectrumArithmeticOp {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::AddDataset,
         Self::SubtractDataset,
         Self::MultiplyConstant,
         Self::AddConstant,
+        Self::Average,
     ];
 
     pub fn label(self) -> &'static str {
@@ -47,6 +49,7 @@ impl SpectrumArithmeticOp {
             Self::SubtractDataset => "A − k·B",
             Self::MultiplyConstant => "A × k",
             Self::AddConstant => "A + c",
+            Self::Average => "Average",
         }
     }
 
@@ -55,13 +58,27 @@ impl SpectrumArithmeticOp {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SpectrumArithmeticDialogState {
     pub a: usize,
     pub b: usize,
     pub op: SpectrumArithmeticOp,
     pub k: f64,
     pub constant: f64,
+    /// Datasets averaged with A, by identity because the list outlives a frame.
+    pub averaged: Vec<super::DatasetId>,
+    /// Last compatibility answer and the inputs it holds for, so the operand
+    /// traces are not recomputed on every frame.
+    pub compat: Option<(SpectrumArithmeticKey, Result<Option<String>, String>)>,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct SpectrumArithmeticKey {
+    pub a: usize,
+    pub b: usize,
+    pub op: SpectrumArithmeticOp,
+    pub averaged: Vec<super::DatasetId>,
+    pub revision: u64,
 }
 
 #[derive(Clone)]

@@ -33,7 +33,7 @@ mod dialogs;
 pub use dialogs::{
     AlignSpectraDialogState, CanvasStyleDialogState, CanvasStyleEntry, CommandPaletteState,
     ProcessingSchemeDialogState, ProcessingTemplateDialogState, SpectrumArithmeticDialogState,
-    SpectrumArithmeticOp, TemplateBrowserEntry,
+    SpectrumArithmeticKey, SpectrumArithmeticOp, TemplateBrowserEntry,
 };
 #[path = "ui_state_rename.rs"]
 mod rename;

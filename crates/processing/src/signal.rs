@@ -257,6 +257,117 @@ pub fn smooth(values: &[f64], method: SmoothMethod) -> Vec<f64> {
     }
 }
 
+/// Relative x difference below which two samples sit at the same position.
+const GRID_TOLERANCE: f64 = 1e-9;
+
+/// Real-valued samples of one curve. `x` must be finite and strictly monotonic.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Trace<'a> {
+    pub x: &'a [f64],
+    pub y: &'a [f64],
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum TraceError {
+    #[error("the trace is empty, or its x and y lengths differ")]
+    InvalidLength,
+    #[error("the trace x values must be finite and strictly monotonic")]
+    NonMonotonicAxis,
+    #[error("the trace y values must be finite")]
+    NonFiniteValue,
+}
+
+impl Trace<'_> {
+    pub fn validate(self) -> Result<(), TraceError> {
+        if self.x.is_empty() || self.x.len() != self.y.len() {
+            return Err(TraceError::InvalidLength);
+        }
+        let ascending = self.x.windows(2).all(|pair| pair[0] < pair[1]);
+        let descending = self.x.windows(2).all(|pair| pair[0] > pair[1]);
+        if !self.x.iter().all(|value| value.is_finite()) || !(ascending || descending) {
+            return Err(TraceError::NonMonotonicAxis);
+        }
+        if !self.y.iter().all(|value| value.is_finite()) {
+            return Err(TraceError::NonFiniteValue);
+        }
+        Ok(())
+    }
+
+    /// Linear interpolation, or `None` outside the trace's x range.
+    fn at(self, position: f64) -> Option<f64> {
+        let (first, last) = (self.x[0], self.x[self.x.len() - 1]);
+        let (low, high) = (first.min(last), first.max(last));
+        let tolerance = GRID_TOLERANCE * low.abs().max(high.abs()).max(1.0);
+        if position < low - tolerance || position > high + tolerance {
+            return None;
+        }
+        let position = position.clamp(low, high);
+        let upper = self.x.partition_point(|&value| {
+            if first <= last {
+                value < position
+            } else {
+                value > position
+            }
+        });
+        if upper == 0 {
+            return Some(self.y[0]);
+        }
+        let (x0, x1) = (self.x[upper - 1], self.x[upper]);
+        let (y0, y1) = (self.y[upper - 1], self.y[upper]);
+        Some(y0 + (position - x0) / (x1 - x0) * (y1 - y0))
+    }
+}
+
+/// True when both traces sample the same x positions.
+pub fn same_grid(a: &[f64], b: &[f64]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|(x, y)| (x - y).abs() <= GRID_TOLERANCE * x.abs().max(y.abs()).max(1.0))
+}
+
+/// Whether the two traces' x ranges share at least one position.
+pub fn overlaps(a: Trace, b: Trace) -> bool {
+    let range = |trace: Trace| {
+        let (first, last) = (trace.x[0], trace.x[trace.x.len() - 1]);
+        (first.min(last), first.max(last))
+    };
+    let ((low_a, high_a), (low_b, high_b)) = (range(a), range(b));
+    low_a <= high_b && low_b <= high_a
+}
+
+/// `a + scale · b` on `a`'s grid. `b` is interpolated and counts as zero
+/// outside its own range.
+pub fn linear_combination(a: Trace, b: Trace, scale: f64) -> Result<Vec<f64>, TraceError> {
+    a.validate()?;
+    b.validate()?;
+    Ok(a.x
+        .iter()
+        .zip(a.y)
+        .map(|(&x, y)| y + scale * b.at(x).unwrap_or(0.0))
+        .collect())
+}
+
+/// Mean of `traces` on the first trace's grid. Each point averages only the
+/// traces whose range covers it.
+pub fn average(traces: &[Trace]) -> Result<Vec<f64>, TraceError> {
+    let first = traces.first().ok_or(TraceError::InvalidLength)?;
+    for trace in traces {
+        trace.validate()?;
+    }
+    Ok(first
+        .x
+        .iter()
+        .map(|&x| {
+            let (sum, count) = traces
+                .iter()
+                .filter_map(|trace| trace.at(x))
+                .fold((0.0, 0.0), |(sum, count), y| (sum + y, count + 1.0));
+            sum / count
+        })
+        .collect())
+}
+
 #[cfg(test)]
 #[path = "signal_tests.rs"]
 mod tests;
