@@ -9,6 +9,7 @@ mod output;
 pub mod signal;
 pub mod slice;
 pub mod timeseries;
+pub mod xas;
 pub mod xps;
 pub mod xrd;
 
