@@ -1,4 +1,4 @@
-use plotium_core::state::{BoardFitTarget, PlotiumApp, ViewportMode};
+use plotium_core::state::PlotiumApp;
 
 /// Import actions retain their own undo records while the user's existing
 /// editing drafts and navigation remain owned by the current workspace.
@@ -9,23 +9,17 @@ pub(super) fn preserve<T>(app: &mut PlotiumApp, import: impl FnOnce(&mut Plotium
     let active_canvas = app.session.active_canvas;
     let view = app.session.view;
     let board = app.session.board;
-    let viewport_mode = app.session.viewport_mode;
+    let viewport_mode = app.session.viewport_mode.clone();
     let board_reveal = app.session.board_reveal;
     let tool = app.session.tool;
     let primary_sidebar_visible = app.session.primary_sidebar_visible;
     let secondary_sidebar_visible = app.session.secondary_sidebar_visible;
-    let had_content = !app.doc.datasets.is_empty() || !app.doc.canvases.is_empty();
     let result = import(app);
     app.session.ui = ui;
     app.session.active_canvas = active_canvas;
     app.session.view = view;
     app.session.board = board;
-    app.session.viewport_mode =
-        if had_content && viewport_mode == ViewportMode::Fit(BoardFitTarget::AllFrames) {
-            ViewportMode::Manual
-        } else {
-            viewport_mode
-        };
+    app.session.viewport_mode = viewport_mode;
     app.session.board_reveal = board_reveal;
     app.session.tool = tool;
     app.session.primary_sidebar_visible = primary_sidebar_visible;

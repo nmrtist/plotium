@@ -76,30 +76,31 @@ fn empty_workspace_offers_start_actions() {
 }
 
 #[test]
-fn datasets_preserve_navigation_until_table_is_clicked() {
+fn tables_without_pages_have_a_navigable_board() {
     let mut app = PlotiumApp::new();
     app.new_table_dataset();
     app.new_table_dataset();
     app.session.ui.sheet_open = None;
-    app.focus_single(1);
     app.session.view = plotium_core::state::PrimaryView::Canvas;
-    app.session.primary_sidebar_visible = false;
-    let view = app.session.view;
     let ctx = crate::typography::test_context();
+    assert!(commands::describe(&app, CommandId::ZoomToFit).enabled);
+    commands::execute_without_clipboard(CommandId::ZoomToFit, &mut app, &ctx);
     let texts = frame(&mut app, &ctx, Vec::new());
-    assert!(has(&texts, "2 datasets · 0 canvases"));
-    assert!(has(&texts, "Table 1 — View table"));
-    assert!(!has(&texts, "Open data or a project to get started."));
+    assert!(has(&texts, "Table 1"));
+    assert!(!has(&texts, "Workspace overview"));
     assert_eq!(app.session.active_canvas, None);
-    assert_eq!(app.session.ui.data_selection, vec![1]);
-    assert!(app.session.view == view);
-    assert!(!app.session.primary_sidebar_visible);
-    assert_eq!(app.session.ui.sheet_open, None);
-    click(&mut app, &ctx, "Table 1 — View table");
-    assert_eq!(app.session.ui.sheet_open, Some(0));
-    assert_eq!(app.session.ui.data_selection, vec![0]);
-    assert!(app.session.primary_sidebar_visible);
-    assert!(app.session.view == plotium_core::state::PrimaryView::Data);
+    frame(
+        &mut app,
+        &ctx,
+        vec![
+            egui::Event::PointerMoved(egui::pos2(450.0, 500.0)),
+            egui::Event::Zoom(1.2),
+        ],
+    );
+    assert_eq!(
+        app.session.viewport_mode,
+        plotium_core::state::ViewportMode::Manual
+    );
 }
 
 #[test]
@@ -119,7 +120,7 @@ fn canvas_without_datasets_can_be_opened() {
 #[test]
 fn opening_canvas_replaces_sheet_selection_for_frame_commands() {
     use plotium_core::state::{
-        BoardFitTarget, BoardFrameId, FrameRef, SelectionScope, ViewportMode,
+        BoardFitItem, BoardFitTarget, BoardFrameId, SelectionScope, ViewportMode,
     };
 
     let mut app = PlotiumApp::new();
@@ -145,16 +146,12 @@ fn opening_canvas_replaces_sheet_selection_for_frame_commands() {
     ));
     assert_eq!(app.session.ui.selection_anchors.canvas, Some(canvas));
     assert_eq!(app.session.ui.selection_anchors.canvas_lead, Some(canvas));
-    let rect = plotium_core::state::frame_board_rect(&app, FrameRef::Page(0)).unwrap();
     commands::execute_without_clipboard(CommandId::ZoomToSelection, &mut app, &ctx);
     assert_eq!(
         app.session.viewport_mode,
-        ViewportMode::Fit(BoardFitTarget::Region([
-            rect.left,
-            rect.top,
-            rect.right(),
-            rect.bottom(),
-        ]))
+        ViewportMode::Fit(BoardFitTarget::Items(vec![BoardFitItem::Frame(
+            BoardFrameId::Page(canvas)
+        )]))
     );
 }
 
@@ -163,8 +160,9 @@ fn pending_import_remains_visible_alongside_existing_content() {
     for with_content in [false, true] {
         let mut app = PlotiumApp::new();
         if with_content {
-            app.new_table_dataset();
-            app.session.ui.sheet_open = None;
+            app.doc
+                .canvases
+                .push(CanvasDocument::new("Page".into(), [100.0, 100.0]));
         }
         app.session.primary_sidebar_visible = false;
         app.queue_data_import("data".into(), || Ok(Vec::new()));

@@ -89,30 +89,26 @@ fn toggle_frame_selection_adds_and_removes() {
 }
 
 #[test]
-fn zoom_to_selection_targets_selected_then_all_frames() {
+fn selection_fit_captures_identity_and_empty_selection_does_not_replace_it() {
+    use crate::ui::commands::{self, CommandId};
+    use plotium_core::state::{SelectionScope, board_fit_bounds};
     let mut app = app_with_pages(&[[0.0, 0.0], [1000.0, 0.0]]);
     let ctx = egui::Context::default();
-
-    app.session.ui.frame_selection =
-        vec![plotium_core::state::board_frame_id(&app, FrameRef::Page(1)).unwrap()];
-    zoom_to_selection(&mut app, &ctx);
-    let r = app.doc.canvases[1].board_rect_pt();
-    match app.session.viewport_mode {
-        ViewportMode::Fit(BoardFitTarget::Region(b)) => {
-            assert!((b[0] - r.left).abs() < 1e-3 && (b[2] - r.right()).abs() < 1e-3);
-        }
-        other => panic!("expected a region fit, got {other:?}"),
-    }
-
+    app.session.ui.selection_scope = SelectionScope::Board;
+    app.session.ui.frame_selection = vec![board_frame_id(&app, FrameRef::Page(1)).unwrap()];
+    commands::execute_without_clipboard(CommandId::ZoomToSelection, &mut app, &ctx);
+    let target = app.session.viewport_mode.clone();
     app.session.ui.frame_selection.clear();
-    zoom_to_selection(&mut app, &ctx);
-    let all = all_frames_bbox(&app).unwrap();
-    match app.session.viewport_mode {
-        ViewportMode::Fit(BoardFitTarget::Region(b)) => {
-            assert!((b[0] - all.0).abs() < 1e-3 && (b[2] - all.2).abs() < 1e-3);
-        }
-        other => panic!("expected a region fit, got {other:?}"),
-    }
+    assert!(!commands::describe(&app, CommandId::ZoomToSelection).enabled);
+    commands::execute_without_clipboard(CommandId::ZoomToSelection, &mut app, &ctx);
+    assert_eq!(app.session.viewport_mode, target);
+    app.doc.canvases[1].board_pos[0] += 100.0;
+    let ViewportMode::Fit(fit) = &app.session.viewport_mode else {
+        panic!("expected fit")
+    };
+    assert_eq!(board_fit_bounds(&app, fit).unwrap().0[0], 1100.0);
+    app.doc.canvases.swap(0, 1);
+    assert_eq!(board_fit_bounds(&app, fit).unwrap().0[0], 1100.0);
 }
 
 #[test]
@@ -444,4 +440,54 @@ fn frame_at_and_header_hit_sheet_frames() {
         frame_header_at(&app, screen, Pos2::new(r.left + 5.0, r.top - 5.0)),
         Some(FrameRef::Sheet(0))
     );
+}
+
+#[test]
+fn captured_fit_tracks_remaining_targets_then_releases_camera() {
+    use plotium_core::state::{BoardFitItem, captured_board_fit};
+    let mut app = app_with_pages(&[[0.0, 0.0], [1000.0, 0.0]]);
+    let ctx = egui::Context::default();
+    let target = captured_board_fit(
+        &app,
+        app.doc.canvases.iter().map(|page| {
+            BoardFitItem::Frame(plotium_core::state::BoardFrameId::Page(page.resource_id))
+        }),
+    )
+    .unwrap();
+    request_board_fit_target(&mut app, &ctx, target);
+    app.doc.canvases.remove(0);
+    let _ = ctx.run_ui(Default::default(), |ui| {
+        drive_board_fit(&mut app, ui, &workspace(screen()))
+    });
+    assert!(matches!(
+        app.session.viewport_mode,
+        ViewportMode::Fit(BoardFitTarget::Items(_))
+    ));
+    let camera = app.session.board;
+    app.doc.canvases.clear();
+    let _ = ctx.run_ui(Default::default(), |ui| {
+        drive_board_fit(&mut app, ui, &workspace(screen()))
+    });
+    assert_eq!(app.session.viewport_mode, ViewportMode::Manual);
+    assert_eq!(app.session.board, camera);
+}
+
+#[test]
+fn all_fit_waits_on_an_empty_board_but_direct_manipulation_cancels_it() {
+    let mut app = app_with_pages(&[]);
+    let ctx = egui::Context::default();
+    request_board_fit_all(&mut app, &ctx);
+    let _ = ctx.run_ui(Default::default(), |ui| {
+        drive_board_fit(&mut app, ui, &workspace(screen()))
+    });
+    assert_eq!(
+        app.session.viewport_mode,
+        ViewportMode::Fit(BoardFitTarget::AllFrames)
+    );
+    app.doc.canvases.push(page([0.0, 0.0]));
+    let _ = ctx.run_ui(Default::default(), |ui| {
+        drive_board_fit(&mut app, ui, &workspace(screen()))
+    });
+    freeze_board_for_gesture(&mut app);
+    assert_eq!(app.session.viewport_mode, ViewportMode::Manual);
 }

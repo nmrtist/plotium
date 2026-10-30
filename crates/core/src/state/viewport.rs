@@ -1,4 +1,4 @@
-use super::BoardFrameId;
+use super::{BoardFrameId, CanvasId, ContentId, PanelId};
 
 /// Layout-independent camera for the board that holds every page-frame.
 ///
@@ -21,10 +21,12 @@ impl Default for BoardViewport {
 }
 
 /// What a persistent board fit intent targets.
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum BoardFitTarget {
     /// A single frame, re-read each tick so the glide tracks it if it moves.
     Frame(BoardFrameId),
+    /// Captured identities, independent of subsequent selection changes.
+    Items(Vec<BoardFitItem>),
     /// A fixed world-pt region `(min_x, min_y, max_x, max_y)`.
     Region([f32; 4]),
     /// Every board frame, resolved again whenever the workspace changes.
@@ -35,7 +37,7 @@ pub enum BoardFitTarget {
 
 /// Ownership of the board camera. Fit intent persists across layout changes;
 /// direct pan or zoom returns control to the user.
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum ViewportMode {
     Manual,
     Fit(BoardFitTarget),
@@ -47,4 +49,18 @@ pub struct NamedView {
     pub name: String,
     pub zoom: f32,
     pub world_center: [f32; 2],
+}
+
+/// One stable target of a captured board selection.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BoardFitItem {
+    Frame(BoardFrameId),
+    Content {
+        canvas: CanvasId,
+        content: ContentId,
+    },
+    Panel {
+        canvas: CanvasId,
+        panel: PanelId,
+    },
 }

@@ -58,6 +58,8 @@ pub use status_history::{StatusHistory, StatusMessage};
 pub(crate) mod axis_display;
 mod axis_overrides;
 mod board;
+mod board_fit;
+pub use board_fit::*;
 mod charts;
 mod compute;
 mod content;

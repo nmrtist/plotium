@@ -63,8 +63,23 @@ and pinches move the board; over the selected plot's body they move its data.
 | Double-click an axis strip | Reset that axis only |
 | `H` | Fit the y axis to the data visible in the current x window (the x window stays put) |
 | `F` over a plot body | Fit both axes of that plot to the full data range |
-| `F` elsewhere | Zoom the board to fit the selected frames (everything when nothing is selected) |
+| `F` elsewhere | Show Selection: fit the selected board items in the current selection scope (disabled without a visible selection) |
 | `Enter` | Zoom the board to the selected page or sheet |
+
+**Show All** fits every page and visible table sheet on the board, including
+workspaces containing only tables. **Show Selection** fits the visible items
+selected where you are working: frames on the board, pages in the canvas list,
+or objects and panels in the canvas or layer list. In the data list, tables
+fit their board sheets; tables without a sheet fit the first page displaying
+them. Other datasets have no board target here. Without a visible target,
+Show Selection is disabled. These commands move the board view; **Fit Plot to
+Data** and **Fit Plot Vertically** adjust the data range inside a plot.
+
+Both board fits follow their targets as they move or resize. Changing the
+selection leaves the current fit in place; invoke Show Selection again to fit
+the new selection. Hidden or deleted targets are skipped. When none remain,
+selection fit ends at the current view, while Show All waits for new content.
+Panning, zooming, or starting a direct drag ends either fit.
 
 **Peak height** uses one display multiplier for the whole plot. Stacked spectra
 keep their individual zero-signal baselines and spacing, including negative

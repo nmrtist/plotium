@@ -318,6 +318,7 @@ pub(crate) fn screen_to_page_unbounded(
         .then(|| BoardTransform::from_board(board, screen).screen_to_page(canvas, p))
 }
 
+#[cfg(test)]
 pub(crate) fn bbox_of_rects(
     rects: impl IntoIterator<Item = PlotRect>,
 ) -> Option<(f32, f32, f32, f32)> {
@@ -333,12 +334,10 @@ pub(crate) fn bbox_of_rects(
     Some(bbox)
 }
 
+#[cfg(test)]
 pub(crate) fn all_frames_bbox(app: &PlotiumApp) -> Option<(f32, f32, f32, f32)> {
-    bbox_of_rects(
-        board_frames(app)
-            .into_iter()
-            .filter_map(|f| frame_board_rect(app, f)),
-    )
+    plotium_core::state::board_fit_bounds(app, &BoardFitTarget::AllFrames)
+        .map(|(b, _)| (b[0], b[1], b[2], b[3]))
 }
 
 /// Ceiling for the fit zoom. Fitting is an explicit "inspect this" intent, so

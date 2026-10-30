@@ -72,7 +72,10 @@ fn appending_tables_preserves_navigation_drafts_and_original_undo_selection() {
     assert_eq!(app.session.ui.frame_selection, vec![frame]);
     assert_eq!(app.session.board_reveal, Some(frame));
     assert_eq!(app.session.board, board);
-    assert_eq!(app.session.viewport_mode, ViewportMode::Manual);
+    assert_eq!(
+        app.session.viewport_mode,
+        ViewportMode::Fit(BoardFitTarget::AllFrames)
+    );
     assert!(!app.session.primary_sidebar_visible);
     assert!(!app.session.secondary_sidebar_visible);
     assert_eq!(app.session.ui.data_browser_filter, "uncommitted search");

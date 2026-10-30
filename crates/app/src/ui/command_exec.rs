@@ -3,8 +3,8 @@
 //! within the repository size limit.
 
 use plotium_core::state::{
-    CanvasDocument, CommandPaletteState, FrameRef, LineShapeKind, ObjectFrame, PanelLayout,
-    PlotiumApp, ProjectTransition, Tool, ToolGroup,
+    CanvasDocument, CommandPaletteState, LineShapeKind, ObjectFrame, PanelLayout, PlotiumApp,
+    ProjectTransition, Tool, ToolGroup,
 };
 
 use super::clipboard_table::ClipboardTablePaste;
@@ -159,20 +159,33 @@ fn execute_inner(
         CommandId::ToggleSecondarySidebar => {
             app.session.secondary_sidebar_visible = !app.session.secondary_sidebar_visible;
         }
-        CommandId::ZoomToFit => {
-            if let Some(canvas) = app.session.active_canvas {
-                super::canvas::request_board_fit(app, ctx, FrameRef::Page(canvas));
-                app.session.status = "Fit page to view.".into();
-            }
-        }
-        CommandId::ZoomToSelection => {
-            let count = app.session.ui.frame_selection.len();
-            super::canvas::zoom_to_selection(app, ctx);
-            app.session.status = match count {
-                0 => "Fit all frames to view.".to_owned(),
-                1 => "Fit selected frame to view.".to_owned(),
-                _ => format!("Fit {count} selected frames to view."),
+        CommandId::ZoomToFit | CommandId::ZoomToSelection => {
+            use plotium_core::state::{BoardFitTarget, board_fit_bounds, selected_board_fit};
+            let target = if id == CommandId::ZoomToFit {
+                Ok(BoardFitTarget::AllFrames)
+            } else {
+                selected_board_fit(app)
             };
+            if let Ok(target) = target
+                && let Some((_, count)) = board_fit_bounds(app, &target)
+            {
+                app.session.view = plotium_core::state::PrimaryView::Canvas;
+                if app.session.active_canvas.is_none() && !app.doc.canvases.is_empty() {
+                    app.activate_canvas(0);
+                }
+                super::canvas::request_board_fit_target(app, ctx, target);
+                app.session.status = if id == CommandId::ZoomToFit {
+                    format!(
+                        "Fit all {count} board frame{} to view.",
+                        if count == 1 { "" } else { "s" }
+                    )
+                } else {
+                    format!(
+                        "Fit {count} selected board item{} to view.",
+                        if count == 1 { "" } else { "s" }
+                    )
+                };
+            }
         }
         CommandId::ResetPeakHeight => {
             super::canvas::reset_peak_height(app, ctx);
