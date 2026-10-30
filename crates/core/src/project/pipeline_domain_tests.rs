@@ -19,6 +19,8 @@ fn stack_scheme_rejects_an_invalid_dormant_f1_pipeline() {
         Nmr2DDataset::load(super::tests::synthetic_dosy_2d()).unwrap(),
     ));
     let scheme = ProcessingScheme {
+        xrd: None,
+        xps: None,
         schema_version: 1,
         dimension_count: 2,
         pipelines: invalid_stack_pipelines(),

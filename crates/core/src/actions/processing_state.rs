@@ -352,7 +352,7 @@ impl DatasetProcessingState {
                 xps.region_recipes = region_recipes.clone();
                 xps.fit_workspaces = fit_workspaces.clone();
                 xps.fits = fits.clone();
-                xps.next_step_id = *next_step_id;
+                xps.next_step_id = xps.next_step_id.max(*next_step_id);
                 Ok(ProcessingRebuild::Rebuilt)
             }
             (dataset, state) => Err(ProcessingStateError::KindMismatch {

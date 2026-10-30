@@ -220,6 +220,13 @@ pub(super) fn execute(
                             "invalid_reason":output.err(),"pipeline":crate::project::pipeline_to_dto(pipeline),
                             "pending_apply":n.base_stale || n.params != n.base_params})
                     }).collect(),
+                Dataset::Xrd(x) => vec![json!({"axis":"2theta","settings":x.params,"valid":true,
+                    "pending_apply":super::processing_edit_spectra::has_pending_edit(app, dataset)})],
+                Dataset::Xps(x) => x.experiment.regions.iter().map(|region| json!({
+                    "axis":region.id.0.to_string(),"region":region.name,
+                    "pipeline":{"steps":x.recipe(region.id).map(|recipe| &recipe.steps)},
+                    "valid":x.displayed_region(region.id).is_some(),
+                    "pending_apply":super::processing_edit_spectra::has_pending_edit(app, dataset)})).collect(),
                 _ => {
                     return Err(AutomationError::InvalidSelector(
                         "Target has no editable processing pipeline.".into(),

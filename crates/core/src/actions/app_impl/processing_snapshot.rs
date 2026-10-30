@@ -35,6 +35,9 @@ impl PlotiumApp {
                 (Dataset::Nmr2D(current), Dataset::Nmr2D(next)) => {
                     next.next_step_id = next.next_step_id.max(current.next_step_id)
                 }
+                (Dataset::Xps(current), Dataset::Xps(next)) => {
+                    next.next_step_id = next.next_step_id.max(current.next_step_id)
+                }
                 _ => {}
             }
             for kind in [

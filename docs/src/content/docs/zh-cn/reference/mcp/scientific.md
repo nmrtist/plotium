@@ -18,8 +18,8 @@ description: 通过 MCP 运行处理、扩散拟合和 DOSY，并为结果建图
 
 | 操作 | 参数与目标 |
 | --- | --- |
-| `processing.edit` | 一个数据集；`edits` 中使用 `replace`、`enable`、`add`、`remove` 或 `move`；已有步骤使用稳定 StepId |
-| `processing.apply_scheme` | `path`，可选 `compatible_only`；方案字节、指纹和兼容目标配置在预检时冻结 |
+| `processing.edit` | 一个 NMR、XRD 或 XPS 数据集；`edits` 中对稳定 StepId 使用 `replace`、`enable`、`add`、`remove` 或 `move`；XPS 的 `add` 以区域 ID 作为 `axis`，步骤为 `Window`、`Smooth` 或 `Normalize`；XRD 使用 `set_xrd`，给出完整的 `processing` 设置 |
+| `processing.apply_scheme` | `path`，可选 `compatible_only`；方案字节、指纹和兼容目标配置在预检时冻结；方案只应用于同类数据集，XPS 方案替换当前区域的配方 |
 | `diffusion.set_input` | 一个数据集；完整 `input`；非法输入错误带结构化校验报告 |
 | `analysis.regions.extract` | 一个支持区域序列的字段；`regions` 引用已有 RegionId 或给出边界和指标；可选显式 `input` |
 | `analysis.diffusion.fit` | 一个原生表格；`response_column` 为稳定 ColumnId；可选原生 `options`；x 列单位必须为 `s/m²` |

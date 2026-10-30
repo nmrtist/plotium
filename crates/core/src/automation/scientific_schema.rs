@@ -24,8 +24,16 @@ pub(super) fn step_kind() -> Value {
         external("Reference",object(json!({"at_ppm":number,"target_ppm":number}))),
         external("Smooth",json!({"oneOf":[external("MovingAverage",object(json!({"window":window}))),external("SavitzkyGolay",object(json!({"window":window,"poly_order":{"type":"integer","minimum":0,"maximum":255}})))]})),
         external("Normalize",json!({"oneOf":[{"enum":["MaxPeak","TotalArea"]},external("Constant",object(json!({"divisor":number})))]})),
-        external("Bin",object(json!({"width":number,"method":{"enum":["Sum","Mean"]}})))
+        external("Bin",object(json!({"width":number,"method":{"enum":["Sum","Mean"]}}))),
+        external("Window",object(json!({"low_ev":number,"high_ev":number})))
     ]})
+}
+pub(super) fn xrd_processing() -> Value {
+    let background = json!({"oneOf":[{"type":"null"},object(json!({"iterations":{"type":"integer","minimum":1,"maximum":200}}))]});
+    let smoothing = json!({"oneOf":[{"type":"null"},object(json!({"window":{"type":"integer","minimum":3,"maximum":101},"polynomial_order":{"type":"integer","minimum":0,"maximum":6}}))]});
+    object(
+        json!({"background":background,"smoothing":smoothing,"normalization":{"enum":["None","Maximum","Area"]}}),
+    )
 }
 pub(super) fn fit_options() -> Value {
     object(json!({

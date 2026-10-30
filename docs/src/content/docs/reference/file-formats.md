@@ -41,7 +41,9 @@ project opens; a missing or damaged one becomes a replaceable placeholder. See
 
 A `.plotiumproc` file stores one processing pipeline, without any data — save a
 recipe once and apply it to a whole series of similar experiments, on any
-machine. See [Recipes and templates](/guides/templates/).
+machine. NMR, XRD and XPS recipes apply to datasets of their own kind, and an
+XPS recipe holds the steps of one region. See
+[Recipes and templates](/guides/templates/).
 
 Named processing templates are kept in the `templates` folder of Plotium's
 [configuration directory](/getting-started/installation/#where-plotium-keeps-its-settings).
