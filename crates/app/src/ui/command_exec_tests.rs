@@ -3,7 +3,9 @@ use plotium_core::actions::Action;
 #[cfg(unix)]
 use plotium_core::properties::{AggregateValue, PropertyAddress, PropertyValue, app_preferences};
 use plotium_core::settings::Settings;
-use plotium_core::state::{BoardFitTarget, CanvasDocument, DEFAULT_CANVAS_SIZE_MM, ViewportMode};
+use plotium_core::state::{
+    BoardFitTarget, CanvasDocument, DEFAULT_CANVAS_SIZE_MM, FrameRef, ViewportMode,
+};
 
 fn app_with_active_canvases(count: usize) -> PlotiumApp {
     let mut app = PlotiumApp::new_with_settings(Settings::default());
@@ -46,12 +48,9 @@ fn zoom_to_fit_command_seeds_springs_from_the_live_camera() {
 
     execute_without_clipboard(CommandId::ZoomToFit, &mut app, &ctx);
 
-    let page_id = app.doc.canvases[0].resource_id;
     assert_eq!(
         app.session.viewport_mode,
-        ViewportMode::Fit(BoardFitTarget::Frame(
-            plotium_core::state::BoardFrameId::Page(page_id)
-        ))
+        ViewportMode::Fit(BoardFitTarget::AllFrames)
     );
     for (id, live) in [
         ("board_fit_zoom", 2.5),
@@ -61,19 +60,20 @@ fn zoom_to_fit_command_seeds_springs_from_the_live_camera() {
         let seeded = crate::ui::switcher::animate_spring(&ctx, egui::Id::new(id), live, 0.0);
         assert_eq!(seeded, live);
     }
-    assert_eq!(app.session.status, "Fit page to view.");
+    assert_eq!(app.session.status, "Fit all 1 board frame to view.");
 }
 
 #[test]
 fn zoom_to_selection_command_reports_one_selected_frame() {
     let mut app = app_with_active_canvases(1);
     let ctx = egui::Context::default();
+    app.session.ui.selection_scope = plotium_core::state::SelectionScope::Board;
     app.session.ui.frame_selection =
         vec![plotium_core::state::board_frame_id(&app, FrameRef::Page(0)).unwrap()];
 
     execute_without_clipboard(CommandId::ZoomToSelection, &mut app, &ctx);
 
-    assert_eq!(app.session.status, "Fit selected frame to view.");
+    assert_eq!(app.session.status, "Fit 1 selected board item to view.");
 }
 
 #[test]
@@ -197,4 +197,34 @@ fn cursor_command_has_a_stable_three_press_cycle_on_eligible_2d_data() {
     assert!(app.session.status.contains("Cursor 1/3"));
     assert!(app.session.secondary_sidebar_visible);
     assert!(app.session.ui.requested_tool_group == Some(ToolGroup::Nmr2dExperiment));
+}
+
+#[test]
+fn board_commands_resolve_tables_and_ignore_stale_selected_frames() {
+    use plotium_core::state::{BoardFrameId, CanvasId, SelectionScope};
+    let mut app = app_with_active_canvases(0);
+    app.new_table_dataset();
+    app.new_table_dataset();
+    let ctx = egui::Context::default();
+    assert!(commands::describe(&app, CommandId::ZoomToFit).enabled);
+    execute_without_clipboard(CommandId::ZoomToFit, &mut app, &ctx);
+    assert!(app.session.board_reveal.is_none());
+    assert_eq!(
+        app.session.viewport_mode,
+        ViewportMode::Fit(BoardFitTarget::AllFrames)
+    );
+    assert_eq!(app.session.status, "Fit all 2 board frames to view.");
+    app.session.ui.selection_scope = SelectionScope::Board;
+    app.session.ui.frame_selection = vec![
+        BoardFrameId::Page(CanvasId::new()),
+        BoardFrameId::Sheet(app.doc.datasets[0].resource_id()),
+    ];
+    execute_without_clipboard(CommandId::ZoomToSelection, &mut app, &ctx);
+    assert_eq!(app.session.status, "Fit 1 selected board item to view.");
+    app.session.ui.frame_selection.clear();
+    app.session.viewport_mode = ViewportMode::Manual;
+    let status = app.session.status.clone();
+    execute_without_clipboard(CommandId::ZoomToSelection, &mut app, &ctx);
+    assert_eq!(app.session.viewport_mode, ViewportMode::Manual);
+    assert_eq!(app.session.status, status);
 }

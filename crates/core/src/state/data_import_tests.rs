@@ -383,7 +383,7 @@ fn new_user_import_cancels_previous_continuation_and_existing_content_never_open
 }
 
 #[test]
-fn background_append_freezes_fit_to_all_before_new_frames_can_move_the_camera() {
+fn background_append_preserves_dynamic_fit_to_all_intent() {
     let (mut app, sender) = app_with_channel();
     assert!(app.install_prepared_import(std::path::Path::new("existing"), Ok(prepared())));
     app.session.viewport_mode =
@@ -394,6 +394,6 @@ fn background_append_freezes_fit_to_all_before_new_frames_can_move_the_camera() 
     assert_eq!(app.session.board, board);
     assert_eq!(
         app.session.viewport_mode,
-        super::super::ViewportMode::Manual
+        super::super::ViewportMode::Fit(super::super::BoardFitTarget::AllFrames)
     );
 }

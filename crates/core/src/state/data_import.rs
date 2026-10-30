@@ -493,7 +493,6 @@ impl PlotiumApp {
         let selection = self.session.ui.data_selection.clone();
         let view = self.session.view;
         let before = self.doc.datasets.len();
-        let had_content = before > 0 || !self.doc.canvases.is_empty();
         let previous_order = self
             .session
             .operation_history
@@ -531,15 +530,6 @@ impl PlotiumApp {
         self.session.active_canvas = active_canvas;
         self.session.ui.data_selection = selection;
         self.session.view = view;
-        if success
-            && had_content
-            && self.session.viewport_mode
-                == super::ViewportMode::Fit(super::BoardFitTarget::AllFrames)
-        {
-            // A persistent fit-to-all would otherwise move the camera on the
-            // next UI frame simply because the background batch added a frame.
-            self.session.viewport_mode = super::ViewportMode::Manual;
-        }
         let batch = imports.batch_mut(id);
         if batch.total.is_none() && result.is_err() {
             // Discovery did not yield a concrete acquisition path. Retrying that

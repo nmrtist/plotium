@@ -21,6 +21,19 @@ pub(crate) fn handle_navigation(
     rect: egui::Rect,
     ui: &Ui,
 ) -> bool {
+    handle_navigation_target(app, Some(ci), rect, ui)
+}
+
+pub(crate) fn handle_board_navigation(app: &mut PlotiumApp, rect: egui::Rect, ui: &Ui) -> bool {
+    handle_navigation_target(app, None, rect, ui)
+}
+
+fn handle_navigation_target(
+    app: &mut PlotiumApp,
+    canvas: Option<usize>,
+    rect: egui::Rect,
+    ui: &Ui,
+) -> bool {
     let events = ui.input(|i| i.events.clone());
     let trackpad_gesture = macos_trackpad_gesture(ui.ctx(), &events, true);
     note_wheel_device(ui.ctx(), &events, trackpad_gesture.active);
@@ -90,6 +103,7 @@ pub(crate) fn handle_navigation(
     if dbl
         && let Some(p) = hover.filter(|p| rect.contains(*p))
         && !command
+        && let Some(ci) = canvas
         && let Some((id, outer, plot)) = plot_under_cursor(app, ci, rect, p)
     {
         app.finish_pending_wheel_zoom(now, true);
@@ -146,6 +160,31 @@ pub(crate) fn handle_navigation(
             return true;
         }
         return panning;
+    };
+
+    let Some(ci) = canvas else {
+        if !typing {
+            match navigation_input {
+                NavigationInput::TrackpadPan(delta) if trackpad_gesture.board_target => {
+                    zoom_board_view(app, rect, p, swipe_zoom_factor(ui.ctx(), delta));
+                }
+                NavigationInput::TrackpadPan(delta) => pan_board_view(app, delta),
+                NavigationInput::Pinch(factor) => zoom_board_view(app, rect, p, factor),
+                NavigationInput::WheelZoom(amount) => {
+                    zoom_board_view(app, rect, p, (amount * WHEEL_ZOOM_SPEED).exp());
+                }
+                NavigationInput::None if pan_input => {
+                    // Cancel fit even on the initial stationary press.
+                    freeze_board_for_gesture(app);
+                    pan_board_view(app, delta);
+                }
+                NavigationInput::None => return false,
+            }
+            mark_workspace_navigation(ui.ctx(), now);
+            ui.ctx().request_repaint();
+            return true;
+        }
+        return false;
     };
 
     let trackpad_target = trackpad_target(ui.ctx(), trackpad_gesture, ci, now, p, || {

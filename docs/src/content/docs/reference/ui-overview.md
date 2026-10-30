@@ -36,7 +36,8 @@ introduces the same regions in walkthrough form.
   your plots and ordinary data sheets. "Page" is one framed area of the board
   that exports as one figure. Drag a page or table-sheet header to place it;
   near another frame, it snaps to that frame's edges and the standard gap.
-  Hold <kbd>Alt</kbd> while dragging to bypass snapping.
+  Hold <kbd>Alt</kbd> while dragging to bypass snapping. See
+  [Navigation](/reference/shortcuts/#navigation) for fitting and moving the view.
 - **Data sheet** — the panel docked below the board where a table is edited.
   The board shrinks to make room. Drag its top edge to resize it; its header
   collapses, maximizes, or closes it. See [Tables](/guides/tables/#editing).

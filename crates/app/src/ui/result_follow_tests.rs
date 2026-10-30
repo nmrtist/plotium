@@ -59,6 +59,15 @@ fn one_operation_groups_its_results_and_repeated_target_updates_preserve_view() 
     let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));
     assert_eq!(app.session.ui.frame_selection.len(), 2);
     assert!(app.session.view == PrimaryView::Canvas);
+    let plotium_core::state::ViewportMode::Fit(target) = &app.session.viewport_mode else {
+        panic!("result navigation must capture its explicit targets");
+    };
+    assert_eq!(
+        plotium_core::state::board_fit_bounds(&app, target)
+            .unwrap()
+            .1,
+        2
+    );
     app.session.viewport_mode = plotium_core::state::ViewportMode::Manual;
     app.session.ui.frame_selection.clear();
     let active = app.session.active_canvas;
@@ -307,7 +316,7 @@ fn switching_operation_target_follows_only_that_canvas_and_latest_does_not_show_
     let expected = vec![BoardFrameId::Page(app.doc.canvases[1].resource_id)];
     assert_eq!(app.session.active_canvas, Some(1));
     assert_eq!(app.session.ui.frame_selection, expected);
-    let viewport = app.session.viewport_mode;
+    let viewport = app.session.viewport_mode.clone();
     app.session.ui.frame_selection.clear();
     rename_canvas(&mut app, 1);
     let _ = ctx.run_ui(Default::default(), |ui| apply(&mut app, ui));

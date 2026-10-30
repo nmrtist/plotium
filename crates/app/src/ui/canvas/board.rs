@@ -44,12 +44,6 @@ pub(crate) fn consume_board_reveal(app: &mut PlotiumApp, ctx: &egui::Context) {
     }
 }
 
-pub(crate) fn request_board_fit_region(app: &mut PlotiumApp, ctx: &egui::Context, bbox: [f32; 4]) {
-    app.session.viewport_mode = ViewportMode::Fit(BoardFitTarget::Region(bbox));
-    seed_board_fit_springs(app, ctx);
-    mark_workspace_navigation(ctx, ctx.input(|input| input.time));
-}
-
 pub(crate) fn request_board_fit_viewport(
     app: &mut PlotiumApp,
     ctx: &egui::Context,
@@ -89,36 +83,26 @@ fn seed_board_fit_springs(app: &mut PlotiumApp, ctx: &egui::Context) {
 }
 
 pub(crate) fn frame_zoom_menu(app: &mut PlotiumApp, ui: &mut Ui) {
-    let n = app.session.ui.frame_selection.len();
-    let label = match n {
-        0 => "Zoom to fit all frames".to_owned(),
-        1 => "Zoom to selected frame".to_owned(),
-        _ => format!("Zoom to {n} selected frames"),
-    };
-    if ui.button(label).clicked() {
-        zoom_to_selection(app, ui.ctx());
-        ui.close();
+    use crate::ui::commands::{self, CommandId};
+    for id in [CommandId::ZoomToFit, CommandId::ZoomToSelection] {
+        if crate::ui::menus::command_row(app, ui, id, None) {
+            commands::execute_without_clipboard(id, app, ui.ctx());
+            ui.close();
+        }
     }
     ui.separator();
 }
 
-pub(crate) fn zoom_to_selection(app: &mut PlotiumApp, ctx: &egui::Context) {
-    let bbox = if app.session.ui.frame_selection.is_empty() {
-        all_frames_bbox(app)
-    } else {
-        let rects = app
-            .session
-            .ui
-            .frame_selection
-            .clone()
-            .into_iter()
-            .filter_map(|id| board_frame_ref(app, id))
-            .filter_map(|f| frame_board_rect(app, f));
-        bbox_of_rects(rects)
-    };
-    if let Some((min_x, min_y, max_x, max_y)) = bbox {
-        request_board_fit_region(app, ctx, [min_x, min_y, max_x, max_y]);
-    }
+pub(crate) fn request_board_fit_target(
+    app: &mut PlotiumApp,
+    ctx: &egui::Context,
+    target: BoardFitTarget,
+) {
+    // A queued import/sidebar reveal must not overwrite a newer explicit fit.
+    app.session.board_reveal = None;
+    app.session.viewport_mode = ViewportMode::Fit(target);
+    seed_board_fit_springs(app, ctx);
+    mark_workspace_navigation(ctx, ctx.input(|input| input.time));
 }
 
 pub(crate) fn drive_board_fit(
@@ -133,45 +117,24 @@ pub(crate) fn drive_board_fit(
         );
         return;
     }
-    let ViewportMode::Fit(fit) = app.session.viewport_mode else {
+    let ViewportMode::Fit(fit) = &app.session.viewport_mode else {
         return;
     };
     let (target_zoom, target_center) = match fit {
-        BoardFitTarget::Frame(frame) => {
-            match board_frame_ref(app, frame).and_then(|frame| frame_board_rect(app, frame)) {
-                Some(r) => {
-                    let Some(vp) = fit_bbox_around_occluders(
-                        (r.left, r.top, r.right(), r.bottom()),
-                        geometry,
-                        ui.ctx(),
-                    ) else {
-                        return;
-                    };
-                    (vp.zoom, vp.world_center)
-                }
-                None => {
+        BoardFitTarget::Viewport { zoom, world_center } => (*zoom, *world_center),
+        _ => {
+            let Some((b, _)) = plotium_core::state::board_fit_bounds(app, fit) else {
+                if !matches!(fit, BoardFitTarget::AllFrames) {
                     app.session.viewport_mode = ViewportMode::Manual;
-                    return;
                 }
-            }
-        }
-        BoardFitTarget::AllFrames => {
-            let Some(b) = all_frames_bbox(app) else {
                 return;
             };
-            let Some(vp) = fit_bbox_around_occluders(b, geometry, ui.ctx()) else {
-                return;
-            };
-            (vp.zoom, vp.world_center)
-        }
-        BoardFitTarget::Region(b) => {
             let Some(vp) = fit_bbox_around_occluders((b[0], b[1], b[2], b[3]), geometry, ui.ctx())
             else {
                 return;
             };
             (vp.zoom, vp.world_center)
         }
-        BoardFitTarget::Viewport { zoom, world_center } => (zoom, world_center),
     };
     let target = BoardViewport {
         zoom: target_zoom,
@@ -637,3 +600,31 @@ fn handle_frame_drag(app: &mut PlotiumApp, rect: egui::Rect, ui: &Ui) -> bool {
 #[cfg(test)]
 #[path = "board_tests.rs"]
 mod tests;
+
+/// A board containing only tables still owns a camera and frame interactions.
+pub(super) fn render_sheets_only(app: &mut PlotiumApp, ui: &mut Ui) {
+    let avail = ui.available_rect_before_wrap();
+    let (response, painter) = ui.allocate_painter(avail.size(), Sense::click_and_drag());
+    let geometry = crate::ui::workspace_geometry(app, response.rect, ui.ctx());
+    let rect = geometry.board_rect;
+    let painter = painter.with_clip_rect(rect);
+    store_navigation_rect(ui.ctx(), rect);
+    consume_board_reveal(app, ui.ctx());
+    drive_board_fit(app, ui, &geometry);
+    let pointer_owned = app.session.ui.interaction.is_active()
+        || (ui.rect_contains_pointer(rect)
+            && ui
+                .input(|input| input.pointer.hover_pos())
+                .is_none_or(|pos| {
+                    crate::ui::tools::task_card::pointer_allows_canvas(app, ui, pos)
+                }));
+    sync_macos_trackpad_gesture(ui.ctx(), &ui.input(|i| i.events.clone()), pointer_owned);
+    if pointer_owned
+        && !handle_board_navigation(app, rect, ui)
+        && app.session.ui.interaction.allows_frame_dispatch()
+    {
+        dispatch_frame_gesture(app, rect, ui);
+    }
+    paint_sheet_frames(app, rect, ui, &painter);
+    response.context_menu(|ui| frame_zoom_menu(app, ui));
+}

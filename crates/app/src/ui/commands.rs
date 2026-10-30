@@ -408,15 +408,16 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 && selected_paths_unlocked(app),
             "Select unlocked content inside an unlocked panel before splitting it.",
         ),
-        CommandId::ZoomToFit => requires(has_canvas, "Open a canvas before showing all of it."),
+        CommandId::ZoomToFit => requires(
+            plotium_core::state::board_fit_bounds(app, &plotium_core::state::BoardFitTarget::AllFrames).is_some(),
+            "Add a page or visible table to the board before showing all content.",
+        ),
         CommandId::FitPlotY | CommandId::FitPlotXY => requires(
             has_active_plot(app),
             "Plot a dataset on the canvas before fitting its data view.",
         ),
         CommandId::ResetPeakHeight => helpers::peak_height_gate(app),
-        CommandId::ZoomToSelection => {
-            requires(has_canvas, "Open a canvas before showing the selection.")
-        }
+        CommandId::ZoomToSelection => plotium_core::state::selected_board_fit(app).map(|_| ()),
         CommandId::UiScaleUp | CommandId::UiScaleDown => requires(
             app.session.monitor.is_some(),
             "Wait for the display probe before changing the UI scale.",

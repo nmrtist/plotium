@@ -523,7 +523,16 @@ fn open_collection(app: &mut PlotiumApp, ctx: &Context, resources: &[ResourceRef
             plotium_core::state::sync_frame_selection_to_data(app);
             app.session.view = PrimaryView::Canvas;
             app.session.board_reveal = None;
-            super::canvas::zoom_to_selection(app, ctx);
+            if let Some(target) = plotium_core::state::captured_board_fit(
+                app,
+                collection
+                    .frames
+                    .iter()
+                    .copied()
+                    .map(plotium_core::state::BoardFitItem::Frame),
+            ) {
+                super::canvas::request_board_fit_target(app, ctx, target);
+            }
         }
     } else if let Some(dataset) = resources.iter().rev().find_map(|resource| {
         DatasetId::try_from(resource)

@@ -136,7 +136,11 @@ pub(crate) enum CanvasInteractionClearScope {
 
 pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     let Some(ci) = app.session.active_canvas else {
-        workspace::render(app, ui);
+        if app.doc.canvases.is_empty() && !board_frames(app).is_empty() {
+            board::render_sheets_only(app, ui);
+        } else {
+            workspace::render(app, ui);
+        }
         return;
     };
     canvas_breadcrumb(app, ci, ui);
