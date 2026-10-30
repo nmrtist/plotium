@@ -18,6 +18,7 @@ pub mod nmr_view;
 pub mod origin;
 pub mod sciex_wiff;
 pub mod waters;
+pub mod xas;
 pub mod xlsx;
 pub mod xps;
 pub mod xrd;
@@ -604,6 +605,9 @@ pub enum IoError {
 
     #[error("invalid XRD data: {0}")]
     InvalidXrd(String),
+
+    #[error("invalid XAS data: {0}")]
+    InvalidXas(String),
 
     #[error(
         "unsupported Waters encoding for function {native_function}: IDX stride {idx_stride}, pair width {pair_width}; instrument {instrument}"
