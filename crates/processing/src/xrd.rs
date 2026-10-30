@@ -1,3 +1,5 @@
+use crate::signal;
+
 pub const MAX_SNIP_ITERATIONS: u16 = 200;
 pub const MAX_SAVGOL_WINDOW: u16 = 101;
 pub const MAX_SAVGOL_ORDER: u8 = 6;
@@ -68,7 +70,7 @@ pub fn process(
     validate(params)?;
     let (mut values, background) = match params.background {
         Some(settings) => {
-            let background = snip_background(intensity, settings.iterations);
+            let background = signal::snip_background(intensity, settings.iterations);
             let corrected = intensity
                 .iter()
                 .zip(&background)
@@ -113,112 +115,25 @@ pub fn validate(params: XrdProcessing) -> Result<(), XrdProcessingError> {
     Ok(())
 }
 
-fn snip_background(input: &[f64], iterations: u16) -> Vec<f64> {
-    let mut transformed: Vec<_> = input
-        .iter()
-        .map(|value| value.max(0.0).sqrt().sqrt())
-        .collect();
-    let max_iteration = usize::from(iterations).min(input.len().saturating_sub(1) / 2);
-    for offset in 1..=max_iteration {
-        let previous = transformed.clone();
-        for index in offset..input.len() - offset {
-            transformed[index] =
-                previous[index].min((previous[index - offset] + previous[index + offset]) * 0.5);
-        }
-    }
-    transformed.into_iter().map(|value| value.powi(4)).collect()
-}
-
 fn savitzky_golay(input: &[f64], settings: SavitzkyGolay) -> Result<Vec<f64>, XrdProcessingError> {
     let window = usize::from(settings.window);
-    let order = usize::from(settings.polynomial_order);
     if input.len() < window {
         return Ok(input.to_vec());
     }
-    let half = window / 2;
-    let coefficients = smoothing_coefficients(window, order);
-    if !coefficients.iter().all(|value| value.is_finite()) {
-        return Err(XrdProcessingError::InvalidSmoothing);
-    }
-    Ok((0..input.len())
-        .map(|index| {
-            coefficients
-                .iter()
-                .enumerate()
-                .map(|(offset, coefficient)| {
-                    let source = index
-                        .saturating_add(offset)
-                        .saturating_sub(half)
-                        .min(input.len() - 1);
-                    coefficient * input[source]
-                })
-                .sum()
-        })
-        .collect())
-}
-
-fn smoothing_coefficients(window: usize, order: usize) -> Vec<f64> {
-    let half = (window / 2) as f64;
-    let columns = order + 1;
-    let mut normal = vec![vec![0.0; columns]; columns];
-    for (row_index, row) in normal.iter_mut().enumerate() {
-        for (column_index, value) in row.iter_mut().enumerate() {
-            *value = (0..window)
-                .map(|index| (index as f64 - half).powi((row_index + column_index) as i32))
-                .sum();
-        }
-    }
-    let mut rhs = vec![0.0; columns];
-    rhs[0] = 1.0;
-    let solution = solve(normal, rhs);
-    (0..window)
-        .map(|index| {
-            let x = index as f64 - half;
-            solution
-                .iter()
-                .enumerate()
-                .map(|(power, value)| value * x.powi(power as i32))
-                .sum()
-        })
-        .collect()
-}
-
-fn solve(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Vec<f64> {
-    for pivot in 0..rhs.len() {
-        let best = (pivot..rhs.len())
-            .max_by(|&a, &b| matrix[a][pivot].abs().total_cmp(&matrix[b][pivot].abs()))
-            .unwrap_or(pivot);
-        matrix.swap(pivot, best);
-        rhs.swap(pivot, best);
-        let divisor = matrix[pivot][pivot];
-        for value in matrix[pivot].iter_mut().skip(pivot) {
-            *value /= divisor;
-        }
-        rhs[pivot] /= divisor;
-        let pivot_values = matrix[pivot].clone();
-        for (row_index, row) in matrix.iter_mut().enumerate() {
-            if row_index == pivot {
-                continue;
-            }
-            let factor = row[pivot];
-            for (column, value) in row.iter_mut().enumerate().skip(pivot) {
-                *value -= factor * pivot_values[column];
-            }
-            rhs[row_index] -= factor * rhs[pivot];
-        }
-    }
-    rhs
+    signal::savitzky_golay(
+        input,
+        window,
+        usize::from(settings.polynomial_order),
+        signal::SavitzkyGolayEdges::RepeatEndpoints,
+    )
+    .ok_or(XrdProcessingError::InvalidSmoothing)
 }
 
 fn normalize(x: &[f64], values: &mut [f64], method: XrdNormalization) {
     let divisor = match method {
         XrdNormalization::None => return,
-        XrdNormalization::Maximum => values.iter().copied().fold(0.0, f64::max),
-        XrdNormalization::Area => x
-            .windows(2)
-            .zip(values.windows(2))
-            .map(|(x, y)| (x[1] - x[0]) * (y[0] + y[1]) * 0.5)
-            .sum(),
+        XrdNormalization::Maximum => signal::maximum(values),
+        XrdNormalization::Area => signal::trapezoid_area(x, values),
     };
     if divisor.is_finite() && divisor > 0.0 {
         values.iter_mut().for_each(|value| *value /= divisor);
