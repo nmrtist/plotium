@@ -73,6 +73,9 @@ impl PlotiumApp {
             shear_x: 0.0,
             normalize: false,
             active: None,
+            occlude: false,
+            gradient: None,
+            sequence_scale: false,
         };
         let residual_stack = StackSpec::default();
         let size_mm = [120.0, 150.0];

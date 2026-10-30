@@ -172,6 +172,12 @@ pub struct StackSpec {
     pub normalize: bool,
     /// The highlighted (thicker) trace, as an index into `binding.series`.
     pub active: Option<usize>,
+    /// Each Offset trace fills down to its baseline, hiding the traces behind.
+    pub occlude: bool,
+    /// Colour Offset traces along the sequence variable through this map.
+    pub gradient: Option<plotium_figure::ColormapId>,
+    /// Draw a side scale of the sequence variable at the trace baselines.
+    pub sequence_scale: bool,
 }
 
 impl Default for StackSpec {
@@ -182,6 +188,9 @@ impl Default for StackSpec {
             shear_x: 0.0,
             normalize: false,
             active: None,
+            occlude: false,
+            gradient: None,
+            sequence_scale: false,
         }
     }
 }

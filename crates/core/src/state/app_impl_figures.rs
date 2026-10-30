@@ -249,6 +249,10 @@ impl PlotiumApp {
     ) -> Figure {
         let mut figure = self.build_binding_figure_on_left(binding, chart, stack, size_mm);
         super::right_axis::split_y_axes(&mut figure);
+        // A curve on the right axis takes the side the scale would stand on.
+        if figure.y2.is_some() && figure.sequence_scale.take().is_some() {
+            figure.guide_visibility = plotium_figure::GuideVisibility::Auto;
+        }
         figure
     }
 
@@ -285,7 +289,9 @@ impl PlotiumApp {
                 size_mm,
             );
         }
-        if binding.series.len() > 1 && self.series_stackable(binding) {
+        let table_stack =
+            stack.mode == StackMode::Offset && self.stacks_table_columns(binding, chart);
+        if table_stack || (binding.series.len() > 1 && self.series_stackable(binding)) {
             self.build_stacked_figure(binding, stack, size_mm)
         } else {
             if let Some(series) = binding.series.first()

@@ -468,6 +468,19 @@ impl PlotiumApp {
             };
             figure.y.max = ymax + room(plotium_figure::TextAnchor::Above);
         }
+        if matches!(stack.mode, StackMode::Offset) {
+            let traces: Vec<_> = figure
+                .series
+                .iter()
+                .enumerate()
+                .map(|(index, series)| super::stack_sequence::StackTrace {
+                    name: series.name.clone(),
+                    baseline: series.display_baseline,
+                    series: index..index + 1,
+                })
+                .collect();
+            super::stack_sequence::apply_stack_options(&mut figure, stack, &traces);
+        }
         if coordinates.transposed {
             super::curve_layout::transpose(&mut figure);
         }

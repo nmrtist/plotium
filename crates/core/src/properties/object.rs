@@ -18,10 +18,11 @@ pub use definitions::{
     CHART_STACKED, CHART_TRANSPOSE, CHART_TYPE_ID, CHART_VIEW_AZIMUTH, CHART_VIEW_ELEVATION,
     COLOR_OVERLAY, LOCKED, OFFSET, PANEL_USER_NOTE, PANEL_VISIBLE, SERIES_VISIBLE, SHAPE_ARROW,
     SHAPE_ELLIPSE, SHAPE_FILL_COLOR, SHAPE_FILL_ENABLED, SHAPE_KIND, SHAPE_LINE, SHAPE_RECT,
-    SHAPE_STROKE, SHAPE_STROKE_WIDTH, STACK_MODE, STACK_NORMALIZE, STACK_SHEAR_X, STACK_SPACING_Y,
-    SUPERIMPOSED, TEXT, TEXT_ALIGN, TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
+    SHAPE_STROKE, SHAPE_STROKE_WIDTH, STACK_GRADIENT, STACK_MODE, STACK_NORMALIZE, STACK_OCCLUDE,
+    STACK_SEQUENCE_SCALE, STACK_SHEAR_X, STACK_SPACING_Y, SUPERIMPOSED, TEXT, TEXT_ALIGN,
+    TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
 };
-use definitions::{DEFINITIONS, FILL_FALLBACK, STACK_MODES};
+use definitions::{DEFINITIONS, FILL_FALLBACK, NO_GRADIENT, STACK_MODES};
 
 type ResolvedObjectValue = (
     PropertyValue,
@@ -235,9 +236,12 @@ fn plot_value(
     let fixed = fixed_default(definition);
     let schema = resolved_schema(definition, &capabilities);
     match definition.id {
-        STACK_MODE | STACK_SPACING_Y | STACK_SHEAR_X | STACK_NORMALIZE => {
+        STACK_GRADIENT | STACK_MODE | STACK_NORMALIZE | STACK_OCCLUDE | STACK_SEQUENCE_SCALE
+        | STACK_SHEAR_X | STACK_SPACING_Y => {
             let binding = app.display_binding(plot.display_owner, &plot.binding);
-            if binding.series.len() <= 1 || !app.series_stackable(&binding) {
+            if (binding.series.len() <= 1 && !app.stacks_table_columns(&binding, &plot.chart))
+                || !app.series_stackable(&binding)
+            {
                 return Err(PropertyError::NotApplicable(
                     "Stack settings require a stackable plot with multiple series.".to_owned(),
                 ));
@@ -254,7 +258,8 @@ fn plot_value(
                 && (kind != Some(StackKind::Line) || plot.stack.mode != StackMode::Offset)
             {
                 return Err(PropertyError::NotApplicable(
-                    "Spacing, shear, and normalization apply to Offset line stacks.".to_owned(),
+                    "Spacing, shear, fill, and sequence options apply to Offset line stacks."
+                        .to_owned(),
                 ));
             }
             let availability = if definition.id == STACK_MODE && kind == Some(StackKind::Field) {
@@ -436,7 +441,8 @@ fn write_object(
     value: PropertyValue,
 ) -> Result<(), PropertyError> {
     match id {
-        STACK_MODE | STACK_SPACING_Y | STACK_SHEAR_X | STACK_NORMALIZE => {
+        STACK_GRADIENT | STACK_MODE | STACK_NORMALIZE | STACK_OCCLUDE | STACK_SEQUENCE_SCALE
+        | STACK_SHEAR_X | STACK_SPACING_Y => {
             let stack = transaction.stack_spec(app, canvas, object)?;
             match (id, value) {
                 (STACK_MODE, PropertyValue::Enum(value)) => {
@@ -445,6 +451,11 @@ fn write_object(
                 (STACK_SPACING_Y, PropertyValue::Float(value)) => stack.spacing_y = value,
                 (STACK_SHEAR_X, PropertyValue::Float(value)) => stack.shear_x = value,
                 (STACK_NORMALIZE, PropertyValue::Bool(value)) => stack.normalize = value,
+                (STACK_OCCLUDE, PropertyValue::Bool(value)) => stack.occlude = value,
+                (STACK_GRADIENT, PropertyValue::Enum(value)) => {
+                    stack.gradient = ColormapId::from_id(value)
+                }
+                (STACK_SEQUENCE_SCALE, PropertyValue::Bool(value)) => stack.sequence_scale = value,
                 _ => unreachable!("validated stack value"),
             }
         }
@@ -631,6 +642,11 @@ fn stack_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Prope
         STACK_SPACING_Y => Ok(PropertyValue::Float(plot.stack.spacing_y)),
         STACK_SHEAR_X => Ok(PropertyValue::Float(plot.stack.shear_x)),
         STACK_NORMALIZE => Ok(PropertyValue::Bool(plot.stack.normalize)),
+        STACK_OCCLUDE => Ok(PropertyValue::Bool(plot.stack.occlude)),
+        STACK_GRADIENT => Ok(PropertyValue::Enum(
+            plot.stack.gradient.map_or(NO_GRADIENT, |map| map.id()),
+        )),
+        STACK_SEQUENCE_SCALE => Ok(PropertyValue::Bool(plot.stack.sequence_scale)),
         _ => Err(PropertyError::UnknownProperty(id.to_string())),
     }
 }

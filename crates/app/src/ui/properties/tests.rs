@@ -213,8 +213,8 @@ fn migrated_object_sections_keep_their_existing_density() {
     for (section, declared, visible, combination) in [
         (
             panel::STACK_SECTION,
-            5,
-            5,
+            6,
+            6,
             "an offset line stack, including series visibility",
         ),
         (

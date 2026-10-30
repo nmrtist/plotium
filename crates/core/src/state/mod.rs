@@ -159,6 +159,7 @@ pub use curve_service::*;
 pub(crate) use shared_x_stack::{shared_x_step, shared_x_value};
 mod size_presets;
 mod stack;
+mod stack_sequence;
 mod statistics;
 mod statistics_prepare;
 mod statistics_report;

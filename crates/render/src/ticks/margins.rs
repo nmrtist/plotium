@@ -107,6 +107,7 @@ fn y_label_spans<'a>(
         .y2
         .as_ref()
         .filter(|axis| axis.show_tick_labels)
+        .or(fig.sequence_scale.as_ref().map(|_| &fig.y))
         .map(|axis| (axis, y2_ticks))
         .into_iter();
     left.chain(right).flat_map(move |(axis, ticks)| {

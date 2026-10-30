@@ -10,6 +10,11 @@ pub(super) fn write(dc: &mut Dc, proj: &Projector<'_>, series: &Series) {
     match series.kind {
         SeriesKind::Line => {
             for run in crate::finite_runs(&points).filter(|run| run.len() >= 2) {
+                if let Some(baseline) = crate::baseline_y(proj, series).filter(|_| series.occludes)
+                {
+                    let outline = crate::baseline_fill_outline(run, baseline);
+                    dc.polygon(&outline, Some(proj.fig.background), None);
+                }
                 stroke(dc, run, series, proj.plot);
             }
         }

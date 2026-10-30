@@ -5,6 +5,9 @@ pub const STACK_MODE: PropertyId = PropertyId("object.stack.mode");
 pub const STACK_SPACING_Y: PropertyId = PropertyId("object.stack.spacing_y");
 pub const STACK_SHEAR_X: PropertyId = PropertyId("object.stack.shear_x");
 pub const STACK_NORMALIZE: PropertyId = PropertyId("object.stack.normalize");
+pub const STACK_OCCLUDE: PropertyId = PropertyId("object.stack.occlude");
+pub const STACK_GRADIENT: PropertyId = PropertyId("object.stack.gradient");
+pub const STACK_SEQUENCE_SCALE: PropertyId = PropertyId("object.stack.sequence_scale");
 pub const CHART_TYPE_ID: PropertyId = PropertyId("object.chart.type_id");
 pub const CHART_BINS_AUTO: PropertyId = PropertyId("object.chart.bins.auto");
 pub const CHART_BINS_COUNT: PropertyId = PropertyId("object.chart.bins.count");
@@ -56,6 +59,17 @@ const SHAPES: &[EnumVariant] = &[
     EnumVariant::new(SHAPE_ARROW, "Arrow"),
 ];
 const COLORMAPS: &[EnumVariant] = &[
+    EnumVariant::new("viridis", "Viridis"),
+    EnumVariant::new("plasma", "Plasma"),
+    EnumVariant::new("inferno", "Inferno"),
+    EnumVariant::new("magma", "Magma"),
+    EnumVariant::new("turbo", "Turbo"),
+    EnumVariant::new("coolwarm", "Coolwarm"),
+    EnumVariant::new("grays", "Grays"),
+];
+pub const NO_GRADIENT: &str = "none";
+const STACK_GRADIENTS: &[EnumVariant] = &[
+    EnumVariant::new(NO_GRADIENT, "Series colours"),
     EnumVariant::new("viridis", "Viridis"),
     EnumVariant::new("plasma", "Plasma"),
     EnumVariant::new("inferno", "Inferno"),
@@ -117,6 +131,17 @@ const fn definition(
     label: &'static str,
     aliases: &'static [&'static str],
 ) -> PropertyDefinition {
+    tiered(Tier::Essential, id, schema, default_policy, label, aliases)
+}
+
+const fn tiered(
+    tier: Tier,
+    id: PropertyId,
+    schema: ValueSchema,
+    default_policy: DefaultPolicy,
+    label: &'static str,
+    aliases: &'static [&'static str],
+) -> PropertyDefinition {
     PropertyDefinition {
         id,
         scope_kind: ScopeKind::Object,
@@ -124,7 +149,7 @@ const fn definition(
         access: PropertyAccess::ReadWrite,
         applicability: OBJECT,
         default_policy,
-        tier: Tier::Essential,
+        tier,
         copies: ValueCopies::PerTarget,
         canonical_label: label,
         canonical_aliases: aliases,
@@ -137,6 +162,9 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
     definition(STACK_SPACING_Y, ValueSchema::Float { bounds: FloatBounds::inclusive(0.0, 1.0), display: FloatDisplay::Linear(""), drag_step: Some(0.01) }, DefaultPolicy::Fixed(PropertyValue::Float(0.12)), "Vertical stack spacing", &["vertical spacing"]),
     definition(STACK_SHEAR_X, ValueSchema::Float { bounds: FloatBounds::inclusive(-0.5, 0.5), display: FloatDisplay::Linear(""), drag_step: Some(0.01) }, DefaultPolicy::Fixed(PropertyValue::Float(0.0)), "Horizontal stack shear", &["3D shear"]),
     definition(STACK_NORMALIZE, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Normalize stacked traces", &["normalize stack"]),
+    tiered(Tier::Advanced, STACK_OCCLUDE, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Fill under stack traces", &["waterfall fill", "hide traces behind", "occlusion"]),
+    definition(STACK_GRADIENT, ValueSchema::Enum { variants: STACK_GRADIENTS }, DefaultPolicy::Fixed(PropertyValue::Enum(NO_GRADIENT)), "Stack gradient", &["waterfall colours", "colour by time", "colour by temperature", "sequence gradient"]),
+    tiered(Tier::Advanced, STACK_SEQUENCE_SCALE, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Stack sequence scale", &["waterfall scale", "time scale", "temperature scale", "side scale"]),
     definition(CHART_TYPE_ID, ValueSchema::Enum { variants: CHART_TYPES }, DefaultPolicy::Derived, "Chart type", &["plot type"]),
     definition(CHART_BINS_AUTO, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(true)), "Automatic histogram bins", &["auto bins"]),
     definition(CHART_BINS_COUNT, ValueSchema::IntWithDrag { min: 1, max: 512, drag_step: 1.0 }, DefaultPolicy::Fixed(PropertyValue::Int(20)), "Histogram bin count", &["bins", "bucket count"]),

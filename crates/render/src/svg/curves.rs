@@ -30,6 +30,9 @@ pub(super) fn write(
         drawn = line.len();
         let points: Vec<_> = line.iter().map(|p| proj.project(*p)).collect();
         for run in crate::finite_runs(&points).filter(|run| run.len() >= 2) {
+            if series.occludes {
+                fill_to_baseline(s, proj, series, run);
+            }
             stroke(s, run, series);
         }
     }
@@ -125,4 +128,19 @@ pub(super) fn marker_at(
             y2 = b.1
         );
     }
+}
+
+fn fill_to_baseline(s: &mut String, proj: &Projector<'_>, series: &Series, run: &[(f32, f32)]) {
+    let Some(baseline) = crate::baseline_y(proj, series) else {
+        return;
+    };
+    let mut points = String::new();
+    for (x, y) in crate::baseline_fill_outline(run, baseline) {
+        let _ = write!(points, "{x:.2},{y:.2} ");
+    }
+    let _ = write!(
+        s,
+        r#"<polygon points="{points}" fill="{fill}"/>"#,
+        fill = proj.fig.background.to_hex(),
+    );
 }

@@ -17,6 +17,23 @@ pub(crate) fn finite_runs(points: &[(f32, f32)]) -> impl Iterator<Item = &[(f32,
         .filter(|run| !run.is_empty())
 }
 
+/// Output y of a series baseline, on the plot edge when a log axis sends it to
+/// infinity.
+pub(crate) fn baseline_y(
+    proj: &crate::Projector<'_>,
+    series: &plotium_figure::Series,
+) -> Option<f32> {
+    let (x, y) = proj.project([proj.fig.x.min, series.display_baseline]);
+    clip_to_plot((x, y), proj.plot).map(|point| point.1)
+}
+
+/// The closed outline between a projected curve run and its baseline.
+pub(crate) fn baseline_fill_outline(run: &[(f32, f32)], baseline: f32) -> Vec<(f32, f32)> {
+    let mut outline = run.to_vec();
+    outline.extend(run.iter().rev().map(|&(x, _)| (x, baseline)));
+    outline
+}
+
 /// Clip a coordinate that a log axis sent to infinity onto the plot edge it
 /// lies beyond. NaN has no edge and stays unplaceable.
 pub(crate) fn clip_to_plot(point: (f32, f32), plot: Rect) -> Option<(f32, f32)> {

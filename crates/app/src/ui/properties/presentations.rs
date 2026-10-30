@@ -3,11 +3,7 @@
 
 use super::routes::*;
 use super::types::*;
-use plotium_core::properties::{
-    apodization, app_preferences, axis, baseline, bin, canvas, chart_layout, contour, export_dpi,
-    group_delay, guide, heatmap, ilt, intent, line, line_display, normalize, object, phase,
-    plot_display, reference, replicates, right_axis, smooth, step_enabled, typography, zero_fill,
-};
+use plotium_core::properties::*;
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(guide::POSITION, "Origin", GUIDE_HOME),
@@ -78,6 +74,9 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(object::STACK_SPACING_Y, "Vertical spacing", STACK_HOME),
     object_entry(object::STACK_SHEAR_X, "3D shear", STACK_HOME),
     object_entry(object::STACK_NORMALIZE, "Normalize", STACK_HOME),
+    object_entry(object::STACK_OCCLUDE, "Fill under traces", STACK_HOME),
+    object_entry(object::STACK_GRADIENT, "Gradient", STACK_HOME),
+    object_entry(object::STACK_SEQUENCE_SCALE, "Side scale", STACK_HOME),
     object_entry(object::SERIES_VISIBLE, "Visible", STACK_HOME),
     object_entry(object::CHART_TYPE_ID, "Type", CHART_HOME),
     object_entry(object::CHART_BINS_AUTO, "Auto bins", CHART_HOME),

@@ -376,7 +376,7 @@ fn paint_with_detail_and_stats_impl(
 
     paint_error_bars(&clipped, &proj, fig, scale, false);
 
-    for series in &fig.series {
+    for (_, series) in fig.series_in_paint_order() {
         curves::paint(&clipped, &proj, series, scale, detail, stats.as_deref_mut());
     }
     paint_error_bars(&clipped, &proj, fig, scale, true);

@@ -140,3 +140,66 @@ fn stacked_right_titles_align_on_the_widest_right_ticks() {
     };
     assert!((title(&narrow) - title(&wide)).abs() < 1e-3);
 }
+
+#[test]
+fn sequence_scale_takes_the_right_side_and_thins_to_fit() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 100.0));
+    fig.sequence_scale = Some(plotium_figure::SequenceScale {
+        axis: Axis::new("Time (min)", 0.0, 100.0),
+        ticks: (0..100).map(|i| (f64::from(i), i.to_string())).collect(),
+    });
+    assert!(super::shows_title(&fig));
+    let ticks = crate::ticks::right_ticks(&fig, 100.0);
+    assert!(ticks.values.len() >= 2 && ticks.values.len() < 100);
+    assert_eq!(ticks.values[0], 0.0);
+    assert!(crate::svg::export(&fig).contains("Time (min)"));
+
+    fig.y.min = 10.0;
+    fig.y.max = 11.0;
+    let ticks = crate::ticks::right_ticks(&fig, 100.0);
+    assert_eq!(ticks.values, [10.0, 11.0]);
+}
+
+#[test]
+fn occluding_traces_fill_to_their_baseline_from_back_to_front() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 3.0));
+    for (name, baseline) in [("front", 0.0), ("back", 1.0)] {
+        let mut series = Series::line(name, vec![[0.0, baseline], [1.0, baseline + 1.0]]);
+        series.display_baseline = baseline;
+        series.occludes = true;
+        fig.series.push(series);
+    }
+    let order: Vec<_> = fig
+        .series_in_paint_order()
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(order, [1, 0]);
+    let svg = crate::svg::export(&fig);
+    assert!(svg.matches(r##"fill="#ffffff"/>"##).count() >= 2);
+    let fill = svg.find("<polygon").unwrap();
+    assert!(fill < svg.find("<polyline").unwrap());
+}
+
+#[test]
+fn a_baseline_a_log_axis_cannot_place_fills_to_the_plot_edge() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 1.0, 100.0));
+    fig.y.scale = plotium_figure::AxisScale::Log10;
+    let mut series = Series::line("s", vec![[0.0, 2.0], [1.0, 50.0]]);
+    series.occludes = true;
+    fig.series.push(series);
+    let svg = crate::svg::export(&fig);
+    assert!(svg.contains("<polygon") && !svg.contains("inf"));
+}
+
+#[test]
+fn side_labels_space_along_the_run_of_traces() {
+    let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 100.0));
+    fig.sequence_scale = Some(plotium_figure::SequenceScale {
+        axis: Axis::new("", 0.0, 100.0),
+        ticks: (0..30)
+            .map(|i| (f64::from(i) * 0.5, i.to_string()))
+            .collect(),
+    });
+    let ticks = crate::ticks::right_ticks(&fig, 200.0);
+    assert!(ticks.values.len() >= 2 && ticks.values.len() <= 4);
+}

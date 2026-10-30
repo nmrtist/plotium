@@ -1,4 +1,5 @@
-//! The right y axis: its reserved width and the geometry every backend draws.
+//! The right y axis, or the sequence scale in its place: its reserved width and
+//! the geometry every backend draws.
 //!
 //! Layout, screen, SVG, EMF and diagnostics all read [`RightAxis`], so the
 //! right spine, ticks, labels and title sit in the same place in every output.
@@ -13,6 +14,7 @@ use plotium_figure::{Axis, AxisFrame, Figure, YAxisSide};
 fn axis(fig: &Figure) -> Option<&Axis> {
     fig.y2
         .as_ref()
+        .or(fig.sequence_scale.as_ref().map(|scale| &scale.axis))
         .filter(|_| fig.axis_frame != AxisFrame::Hidden)
 }
 
@@ -54,10 +56,10 @@ pub(crate) fn multiplier_clearance(fig: &Figure, ticks: &AxisTicks) -> f32 {
 /// How far an outside-right guide must stand off the plot edge, in unscaled
 /// points, to clear the right axis of a plot `plot_height` points tall.
 pub(crate) fn guide_offset(fig: &Figure, plot_height: f32) -> f32 {
-    let Some(axis) = axis(fig) else {
+    if axis(fig).is_none() {
         return 0.0;
-    };
-    let ticks = crate::ticks::adaptive_y_ticks(axis, fig.typography.tick_pt, plot_height);
+    }
+    let ticks = crate::ticks::right_ticks(fig, plot_height);
     reserved_width(
         fig,
         &ticks,
@@ -112,10 +114,14 @@ pub(crate) fn right_axis<'a>(
             (value, y, shown.then_some(label.as_str()))
         })
         .collect();
-    let minor = minor_tick_values(axis, &layout.y2_ticks, ty.minor_ticks)
-        .into_iter()
-        .map(at)
-        .collect();
+    let minor = if fig.sequence_scale.is_some() {
+        Vec::new()
+    } else {
+        minor_tick_values(axis, &layout.y2_ticks, ty.minor_ticks)
+            .into_iter()
+            .map(at)
+            .collect()
+    };
     let multiplier = layout
         .y2_ticks
         .multiplier()
