@@ -5,17 +5,18 @@ use plotium_processing::arithmetic::{
 };
 
 impl PlotiumApp {
-    /// Datasets eligible as spectrum-arithmetic operands: 1D spectra with points.
+    /// Datasets eligible as arithmetic operands: 1D spectra with points, XRD
+    /// patterns, XPS regions and plotted table curves.
     pub fn spectrum_arithmetic_targets(&self) -> Vec<usize> {
         self.doc
             .datasets
             .iter()
             .enumerate()
-            .filter(|(_, dataset)| {
-                dataset
-                    .as_nmr()
-                    .and_then(NmrDataset::spectrum)
-                    .is_some_and(|spectrum| !spectrum.is_empty())
+            .filter(|(_, dataset)| match dataset {
+                Dataset::Nmr(data) => data.spectrum().is_some_and(|s| !s.is_empty()),
+                Dataset::Xrd(_) | Dataset::Xps(_) => true,
+                Dataset::Table(_) => dataset.has_displayed_trace(None),
+                _ => false,
             })
             .map(|(i, _)| i)
             .collect()
@@ -24,6 +25,9 @@ impl PlotiumApp {
     /// Whether `a op k·b` can run: `Err` with the reason when it cannot,
     /// `Ok(Some(note))` when it needs resampling, `Ok(None)` when grids match.
     pub fn spectrum_arithmetic_compat(&self, a: usize, b: usize) -> Result<Option<String>, String> {
+        if !self.both_nmr(a, b) {
+            return self.trace_arithmetic_compat(a, b);
+        }
         let (Some(sa), Some(sb)) = (self.arithmetic_spectrum(a), self.arithmetic_spectrum(b))
         else {
             return Err("Pick two 1D NMR spectra.".into());
@@ -57,6 +61,10 @@ impl PlotiumApp {
     }
 
     pub fn combine_spectra_datasets(&mut self, a: usize, b: usize, op: SpectrumBinaryOp, k: f64) {
+        if !self.both_nmr(a, b) {
+            self.combine_trace_datasets(a, b, op, k);
+            return;
+        }
         let (Some(sa), Some(sb)) = (
             self.doc.datasets.get(a).and_then(Dataset::as_nmr),
             self.doc.datasets.get(b).and_then(Dataset::as_nmr),
@@ -71,26 +79,19 @@ impl PlotiumApp {
                 return;
             }
         };
-        let name_a = self.doc.datasets[a].display_name();
-        let name_b = self.doc.datasets[b].display_name();
-        let rhs = if k == 1.0 {
-            name_b
-        } else {
-            format!("{k}·{name_b}")
-        };
-        let name = format!("{name_a} {} {rhs}", op.symbol());
+        let name = self.arithmetic_name(a, b, op, k);
         self.insert_arithmetic_dataset(result, name, [a, b]);
     }
 
     pub fn scale_spectrum_dataset(&mut self, a: usize, scale: f64, offset: f64) {
-        let Some(sa) = self.doc.datasets.get(a).and_then(Dataset::as_nmr) else {
-            self.session.status = "Spectrum arithmetic needs a 1D NMR spectrum.".into();
-            return;
-        };
         if scale == 1.0 && offset == 0.0 {
             self.session.status = "Nothing to compute: scale is 1 and offset is 0.".into();
             return;
         }
+        let Some(sa) = self.doc.datasets.get(a).and_then(Dataset::as_nmr) else {
+            self.scale_trace_dataset(a, scale, offset);
+            return;
+        };
         let result = match scale_offset_spectrum(&sa.native_processed, scale, offset) {
             Ok(result) => result,
             Err(error) => {
@@ -98,20 +99,47 @@ impl PlotiumApp {
                 return;
             }
         };
+        let name = self.scaled_name(a, scale, offset);
+        self.insert_arithmetic_dataset(result, name, [a, a]);
+    }
+
+    fn both_nmr(&self, a: usize, b: usize) -> bool {
+        [a, b]
+            .iter()
+            .all(|&index| matches!(self.doc.datasets.get(index), Some(Dataset::Nmr(_))))
+    }
+
+    pub(super) fn arithmetic_name(
+        &self,
+        a: usize,
+        b: usize,
+        op: SpectrumBinaryOp,
+        k: f64,
+    ) -> String {
+        let name_a = self.doc.datasets[a].display_name();
+        let name_b = self.doc.datasets[b].display_name();
+        let rhs = if k == 1.0 {
+            name_b
+        } else {
+            format!("{k}·{name_b}")
+        };
+        format!("{name_a} {} {rhs}", op.symbol())
+    }
+
+    pub(super) fn scaled_name(&self, a: usize, scale: f64, offset: f64) -> String {
         let name_a = self.doc.datasets[a].display_name();
         let scaled = if scale == 1.0 {
             name_a
         } else {
             format!("{scale}·{name_a}")
         };
-        let name = if offset == 0.0 {
+        if offset == 0.0 {
             scaled
         } else if offset < 0.0 {
             format!("{scaled} − {}", -offset)
         } else {
             format!("{scaled} + {offset}")
-        };
-        self.insert_arithmetic_dataset(result, name, [a, a]);
+        }
     }
 
     fn arithmetic_spectrum(&self, dataset: usize) -> Option<&Spectrum> {

@@ -208,3 +208,78 @@ fn short_signals_pass_through_smoothing_unchanged() {
     };
     assert_eq!(smooth(&[1.0, 2.0], method), vec![1.0, 2.0]);
 }
+
+fn trace<'a>(x: &'a [f64], y: &'a [f64]) -> Trace<'a> {
+    Trace { x, y }
+}
+
+#[test]
+fn linear_combination_interpolates_onto_the_first_grid() {
+    let result = linear_combination(
+        trace(&[0.0, 0.5, 1.0], &[1.0, 1.0, 1.0]),
+        trace(&[0.0, 1.0], &[0.0, 10.0]),
+        -0.5,
+    )
+    .unwrap();
+    assert_close(&result, &[1.0, -1.5, -4.0]);
+}
+
+#[test]
+fn linear_combination_treats_the_second_trace_as_zero_outside_its_range() {
+    let result = linear_combination(
+        trace(&[0.0, 1.0, 2.0, 3.0], &[1.0, 1.0, 1.0, 1.0]),
+        trace(&[1.0, 2.0], &[5.0, 5.0]),
+        -1.0,
+    )
+    .unwrap();
+    assert_close(&result, &[1.0, -4.0, -4.0, 1.0]);
+}
+
+#[test]
+fn linear_combination_reads_a_descending_axis() {
+    let result =
+        linear_combination(trace(&[0.5], &[0.0]), trace(&[1.0, 0.0], &[10.0, 0.0]), 1.0).unwrap();
+    assert_close(&result, &[5.0]);
+    let onto_descending = linear_combination(
+        trace(&[1.0, 0.5, 0.0], &[0.0, 0.0, 0.0]),
+        trace(&[0.0, 1.0], &[0.0, 10.0]),
+        1.0,
+    )
+    .unwrap();
+    assert_close(&onto_descending, &[10.0, 5.0, 0.0]);
+}
+
+#[test]
+fn average_counts_only_the_traces_covering_each_point() {
+    let result = average(&[
+        trace(&[0.0, 1.0, 2.0], &[2.0, 4.0, 6.0]),
+        trace(&[0.0, 1.0], &[4.0, 8.0]),
+    ])
+    .unwrap();
+    assert_close(&result, &[3.0, 6.0, 6.0]);
+}
+
+#[test]
+fn traces_must_be_monotonic_and_finite() {
+    let good = trace(&[0.0, 1.0], &[1.0, 1.0]);
+    assert_eq!(
+        linear_combination(good, trace(&[0.0, 0.0], &[1.0, 1.0]), 1.0),
+        Err(TraceError::NonMonotonicAxis)
+    );
+    assert_eq!(
+        linear_combination(good, trace(&[0.0, 1.0], &[1.0, f64::NAN]), 1.0),
+        Err(TraceError::NonFiniteValue)
+    );
+    assert_eq!(average(&[]), Err(TraceError::InvalidLength));
+}
+
+#[test]
+fn end_points_that_differ_by_rounding_still_match() {
+    let result = linear_combination(
+        trace(&[10.0, 30.000000000000004], &[5.0, 5.0]),
+        trace(&[10.0, 30.0], &[2.0, 2.0]),
+        -1.0,
+    )
+    .unwrap();
+    assert_close(&result, &[3.0, 3.0]);
+}

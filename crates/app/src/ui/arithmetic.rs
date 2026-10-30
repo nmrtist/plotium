@@ -1,24 +1,37 @@
 use egui::DragValue;
-use plotium_core::state::{PlotiumApp, SpectrumArithmeticDialogState, SpectrumArithmeticOp};
+use plotium_core::state::{
+    PlotiumApp, SpectrumArithmeticDialogState, SpectrumArithmeticKey, SpectrumArithmeticOp,
+};
 use plotium_processing::arithmetic::SpectrumBinaryOp;
 
 pub(crate) fn open_spectrum_arithmetic_dialog(app: &mut PlotiumApp) {
     let targets = app.spectrum_arithmetic_targets();
     let Some(&first) = targets.first() else {
-        app.session.status = "Spectrum arithmetic needs at least one 1D NMR spectrum.".into();
+        app.session.status =
+            "Spectrum arithmetic needs a 1D spectrum, pattern or plotted table curve.".into();
         return;
     };
     let a = app
         .active_dataset()
         .filter(|di| targets.contains(di))
         .unwrap_or(first);
-    let b = targets.iter().copied().find(|&i| i != a).unwrap_or(a);
+    let same_kind = |&i: &usize| {
+        std::mem::discriminant(&app.doc.datasets[i]) == std::mem::discriminant(&app.doc.datasets[a])
+    };
+    let b = targets
+        .iter()
+        .copied()
+        .filter(same_kind)
+        .find(|&i| i != a)
+        .unwrap_or(a);
     app.session.ui.spectrum_arithmetic_dialog = Some(SpectrumArithmeticDialogState {
         a,
         b,
         op: SpectrumArithmeticOp::SubtractDataset,
         k: 1.0,
         constant: 0.0,
+        averaged: Vec::new(),
+        compat: None,
     });
 }
 
@@ -44,7 +57,7 @@ pub(crate) fn spectrum_arithmetic_window(app: &mut PlotiumApp, ctx: &egui::Conte
             crate::ui::result_follow::register_editor(ui);
             ui.heading("Spectrum arithmetic");
             ui.separator();
-            ui.label("Combine spectra or apply a constant; the result becomes a new dataset.");
+            ui.label("Combine traces or apply a constant; the result becomes a new dataset.");
             ui.add_space(4.0);
             dataset_combo(app, ui, "Spectrum A", "arith_a", &targets, &mut state.a);
             egui::ComboBox::from_label("Operation")
@@ -75,12 +88,15 @@ pub(crate) fn spectrum_arithmetic_window(app: &mut PlotiumApp, ctx: &egui::Conte
                         ui.add(DragValue::new(&mut state.constant).speed(0.1));
                     });
                 }
+                SpectrumArithmeticOp::Average => {
+                    ui.label("Average A with:");
+                    average_checklist(app, ui, &targets, &mut state);
+                    ui.small(
+                        "The result uses A's axis; each point averages the traces covering it.",
+                    );
+                }
             }
-            let compat = if state.op.is_binary() {
-                app.spectrum_arithmetic_compat(state.a, state.b)
-            } else {
-                Ok(None)
-            };
+            let compat = operation_compat(app, &mut state);
             match &compat {
                 Ok(None) => {}
                 Ok(Some(note)) => {
@@ -118,12 +134,80 @@ pub(crate) fn spectrum_arithmetic_window(app: &mut PlotiumApp, ctx: &egui::Conte
             SpectrumArithmeticOp::AddConstant => {
                 app.scale_spectrum_dataset(state.a, 1.0, state.constant)
             }
+            SpectrumArithmeticOp::Average => {
+                let sources = average_sources(app, &state);
+                app.average_trace_datasets(&sources)
+            }
         }
         return;
     }
     if !cancel && !modal.should_close() && app.session.ui.spectrum_arithmetic_dialog.is_none() {
         app.session.ui.spectrum_arithmetic_dialog = Some(state);
     }
+}
+
+fn operation_compat(
+    app: &PlotiumApp,
+    state: &mut SpectrumArithmeticDialogState,
+) -> Result<Option<String>, String> {
+    let key = SpectrumArithmeticKey {
+        a: state.a,
+        b: state.b,
+        op: state.op,
+        averaged: state.averaged.clone(),
+        revision: app.doc.automation_revision,
+    };
+    if let Some((cached, compat)) = &state.compat
+        && *cached == key
+    {
+        return compat.clone();
+    }
+    let compat = match state.op {
+        SpectrumArithmeticOp::AddDataset | SpectrumArithmeticOp::SubtractDataset => {
+            app.spectrum_arithmetic_compat(state.a, state.b)
+        }
+        SpectrumArithmeticOp::Average => app.trace_average_compat(&average_sources(app, state)),
+        SpectrumArithmeticOp::MultiplyConstant | SpectrumArithmeticOp::AddConstant => {
+            app.spectrum_scale_compat(state.a)
+        }
+    };
+    state.compat = Some((key, compat.clone()));
+    compat
+}
+
+/// A first, then the checked datasets that still exist.
+fn average_sources(app: &PlotiumApp, state: &SpectrumArithmeticDialogState) -> Vec<usize> {
+    let checked = state
+        .averaged
+        .iter()
+        .filter_map(|&id| app.doc.dataset_index(id))
+        .filter(|&index| index != state.a);
+    std::iter::once(state.a).chain(checked).collect()
+}
+
+fn average_checklist(
+    app: &PlotiumApp,
+    ui: &mut egui::Ui,
+    targets: &[usize],
+    state: &mut SpectrumArithmeticDialogState,
+) {
+    egui::ScrollArea::vertical()
+        .id_salt("arith_average")
+        .max_height(180.0)
+        .show(ui, |ui| {
+            for &index in targets.iter().filter(|&&index| index != state.a) {
+                let dataset = &app.doc.datasets[index];
+                let id = dataset.resource_id();
+                let mut checked = state.averaged.contains(&id);
+                if ui.checkbox(&mut checked, dataset.display_name()).changed() {
+                    if checked {
+                        state.averaged.push(id);
+                    } else {
+                        state.averaged.retain(|&other| other != id);
+                    }
+                }
+            }
+        });
 }
 
 fn dataset_combo(

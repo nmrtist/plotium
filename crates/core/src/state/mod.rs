@@ -43,6 +43,7 @@ mod app_impl_statistics;
 #[cfg(test)]
 mod app_impl_statistics_tests;
 mod app_impl_symmetry;
+mod app_impl_trace_math;
 mod app_impl_xps;
 mod app_state;
 mod background_activity;

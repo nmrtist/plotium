@@ -4,34 +4,45 @@ description: Spectrum arithmetic and multi-spectrum alignment.
 ---
 
 Two tools operate across spectra rather than on one: **Spectrum arithmetic**
-builds a new spectrum from two existing ones, and **Align spectra** shifts a
+builds a new dataset from existing traces, and **Align spectra** shifts a
 whole series so a reference peak lines up. Both are opened from the Analysis
-panel of a 1D spectrum or from the command palette
-(<kbd>Ctrl</kbd>+<kbd>K</kbd>).
+panel of a 1D spectrum, from **Process › Transform** in the Ribbon, or from the
+command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>).
 
 ## Spectrum arithmetic
 
-**Spectrum arithmetic** combines 1D spectra into a new, independent
-dataset — the source datasets are never modified.
+**Spectrum arithmetic** combines 1D NMR spectra, XRD patterns, XPS regions or
+plotted table curves into a new, independent dataset — the source datasets are
+never modified.
 
-Four operations are available:
+Five operations are available:
 
 - **A + k·B** and **A − k·B** — add or subtract a second spectrum,
   scaled by a coefficient *k* (default 1). Tuning *k* is how you null a
-  solvent line in a subtraction, or balance a difference spectrum.
+  solvent line in a subtraction, balance a difference spectrum, or remove an
+  empty-cell or substrate pattern.
 - **A × k** — multiply a spectrum by a constant.
 - **A + c** — add a constant offset.
+- **Average** — merge repeat scans of XRD patterns, XPS regions or table curves.
+  The result uses A's axis, and each point averages the traces that cover it.
 
-The two operands must share the same nucleus; mixed-nucleus pairs are
-rejected with the reason shown in the dialog. If the ppm axes differ
-(different point counts or ranges), the second spectrum is linearly
+Operands must be the same kind of dataset and their x ranges must overlap. XRD
+and XPS use the processed trace on screen: for XPS the active region, for a table
+the first plotted curve. XRD patterns must not declare different wavelengths, XPS
+regions must share an energy scale, table axes and values must share units, and
+table rows with blank cells are skipped. Negative XRD results are set to zero,
+and the status bar reports how many points changed.
+
+Two NMR spectra must share the same nucleus; mixed-nucleus pairs are
+rejected with the reason shown in the dialog. If the axes differ
+(different point counts or ranges), the second trace is linearly
 interpolated onto the first one's axis, and points outside the overlap
 are treated as zero — the dialog notes when this will happen.
 
-The result is an independent frequency-domain spectrum placed on its own page,
+The result is an independent dataset of the same kind placed on its own page,
 named after the expression (for example `A − 0.9·B`). It behaves like
-any other 1D spectrum — peaks, integrals, regions, and export all work —
-and creating it is a single undoable step.
+any other dataset of that kind — for an NMR spectrum, peaks, integrals, regions,
+and export all work — and creating it is a single undoable step.
 
 ## Aligning spectra
 

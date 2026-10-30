@@ -21,6 +21,7 @@ mod stack;
 mod symmetry;
 mod themes;
 mod tiling;
+mod trace_math;
 mod xrd;
 use num_complex::Complex64;
 use plotium_io::{Domain, NmrData};
