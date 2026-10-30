@@ -6,6 +6,7 @@ pub mod craft;
 pub mod nmr_bridge;
 pub mod nmr_execution;
 mod output;
+pub mod signal;
 pub mod slice;
 pub mod timeseries;
 pub mod xps;

@@ -1,6 +1,4 @@
-use crate::{NormalizeMethod, SmoothMethod, StepId, StepSource};
-#[path = "xps_signal.rs"]
-mod signal;
+use crate::{NormalizeMethod, SmoothMethod, StepId, StepSource, signal};
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum XpsStepKind {
@@ -72,7 +70,7 @@ pub fn process_region(
                 values = next_values;
             }
             XpsStepKind::Smooth(method) => {
-                values = smooth_values(&energy, &values, method);
+                values = signal::smooth(&values, method);
             }
             XpsStepKind::Normalize(method) => {
                 if matches!(
@@ -114,7 +112,7 @@ pub fn estimate_charge_shift(
         return Err("the C 1s reference region is invalid");
     }
     let edge = 3.min(energy_ev.len() / 4);
-    let smoothed = signal::gaussian_smooth_real(intensity, 3.0)
+    let smoothed = signal::gaussian_smooth(intensity, 3.0)
         .ok_or("the C 1s reference region cannot be smoothed")?;
     let index = smoothed[edge..smoothed.len() - edge]
         .iter()
@@ -123,10 +121,6 @@ pub fn estimate_charge_shift(
         .map(|(index, _)| index + edge)
         .ok_or("the C 1s reference region has no intensity maximum")?;
     Ok(reference_ev - energy_ev[index])
-}
-
-fn smooth_values(_energy: &[f64], values: &[f64], method: SmoothMethod) -> Vec<f64> {
-    signal::smooth(values, method)
 }
 
 #[cfg(test)]
