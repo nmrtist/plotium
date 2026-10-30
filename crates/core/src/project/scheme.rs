@@ -1,6 +1,8 @@
 use super::*;
 use crate::actions::{Action, DatasetProcessingState};
 use crate::state::DatasetId;
+use plotium_processing::xps::{XpsProcessingStep, XpsStepKind};
+use plotium_processing::xrd::XrdProcessing;
 use std::collections::HashSet;
 
 const SCHEME_VERSION: u32 = 1;
@@ -11,11 +13,23 @@ const SCHEME_VERSION: u32 = 1;
 pub struct ProcessingScheme {
     pub schema_version: u32,
     pub dimension_count: usize,
+    #[serde(default)]
     pub pipelines: Vec<AxisPipelineDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layout: Option<String>,
     #[serde(default = "scheme_gd_default")]
     pub group_delay_correct: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xrd: Option<XrdProcessing>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xps: Option<Vec<XpsSchemeStep>>,
+}
+
+/// One step of an XPS region recipe; the adopting dataset mints its identity.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct XpsSchemeStep {
+    pub kind: XpsStepKind,
+    pub enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -253,12 +267,50 @@ pub fn apply_scheme(
         Dataset::MassSpec(_) => Err(incompatible(
             "the imported data has no Plotium LC–MS processing pipeline",
         )),
-        Dataset::Xrd(_) => Err(incompatible(
-            "XRD processing recipes use XRD-specific parameters",
-        )),
-        Dataset::Xps(_) => Err(incompatible(
-            "NMR processing templates do not apply to XPS datasets",
-        )),
+        Dataset::Xrd(_) => {
+            let processing = scheme
+                .xrd
+                .ok_or_else(|| incompatible("this scheme has no XRD settings"))?;
+            plotium_processing::xrd::validate(processing)
+                .map_err(|error| incompatible(&error.to_string()))?;
+            Ok(DatasetProcessingState::Xrd(processing))
+        }
+        Dataset::Xps(xps) => {
+            let steps = scheme
+                .xps
+                .as_ref()
+                .ok_or_else(|| incompatible("this scheme has no XPS steps"))?;
+            let mut state = DatasetProcessingState::from_dataset(dataset);
+            if let DatasetProcessingState::Xps {
+                region_recipes,
+                next_step_id,
+                ..
+            } = &mut state
+            {
+                let recipe = region_recipes
+                    .get_mut(&xps.active_region)
+                    .ok_or_else(|| incompatible("the active XPS region has no recipe"))?;
+                recipe.steps = steps
+                    .iter()
+                    .map(|step| {
+                        let id = StepId::new(*next_step_id);
+                        *next_step_id = next_step_id
+                            .checked_add(1)
+                            .ok_or_else(|| incompatible("step identity space exhausted"))?;
+                        Ok(XpsProcessingStep {
+                            id,
+                            kind: step.kind.clone(),
+                            enabled: step.enabled,
+                            source: StepSource::User,
+                        })
+                    })
+                    .collect::<Result<_>>()?;
+            }
+            state
+                .apply_to(&mut dataset.clone())
+                .map_err(|error| incompatible(&error.to_string()))?;
+            Ok(state)
+        }
     }
 }
 
@@ -266,6 +318,7 @@ fn dataset_next_step_id(dataset: &Dataset) -> u64 {
     match dataset {
         Dataset::Nmr(dataset) => dataset.next_step_id,
         Dataset::Nmr2D(dataset) => dataset.next_step_id,
+        Dataset::Xps(dataset) => dataset.next_step_id,
         _ => 0,
     }
 }
@@ -324,6 +377,8 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
                 pipelines: vec![dto],
                 layout: None,
                 group_delay_correct: n.group_delay_correct,
+                xrd: None,
+                xps: None,
             })
         }
         Dataset::Nmr2D(n) => {
@@ -339,14 +394,41 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
                 pipelines: vec![f2, f1],
                 layout: Some(layout_to_str(n.params.layout).to_owned()),
                 group_delay_correct: n.group_delay_correct,
+                xrd: None,
+                xps: None,
             })
         }
         Dataset::Table(_) => None,
         Dataset::Electrophysiology(_) => None,
         Dataset::Afm(_) => None,
         Dataset::MassSpec(_) => None,
-        Dataset::Xrd(_) => None,
-        Dataset::Xps(_) => None,
+        Dataset::Xrd(xrd) => Some(ProcessingScheme {
+            schema_version: SCHEME_VERSION,
+            dimension_count: 1,
+            pipelines: Vec::new(),
+            layout: None,
+            group_delay_correct: scheme_gd_default(),
+            xrd: Some(xrd.params),
+            xps: None,
+        }),
+        Dataset::Xps(xps) => Some(ProcessingScheme {
+            schema_version: SCHEME_VERSION,
+            dimension_count: 1,
+            pipelines: Vec::new(),
+            layout: None,
+            group_delay_correct: scheme_gd_default(),
+            xrd: None,
+            xps: Some(
+                xps.recipe(xps.active_region)?
+                    .steps
+                    .iter()
+                    .map(|step| XpsSchemeStep {
+                        kind: step.kind.clone(),
+                        enabled: step.enabled,
+                    })
+                    .collect(),
+            ),
+        }),
     }
 }
 
@@ -359,6 +441,10 @@ fn force_user(dto: &mut AxisPipelineDto) {
 fn incompatible(msg: &str) -> ProjectError {
     ProjectError::Unsupported(format!("incompatible processing scheme: {msg}"))
 }
+
+#[cfg(test)]
+#[path = "scheme_spectra_tests.rs"]
+mod spectra_tests;
 
 #[cfg(test)]
 mod plan_tests {
@@ -408,6 +494,8 @@ mod plan_tests {
             pipelines: Vec::new(),
             layout: None,
             group_delay_correct: true,
+            xrd: None,
+            xps: None,
         };
         let plan = plan_scheme_application(&scheme, &[], &[9, 9]);
         assert_eq!(plan.targets().len(), 1);

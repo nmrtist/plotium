@@ -20,8 +20,8 @@ Scientific edits use `plotium_plan` / `plotium_execute`:
 
 | Operation | Parameters and target |
 | --- | --- |
-| `processing.edit` | One dataset; `edits` uses `replace`, `enable`, `add`, `remove` or `move`; existing steps use stable StepIds |
-| `processing.apply_scheme` | `path`, optional `compatible_only`; preflight freezes scheme bytes, fingerprint and compatible target configurations |
+| `processing.edit` | One NMR, XRD or XPS dataset; `edits` uses `replace`, `enable`, `add`, `remove` or `move` on stable StepIds; XPS `add` names a region ID as `axis` and takes `Window`, `Smooth` or `Normalize`; XRD uses `set_xrd` with complete `processing` settings |
+| `processing.apply_scheme` | `path`, optional `compatible_only`; preflight freezes scheme bytes, fingerprint and compatible target configurations; a scheme applies to datasets of its own kind, and an XPS scheme replaces the active region's recipe |
 | `diffusion.set_input` | One dataset; complete `input`; invalid input errors include a structured validation report |
 | `analysis.regions.extract` | One region-series field; `regions` references RegionIds or explicit bounds and metrics; optional explicit `input` |
 | `analysis.diffusion.fit` | One native table; stable `response_column` ColumnId, optional native `options`; the x column must use `s/m²` |

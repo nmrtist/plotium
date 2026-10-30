@@ -115,7 +115,10 @@ impl<'a> ProjectResourceProvider<'a> {
             .map(ToString::to_string)
             .collect();
         let mut capabilities = vec![cap(CAP_RENAME), cap(CAP_PREVIEW)];
-        if matches!(dataset, Dataset::Nmr(_) | Dataset::Nmr2D(_)) {
+        if matches!(
+            dataset,
+            Dataset::Nmr(_) | Dataset::Nmr2D(_) | Dataset::Xrd(_) | Dataset::Xps(_)
+        ) {
             capabilities.push(cap(CAP_PROCESSING_SCHEME));
         }
         // Asked of the catalog, not of the variant: the gate is "does this

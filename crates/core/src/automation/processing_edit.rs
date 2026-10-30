@@ -1,4 +1,4 @@
-//! Stable StepId edits for the existing NMR pipeline service.
+//! Stable StepId edits for dataset processing recipes.
 use super::*;
 use crate::actions::DatasetProcessingState;
 use crate::project::{
@@ -7,6 +7,7 @@ use crate::project::{
 };
 use crate::state::{Dataset, PlotiumApp};
 use plotium_processing::StepId;
+use plotium_processing::xrd::{SavitzkyGolay, SnipBackground, XrdNormalization, XrdProcessing};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -21,7 +22,7 @@ pub struct ProcessingEditParams {
 pub enum PipelineEdit {
     Replace {
         step: StepId,
-        kind: StepKindDto,
+        kind: Value,
     },
     Enable {
         step: StepId,
@@ -29,7 +30,7 @@ pub enum PipelineEdit {
     },
     Add {
         axis: String,
-        kind: StepKindDto,
+        kind: Value,
         before: Option<StepId>,
     },
     Remove {
@@ -39,15 +40,38 @@ pub enum PipelineEdit {
         step: StepId,
         before: Option<StepId>,
     },
+    SetXrd {
+        processing: XrdSettings,
+    },
 }
-fn invalid(message: impl Into<String>) -> AutomationError {
+/// Complete XRD settings: a key left out is an error, never a cleared step.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct XrdSettings {
+    #[serde(deserialize_with = "Option::deserialize")]
+    background: Option<SnipBackground>,
+    #[serde(deserialize_with = "Option::deserialize")]
+    smoothing: Option<SavitzkyGolay>,
+    normalization: XrdNormalization,
+}
+impl From<XrdSettings> for XrdProcessing {
+    fn from(settings: XrdSettings) -> Self {
+        Self {
+            background: settings.background,
+            smoothing: settings.smoothing,
+            normalization: settings.normalization,
+        }
+    }
+}
+pub(super) fn invalid(message: impl Into<String>) -> AutomationError {
     AutomationError::InvalidParameters {
         tool_id: PROCESSING_EDIT.into(),
         message: message.into(),
     }
 }
-fn validate_kind(kind: &StepKindDto) -> Result<(), AutomationError> {
-    if let StepKindDto::ZeroFill(value) = kind {
+fn nmr_kind(kind: Value) -> Result<StepKindDto, AutomationError> {
+    let kind: StepKindDto = serde_json::from_value(kind).map_err(|e| invalid(e.to_string()))?;
+    if let StepKindDto::ZeroFill(value) = &kind {
         let valid = value == "none"
             || value
                 .strip_prefix("factor")
@@ -61,7 +85,7 @@ fn validate_kind(kind: &StepKindDto) -> Result<(), AutomationError> {
             ));
         }
     }
-    Ok(())
+    Ok(kind)
 }
 fn source<'a>(app: &'a PlotiumApp, plan: &ToolPlan) -> Result<&'a Dataset, AutomationError> {
     let [target] = plan.frozen_targets.targets.as_slice() else {
@@ -131,11 +155,19 @@ pub(super) fn prepare(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value, Automa
     if params.edits.is_empty() || params.edits.len() > 200 {
         return Err(invalid("Supply between 1 and 200 pipeline edits."));
     }
+    super::processing_edit_spectra::reject_pending(app, dataset)?;
+    match dataset {
+        Dataset::Xrd(_) => return super::processing_edit_spectra::prepare_xrd(params.edits),
+        Dataset::Xps(xps) => {
+            return super::processing_edit_spectra::prepare_xps(dataset, xps, params.edits);
+        }
+        _ => {}
+    }
     let (mut axes, mut next_id) = pipelines(dataset)?;
     for edit in params.edits {
         match edit {
             PipelineEdit::Add { axis, kind, before } => {
-                validate_kind(&kind)?;
+                let kind = nmr_kind(kind)?;
                 let pipeline = axes
                     .iter_mut()
                     .find(|p| p.0 == axis)
@@ -156,9 +188,8 @@ pub(super) fn prepare(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value, Automa
                 );
             }
             PipelineEdit::Replace { step, kind } => {
-                validate_kind(&kind)?;
                 let (a, s) = locate(&axes, step)?;
-                axes[a].1.steps[s].kind = kind;
+                axes[a].1.steps[s].kind = nmr_kind(kind)?;
                 axes[a].1.steps[s].source = StepSourceDto::User;
             }
             PipelineEdit::Enable { step, enabled } => {
@@ -177,6 +208,9 @@ pub(super) fn prepare(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value, Automa
                 let value = axes[a].1.steps.remove(s);
                 let position = insertion(&axes[a].1, before)?;
                 axes[a].1.steps.insert(position, value);
+            }
+            PipelineEdit::SetXrd { .. } => {
+                return Err(invalid("set_xrd applies only to XRD datasets."));
             }
         }
     }
@@ -200,6 +234,9 @@ pub(super) fn state_from_frozen(
     dataset: &Dataset,
     frozen: &Value,
 ) -> Result<DatasetProcessingState, AutomationError> {
+    if let Some(state) = super::processing_edit_spectra::state_from_frozen(dataset, frozen)? {
+        return Ok(state);
+    }
     let mut state = DatasetProcessingState::from_dataset(dataset);
     let axes = frozen["axes"]
         .as_array()
@@ -246,9 +283,10 @@ pub fn processing_edit_schema() -> Value {
     json!({"type":"object","required":["edits"],"additionalProperties":false,"properties":{"edits":{"type":"array","minItems":1,"maxItems":200,"items":{"oneOf":[
         edit_schema("replace",json!({"step":{"type":"integer","minimum":0},"kind":super::scientific_schema::step_kind()}),&["step","kind"]),
         edit_schema("enable",json!({"step":{"type":"integer","minimum":0},"enabled":{"type":"boolean"}}),&["step","enabled"]),
-        edit_schema("add",json!({"axis":{"enum":["direct","f2","f1"]},"kind":super::scientific_schema::step_kind(),"before":{"type":["integer","null"],"minimum":0}}),&["axis","kind"]),
+        edit_schema("add",json!({"axis":{"type":"string","description":"direct, f2 or f1 for NMR; the region ID from processing inspect for XPS"},"kind":super::scientific_schema::step_kind(),"before":{"type":["integer","null"],"minimum":0}}),&["axis","kind"]),
         edit_schema("remove",json!({"step":{"type":"integer","minimum":0}}),&["step"]),
-        edit_schema("move",json!({"step":{"type":"integer","minimum":0},"before":{"type":["integer","null"],"minimum":0}}),&["step"])
+        edit_schema("move",json!({"step":{"type":"integer","minimum":0},"before":{"type":["integer","null"],"minimum":0}}),&["step"]),
+        edit_schema("set_xrd",json!({"processing":super::scientific_schema::xrd_processing()}),&["processing"])
     ]}}}})
 }
 fn edit_schema(op: &str, mut fields: Value, required: &[&str]) -> Value {
@@ -258,5 +296,5 @@ fn edit_schema(op: &str, mut fields: Value, required: &[&str]) -> Value {
     json!({"type":"object","properties":fields,"required":keys,"additionalProperties":false})
 }
 pub(super) fn descriptor() -> ToolDescriptor {
-    ToolDescriptor {id:PROCESSING_EDIT.into(),version:1,title:"Edit processing pipeline".into(),description:"Edit parameters, enable, add, remove and reorder steps using stable StepIds. Proposed IDs are frozen in preflight.".into(),parameter_schema:processing_edit_schema(),result_schema:super::scientific_schema::task_result(),target_kinds:vec![ResourceKindId::new(KIND_DATASET)],required_capabilities:vec![CapabilityId::new(CAP_PROCESSING_SCHEME)],effect:EffectLevel::Reversible,undoable:true,deterministic:true,task_kind:"background".into()}
+    ToolDescriptor {id:PROCESSING_EDIT.into(),version:1,title:"Edit processing pipeline".into(),description:"Edit parameters, enable, add, remove and reorder steps using stable StepIds. XPS steps are Window, Smooth or Normalize and add to one region. XRD replaces its settings with set_xrd. Proposed IDs are frozen in preflight.".into(),parameter_schema:processing_edit_schema(),result_schema:super::scientific_schema::task_result(),target_kinds:vec![ResourceKindId::new(KIND_DATASET)],required_capabilities:vec![CapabilityId::new(CAP_PROCESSING_SCHEME)],effect:EffectLevel::Reversible,undoable:true,deterministic:true,task_kind:"background".into()}
 }

@@ -33,8 +33,8 @@ Plotium 会校验每张嵌入图片；缺失或损坏的图片会变成可替换
 ## `.plotiumproc` 处理配方
 
 `.plotiumproc` 文件保存一条处理管线，不含任何数据——配方保存一次即可在
-任何机器上应用到一整个系列的同类实验。见
-[配方与模板](/zh-cn/guides/templates/)。
+任何机器上应用到一整个系列的同类实验。NMR、XRD 和 XPS 配方只应用于同类数据集，
+XPS 配方保存一个区域的步骤。见[配方与模板](/zh-cn/guides/templates/)。
 
 命名的处理模板保存在 Plotium [配置目录](/zh-cn/getting-started/installation/#plotium-的设置存放在哪)的
 `templates` 文件夹中。

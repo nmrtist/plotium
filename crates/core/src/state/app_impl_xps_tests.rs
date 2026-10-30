@@ -464,3 +464,21 @@ fn completed_fit_is_discarded_after_workspace_changes() {
         XpsFwhmConstraint::Free { .. }
     ));
 }
+
+#[test]
+fn undone_processing_steps_keep_their_identities_reserved() {
+    let (experiment, _, c1s, _) = two_region_experiment();
+    let mut app = PlotiumApp::new();
+    let xps = XpsDataset::load(experiment);
+    let dataset = xps.resource_id;
+    app.doc.datasets.push(Dataset::Xps(Box::new(xps)));
+    let kind = XpsStepKind::Normalize(plotium_processing::NormalizeMethod::MaxPeak);
+
+    let first = app
+        .add_xps_processing_step(dataset, c1s, kind.clone())
+        .unwrap();
+    app.undo();
+    let second = app.add_xps_processing_step(dataset, c1s, kind).unwrap();
+
+    assert_ne!(first, second);
+}

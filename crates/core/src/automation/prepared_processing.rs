@@ -22,6 +22,12 @@ fn freeze_state(state: &DatasetProcessingState) -> Result<Value, AutomationError
         } => Ok(
             json!({"axes":[{"axis":"f2","pipeline":crate::project::pipeline_to_dto(&params.f2)},{"axis":"f1","pipeline":crate::project::pipeline_to_dto(&params.f1)}],"group_delay_correct":group_delay_correct,"layout":crate::project::layout_to_str(params.layout)}),
         ),
+        DatasetProcessingState::Xrd(processing) => Ok(json!({"xrd":processing})),
+        DatasetProcessingState::Xps {
+            region_recipes,
+            next_step_id,
+            ..
+        } => Ok(json!({"xps":{"region_recipes":region_recipes,"next_step_id":next_step_id}})),
         _ => Err(invalid("This scheme has no native processing adapter.")),
     }
 }
@@ -51,16 +57,19 @@ pub(super) fn prepare_scheme(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value,
         else {
             return Err(invalid("The processing target no longer exists."));
         };
+        super::processing_edit_spectra::reject_pending(app, source)?;
         let next = match source {
             Dataset::Nmr(n) => n.next_step_id,
             Dataset::Nmr2D(n) => n.next_step_id,
+            Dataset::Xps(x) => x.next_step_id,
             _ => 0,
         };
         let count = scheme
             .pipelines
             .iter()
             .map(|p| p.steps.len() as u64)
-            .sum::<u64>();
+            .sum::<u64>()
+            + scheme.xps.as_ref().map_or(0, |steps| steps.len() as u64);
         if next.checked_add(count).is_none() {
             return Err(invalid("Processing step identity space exhausted."));
         }
@@ -69,7 +78,13 @@ pub(super) fn prepare_scheme(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value,
                 json!({"dataset":source.resource_id(),"configuration":freeze_state(&state)?}),
             ),
             Err(error) => {
-                incompatible_scheme = true;
+                // A scheme of another kind passes over XRD and XPS targets,
+                // as it does any target without a pipeline.
+                incompatible_scheme |= match source {
+                    Dataset::Xrd(_) => scheme.xrd.is_some(),
+                    Dataset::Xps(_) => scheme.xps.is_some(),
+                    _ => true,
+                };
                 skipped.push(json!({"target":target,"reason":error.to_string()}));
             }
         }
@@ -115,6 +130,7 @@ pub(super) fn execute(
         if let Some(kind) = app.session.compute.blocking_work_for(id) {
             return Err(invalid(format!("{} is already running.", kind.label())));
         }
+        super::processing_edit_spectra::reject_pending(app, source)?;
         let recipe = super::processing_edit::state_from_frozen(source, &target["configuration"])?;
         recipes.push((id, recipe));
         snapshots.push(source.clone());

@@ -38,6 +38,7 @@ pub use region_fit::{DIFFUSION_FIT, DiffusionFitParams, REGIONS_EXTRACT, RegionE
 mod frozen_scheme;
 mod prepared_processing;
 mod processing_edit;
+mod processing_edit_spectra;
 mod registry;
 mod resources;
 mod science;
