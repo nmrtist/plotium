@@ -206,6 +206,7 @@ fn processed_data_available(dataset: &Dataset) -> bool {
         // LC–MS export snapshots are not implemented yet. Do not advertise an
         // option whose capture path can only return `ContentUnavailable`.
         Dataset::MassSpec(_) => false,
+        Dataset::Xas(_) => false,
         Dataset::Xrd(xrd) => !xrd.processed.intensity.is_empty(),
         Dataset::Xps(xps) => xps
             .displayed_region(xps.active_region)
@@ -522,7 +523,7 @@ fn capture_processed(dataset: &Dataset) -> Result<SnapshotData, DataExportError>
         }
         Dataset::Table(_) => Err(DataExportError::ContentUnavailable),
         Dataset::Afm(_) => Err(DataExportError::ContentUnavailable),
-        Dataset::MassSpec(_) => Err(DataExportError::ContentUnavailable),
+        Dataset::MassSpec(_) | Dataset::Xas(_) => Err(DataExportError::ContentUnavailable),
         Dataset::Xrd(xrd) => Ok(SnapshotData::Xrd {
             two_theta_deg: xrd.data.two_theta_deg.clone(),
             intensity: xrd.processed.intensity.clone(),

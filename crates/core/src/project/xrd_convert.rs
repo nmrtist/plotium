@@ -98,7 +98,7 @@ pub(super) fn decode<R: Read>(input: &mut EntryReader<'_, R>) -> Result<XrdData>
     Ok(data)
 }
 
-fn validate_array_len(len: usize, limits: ProjectLoadLimits) -> Result<()> {
+pub(super) fn validate_array_len(len: usize, limits: ProjectLoadLimits) -> Result<()> {
     if len > limits.max_collection_items {
         return Err(ProjectError::Invalid(format!(
             "XRD array contains {len} values, exceeding the {}-item limit",
@@ -127,14 +127,14 @@ fn validate_materialized_size(
     Ok(())
 }
 
-fn write_len(output: &mut impl Write, len: usize) -> Result<()> {
+pub(super) fn write_len(output: &mut impl Write, len: usize) -> Result<()> {
     let len = u64::try_from(len)
         .map_err(|_| ProjectError::Invalid("XRD length exceeds u64".to_owned()))?;
     output.write_all(&len.to_le_bytes())?;
     Ok(())
 }
 
-fn write_f64s(output: &mut impl Write, values: &[f64]) -> Result<()> {
+pub(super) fn write_f64s(output: &mut impl Write, values: &[f64]) -> Result<()> {
     write_len(output, values.len())?;
     let mut buffer = Vec::with_capacity(VALUES_PER_CHUNK * std::mem::size_of::<f64>());
     for chunk in values.chunks(VALUES_PER_CHUNK) {
@@ -147,31 +147,31 @@ fn write_f64s(output: &mut impl Write, values: &[f64]) -> Result<()> {
     Ok(())
 }
 
-struct Reader<'a, 'p, R: Read> {
+pub(super) struct Reader<'a, 'p, R: Read> {
     input: &'a mut EntryReader<'p, R>,
 }
 
 impl<'a, 'p, R: Read> Reader<'a, 'p, R> {
-    fn new(input: &'a mut EntryReader<'p, R>) -> Self {
+    pub(super) fn new(input: &'a mut EntryReader<'p, R>) -> Self {
         Self { input }
     }
 
-    fn read_array<const N: usize>(&mut self) -> Result<[u8; N]> {
-        self.input.require_bytes(N, "XRD field")?;
+    pub(super) fn read_array<const N: usize>(&mut self) -> Result<[u8; N]> {
+        self.input.require_bytes(N, "binary field")?;
         let mut bytes = [0_u8; N];
         self.input.read_exact(&mut bytes).map_err(|error| {
             self.input
-                .invalid(format!("XRD payload is truncated: {error}"))
+                .invalid(format!("Binary payload is truncated: {error}"))
         })?;
         Ok(bytes)
     }
 
-    fn read_len(&mut self, label: &str) -> Result<usize> {
+    pub(super) fn read_len(&mut self, label: &str) -> Result<usize> {
         usize::try_from(u64::from_le_bytes(self.read_array()?))
-            .map_err(|_| self.input.invalid(format!("XRD {label} exceeds usize")))
+            .map_err(|_| self.input.invalid(format!("{label} exceeds usize")))
     }
 
-    fn read_bytes(&mut self, len: usize, label: &str) -> Result<Vec<u8>> {
+    pub(super) fn read_bytes(&mut self, len: usize, label: &str) -> Result<Vec<u8>> {
         self.input.require_bytes(len, label)?;
         let mut bytes = Vec::new();
         bytes
@@ -180,34 +180,33 @@ impl<'a, 'p, R: Read> Reader<'a, 'p, R> {
         bytes.resize(len, 0);
         self.input.read_exact(&mut bytes).map_err(|error| {
             self.input
-                .invalid(format!("XRD payload is truncated: {error}"))
+                .invalid(format!("Binary payload is truncated: {error}"))
         })?;
         Ok(bytes)
     }
 
-    fn read_f64s(&mut self, expected: Option<usize>, label: &str) -> Result<Vec<f64>> {
+    pub(super) fn read_f64s(&mut self, expected: Option<usize>, label: &str) -> Result<Vec<f64>> {
         let len = self.read_len(label)?;
         validate_array_len(len, ProjectLoadLimits::default())?;
         if let Some(expected) = expected
             && expected != len
         {
             return Err(self.input.invalid(format!(
-                "XRD {label} length {len} does not match expected length {expected}"
+                "{label} length {len} does not match expected length {expected}"
             )));
         }
         self.read_f64_values(len, label)
     }
 
     fn read_f64_values(&mut self, len: usize, label: &str) -> Result<Vec<f64>> {
-        let bytes = len.checked_mul(std::mem::size_of::<f64>()).ok_or_else(|| {
-            self.input
-                .invalid(format!("XRD {label} size overflows usize"))
-        })?;
+        let bytes = len
+            .checked_mul(std::mem::size_of::<f64>())
+            .ok_or_else(|| self.input.invalid(format!("{label} size overflows usize")))?;
         self.input.require_bytes(bytes, label)?;
         let mut values = Vec::new();
         values
             .try_reserve_exact(len)
-            .map_err(|_| self.input.invalid(format!("could not reserve XRD {label}")))?;
+            .map_err(|_| self.input.invalid(format!("could not reserve {label}")))?;
         for _ in 0..len {
             values.push(f64::from_le_bytes(self.read_array()?));
         }

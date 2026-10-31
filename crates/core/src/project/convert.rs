@@ -2,7 +2,7 @@ use super::convert_recipes::{nmr2d_recipe_extensions, read_region_analysis};
 use super::electrophysiology_convert::{
     electrophysiology_from_object, electrophysiology_to_objects,
 };
-use super::field_catalog::read as read_field_catalog;
+pub(super) use super::field_catalog::read as read_field_catalog;
 use super::*;
 use crate::{DosyMethod, PseudoDisplay};
 use plotium_processing::Processed2D;
@@ -14,6 +14,7 @@ pub enum DatasetBlob<'a> {
     MassSpec(&'a crate::state::MassSpecDataset),
     Xrd(&'a plotium_io::XrdData),
     Xps(&'a plotium_io::xps::XpsExperiment),
+    Xas(&'a plotium_io::xas::XasScan),
 }
 
 pub struct DatasetObjects<'a> {
@@ -308,6 +309,7 @@ pub fn dataset_to_objects<'a>(
             DatasetObjects::primary(data, DatasetBlob::Xrd(&xrd.data), recipe)
         }
         Dataset::Xps(xps) => super::xps_convert::to_objects(xps, data_id, recipe_id),
+        Dataset::Xas(xas) => super::xas_convert::to_objects(xas, data_id, recipe_id),
     };
     write_acquisition_identity(&mut objects.data, dataset.acquisition_identity())?;
     let execution = match dataset {
@@ -413,6 +415,9 @@ pub fn object_to_dataset(
     }
     if super::xps_convert::matches(data) {
         return super::xps_convert::from_objects(zip, data, recipe);
+    }
+    if super::xas_convert::matches(data) {
+        return super::xas_convert::from_objects(zip, data, recipe);
     }
     // Named generic decoder functions do not satisfy the higher-ranked lifetime
     // required by `ZipFile`; closures let the compiler reborrow each entry.

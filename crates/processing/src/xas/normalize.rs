@@ -1,15 +1,15 @@
 //! Edge energy search and pre-edge/post-edge normalization.
 
 use super::{XasError, check_spectrum, index_nearest, index_of};
-use crate::signal;
 use plotium_analysis::fit::solve_linear;
 
 const MAX_NNORM: usize = 5;
 /// Limits the resampled grid when the search step is far below the data step.
 const MAX_RESAMPLE_FACTOR: usize = 50;
+const SMOOTH_PADDING: f64 = 5.0;
 
 /// Every range is relative to `e0` and left `None` for the automatic choice.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PreEdgeParams {
     pub e0: Option<f64>,
     pub step: Option<f64>,
@@ -108,7 +108,7 @@ fn steepest_point(
         }
     }
     if let Some(step) = smooth_step {
-        slope = smoothed_on_uniform_grid(energy, &slope, step)?;
+        slope = smoothed_on_uniform_grid(energy, &slope, step);
     }
     let margin = 3.max(count / 50);
     if count <= 2 * margin {
@@ -163,18 +163,37 @@ fn gradient(values: &[f64]) -> Vec<f64> {
 }
 
 /// Energy steps vary by orders of magnitude across a scan, so smoothing has to
-/// happen on a uniform grid to act over a fixed width in eV.
-fn smoothed_on_uniform_grid(x: &[f64], y: &[f64], step: f64) -> Result<Vec<f64>, XasError> {
-    let span = x[x.len() - 1] - x[0];
-    let points = ((span / step) as usize)
-        .saturating_add(2)
-        .min(MAX_RESAMPLE_FACTOR * x.len());
-    let spacing = span / (points - 1) as f64;
-    let uniform_x: Vec<f64> = (0..points).map(|i| x[0] + i as f64 * spacing).collect();
+/// happen on a uniform grid to act over a fixed width in eV. The Lorentzian
+/// kernel one step wide, the padded grid, and the mirrored ends follow Larch's
+/// `smooth`, because the edge it finds decides every later step.
+fn smoothed_on_uniform_grid(x: &[f64], y: &[f64], step: f64) -> Vec<f64> {
+    let aligned = |value: f64| step * (value / step).trunc();
+    let start = aligned(x[0] - SMOOTH_PADDING * step);
+    let end = aligned(x[x.len() - 1] + SMOOTH_PADDING * step);
+    let points =
+        (1 + ((end - start + 0.1 * step).abs() / step) as usize).min(MAX_RESAMPLE_FACTOR * x.len());
+    let spacing = (end - start) / (points - 1) as f64;
+    let uniform_x: Vec<f64> = (0..points).map(|i| start + i as f64 * spacing).collect();
     let uniform_y = interpolate(x, y, &uniform_x);
-    let smoothed = signal::gaussian_smooth(&uniform_y, 1.0)
-        .ok_or_else(|| XasError::FitFailed("edge derivative is not finite".into()))?;
-    Ok(interpolate(&uniform_x, &smoothed, x))
+    let mirrored: Vec<f64> = uniform_y[1..]
+        .iter()
+        .rev()
+        .chain(&uniform_y)
+        .chain(uniform_y.iter().rev())
+        .copied()
+        .collect();
+    let kernel: Vec<f64> = (0..2 * points)
+        .map(|i| 1.0 / (1.0 + (i as f64 - points as f64).powi(2)))
+        .collect();
+    let weight: f64 = kernel.iter().sum();
+    let smoothed: Vec<f64> = mirrored
+        .windows(kernel.len())
+        .map(|window| {
+            let product = window.iter().rev().zip(&kernel).map(|(y, k)| y * k);
+            product.sum::<f64>() / weight
+        })
+        .collect();
+    interpolate(&uniform_x, &smoothed, x)
 }
 
 /// Piecewise linear interpolation, holding the end values past the data.

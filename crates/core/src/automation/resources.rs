@@ -13,6 +13,7 @@ mod targets;
 pub use targets::freeze_targets;
 mod selection;
 mod statistics;
+mod xas;
 mod xps;
 mod xrd;
 
@@ -70,6 +71,7 @@ pub const CAP_FIELD_REGION_SERIES: &str = "field.region_series";
 pub const CAP_FIELD_MASS_CHROMATOGRAM: &str = "field.mass_spectrometry.chromatogram";
 pub const CAP_FIELD_MASS_SPECTRUM: &str = "field.mass_spectrometry.spectrum";
 pub const CAP_FIELD_XRD_PATTERN: &str = "field.xrd.pattern";
+pub const CAP_FIELD_XAS_SPECTRUM: &str = "field.xas.spectrum";
 pub const CAP_FIELD_XPS_SPECTRUM: &str = "field.xps.spectrum";
 
 /// Capability-oriented resource access. New resource types can participate by
@@ -234,6 +236,7 @@ impl<'a> ProjectResourceProvider<'a> {
             Dataset::MassSpec(dataset) => mass_spec::descriptor(dataset),
             Dataset::Xrd(dataset) => (vec![dataset.data.len()], vec!["deg".to_owned()], Vec::new()),
             Dataset::Xps(dataset) => xps::descriptor(dataset),
+            Dataset::Xas(dataset) => (vec![dataset.scan.len()], vec!["eV".to_owned()], Vec::new()),
         };
         children.extend(
             dataset
@@ -681,6 +684,7 @@ fn preview_dataset(
         }
         Dataset::MassSpec(dataset) => mass_spec::preview(dataset, target, limit, &mut statistics),
         Dataset::Xrd(dataset) => xrd::preview(dataset, limit, &mut statistics),
+        Dataset::Xas(dataset) => xas::preview(dataset, limit, &mut statistics),
         Dataset::Xps(dataset) => xps::preview(dataset, target, limit, &mut statistics)?,
     };
     let returned = total.min(limit);

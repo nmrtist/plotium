@@ -87,6 +87,7 @@ impl PropertyProvider for StepEnabledProvider {
             | crate::state::Dataset::Afm(_)
             | crate::state::Dataset::MassSpec(_)
             | crate::state::Dataset::Xrd(_)
+            | crate::state::Dataset::Xas(_)
             | crate::state::Dataset::Xps(_) => {
                 return Err(PropertyError::NotApplicable(
                     "this dataset has no spectral processing pipeline".to_owned(),

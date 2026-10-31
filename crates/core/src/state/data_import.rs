@@ -22,11 +22,19 @@ impl PreparedImport {
             equal_scale,
         )
         .map_err(|error| error.to_string())?;
+        let mut warnings = loaded.warnings;
+        if let Some(xas) = dataset.as_xas() {
+            warnings.extend(xas.issues().iter().map(|issue| plotium_io::LoadWarning {
+                code: plotium_io::LoadWarningCode::InvalidMetadata,
+                message: issue.clone(),
+                path: None,
+            }));
+        }
         Ok(Self {
             dataset,
             source,
             format: loaded.format,
-            warnings: loaded.warnings,
+            warnings,
         })
     }
 }

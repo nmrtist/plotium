@@ -181,7 +181,8 @@ fn add_step_menu(app: &mut PlotiumApp, di: usize, axis: PhaseAxis, ui: &mut Ui) 
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
-        | Dataset::Xrd(_) => return,
+        | Dataset::Xrd(_)
+        | Dataset::Xas(_) => return,
         Dataset::Xps(_) => return,
     };
     let Some(pipeline) = dataset.axis_pipeline(axis) else {
@@ -335,7 +336,8 @@ fn apply_row_op(app: &mut PlotiumApp, di: usize, axis: PhaseAxis, id: StepId, op
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
-        | Dataset::Xrd(_) => return,
+        | Dataset::Xrd(_)
+        | Dataset::Xas(_) => return,
         Dataset::Xps(_) => return,
     };
     let before = DatasetProcessingState::from_dataset(dataset);

@@ -19,7 +19,7 @@ const RESIDUAL_KSTEP: f64 = 0.05;
 /// Relative step of the forward-difference Jacobian.
 const JACOBIAN_STEP: f64 = 1e-3;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AutobkParams {
     pub rbkg: f64,
     pub nknots: Option<usize>,

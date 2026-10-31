@@ -10,6 +10,7 @@ impl Dataset {
             Dataset::MassSpec(data) => &data.acquisition_identity,
             Dataset::Xrd(data) => &data.acquisition_identity,
             Dataset::Xps(data) => &data.acquisition_identity,
+            Dataset::Xas(data) => &data.acquisition_identity,
         }
     }
 
@@ -23,6 +24,7 @@ impl Dataset {
             Dataset::MassSpec(data) => data.acquisition_identity = identity,
             Dataset::Xrd(data) => data.acquisition_identity = identity,
             Dataset::Xps(data) => data.acquisition_identity = identity,
+            Dataset::Xas(data) => data.acquisition_identity = identity,
         }
     }
 
@@ -68,6 +70,20 @@ impl Dataset {
         }
     }
 
+    pub fn as_xas(&self) -> Option<&XasDataset> {
+        match self {
+            Dataset::Xas(data) => Some(data),
+            _ => None,
+        }
+    }
+
+    pub fn as_xas_mut(&mut self) -> Option<&mut XasDataset> {
+        match self {
+            Dataset::Xas(data) => Some(data),
+            _ => None,
+        }
+    }
+
     pub fn as_xrd(&self) -> Option<&XrdDataset> {
         match self {
             Dataset::Xrd(data) => Some(data),
@@ -92,6 +108,7 @@ impl Dataset {
             Dataset::MassSpec(_) => "LC–MS",
             Dataset::Xrd(_) => "XRD",
             Dataset::Xps(_) => "XPS",
+            Dataset::Xas(_) => "XAS",
         }
     }
 
@@ -109,6 +126,7 @@ impl Dataset {
             Dataset::MassSpec(_) => DataDomain::MassSpectrometry,
             Dataset::Xrd(_) => DataDomain::Xrd,
             Dataset::Xps(_) => DataDomain::Xps,
+            Dataset::Xas(_) => DataDomain::Xas,
         }
     }
 
@@ -124,6 +142,7 @@ impl Dataset {
             Dataset::MassSpec(d) => d.name.clone(),
             Dataset::Xrd(d) => d.name.clone(),
             Dataset::Xps(d) => d.name.clone(),
+            Dataset::Xas(d) => d.name.clone(),
         };
         custom.unwrap_or_else(|| format!("[{}] {}", self.kind_label(), self.summary()))
     }
@@ -138,6 +157,7 @@ impl Dataset {
             Dataset::MassSpec(d) => d.name = name,
             Dataset::Xrd(d) => d.name = name,
             Dataset::Xps(d) => d.name = name,
+            Dataset::Xas(d) => d.name = name,
         }
     }
 
@@ -151,6 +171,7 @@ impl Dataset {
             Dataset::MassSpec(d) => d.name.clone(),
             Dataset::Xrd(d) => d.name.clone(),
             Dataset::Xps(d) => d.name.clone(),
+            Dataset::Xas(d) => d.name.clone(),
         }
     }
 
@@ -196,6 +217,17 @@ impl Dataset {
                 d.data.len(),
                 d.data.two_theta_deg.first().copied().unwrap_or(0.0),
                 d.data.two_theta_deg.last().copied().unwrap_or(0.0)
+            ),
+            Dataset::Xas(d) => format!(
+                "{} points · {:.0}–{:.0} eV · {}{}",
+                d.scan.len(),
+                d.scan.energy().first().copied().unwrap_or(0.0),
+                d.scan.energy().last().copied().unwrap_or(0.0),
+                d.signal.map_or("no signal", |signal| signal.label()),
+                d.issues()
+                    .last()
+                    .map(|issue| format!(" · {issue}"))
+                    .unwrap_or_default()
             ),
             Dataset::Xps(d) => format!(
                 "{} locations · {} regions",
@@ -269,6 +301,7 @@ impl Dataset {
             Dataset::MassSpec(_) => None,
             Dataset::Xrd(_) => None,
             Dataset::Xps(_) => None,
+            Dataset::Xas(_) => None,
         }
     }
 
@@ -282,6 +315,7 @@ impl Dataset {
             Dataset::MassSpec(_) => None,
             Dataset::Xrd(_) => None,
             Dataset::Xps(_) => None,
+            Dataset::Xas(_) => None,
         }
     }
 
@@ -296,6 +330,7 @@ impl Dataset {
             Dataset::MassSpec(_) => &[],
             Dataset::Xrd(_) => &[],
             Dataset::Xps(_) => &[],
+            Dataset::Xas(_) => &[],
         }
     }
 
@@ -309,6 +344,7 @@ impl Dataset {
             Dataset::MassSpec(_) => None,
             Dataset::Xrd(_) => None,
             Dataset::Xps(_) => None,
+            Dataset::Xas(_) => None,
         }
     }
 
@@ -322,6 +358,7 @@ impl Dataset {
             Dataset::MassSpec(_) => None,
             Dataset::Xrd(_) => None,
             Dataset::Xps(_) => None,
+            Dataset::Xas(_) => None,
         }
     }
 
@@ -371,6 +408,7 @@ impl Dataset {
             | Dataset::MassSpec(_)
             | Dataset::Xrd(_) => false,
             Dataset::Xps(_) => false,
+            Dataset::Xas(_) => false,
         }
     }
 
@@ -443,6 +481,7 @@ impl Dataset {
             Dataset::MassSpec(_) => &[ToolGroup::MassSpectrometry],
             Dataset::Xrd(_) => &[ToolGroup::Processing],
             Dataset::Xps(_) => &[ToolGroup::Xps],
+            Dataset::Xas(_) => &[],
         }
     }
 
@@ -460,6 +499,7 @@ impl Dataset {
             Dataset::MassSpec(_) => &[],
             Dataset::Xrd(_) => &[],
             Dataset::Xps(_) => &[],
+            Dataset::Xas(_) => &[],
         }
     }
 

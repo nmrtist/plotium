@@ -5,16 +5,18 @@
 mod autobk;
 mod fourier;
 mod normalize;
+mod reduction;
 mod spline;
 
 pub use autobk::{Autobk, AutobkParams, autobk};
 pub use fourier::{ChiR, XafsWindow, XftfParams, ft_window, xftf};
 pub use normalize::{PreEdge, PreEdgeParams, find_e0, pre_edge};
+pub use reduction::{Exafs, XasProcessing, XasReduction, reduce};
 
 /// hbar^2 / (2 m_e) in eV Å^2, the CODATA value Larch uses.
 const KTOE: f64 = 3.809_982_110_968_584_7;
 const ETOK: f64 = 1.0 / KTOE;
-/// Smallest energy step Larch tolerates before spreading out repeated points.
+/// Rows closer than this repeat the same energy.
 const TINY_ENERGY: f64 = 0.0005;
 const MAX_NFFT: usize = 1 << 20;
 
@@ -74,8 +76,9 @@ fn same_length(left: &[f64], right: &[f64]) -> Result<(), XasError> {
     }
 }
 
-/// Drops non-finite rows, sorts by energy, and separates repeated energies so
-/// later steps can rely on a strictly increasing axis.
+/// Drops non-finite rows, sorts by energy, and keeps the first row of each
+/// repeated energy so later steps can rely on a strictly increasing axis. Spreading
+/// repeats apart instead would turn their noise into a steep false slope.
 pub fn prepare_spectrum(energy: &[f64], mu: &[f64]) -> Result<(Vec<f64>, Vec<f64>), XasError> {
     same_length(energy, mu)?;
     let mut rows: Vec<(f64, f64)> = energy
@@ -85,17 +88,15 @@ pub fn prepare_spectrum(energy: &[f64], mu: &[f64]) -> Result<(Vec<f64>, Vec<f64
         .filter(|(energy, mu)| energy.is_finite() && mu.is_finite())
         .collect();
     rows.sort_by(|left, right| left.0.total_cmp(&right.0));
-    let (mut energy, mu): (Vec<f64>, Vec<f64>) = rows.into_iter().unzip();
-    separate_repeats(&mut energy);
-    Ok((energy, mu))
-}
-
-fn separate_repeats(energy: &mut [f64]) {
-    let mut placed = f64::NEG_INFINITY;
-    for value in energy.iter_mut() {
-        placed = value.max(placed + TINY_ENERGY);
-        *value = placed;
-    }
+    let mut last = f64::NEG_INFINITY;
+    rows.retain(|(energy, _)| {
+        let distinct = energy - last >= TINY_ENERGY;
+        if distinct {
+            last = *energy;
+        }
+        distinct
+    });
+    Ok(rows.into_iter().unzip())
 }
 
 /// The checks `prepare_spectrum` output passes, for the steps that need them.

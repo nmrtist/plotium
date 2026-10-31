@@ -470,6 +470,7 @@ impl super::Dataset {
                 fields
             }
             Self::Xrd(dataset) => dataset.field_descriptors(),
+            Self::Xas(dataset) => dataset.field_descriptors(),
             Self::Xps(dataset) => dataset
                 .experiment
                 .regions
@@ -611,6 +612,12 @@ impl super::Dataset {
                 | SeriesEncoding::Image(_) => None,
             },
             Self::Xrd(dataset) => dataset.encoded_field_figure(encoding),
+            Self::Xas(dataset) => match encoding {
+                SeriesEncoding::Line(_) => dataset.field_figure(id),
+                SeriesEncoding::Contour(_)
+                | SeriesEncoding::Heatmap(_)
+                | SeriesEncoding::Image(_) => None,
+            },
             Self::Xps(dataset) => match encoding {
                 SeriesEncoding::Line(_) => dataset.field_figure(id),
                 SeriesEncoding::Contour(_)
@@ -637,6 +644,7 @@ impl super::Dataset {
             | Self::Electrophysiology(_)
             | Self::MassSpec(_)
             | Self::Xrd(_)
+            | Self::Xas(_)
             | Self::Xps(_) => None,
         }
     }
@@ -660,6 +668,7 @@ impl super::Dataset {
             Self::MassSpec(dataset) => &dataset.field_catalog,
             Self::Xrd(dataset) => &dataset.field_catalog,
             Self::Xps(dataset) => &dataset.field_catalog,
+            Self::Xas(dataset) => &dataset.field_catalog,
         }
     }
 
@@ -696,6 +705,7 @@ impl super::Dataset {
                 .collect(),
             Self::MassSpec(dataset) => mass_spec_dataset_field_keys(dataset),
             Self::Xrd(_) => vec!["xrd.intensity".to_owned()],
+            Self::Xas(_) => super::XAS_FIELD_KEYS.map(str::to_owned).to_vec(),
             Self::Xps(dataset) => dataset
                 .experiment
                 .regions

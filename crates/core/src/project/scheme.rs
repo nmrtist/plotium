@@ -267,6 +267,9 @@ pub fn apply_scheme(
         Dataset::MassSpec(_) => Err(incompatible(
             "the imported data has no Plotium LC–MS processing pipeline",
         )),
+        Dataset::Xas(_) => Err(incompatible(
+            "processing schemes do not apply to XAS spectra yet",
+        )),
         Dataset::Xrd(_) => {
             let processing = scheme
                 .xrd
@@ -352,6 +355,7 @@ pub fn reset_processing(dataset: &Dataset) -> Option<DatasetProcessingState> {
             plotium_processing::xrd::XrdProcessing::default(),
         )),
         Dataset::Xps(_) => None,
+        Dataset::Xas(_) => None,
     }?;
     let mut next = dataset_next_step_id(dataset);
     match &mut state {
@@ -402,6 +406,7 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
         Dataset::Electrophysiology(_) => None,
         Dataset::Afm(_) => None,
         Dataset::MassSpec(_) => None,
+        Dataset::Xas(_) => None,
         Dataset::Xrd(xrd) => Some(ProcessingScheme {
             schema_version: SCHEME_VERSION,
             dimension_count: 1,

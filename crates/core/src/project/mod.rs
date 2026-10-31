@@ -50,6 +50,7 @@ mod pipeline_conv;
 mod scheme;
 mod templates;
 mod typed_table;
+mod xas_convert;
 mod xps_convert;
 mod xrd_convert;
 
@@ -75,6 +76,7 @@ const STORAGE_AFM_V1: &str = "plotium_afm_v1";
 const STORAGE_DOSY_V1: &str = "plotium_dosy_v1";
 const STORAGE_MASS_SPEC_V1: &str = "plotium_mass_spec_v1";
 const STORAGE_XRD_V1: &str = "plotium_xrd_v1";
+const STORAGE_XAS_V1: &str = "plotium_xas_v1";
 const STORAGE_XPS: &str = "plotium_xps";
 const SNAPSHOT_KIND: &str = "editable_figure_v1";
 

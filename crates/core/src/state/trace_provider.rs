@@ -14,6 +14,7 @@ impl Dataset {
             Self::MassSpec(data) => data.field_catalog.trace_collection(field),
             Self::Xrd(data) => data.field_catalog.trace_collection(field),
             Self::Xps(data) => data.field_catalog.trace_collection(field),
+            Self::Xas(data) => data.field_catalog.trace_collection(field),
         }
     }
 

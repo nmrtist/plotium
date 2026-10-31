@@ -62,7 +62,8 @@ fn surface_shape(dataset: &Dataset) -> Option<SurfaceShape> {
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
-        | Dataset::Xrd(_) => return None,
+        | Dataset::Xrd(_)
+        | Dataset::Xas(_) => return None,
         Dataset::Xps(_) => return None,
     };
     let axes = dataset

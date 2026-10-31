@@ -164,6 +164,12 @@ impl super::Dataset {
                     ),
                 })
             }),
+            Self::Xas(dataset) => dataset.field_values(id).map(|(x, y)| {
+                FieldPayload::Curve1D(Curve1D {
+                    x: Arc::from(x),
+                    values: Arc::from(y.iter().map(|value| *value as f32).collect::<Vec<_>>()),
+                })
+            }),
             Self::Xrd(dataset) => (dataset.field_id() == Some(id)).then(|| {
                 FieldPayload::Curve1D(Curve1D {
                     x: Arc::from(dataset.data.two_theta_deg.clone()),
@@ -236,6 +242,9 @@ impl super::Dataset {
             Self::Xps(dataset) => dataset
                 .region_for_field(id)
                 .map(|_| FieldRepresentation::Curve1D),
+            Self::Xas(dataset) => dataset
+                .field_values(id)
+                .map(|_| FieldRepresentation::Curve1D),
         }
     }
 
@@ -294,6 +303,7 @@ impl super::Dataset {
                         }),
                     ),
                     Self::Xps(dataset) => (dataset.experiment.source.as_str(), None),
+                    Self::Xas(dataset) => (dataset.scan.source.as_str(), None),
                 };
                 FieldCatalog::make_provenance(source, id, algorithm)
             })

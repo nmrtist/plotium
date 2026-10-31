@@ -542,6 +542,7 @@ impl PlotiumApp {
                     crate::automation::CAP_FIELD_MASS_CHROMATOGRAM,
                     crate::automation::CAP_FIELD_MASS_SPECTRUM,
                     crate::automation::CAP_FIELD_XPS_SPECTRUM,
+                    crate::automation::CAP_FIELD_XAS_SPECTRUM,
                 ]
                 .iter()
                 .any(|capability| field.capabilities.contains(capability))

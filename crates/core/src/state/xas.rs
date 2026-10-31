@@ -1,0 +1,401 @@
+use super::{
+    DatasetId, DatasetLineage, FieldCapabilities, FieldCatalog, FieldDescriptor, FieldId,
+    FieldMetadata,
+};
+use crate::automation::{CAP_FIELD_CURVE_1D, CAP_FIELD_XAS_SPECTRUM, CapabilityId};
+use crate::state::scientific_summary::SummaryPart;
+use plotium_figure::{Axis, Figure, Series};
+use plotium_io::xas::{XasColumnId, XasScan};
+use plotium_processing::xas::{
+    self as processing, XasError, XasProcessing, XasReduction, fluorescence_mu, reduce,
+    reference_mu, transmission_mu,
+};
+use std::collections::BTreeMap;
+
+const MU: &str = "xas.mu";
+const NORM: &str = "xas.norm";
+const FLAT: &str = "xas.flat";
+const CHI_K: &str = "xas.chik";
+const CHI_R: &str = "xas.chir";
+const REFERENCE: &str = "xas.reference";
+pub(super) const XAS_FIELD_KEYS: [&str; 6] = [NORM, MU, FLAT, CHI_K, CHI_R, REFERENCE];
+
+/// A transmission edge step below this is too weak to measure the sample, so a
+/// file that also records another signal was measured in that signal.
+const MIN_TRANSMISSION_STEP: f64 = 0.1;
+/// Energies from here on read better in full than with a ×10⁴ multiplier.
+const THOUSANDS_FROM: f64 = 10_000.0;
+/// Bonds sit inside this range; the transform itself runs further.
+const DEFAULT_R_MAX: f64 = 6.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum XasSignal {
+    Transmission {
+        i0: XasColumnId,
+        transmitted: XasColumnId,
+    },
+    Fluorescence {
+        signal: XasColumnId,
+        i0: XasColumnId,
+    },
+    Absorption {
+        column: XasColumnId,
+    },
+}
+
+impl XasSignal {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Transmission { .. } => "transmission",
+            Self::Fluorescence { .. } => "fluorescence",
+            Self::Absorption { .. } => "absorption",
+        }
+    }
+}
+
+fn missing_column() -> XasError {
+    XasError::InvalidParameter("the signal names a column the scan does not have".into())
+}
+
+pub fn signal_mu(scan: &XasScan, signal: XasSignal) -> Result<Vec<f64>, XasError> {
+    let column = |id| scan.column(id).ok_or_else(missing_column);
+    match signal {
+        XasSignal::Transmission { i0, transmitted } => {
+            transmission_mu(column(i0)?, column(transmitted)?)
+        }
+        XasSignal::Fluorescence { signal, i0 } => fluorescence_mu(column(signal)?, column(i0)?),
+        XasSignal::Absorption { column: id } => column(id).map(<[f64]>::to_vec),
+    }
+}
+
+/// The channel a scan was most likely measured in. `None` when the file names
+/// no measured signal, which the dataset reports instead of guessing a column.
+pub fn default_signal(scan: &XasScan) -> Option<XasSignal> {
+    let channels = &scan.channels;
+    let transmission = channels
+        .i0
+        .zip(channels.transmission)
+        .map(|(i0, transmitted)| XasSignal::Transmission { i0, transmitted });
+    let fluorescence = channels
+        .i0
+        .zip(channels.fluorescence.first().copied())
+        .map(|(i0, signal)| XasSignal::Fluorescence { signal, i0 });
+    let absorption = channels.mu.map(|column| XasSignal::Absorption { column });
+    match (transmission, fluorescence.or(absorption)) {
+        (Some(transmission), Some(other)) => {
+            Some(if edge_step(scan, transmission) < MIN_TRANSMISSION_STEP {
+                other
+            } else {
+                transmission
+            })
+        }
+        (transmission, other) => transmission.or(other),
+    }
+}
+
+fn edge_step(scan: &XasScan, signal: XasSignal) -> f64 {
+    signal_mu(scan, signal)
+        .and_then(|mu| {
+            let (energy, mu) = processing::prepare_spectrum(scan.energy(), &mu)?;
+            processing::pre_edge(&energy, &mu, &Default::default())
+        })
+        .map_or(0.0, |edge| edge.edge_step)
+}
+
+#[derive(Clone)]
+pub struct XasDataset {
+    pub resource_id: DatasetId,
+    pub field_catalog: FieldCatalog,
+    pub acquisition_identity: plotium_io::AcquisitionIdentity,
+    pub scan: XasScan,
+    pub signal: Option<XasSignal>,
+    pub params: XasProcessing,
+    pub processed: XasReduction,
+    pub reference: Option<XasReduction>,
+    pub name: Option<String>,
+    pub lineage: Option<DatasetLineage>,
+}
+
+impl XasDataset {
+    pub fn load(scan: XasScan) -> Self {
+        let acquisition_identity =
+            plotium_io::AcquisitionIdentity::from_path(std::path::Path::new(&scan.source));
+        let signal = default_signal(&scan);
+        let params = XasProcessing::default();
+        let mut field_catalog = FieldCatalog::for_keys(XAS_FIELD_KEYS.map(str::to_owned));
+        field_catalog.attach_provenance(&scan.source, None);
+        let (processed, reference) = run(&scan, signal, &params);
+        Self {
+            resource_id: DatasetId::new(),
+            field_catalog,
+            acquisition_identity,
+            scan,
+            signal,
+            params,
+            processed,
+            reference,
+            name: None,
+            lineage: None,
+        }
+    }
+
+    pub fn apply_processing(&mut self, signal: Option<XasSignal>, params: XasProcessing) {
+        (self.processed, self.reference) = run(&self.scan, signal, &params);
+        self.signal = signal;
+        self.params = params;
+    }
+
+    pub fn rebuild(&mut self) {
+        self.apply_processing(self.signal, self.params);
+    }
+
+    /// Why a stage produced nothing, for the status line and diagnostics.
+    pub fn issues(&self) -> &[String] {
+        &self.processed.issues
+    }
+
+    pub fn has_spectrum(&self) -> bool {
+        !self.processed.mu.is_empty()
+    }
+
+    pub fn field_id(&self, key: &str) -> Option<FieldId> {
+        self.field_catalog.id_for_key(key)
+    }
+
+    /// The field's curve and labels, when that stage has data.
+    fn curve(&self, id: FieldId) -> Option<Curve<'_>> {
+        let key = self.field_catalog.key_for_id(id)?;
+        let reduction = &self.processed;
+        let edge = reduction.edge.as_ref();
+        let exafs = reduction.exafs.as_ref();
+        let weight = self.params.transform.kweight;
+        let energy = || &reduction.energy;
+        Some(match key {
+            MU if !reduction.mu.is_empty() => Curve {
+                key,
+                name: "μ(E)",
+                x: energy(),
+                y: &reduction.mu,
+                x_label: "Energy (eV)".into(),
+                y_label: "μ(E)".into(),
+                x_unit: "eV",
+                y_unit: "a.u.".into(),
+            },
+            NORM => Curve {
+                key,
+                name: "Normalized μ(E)",
+                x: energy(),
+                y: &edge?.norm,
+                x_label: "Energy (eV)".into(),
+                y_label: "Normalized μ(E)".into(),
+                x_unit: "eV",
+                y_unit: "a.u.".into(),
+            },
+            FLAT => Curve {
+                key,
+                name: "Flattened μ(E)",
+                x: energy(),
+                y: &edge?.flat,
+                x_label: "Energy (eV)".into(),
+                y_label: "Flattened μ(E)".into(),
+                x_unit: "eV",
+                y_unit: "a.u.".into(),
+            },
+            CHI_K => Curve {
+                key,
+                name: "χ(k)",
+                x: &exafs?.k,
+                y: &exafs?.chi_weighted,
+                x_label: "k (Å⁻¹)".into(),
+                y_label: weighted_label(weight),
+                x_unit: "Å⁻¹",
+                y_unit: "a.u.".into(),
+            },
+            CHI_R => Curve {
+                key,
+                name: "|χ(R)|",
+                x: &exafs?.r,
+                y: &exafs?.chi_r_magnitude,
+                x_label: "R (Å)".into(),
+                y_label: format!("|χ(R)| (Å{})", superscript(-(weight + 1))),
+                x_unit: "Å",
+                y_unit: "a.u.".into(),
+            },
+            REFERENCE => {
+                let reference = self.reference.as_ref()?;
+                Curve {
+                    key,
+                    name: "Reference μ(E)",
+                    x: &reference.energy,
+                    y: &reference.mu,
+                    x_label: "Energy (eV)".into(),
+                    y_label: "Reference μ(E)".into(),
+                    x_unit: "eV",
+                    y_unit: "a.u.".into(),
+                }
+            }
+            _ => return None,
+        })
+    }
+
+    pub(super) fn field_values(&self, id: FieldId) -> Option<(&[f64], &[f64])> {
+        self.curve(id).map(|curve| (curve.x, curve.y))
+    }
+
+    /// The values of the field shown by default.
+    pub fn default_values(&self) -> &[f64] {
+        self.default_trace().map_or(&[], |(_, values)| values)
+    }
+
+    pub(super) fn default_trace(&self) -> Option<(&[f64], &[f64])> {
+        self.field_descriptors()
+            .first()
+            .and_then(|field| self.field_values(field.id))
+    }
+
+    pub fn figure(&self) -> Option<Figure> {
+        self.field_descriptors()
+            .first()
+            .and_then(|field| self.field_figure(field.id))
+    }
+
+    pub(super) fn field_figure(&self, id: FieldId) -> Option<Figure> {
+        let curve = self.curve(id)?;
+        let (x0, x1) = if curve.key == CHI_R {
+            (0.0, DEFAULT_R_MAX)
+        } else {
+            bounds(curve.x)
+        };
+        let (y0, y1) = bounds(curve.y);
+        let mut x_axis = Axis::new(curve.x_label, x0, x1);
+        x_axis.thousands_separator = x1 >= THOUSANDS_FROM;
+        Some(
+            Figure::new("", x_axis, Axis::new(curve.y_label, y0, y1)).with_series(Series::line(
+                curve.name,
+                curve.x.iter().zip(curve.y).map(|(&x, &y)| [x, y]).collect(),
+            )),
+        )
+    }
+
+    pub(crate) fn field_descriptors(&self) -> Vec<FieldDescriptor> {
+        XAS_FIELD_KEYS
+            .iter()
+            .filter_map(|key| {
+                let id = self.field_id(key)?;
+                let curve = self.curve(id)?;
+                let descriptor = FieldDescriptor {
+                    id,
+                    local_id: curve.key.to_owned(),
+                    name: curve.name.to_owned(),
+                    scientific_observation: SummaryPart::new(
+                        format!("xas:{}", curve.key),
+                        format!("XAS {}", curve.name),
+                    ),
+                    capabilities: FieldCapabilities::new([
+                        CapabilityId::new(CAP_FIELD_CURVE_1D),
+                        CapabilityId::new(CAP_FIELD_XAS_SPECTRUM),
+                    ]),
+                    dimensions: vec![curve.x.len()],
+                    units: vec![curve.x_unit.to_owned(), curve.y_unit],
+                    metadata: FieldMetadata(BTreeMap::from([(
+                        "recommended_encoding".to_owned(),
+                        "line".to_owned(),
+                    )])),
+                };
+                Some(descriptor.with_line_x_unit(curve.x_unit))
+            })
+            .collect()
+    }
+}
+
+struct Curve<'a> {
+    key: &'a str,
+    name: &'static str,
+    x: &'a [f64],
+    y: &'a [f64],
+    x_label: String,
+    y_label: String,
+    x_unit: &'static str,
+    y_unit: String,
+}
+
+/// χ(k) is dimensionless, so its k weight sets the unit.
+fn weighted_label(weight: i32) -> String {
+    match weight {
+        0 => "χ(k)".to_owned(),
+        1 => "kχ(k) (Å⁻¹)".to_owned(),
+        weight => format!("k{}χ(k) (Å{})", superscript(weight), superscript(-weight)),
+    }
+}
+
+fn superscript(value: i32) -> String {
+    const DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    let digits = value.unsigned_abs().to_string();
+    let sign = (value < 0).then_some('⁻');
+    sign.into_iter()
+        .chain(
+            digits
+                .bytes()
+                .map(|digit| DIGITS[usize::from(digit - b'0')]),
+        )
+        .collect()
+}
+
+fn run(
+    scan: &XasScan,
+    signal: Option<XasSignal>,
+    params: &XasProcessing,
+) -> (XasReduction, Option<XasReduction>) {
+    let shown = signal.map_or_else(
+        || {
+            Err(XasError::InvalidParameter(
+                "the scan has no signal column".into(),
+            ))
+        },
+        |signal| signal_mu(scan, signal),
+    );
+    let processed = shown
+        .and_then(|mu| reduce(scan.energy(), &mu, params))
+        .unwrap_or_else(unprocessed);
+    let reference = scan
+        .channels
+        .transmission
+        .zip(scan.channels.reference)
+        .and_then(|(transmitted, reference)| {
+            let mu = reference_mu(scan.column(transmitted)?, scan.column(reference)?).ok()?;
+            let (energy, mu) = processing::prepare_spectrum(scan.energy(), &mu).ok()?;
+            let energy = energy.iter().map(|e| e + params.energy_shift).collect();
+            Some(XasReduction {
+                energy,
+                mu,
+                edge: None,
+                exafs: None,
+                issues: Vec::new(),
+            })
+        });
+    (processed, reference)
+}
+
+fn unprocessed(error: XasError) -> XasReduction {
+    XasReduction {
+        energy: Vec::new(),
+        mu: Vec::new(),
+        edge: None,
+        exafs: None,
+        issues: vec![error.to_string()],
+    }
+}
+
+fn bounds(values: &[f64]) -> (f64, f64) {
+    let low = values.iter().copied().fold(f64::INFINITY, f64::min);
+    let high = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if low.is_finite() && high.is_finite() && low < high {
+        (low, high)
+    } else {
+        (0.0, 1.0)
+    }
+}
+
+#[cfg(test)]
+#[path = "xas_tests.rs"]
+mod tests;

@@ -259,6 +259,15 @@ fn provider_summary(
                 }),
         },
         Dataset::Xps(data) => xps_summary(data, field, subject),
+        Dataset::Xas(data) => ScientificSummary {
+            subject,
+            observation: field.scientific_observation.clone(),
+            context: data.scan.element.as_ref().map(|element| {
+                let edge = data.scan.edge.as_deref().unwrap_or_default();
+                let text = format!("{element} {edge}");
+                SummaryPart::new(format!("xas:edge:{text}"), text.trim_end().to_owned())
+            }),
+        },
     };
     if let Some(item_context) = trace_item_context(dataset, field, series) {
         summary.context = merge_context(summary.context, item_context);
