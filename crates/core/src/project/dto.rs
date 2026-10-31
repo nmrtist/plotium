@@ -6,6 +6,9 @@ pub use dto_series_source::SeriesSourceDto;
 #[path = "dto_panel.rs"]
 mod dto_panel;
 pub use dto_panel::*;
+#[path = "dto_stack.rs"]
+mod dto_stack;
+pub use dto_stack::StackDto;
 
 #[derive(Serialize, Deserialize)]
 pub struct Manifest {
@@ -455,47 +458,6 @@ fn bool_true() -> bool {
 
 fn is_true(v: &bool) -> bool {
     *v
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct StackDto {
-    pub mode: String,
-    pub spacing_y: f64,
-    pub shear_x: f64,
-    pub normalize: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub active: Option<usize>,
-}
-
-impl StackDto {
-    pub fn from_spec(s: &StackSpec) -> Self {
-        Self {
-            mode: match s.mode {
-                StackMode::Superimposed => "superimposed",
-                StackMode::Offset => "offset",
-                StackMode::ColorOverlay => "color_overlay",
-            }
-            .to_owned(),
-            spacing_y: s.spacing_y,
-            shear_x: s.shear_x,
-            normalize: s.normalize,
-            active: s.active,
-        }
-    }
-
-    pub fn into_spec(self) -> StackSpec {
-        StackSpec {
-            mode: match self.mode.as_str() {
-                "offset" => StackMode::Offset,
-                "color_overlay" => StackMode::ColorOverlay,
-                _ => StackMode::Superimposed,
-            },
-            spacing_y: self.spacing_y,
-            shear_x: self.shear_x,
-            normalize: self.normalize,
-            active: self.active,
-        }
-    }
 }
 
 /// An `Attached` source persists the referenced dataset as a recipe id (the same

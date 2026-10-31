@@ -12,7 +12,10 @@ pub(crate) struct SequenceAxis {
 /// without such a number, or numbers that repeat or turn back, are not a
 /// sequence.
 pub(crate) fn sequence_axis<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<SequenceAxis> {
-    let names: Vec<&str> = names.into_iter().map(str::trim).collect();
+    let names: Vec<&str> = names
+        .into_iter()
+        .map(|name| without_extension(name.trim()))
+        .collect();
     if names.len() < 2 {
         return None;
     }
@@ -46,19 +49,37 @@ pub(crate) fn is_strictly_monotonic(values: &[f64]) -> bool {
             || values.windows(2).all(|pair| pair[0] > pair[1]))
 }
 
-/// Longest shared lead-in that stops before the number. A trailing sign or
-/// decimal point belongs to the number unless it follows a name, as in `scan-1`
-/// or `Fig.2`.
+/// A trace named after its file reads without the extension.
+fn without_extension(name: &str) -> &str {
+    match name.rsplit_once('.') {
+        Some((stem, extension))
+            if extension.starts_with(char::is_alphabetic)
+                && extension.chars().all(char::is_alphanumeric) =>
+        {
+            stem
+        }
+        _ => name,
+    }
+}
+
+/// Longest shared lead-in that stops before the number, which starts where the
+/// shared text's last digits do. A sign or decimal point belongs to the number
+/// unless it follows a name, as in `scan-1` or `Fig.2`.
 fn number_prefix<'a>(names: &[&'a str]) -> &'a str {
     let first = names[0];
     let mut end = 0;
     for (index, ch) in first.char_indices() {
-        if ch.is_ascii_digit() || names.iter().any(|name| !name[index..].starts_with(ch)) {
+        if names.iter().any(|name| !name[index..].starts_with(ch)) {
             break;
         }
         end = index + ch.len_utf8();
     }
-    let mut prefix = &first[..end];
+    let mut prefix = first[..end].trim_end_matches(|ch: char| ch.is_ascii_digit());
+    while let Some(head) = prefix.strip_suffix('.')
+        && head.ends_with(|ch: char| ch.is_ascii_digit())
+    {
+        prefix = head.trim_end_matches(|ch: char| ch.is_ascii_digit());
+    }
     for marks in [&['.'][..], &['+', '-', '\u{2212}'][..]] {
         if let Some(head) = prefix.strip_suffix(marks)
             && !head.ends_with(char::is_alphanumeric)
@@ -69,13 +90,12 @@ fn number_prefix<'a>(names: &[&'a str]) -> &'a str {
     prefix
 }
 
-/// Longest shared tail after `start` that holds no digit.
+/// Longest shared tail after `start`, up to the number's last digit.
 fn number_suffix<'a>(names: &[&'a str], start: usize) -> &'a str {
     let first = names[0];
     let mut begin = first.len();
     for (index, ch) in first.char_indices().rev() {
         if index < start
-            || ch.is_ascii_digit()
             || names.iter().any(|name| {
                 let Some(position) = name.len().checked_sub(first.len() - index) else {
                     return true;
@@ -90,7 +110,7 @@ fn number_suffix<'a>(names: &[&'a str], start: usize) -> &'a str {
         }
         begin = index;
     }
-    &first[begin..]
+    first[begin..].trim_start_matches(|ch: char| ch.is_ascii_digit())
 }
 
 fn sequence_label(prefix: &str, suffix: &str) -> String {
@@ -171,6 +191,34 @@ mod tests {
             Some((vec![1.0, 2.0, 10.0], "Fig".to_owned()))
         );
         assert_eq!(read(&["E-0.2 V", "E-0.1 V"]), None);
+    }
+
+    #[test]
+    fn looks_past_digits_in_the_shared_text() {
+        assert_eq!(
+            read(&["Fe2O3 300 K", "Fe2O3 350 K"]),
+            Some((vec![300.0, 350.0], "Fe2O3 (K)".to_owned()))
+        );
+        assert_eq!(
+            read(&["run3_10min", "run3_20min"]),
+            Some((vec![10.0, 20.0], "run3 (min)".to_owned()))
+        );
+        assert_eq!(
+            read(&["100 cm-1", "200 cm-1"]),
+            Some((vec![100.0, 200.0], "cm-1".to_owned()))
+        );
+        assert_eq!(
+            read(&["1.5 h", "1.75 h"]),
+            Some((vec![1.5, 1.75], "Time (h)".to_owned()))
+        );
+    }
+
+    #[test]
+    fn ignores_file_extensions() {
+        assert_eq!(
+            read(&["scan_300K.csv", "scan_350K.csv"]),
+            Some((vec![300.0, 350.0], "scan (K)".to_owned()))
+        );
     }
 
     #[test]

@@ -152,8 +152,12 @@ impl PropertyProvider for DisplayProvider {
         // Explicit column curves own their kind; native field renderers own it
         // otherwise. The default LineEncoding does not turn scatter/sticks into
         // lines, and applicability must describe that same native geometry.
+        let table_stack = plot.stack.mode == crate::state::StackMode::Offset
+            && app.stacks_table_columns(&plot.binding, &plot.chart);
         let kind = if sb.source.columns().is_some() {
             line.kind
+        } else if table_stack {
+            plotium_figure::SeriesKind::Line
         } else {
             c.dataset
                 .field_descriptor(c.field)

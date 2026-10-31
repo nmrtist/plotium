@@ -402,7 +402,7 @@ fn write_figure(
         );
     }
     write_error_bars(s, fig, &proj, false);
-    for (index, series) in fig.series.iter().enumerate() {
+    for (index, series) in fig.series_in_paint_order() {
         curves::write(s, &proj, series, index, lod.as_deref_mut());
     }
     write_error_bars(s, fig, &proj, true);

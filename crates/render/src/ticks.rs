@@ -89,10 +89,11 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
 
     let initial_x = axis_ticks_for(&fig.x, MAX_X_TARGET);
     let initial_y = axis_ticks_for(&fig.y, MAX_Y_TARGET);
-    let initial_y2 = fig
-        .y2
-        .as_ref()
-        .map_or_else(AxisTicks::empty, |axis| axis_ticks_for(axis, MAX_Y_TARGET));
+    let initial_y2 = match (&fig.sequence_scale, &fig.y2) {
+        (Some(_), _) => right_ticks(fig, f32::INFINITY),
+        (None, Some(axis)) => axis_ticks_for(axis, MAX_Y_TARGET),
+        (None, None) => AxisTicks::empty(),
+    };
     // Categorical thinning can select a different subset at a lower target.
     // Size the first pass for every visible category so no second-pass label
     // can make the final margins grow and invalidate the fit checks below.
@@ -117,9 +118,7 @@ pub fn axis_layout(fig: &Figure, outer_width: f32, outer_height: f32) -> AxisLay
 
     let x_ticks = adaptive_x_ticks(fig, plot.width, gap, initial_widths.x);
     let y_ticks = adaptive_y_ticks(&fig.y, fig.typography.tick_pt, plot.height);
-    let y2_ticks = fig.y2.as_ref().map_or_else(AxisTicks::empty, |axis| {
-        adaptive_y_ticks(axis, fig.typography.tick_pt, plot.height)
-    });
+    let y2_ticks = right_ticks(fig, plot.height);
     let margins = margins_for_ticks(
         fig,
         &x_ticks,
@@ -162,6 +161,41 @@ fn adaptive_x_ticks(fig: &Figure, plot_width: f32, gap: f32, widest: f32) -> Axi
         }
     }
     AxisTicks::empty()
+}
+
+/// Ticks of the right side: the right axis, or as many sequence labels as fit,
+/// taken at even trace intervals from the first visible trace.
+pub(crate) fn right_ticks(fig: &Figure, plot_height: f32) -> AxisTicks {
+    let tick_pt = fig.typography.tick_pt;
+    let Some(scale) = &fig.sequence_scale else {
+        return fig.y2.as_ref().map_or_else(AxisTicks::empty, |axis| {
+            adaptive_y_ticks(axis, tick_pt, plot_height)
+        });
+    };
+    let (low, high) = (fig.y.min.min(fig.y.max), fig.y.min.max(fig.y.max));
+    let visible: Vec<_> = scale
+        .ticks
+        .iter()
+        .filter(|(y, _)| (low..=high).contains(y) && !fig.y.hides(*y))
+        .collect();
+    let (Some(first), Some(last)) = (visible.first(), visible.last()) else {
+        return AxisTicks::empty();
+    };
+    // Traces may fill only part of the plot, so space labels along their own run.
+    let run = (fig.y.normalize(last.0) - fig.y.normalize(first.0)).abs() as f32 * plot_height;
+    let pitch = run / visible.len().saturating_sub(1).max(1) as f32;
+    let stride = (tick_pt * Y_TICK_SPACING_FACTOR / pitch).ceil();
+    let stride = if stride.is_finite() {
+        (stride as usize).max(1)
+    } else {
+        visible.len()
+    };
+    let mut ticks = AxisTicks::empty();
+    for (y, label) in visible.into_iter().step_by(stride) {
+        ticks.values.push(*y);
+        ticks.labels.push(label.clone());
+    }
+    ticks
 }
 
 pub(crate) fn adaptive_y_ticks(axis: &Axis, tick_pt: f32, plot_height: f32) -> AxisTicks {

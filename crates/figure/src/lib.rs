@@ -13,8 +13,12 @@ mod display;
 pub use axis_scale::AxisScale;
 mod encoding;
 mod error_bar;
+mod heatmap;
+mod sequence_scale;
 mod text_anchor;
 pub use error_bar::ErrorBar;
+pub use heatmap::HeatmapGrid;
+pub use sequence_scale::SequenceScale;
 pub use text_anchor::TextAnchor;
 mod polygon;
 pub use polygon::Polygon;
@@ -336,6 +340,9 @@ pub struct SeriesOrigin(pub u64);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Series {
+    /// Fill down to `display_baseline` in the background, hiding traces behind.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub occludes: bool,
     /// Original display coordinates while gain is active; shared by figure clones.
     #[serde(skip)]
     pub(crate) unamplified_y: Option<std::sync::Arc<Vec<f64>>>,
@@ -388,6 +395,7 @@ pub enum SeriesKind {
 impl Series {
     pub fn line(name: impl Into<String>, points: Vec<[f64; 2]>) -> Self {
         Self {
+            occludes: false,
             unamplified_y: None,
             display_baseline: 0.0,
             origin: None,
@@ -402,6 +410,7 @@ impl Series {
 
     pub fn points(name: impl Into<String>, points: Vec<[f64; 2]>) -> Self {
         Self {
+            occludes: false,
             unamplified_y: None,
             display_baseline: 0.0,
             origin: None,
@@ -416,6 +425,7 @@ impl Series {
 
     pub fn sticks(name: impl Into<String>, points: Vec<[f64; 2]>) -> Self {
         Self {
+            occludes: false,
             unamplified_y: None,
             display_baseline: 0.0,
             origin: None,
@@ -516,67 +526,6 @@ pub struct AxisTrace {
     pub width: f32,
 }
 
-/// A dense value grid rendered as filled cells through a colormap. Unlike
-/// [`Contour`] — which keeps only extracted line segments — the raw matrix is
-/// retained so renderers can fill every cell.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct HeatmapGrid {
-    pub rows: usize,
-    pub cols: usize,
-    /// Row-major `rows × cols` values (the [`crate::Contour`]/marching-squares
-    /// convention). Non-finite cells are skipped (drawn as background).
-    pub values: Vec<f32>,
-    /// Data-space x of the leftmost and rightmost cell edges; columns divide
-    /// this span evenly.
-    pub x_bounds: [f64; 2],
-    /// Data-space y of the row-0 edge and the last-row edge; rows divide this
-    /// span evenly.
-    pub y_bounds: [f64; 2],
-    /// `cols + 1` x cell boundaries for unevenly spaced columns, replacing the
-    /// even division of `x_bounds`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub x_edges: Option<Vec<f64>>,
-    /// `rows + 1` y cell boundaries for unevenly spaced rows.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub y_edges: Option<Vec<f64>>,
-    pub colormap: ColormapId,
-    /// Value range mapped to the colormap ends; cells clamp outside it.
-    pub value_range: [f32; 2],
-}
-
-impl HeatmapGrid {
-    /// The normalized `[0, 1]` colormap position of one cell, or `None` for a
-    /// missing / non-finite cell.
-    pub fn normalized(&self, row: usize, col: usize) -> Option<f32> {
-        let v = *self.values.get(row * self.cols + col)?;
-        if !v.is_finite() {
-            return None;
-        }
-        let [lo, hi] = self.value_range;
-        let span = hi - lo;
-        if span.abs() < f32::EPSILON {
-            return Some(0.5);
-        }
-        Some(((v - lo) / span).clamp(0.0, 1.0))
-    }
-
-    /// Data-space rectangle `[x0, x1, y0, y1]` covered by one cell.
-    pub fn cell_bounds(&self, row: usize, col: usize) -> [f64; 4] {
-        let [x0, x1] = cell_span(self.x_edges.as_deref(), self.x_bounds, self.cols, col);
-        let [y0, y1] = cell_span(self.y_edges.as_deref(), self.y_bounds, self.rows, row);
-        [x0, x1, y0, y1]
-    }
-}
-
-fn cell_span(edges: Option<&[f64]>, bounds: [f64; 2], count: usize, index: usize) -> [f64; 2] {
-    if let Some(&[start, end]) = edges.and_then(|edges| edges.get(index..index + 2)) {
-        return [start, end];
-    }
-    let step = (bounds[1] - bounds[0]) / count.max(1) as f64;
-    let start = bounds[0] + index as f64 * step;
-    [start, start + step]
-}
-
 /// Border treatment for the data area. Open axes suit 1D traces and ordinary
 /// quantitative charts; a box defines the bounded field of a 2D contour while
 /// ticks and labels remain on the left and bottom only. Hidden suppresses the
@@ -611,6 +560,8 @@ pub struct Figure {
     /// Backmost layer: a dense colormapped cell grid.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub heatmap: Option<HeatmapGrid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence_scale: Option<SequenceScale>,
     /// Vertical uncertainty whiskers, painted behind the corresponding series.
     #[serde(default)]
     pub error_bars: Vec<ErrorBar>,
@@ -688,6 +639,7 @@ impl Figure {
             integral_curves: Vec::new(),
             polygons: Vec::new(),
             heatmap: None,
+            sequence_scale: None,
             error_bars: Vec::new(),
             annotations: Vec::new(),
             author_annotations: Vec::new(),

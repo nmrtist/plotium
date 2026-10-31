@@ -526,7 +526,7 @@ fn write_figure_content(
             dc.segments(&segs, contour.color, contour.width);
         }
         write_error_bars(dc, fig, &proj, false);
-        for series in &fig.series {
+        for (_, series) in fig.series_in_paint_order() {
             curves::write(dc, &proj, series);
         }
         write_error_bars(dc, fig, &proj, true);

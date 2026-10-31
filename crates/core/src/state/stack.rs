@@ -1,8 +1,10 @@
+use super::stack_sequence::{StackTrace, apply_stack_options, split_columns};
 use super::*;
 use plotium_figure::{ErrorBar, Series};
 
 struct PreparedLine {
     index: usize,
+    name: String,
     x_bounds: [f64; 2],
     series: Vec<Series>,
     error_bars: Vec<ErrorBar>,
@@ -49,6 +51,22 @@ impl PlotiumApp {
         }
     }
 
+    /// Whether a plot draws one table's columns as lines, so that each column
+    /// can stand as a trace of an Offset stack.
+    pub fn stacks_table_columns(&self, binding: &DataBinding, chart: &ChartSpec) -> bool {
+        let [series] = binding.series.as_slice() else {
+            return false;
+        };
+        binding.coordinates.is_none()
+            && matches!(series.encoding, plotium_figure::SeriesEncoding::Line(_))
+            && matches!(chart.type_id.as_str(), "" | "table_line")
+            && self
+                .doc
+                .dataset_by_id(series.source.resource)
+                .and_then(Dataset::as_table)
+                .is_some_and(|table| table.series_bindings.len() > 1)
+    }
+
     /// Combine a stackable binding into one figure. Concrete encodings decide
     /// whether this is a contour overlay or a line stack; the enclosing domain
     /// may expose both kinds of field.
@@ -84,6 +102,7 @@ impl PlotiumApp {
             .expect("validated data binding has a primary dataset");
         let domain = self.doc.datasets[primary].domain();
         let line_chart = ChartSpec::default_for(domain);
+        let table_columns = self.stacks_table_columns(binding, &line_chart);
         // The primary's line figure supplies the axis labels and orientation.
         let primary_is_encoded_curve = binding
             .series
@@ -125,45 +144,63 @@ impl PlotiumApp {
             } else {
                 self.build_full_canvas_figure(dataset, &line_chart, size_mm)
             };
+            let column_names: Vec<String> = part.series.iter().map(|s| s.name.clone()).collect();
             self.apply_series_binding_style(&mut part, sb);
-            let part_x_bounds = [part.x.min, part.x.max];
-            let mut series = part.series;
-            let mut error_bars = part.error_bars;
-            let peak = series
-                .iter()
-                .flat_map(|s| s.points.iter())
-                .fold(0.0f64, |m, p| m.max(p[1].abs()));
-            let factor = if stack.normalize && peak > 0.0 {
-                1.0 / peak
+            let x_bounds = [part.x.min, part.x.max];
+            let traces = if table_columns {
+                let width = match &sb.encoding {
+                    plotium_figure::SeriesEncoding::Line(line) => line.width.get(),
+                    _ => plotium_figure::DEFAULT_DATA_LINE_WIDTH_PT,
+                };
+                split_columns(part.series, column_names, part.error_bars, width)
             } else {
-                1.0
+                vec![(self.series_label(sb), part.series, part.error_bars)]
             };
-            let mut trace_peak = 0.0f64;
-            for s in &mut series {
-                for p in &mut s.points {
-                    p[1] *= factor;
-                    trace_peak = trace_peak.max(p[1].abs());
+            for (column, (name, mut series, mut error_bars)) in traces.into_iter().enumerate() {
+                let peak = series
+                    .iter()
+                    .flat_map(|s| s.points.iter())
+                    .fold(0.0f64, |m, p| m.max(p[1].abs()));
+                let factor = if stack.normalize && peak > 0.0 {
+                    1.0 / peak
+                } else {
+                    1.0
+                };
+                let mut trace_peak = 0.0f64;
+                for s in &mut series {
+                    for p in &mut s.points {
+                        p[1] *= factor;
+                        trace_peak = trace_peak.max(p[1].abs());
+                    }
                 }
+                for error_bar in &mut error_bars {
+                    error_bar.center[1] *= factor;
+                    error_bar.negative *= factor.abs();
+                    error_bar.positive *= factor.abs();
+                }
+                global_peak = global_peak.max(trace_peak);
+                prepared.push(PreparedLine {
+                    index: i + column,
+                    name,
+                    x_bounds,
+                    series,
+                    error_bars,
+                });
             }
-            for error_bar in &mut error_bars {
-                error_bar.center[1] *= factor;
-                error_bar.negative *= factor.abs();
-                error_bar.positive *= factor.abs();
-            }
-            global_peak = global_peak.max(trace_peak);
-            prepared.push(PreparedLine {
-                index: i,
-                x_bounds: part_x_bounds,
-                series,
-                error_bars,
-            });
         }
 
         let stacked = matches!(stack.mode, StackMode::Offset);
+        let mut traces = Vec::with_capacity(prepared.len());
         let (mut x_min, mut x_max) = (f64::INFINITY, f64::NEG_INFINITY);
-        let (mut y_min, mut y_max) = (fig.y.min, fig.y.max);
+        // Normalized traces no longer reach the primary's raw window.
+        let (mut y_min, mut y_max) = if stacked && stack.normalize {
+            (0.0, 0.0)
+        } else {
+            (fig.y.min, fig.y.max)
+        };
         for prepared in prepared {
             let i = prepared.index;
+            let first_series = fig.series.len();
             let part_x_bounds = prepared.x_bounds;
             let mut series = prepared.series;
             let mut error_bars = prepared.error_bars;
@@ -177,11 +214,16 @@ impl PlotiumApp {
             } else {
                 0.0
             };
-            let active = stack.active == Some(i);
+            let active = !table_columns && stack.active == Some(i);
             x_min = x_min.min(part_x_bounds[0] + x_off);
             x_max = x_max.max(part_x_bounds[1] + x_off);
             for mut s in series.drain(..) {
                 s.display_baseline += y_off;
+                // A fill runs under a line; dots have none to fill under.
+                if stacked && stack.occlude && s.kind == plotium_figure::SeriesKind::Points {
+                    s.kind = plotium_figure::SeriesKind::Line;
+                    s.width = plotium_figure::DEFAULT_DATA_LINE_WIDTH_PT;
+                }
                 for p in &mut s.points {
                     p[0] += x_off;
                     p[1] += y_off;
@@ -208,6 +250,11 @@ impl PlotiumApp {
                 y_max = y_max.max(error_bar.center[1] + error_bar.positive);
                 fig.error_bars.push(error_bar);
             }
+            traces.push(StackTrace {
+                name: prepared.name,
+                baseline: y_off,
+                series: first_series..fig.series.len(),
+            });
         }
         if x_min.is_finite() && x_max.is_finite() {
             fig.x.min = x_min;
@@ -215,6 +262,9 @@ impl PlotiumApp {
         }
         fig.y.min = y_min;
         fig.y.max = y_max;
+        if stacked {
+            apply_stack_options(&mut fig, stack, &traces);
+        }
         if !binding.primary_visible() {
             fig.integral_curves.clear();
         }

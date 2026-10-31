@@ -93,6 +93,9 @@ fn project_roundtrip_preserves_stack_spec_and_series_fields() {
             shear_x: 0.1,
             normalize: true,
             active: Some(1),
+            occlude: true,
+            gradient: Some(plotium_figure::ColormapId::Plasma),
+            sequence_scale: true,
         };
     }
     canvas.objects.push(object);
@@ -110,6 +113,11 @@ fn project_roundtrip_preserves_stack_spec_and_series_fields() {
     assert_eq!(plot.stack.mode, StackMode::Offset);
     assert_eq!(plot.stack.spacing_y, 0.3);
     assert_eq!(plot.stack.shear_x, 0.1);
+    assert!(plot.stack.occlude && plot.stack.sequence_scale);
+    assert_eq!(
+        plot.stack.gradient,
+        Some(plotium_figure::ColormapId::Plasma)
+    );
     assert!(plot.stack.normalize);
     assert_eq!(plot.stack.active, Some(1));
     assert_eq!(plot.binding.series[1].line_scale(), 2.5);

@@ -36,6 +36,9 @@ pub(super) fn paint(
         }
         let pts: Vec<_> = visible.points.iter().map(|p| proj.project(*p)).collect();
         for run in crate::finite_runs(&pts).filter(|run| run.len() >= 2) {
+            if series.occludes {
+                fill_to_baseline(painter, proj, series, run);
+            }
             stroke(painter, run, series, scale, proj.plot);
         }
     }
@@ -54,6 +57,30 @@ pub(super) fn paint(
             }
         }
     }
+}
+/// A triangle strip, since the area under a curve is not convex and one mesh
+/// has no seams between its cells.
+fn fill_to_baseline(
+    painter: &egui::Painter,
+    proj: &Projector<'_>,
+    series: &Series,
+    run: &[(f32, f32)],
+) {
+    let Some(baseline) = crate::baseline_y(proj, series) else {
+        return;
+    };
+    let color = col(proj.fig.background);
+    let mut mesh = egui::Mesh::default();
+    for (index, &(x, y)) in run.iter().enumerate() {
+        mesh.colored_vertex(Pos2::new(x, y), color);
+        mesh.colored_vertex(Pos2::new(x, baseline), color);
+        if index > 0 {
+            let right = 2 * index as u32;
+            mesh.add_triangle(right - 2, right - 1, right);
+            mesh.add_triangle(right - 1, right, right + 1);
+        }
+    }
+    painter.add(mesh);
 }
 pub(super) fn stroke(
     painter: &egui::Painter,

@@ -154,6 +154,9 @@ fn every_stack_and_series_property_supports_reset() {
         (object::STACK_SPACING_Y, PropertyValue::Float(0.7)),
         (object::STACK_SHEAR_X, PropertyValue::Float(0.3)),
         (object::STACK_NORMALIZE, PropertyValue::Bool(true)),
+        (object::STACK_OCCLUDE, PropertyValue::Bool(true)),
+        (object::STACK_GRADIENT, PropertyValue::Enum("plasma")),
+        (object::STACK_SEQUENCE_SCALE, PropertyValue::Bool(true)),
     ] {
         set(&mut app, &target, property, changed);
         reset(&mut app, &target, property);

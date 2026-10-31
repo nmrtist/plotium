@@ -117,6 +117,24 @@ another dataset to the selected plot.
 To show related plots one above the other on a common x axis instead, use a
 [Shared X Stack](/guides/multi-panel-figures/#stack-plots-on-a-shared-x-axis).
 
+## Waterfall plots of a series
+
+A table with one spectrum per column, such as an in-situ scan series, stacks as
+a waterfall. With the chart type on **Line**, set **Mode** to **Offset**
+in the **Stack** section of the Object Inspector, then adjust **Vertical
+spacing** and **3D shear**. The same options apply to a stack of several
+datasets.
+
+- **Gradient** colours the traces along the sequence through a colormap.
+- **Fill under traces**, under **Advanced**, hides the parts of each trace that
+  sit behind the one in front.
+- **Side scale**, under **Advanced**, labels the trace baselines on the right,
+  in place of the legend.
+
+The sequence comes from the trace names when they differ only in a number, like
+`300 K` or `t=10 min`, and these also title the scale. Other names use the trace
+order. Switch **Type** to **Heatmap** to show the same table as a map.
+
 ## Align traces
 
 To align line series along x, select the plot and choose **Align Traces…** in
