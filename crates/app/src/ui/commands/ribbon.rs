@@ -18,6 +18,7 @@ pub enum Applicability {
     Always,
     LineAlignmentOnly,
     TableOnly,
+    XasOnly,
     SeriesOnly,
     Homonuclear2dOnly,
     ToolGroup(ToolGroup),
@@ -68,6 +69,7 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         CommandId::SpectrumArithmetic | CommandId::AlignSpectra | CommandId::Craft => {
             (Process, "Transform", 1, Always)
         }
+        CommandId::XasSummaryFigure => (Process, "XAS", 3, Applicability::XasOnly),
         CommandId::ApplyProcessingTemplate | CommandId::SaveProcessingTemplate => {
             (Process, "Recipes", 2, Always)
         }

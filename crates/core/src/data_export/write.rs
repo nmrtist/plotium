@@ -68,6 +68,27 @@ pub(super) fn write_xrd<W: Write>(
     Ok(())
 }
 
+pub(super) fn write_columns<W: Write>(
+    writer: &mut DelimitedWriter<W>,
+    columns: &[(&str, Vec<f64>)],
+) -> io::Result<()> {
+    let header: Vec<Field> = columns.iter().map(|(name, _)| Field::Text(name)).collect();
+    writer.write_record(&header)?;
+    let rows = columns.iter().map(|(_, values)| values.len()).max();
+    for index in 0..rows.unwrap_or(0) {
+        let row: Vec<Field> = columns
+            .iter()
+            .map(|(_, values)| {
+                values
+                    .get(index)
+                    .map_or(Field::Empty, |v| Field::Number(*v))
+            })
+            .collect();
+        writer.write_record(&row)?;
+    }
+    Ok(())
+}
+
 pub(super) fn write_xps<W: Write>(
     writer: &mut DelimitedWriter<W>,
     data: &XpsDataSnapshot,

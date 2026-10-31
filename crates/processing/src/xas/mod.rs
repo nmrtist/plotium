@@ -3,15 +3,17 @@
 //! numerical choices follow Larch so results can be compared with it directly.
 
 mod autobk;
+mod edges;
 mod fourier;
 mod normalize;
 mod reduction;
 mod spline;
 
 pub use autobk::{Autobk, AutobkParams, autobk};
+pub use edges::{edge_energy, nearest_edge};
 pub use fourier::{ChiR, XafsWindow, XftfParams, ft_window, xftf};
 pub use normalize::{PreEdge, PreEdgeParams, find_e0, pre_edge};
-pub use reduction::{Exafs, XasProcessing, XasReduction, reduce};
+pub use reduction::{Exafs, XasPreset, XasProcessing, XasReduction, reduce};
 
 /// hbar^2 / (2 m_e) in eV Å^2, the CODATA value Larch uses.
 const KTOE: f64 = 3.809_982_110_968_584_7;

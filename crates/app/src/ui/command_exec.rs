@@ -232,6 +232,13 @@ fn execute_inner(
                 }
             }
         }
+        CommandId::XasSummaryFigure => {
+            if let Some(index) = app.active_dataset()
+                && let Err(error) = app.create_xas_summary_canvas(index)
+            {
+                app.session.status = error;
+            }
+        }
         CommandId::Craft => super::tools::open_craft_task_for_active(app),
         CommandId::RunCraft => super::tools::run_craft(app),
         CommandId::CraftComponentTable => super::tools::create_craft_component_table(app),

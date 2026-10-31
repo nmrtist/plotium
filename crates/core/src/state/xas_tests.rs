@@ -1,4 +1,5 @@
 use super::*;
+use crate::state::{Dataset, PlotiumApp};
 use plotium_io::xas::parse;
 
 /// An arctangent edge at 7112 eV with a decaying oscillation above it.
@@ -37,6 +38,18 @@ fn scan_text(rows: &[(f64, f64)], header: &str, fluorescence: bool) -> String {
 
 fn dataset(rows: &[(f64, f64)]) -> XasDataset {
     XasDataset::load(parse(&scan_text(rows, "Energy I0 It", false)).unwrap())
+}
+
+#[test]
+fn a_new_scan_opens_with_the_athena_transform() {
+    let dataset = dataset(&spectrum(900, 8000.0));
+    let k_end = dataset.k_end().unwrap();
+    let transform = &dataset.params.transform;
+    assert_eq!(transform.kmin, 3.0);
+    assert!(
+        (transform.kmax - (k_end - 2.0)).abs() < 0.1,
+        "{transform:?}"
+    );
 }
 
 #[test]
@@ -133,4 +146,237 @@ fn repeated_energies_are_reported() {
     let dataset = dataset(&rows);
     assert!(dataset.issues()[0].contains("Dropped 1 row with"));
     assert_eq!(dataset.processed.energy.len(), 900);
+}
+
+#[test]
+fn summary_canvas_holds_three_pinned_panels_and_undoes_in_one_step() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc
+        .datasets
+        .push(Dataset::Xas(Box::new(dataset(&spectrum(900, 8000.0)))));
+    app.create_xas_summary_canvas(0).unwrap();
+    let canvas = app.doc.canvases.last().unwrap();
+    let plots: Vec<_> = canvas.objects.iter().filter_map(|o| o.plot()).collect();
+    assert_eq!(plots.len(), 3);
+    assert!(plots.iter().all(|plot| plot.display_owner.is_none()));
+    let fields: std::collections::BTreeSet<_> = plots
+        .iter()
+        .map(|plot| plot.binding.series[0].source.field)
+        .collect();
+    assert_eq!(fields.len(), 3);
+    let canvases = app.doc.canvases.len();
+    app.undo();
+    assert_eq!(app.doc.canvases.len(), canvases - 1);
+}
+
+#[test]
+fn a_xanes_scan_cannot_build_the_summary() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc
+        .datasets
+        .push(Dataset::Xas(Box::new(dataset(&spectrum(300, 7160.0)))));
+    assert!(app.create_xas_summary_canvas(0).is_err());
+}
+
+#[test]
+fn edge_lookup_ignores_l1_and_l2() {
+    let edge = processing::nearest_edge(7128.5).unwrap();
+    assert_eq!((edge.0, edge.1), ("Fe", "K"));
+}
+
+#[test]
+fn a_processing_edit_redraws_the_summary_panels() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc
+        .datasets
+        .push(Dataset::Xas(Box::new(dataset(&spectrum(900, 8000.0)))));
+    app.create_xas_summary_canvas(0).unwrap();
+    let before = crate::actions::DatasetProcessingState::from_dataset(&app.doc.datasets[0]);
+    let xas = app.doc.datasets[0].as_xas().unwrap();
+    let (signal, mut params) = (xas.signal, xas.params);
+    params.transform.kweight = 3;
+    app.commit_processing_edit(
+        0,
+        before,
+        crate::actions::DatasetProcessingState::Xas {
+            signal,
+            processing: Box::new(params),
+        },
+    );
+    let canvas = app.doc.canvases.last().unwrap();
+    let plot = canvas
+        .objects
+        .iter()
+        .filter_map(|o| o.plot())
+        .nth(1)
+        .unwrap();
+    let label = &plot.figure().y.label;
+    assert!(label.contains('³'), "{label}");
+}
+
+#[test]
+fn export_lists_each_stage_with_its_own_length() {
+    let dataset = dataset(&spectrum(900, 8000.0));
+    let columns = dataset.export_columns();
+    let names: Vec<_> = columns.iter().map(|(name, _)| *name).collect();
+    assert_eq!(names[..2], ["energy_ev", "mu"]);
+    assert!(names.contains(&"chi_r_magnitude"));
+    assert_eq!(columns[0].1.len(), 900);
+    let k = columns.iter().find(|(name, _)| *name == "k_per_angstrom");
+    assert!(k.unwrap().1.len() != 900);
+}
+
+fn with_reference(rows: &[(f64, f64)], shift: f64) -> XasDataset {
+    let mut text = String::from("# Energy I0 It Ir\n");
+    for (index, (energy, mu)) in rows.iter().enumerate() {
+        let it = 1000.0 * (-mu).exp();
+        let foil = rows[index].1;
+        let ir = it * (-foil).exp();
+        text.push_str(&format!("{} 1000 {it} {ir}\n", energy + shift));
+    }
+    XasDataset::load(parse(&text).unwrap())
+}
+
+#[test]
+fn calibration_needs_a_reference() {
+    let dataset = dataset(&spectrum(900, 8000.0));
+    assert_eq!(dataset.calibration(), Err(XasCalibrationError::NoReference));
+}
+
+#[test]
+fn calibration_settles_after_one_click_even_with_a_fixed_e0() {
+    let rows: Vec<_> = (0..1500)
+        .map(|index| {
+            let energy = 6900.0 + index as f64 * 0.5;
+            (
+                energy,
+                0.2 + 0.5 + ((energy - 7112.0) / 2.0).atan() / std::f64::consts::PI,
+            )
+        })
+        .collect();
+    let mut dataset = with_reference(&rows, 5.0);
+    let mut params = dataset.params;
+    params.pre_edge.e0 = Some(7117.0);
+    dataset.apply_processing(dataset.signal, params);
+    let first = dataset.calibration().unwrap();
+    assert_eq!((first.element, first.edge), ("Fe", "K"));
+    assert!((first.shift + 5.0).abs() < 1.0, "{first:?}");
+    let params = dataset.params.with_energy_shift(first.shift);
+    assert_eq!(params.pre_edge.e0, Some(7117.0 + first.shift));
+    dataset.apply_processing(dataset.signal, params);
+    let second = dataset.calibration().unwrap();
+    assert!((second.shift - first.shift).abs() < 1e-6, "{second:?}");
+}
+
+#[test]
+fn a_reference_without_an_edge_refuses_to_calibrate() {
+    let mut text = String::from("# Energy I0 It Ir\n");
+    for (energy, mu) in spectrum(1500, 8000.0) {
+        let it = 1000.0 * (-mu).exp();
+        text.push_str(&format!("{energy} 1000 {it} {}\n", it * 0.6));
+    }
+    let dataset = XasDataset::load(parse(&text).unwrap());
+    assert_eq!(
+        dataset.calibration(),
+        Err(XasCalibrationError::NoReferenceEdge)
+    );
+}
+
+#[test]
+fn a_coarse_reference_refuses_to_calibrate() {
+    let dataset = with_reference(&spectrum(120, 8000.0), 0.0);
+    assert!(matches!(
+        dataset.calibration(),
+        Err(XasCalibrationError::CoarseReference(_))
+    ));
+}
+
+#[test]
+fn a_transform_past_the_data_says_so() {
+    let mut dataset = dataset(&spectrum(900, 8000.0));
+    let mut params = dataset.params;
+    params.transform.kmin = 18.0;
+    dataset.apply_processing(dataset.signal, params);
+    assert!(
+        dataset
+            .issues()
+            .iter()
+            .any(|issue| issue.contains("past the end"))
+    );
+}
+
+#[test]
+fn an_e0_outside_the_scan_says_so() {
+    let mut dataset = dataset(&spectrum(900, 8000.0));
+    let mut params = dataset.params;
+    params.pre_edge.e0 = Some(9000.0);
+    dataset.apply_processing(dataset.signal, params);
+    assert!(
+        dataset
+            .issues()
+            .iter()
+            .any(|issue| issue.contains("outside the scan"))
+    );
+}
+
+#[test]
+fn reset_returns_to_the_detected_signal_and_defaults() {
+    let mut dataset = dataset(&spectrum(900, 8000.0));
+    let (signal, defaults) = (dataset.signal, dataset.params);
+    let mut params = dataset.params;
+    params.energy_shift = 2.0;
+    dataset.apply_processing(signal, params);
+    let reset = crate::project::reset_processing(&Dataset::Xas(Box::new(dataset))).unwrap();
+    assert_eq!(
+        reset,
+        crate::actions::DatasetProcessingState::Xas {
+            signal,
+            processing: Box::new(defaults),
+        }
+    );
+}
+
+#[test]
+fn a_drag_session_is_one_undo_step() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc
+        .datasets
+        .push(Dataset::Xas(Box::new(dataset(&spectrum(900, 8000.0)))));
+    let start = app.doc.datasets[0].as_xas().unwrap().params;
+    app.begin_processing_session(0);
+    for step in 1..=4 {
+        let before = crate::actions::DatasetProcessingState::from_dataset(&app.doc.datasets[0]);
+        let xas = app.doc.datasets[0].as_xas().unwrap();
+        let signal = xas.signal;
+        let mut params = xas.params;
+        params.energy_shift = f64::from(step);
+        app.commit_processing_edit(
+            0,
+            before,
+            crate::actions::DatasetProcessingState::Xas {
+                signal,
+                processing: Box::new(params),
+            },
+        );
+    }
+    app.finish_processing_session();
+    assert_eq!(
+        app.doc.datasets[0].as_xas().unwrap().params.energy_shift,
+        4.0
+    );
+    app.undo();
+    assert_eq!(app.doc.datasets[0].as_xas().unwrap().params, start);
+}
+
+#[test]
+fn short_scans_keep_a_valid_post_edge_range() {
+    for above in [40.0, 200.0, 300.0] {
+        let dataset = dataset(&spectrum(900, 7112.0 + above));
+        dataset.params.validate().unwrap();
+        let step = dataset.processed.edge.as_ref().unwrap().edge_step;
+        assert!(
+            (step - 1.0).abs() < 0.2,
+            "{above} eV above the edge: {step}"
+        );
+    }
 }

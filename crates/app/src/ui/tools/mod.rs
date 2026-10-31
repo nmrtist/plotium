@@ -112,7 +112,7 @@ pub(crate) fn expand_processing_surface(app: &mut PlotiumApp) {
     };
     if !matches!(
         dataset,
-        Dataset::Nmr(_) | Dataset::Nmr2D(_) | Dataset::Xrd(_)
+        Dataset::Nmr(_) | Dataset::Nmr2D(_) | Dataset::Xrd(_) | Dataset::Xas(_)
     ) {
         app.session.status = "Select a processable dataset before opening Processing.".to_owned();
         return;

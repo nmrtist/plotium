@@ -4,7 +4,9 @@
 //! project parameters, and Larch's default e0 and edge step.
 use plotium_core::state::{XasDataset, XasSignal};
 use plotium_io::xas;
-use plotium_processing::xas::{AutobkParams, PreEdgeParams, XafsWindow, XasProcessing, XftfParams};
+use plotium_processing::xas::{
+    AutobkParams, PreEdgeParams, XafsWindow, XasPreset, XasProcessing, XftfParams,
+};
 use serde_json::Value;
 use std::path::Path;
 
@@ -145,7 +147,9 @@ fn check(directory: &Path, path: &Path, fluorescence: bool) {
 fn check_defaults(path: &Path) {
     let name = path.file_name().unwrap().to_str().unwrap();
     let (_, e0, step) = LARCH_DEFAULTS.iter().find(|row| row.0 == name).unwrap();
-    let dataset = XasDataset::load(xas::load(path).unwrap());
+    let mut dataset = XasDataset::load(xas::load(path).unwrap());
+    let params = XasPreset::Larch.apply(&dataset.params, None);
+    dataset.apply_processing(dataset.signal, params);
     let edge = dataset.processed.edge.as_ref().unwrap();
     assert!(
         (edge.e0 - e0).abs() < 1e-3,
@@ -156,6 +160,30 @@ fn check_defaults(path: &Path) {
         (edge.edge_step / step - 1.0).abs() < 1e-3,
         "{name}: step {}",
         edge.edge_step
+    );
+}
+
+/// A freshly opened scan, without any project parameter, must put the Fe scans'
+/// strongest |chi(R)| peak where the authors' transform range does.
+fn check_opening_defaults(path: &Path) {
+    let name = path.file_name().unwrap().to_str().unwrap();
+    let dataset = XasDataset::load(xas::load(path).unwrap());
+    let exafs = dataset.processed.exafs.as_ref().unwrap();
+    let path_reference = path.parent().unwrap().parent().unwrap();
+    let chir = read_table(&path_reference.join(format!("exports_larch/sample/{name}_chiR.txt")));
+    let peak = |r: &[f64], magnitude: &[f64]| {
+        let top = (0..r.len())
+            .filter(|&i| r[i] < 6.0)
+            .max_by(|&a, &b| magnitude[a].total_cmp(&magnitude[b]))
+            .unwrap();
+        r[top]
+    };
+    let found = peak(&exafs.r, &exafs.chi_r_magnitude);
+    let expected = peak(&column(&chir, 0), &column(&chir, 1));
+    println!("{name}: default peak {found:.2} vs {expected:.2}");
+    assert!(
+        (found - expected).abs() < 0.1,
+        "{name}: {found} vs {expected}"
     );
 }
 
@@ -175,6 +203,9 @@ fn beamline_scans_match_larch_through_the_dataset() {
             assert!(plotium_io::detect_format(&path).is_ok(), "{path:?}");
             check(&directory, &path, fluorescence);
             check_defaults(&path);
+            if !fluorescence {
+                check_opening_defaults(&path);
+            }
             scans += 1;
         }
     }

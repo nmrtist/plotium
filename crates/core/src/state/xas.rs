@@ -7,22 +7,29 @@ use crate::state::scientific_summary::SummaryPart;
 use plotium_figure::{Axis, Figure, Series};
 use plotium_io::xas::{XasColumnId, XasScan};
 use plotium_processing::xas::{
-    self as processing, XasError, XasProcessing, XasReduction, fluorescence_mu, reduce,
+    self as processing, XasError, XasPreset, XasProcessing, XasReduction, fluorescence_mu, reduce,
     reference_mu, transmission_mu,
 };
 use std::collections::BTreeMap;
 
 const MU: &str = "xas.mu";
-const NORM: &str = "xas.norm";
+pub(super) const NORM: &str = "xas.norm";
 const FLAT: &str = "xas.flat";
 const CHI_K: &str = "xas.chik";
-const CHI_R: &str = "xas.chir";
+pub(super) const CHI_R: &str = "xas.chir";
 const REFERENCE: &str = "xas.reference";
+pub(super) const SUMMARY_FIELD_KEYS: [&str; 3] = [NORM, CHI_K, CHI_R];
 pub(super) const XAS_FIELD_KEYS: [&str; 6] = [NORM, MU, FLAT, CHI_K, CHI_R, REFERENCE];
 
 /// A transmission edge step below this is too weak to measure the sample, so a
 /// file that also records another signal was measured in that signal.
 const MIN_TRANSMISSION_STEP: f64 = 0.1;
+/// A smaller step in the reference channel means no foil was in the beam.
+const MIN_REFERENCE_STEP: f64 = 0.1;
+/// Points on each side of an edge used to judge the energy step there.
+const EDGE_STEP_POINTS: usize = 3;
+/// Beyond this the foil's edge cannot be located well enough to shift by it, in eV.
+const MAX_CALIBRATION_STEP: f64 = 1.0;
 /// Energies from here on read better in full than with a ×10⁴ multiplier.
 const THOUSANDS_FROM: f64 = 10_000.0;
 /// Bonds sit inside this range; the transform itself runs further.
@@ -102,6 +109,29 @@ fn edge_step(scan: &XasScan, signal: XasSignal) -> f64 {
         .map_or(0.0, |edge| edge.edge_step)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReferenceEdge {
+    pub e0: f64,
+    pub step: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct XasCalibration {
+    pub element: &'static str,
+    pub edge: &'static str,
+    pub energy: f64,
+    pub shift: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum XasCalibrationError {
+    NoReference,
+    /// The reference channel shows no edge, as with no foil in the beam.
+    NoReferenceEdge,
+    /// The mean energy step around the foil's edge, in eV.
+    CoarseReference(f64),
+}
+
 #[derive(Clone)]
 pub struct XasDataset {
     pub resource_id: DatasetId,
@@ -112,6 +142,7 @@ pub struct XasDataset {
     pub params: XasProcessing,
     pub processed: XasReduction,
     pub reference: Option<XasReduction>,
+    pub reference_edge: Option<ReferenceEdge>,
     pub name: Option<String>,
     pub lineage: Option<DatasetLineage>,
 }
@@ -121,10 +152,11 @@ impl XasDataset {
         let acquisition_identity =
             plotium_io::AcquisitionIdentity::from_path(std::path::Path::new(&scan.source));
         let signal = default_signal(&scan);
-        let params = XasProcessing::default();
+        let params = default_processing(&scan, signal);
         let mut field_catalog = FieldCatalog::for_keys(XAS_FIELD_KEYS.map(str::to_owned));
         field_catalog.attach_provenance(&scan.source, None);
         let (processed, reference) = run(&scan, signal, &params);
+        let reference_edge = measure_reference(reference.as_ref());
         Self {
             resource_id: DatasetId::new(),
             field_catalog,
@@ -134,6 +166,7 @@ impl XasDataset {
             params,
             processed,
             reference,
+            reference_edge,
             name: None,
             lineage: None,
         }
@@ -141,6 +174,7 @@ impl XasDataset {
 
     pub fn apply_processing(&mut self, signal: Option<XasSignal>, params: XasProcessing) {
         (self.processed, self.reference) = run(&self.scan, signal, &params);
+        self.reference_edge = measure_reference(self.reference.as_ref());
         self.signal = signal;
         self.params = params;
     }
@@ -152,6 +186,75 @@ impl XasDataset {
     /// Why a stage produced nothing, for the status line and diagnostics.
     pub fn issues(&self) -> &[String] {
         &self.processed.issues
+    }
+
+    /// The last k of the extracted chi(k).
+    pub fn k_end(&self) -> Option<f64> {
+        self.processed.exafs.as_ref()?.k.last().copied()
+    }
+
+    /// The shift that puts the reference foil's edge on its tabulated energy.
+    /// A sample's own edge is chemically shifted, so only a foil can calibrate.
+    pub fn calibration(&self) -> Result<XasCalibration, XasCalibrationError> {
+        let reference = self
+            .reference
+            .as_ref()
+            .ok_or(XasCalibrationError::NoReference)?;
+        let foil = self
+            .reference_edge
+            .filter(|foil| foil.step >= MIN_REFERENCE_STEP)
+            .ok_or(XasCalibrationError::NoReferenceEdge)?;
+        let measured = foil.e0;
+        let index = reference.energy.partition_point(|e| *e < measured);
+        let start = index.saturating_sub(EDGE_STEP_POINTS);
+        let stop = (index + EDGE_STEP_POINTS).min(reference.energy.len() - 1);
+        let step = (reference.energy[stop] - reference.energy[start]) / (stop - start) as f64;
+        if step > MAX_CALIBRATION_STEP {
+            return Err(XasCalibrationError::CoarseReference(step));
+        }
+        let (element, edge, energy) =
+            processing::nearest_edge(measured).ok_or(XasCalibrationError::NoReference)?;
+        Ok(XasCalibration {
+            element,
+            edge,
+            energy,
+            shift: self.params.energy_shift + energy - measured,
+        })
+    }
+
+    pub(super) fn field_for_curve(&self, key: &str) -> Option<FieldId> {
+        self.field_id(key)
+            .filter(|id| self.field_values(*id).is_some())
+    }
+
+    /// Every stage side by side: the energy, k and R columns have their own lengths.
+    pub(crate) fn export_columns(&self) -> Vec<(&'static str, Vec<f64>)> {
+        let reduction = &self.processed;
+        let mut columns = vec![
+            ("energy_ev", reduction.energy.clone()),
+            ("mu", reduction.mu.clone()),
+        ];
+        if let Some(reference) = &self.reference {
+            columns.push(("reference_energy_ev", reference.energy.clone()));
+            columns.push(("reference_mu", reference.mu.clone()));
+        }
+        if let Some(edge) = &reduction.edge {
+            columns.push(("norm", edge.norm.clone()));
+            columns.push(("flat", edge.flat.clone()));
+        }
+        if let Some(exafs) = &reduction.exafs {
+            columns.push(("background", exafs.background.clone()));
+            columns.push(("k_per_angstrom", exafs.k.clone()));
+            columns.push(("chi", exafs.chi.clone()));
+            columns.push(("chi_k_weighted", exafs.chi_weighted.clone()));
+            columns.push(("r_angstrom", exafs.r.clone()));
+            columns.push(("chi_r_magnitude", exafs.chi_r_magnitude.clone()));
+        }
+        columns
+    }
+
+    pub fn edge_e0(&self) -> Option<f64> {
+        self.processed.edge.as_ref().map(|edge| edge.e0)
     }
 
     pub fn has_spectrum(&self) -> bool {
@@ -374,6 +477,27 @@ fn run(
             })
         });
     (processed, reference)
+}
+
+/// Athena's settings: a transform that starts past the low-k background and
+/// stops before the noisy end of the data, which is what puts peaks where a
+/// paper expects them. Its k range depends on where the first pass ends.
+pub fn default_processing(scan: &XasScan, signal: Option<XasSignal>) -> XasProcessing {
+    let first = XasPreset::Athena.apply(&XasProcessing::default(), None);
+    let k_end = run(scan, signal, &first)
+        .0
+        .exafs
+        .and_then(|exafs| exafs.k.last().copied());
+    XasPreset::Athena.apply(&first, k_end)
+}
+
+fn measure_reference(reference: Option<&XasReduction>) -> Option<ReferenceEdge> {
+    let reference = reference?;
+    let edge = processing::pre_edge(&reference.energy, &reference.mu, &Default::default()).ok()?;
+    Some(ReferenceEdge {
+        e0: edge.e0,
+        step: edge.edge_step,
+    })
 }
 
 fn unprocessed(error: XasError) -> XasReduction {

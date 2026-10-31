@@ -15,7 +15,7 @@ pub use service::*;
 mod write;
 mod xlsx;
 use write::{
-    safe_name, write_1d, write_electrophysiology, write_fits, write_integrals_1d,
+    safe_name, write_1d, write_columns, write_electrophysiology, write_fits, write_integrals_1d,
     write_integrals_2d, write_peaks, write_pseudo_2d, write_true_2d, write_xps, write_xps_fits,
     write_xrd,
 };
@@ -206,7 +206,7 @@ fn processed_data_available(dataset: &Dataset) -> bool {
         // LC–MS export snapshots are not implemented yet. Do not advertise an
         // option whose capture path can only return `ContentUnavailable`.
         Dataset::MassSpec(_) => false,
-        Dataset::Xas(_) => false,
+        Dataset::Xas(xas) => xas.has_spectrum(),
         Dataset::Xrd(xrd) => !xrd.processed.intensity.is_empty(),
         Dataset::Xps(xps) => xps
             .displayed_region(xps.active_region)
@@ -303,6 +303,7 @@ enum SnapshotData {
         two_theta_deg: Vec<f64>,
         intensity: Vec<f64>,
     },
+    Xas(Vec<(&'static str, Vec<f64>)>),
     Xps(Box<XpsDataSnapshot>),
     XpsFits(Vec<XpsFitParameterRow>),
 }
@@ -467,6 +468,7 @@ impl DataExportSnapshot {
                 two_theta_deg,
                 intensity,
             } => write_xrd(&mut writer, two_theta_deg, intensity)?,
+            SnapshotData::Xas(columns) => write_columns(&mut writer, columns)?,
             SnapshotData::Xps(data) => write_xps(&mut writer, data)?,
             SnapshotData::XpsFits(rows) => write_xps_fits(&mut writer, rows)?,
         }
@@ -523,7 +525,8 @@ fn capture_processed(dataset: &Dataset) -> Result<SnapshotData, DataExportError>
         }
         Dataset::Table(_) => Err(DataExportError::ContentUnavailable),
         Dataset::Afm(_) => Err(DataExportError::ContentUnavailable),
-        Dataset::MassSpec(_) | Dataset::Xas(_) => Err(DataExportError::ContentUnavailable),
+        Dataset::MassSpec(_) => Err(DataExportError::ContentUnavailable),
+        Dataset::Xas(xas) => Ok(SnapshotData::Xas(xas.export_columns())),
         Dataset::Xrd(xrd) => Ok(SnapshotData::Xrd {
             two_theta_deg: xrd.data.two_theta_deg.clone(),
             intensity: xrd.processed.intensity.clone(),
