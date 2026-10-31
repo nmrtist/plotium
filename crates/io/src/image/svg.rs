@@ -1,9 +1,12 @@
 //! Normalization and rendering of embedded SVG assets.
 //!
 //! An asset stores usvg's normal form: text is outlines and nothing refers
-//! outside the file, so it renders the same on every machine.
+//! outside the file, so it renders the same on every machine. It ends with a
+//! record of the finest marks the source drew.
 
 use super::{ImageError, ImageProbe, ProxyImage, RasterFormat, ResourceClass, SOFT_PIXEL_LIMIT};
+use quick_xml::Reader;
+use quick_xml::events::{BytesStart, Event};
 use resvg::{tiny_skia, usvg};
 use std::io::Cursor;
 use std::sync::Arc;
@@ -17,6 +20,11 @@ const MAX_FILTER_AREA: f64 = 16_000_000.0;
 /// Upper bound on the long edge probes report as the decode footprint: pixel
 /// sizes are nominal for vector content, and rendering is sized by its caller.
 const PROBE_EDGE: f32 = 2048.0;
+/// Attributes on the empty `metadata` child that ends a normalized SVG. They
+/// are part of the stored asset, in the user units of its `width` and `height`.
+/// Outlining erases font sizes, so they cannot be measured again later.
+const MIN_TEXT_ATTRIBUTE: &str = "data-plotium-min-text-size";
+const MIN_STROKE_ATTRIBUTE: &str = "data-plotium-min-stroke-width";
 
 /// Body of a normalized SVG, drawn from the origin in a `size`-sized user space.
 #[derive(Clone, Debug, PartialEq)]
@@ -52,7 +60,139 @@ pub fn normalize_svg(bytes: &[u8], fonts: Arc<SvgFontDatabase>) -> Result<Vec<u8
         preserve_text: false,
         ..Default::default()
     };
-    Ok(tree.to_string(&options).into_bytes())
+    let mut normalized = tree.to_string(&options);
+    // A normalized source already lost its text elements but keeps its record.
+    // Compressed sources are not XML here, and a malformed record is not worth
+    // rejecting a drawing usvg accepted; either way it has nothing to keep.
+    let recorded = svg_marks(bytes).unwrap_or_default();
+    let marks = measure_marks(tree.root()).finest(recorded);
+    if let Some(close) = normalized.rfind("</svg>") {
+        normalized.insert_str(close, &marks_element(marks));
+    }
+    Ok(normalized.into_bytes())
+}
+
+/// The finest marks a normalized SVG draws, in the user units of its `width`
+/// and `height`, with transforms applied. Text a source file already stored as
+/// paths has no font size, and filled shapes have no stroke, so neither counts.
+/// Patterns, masks, and embedded SVG images are not measured.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SvgMarks {
+    pub min_text_size: Option<f32>,
+    pub min_stroke_width: Option<f32>,
+}
+
+impl SvgMarks {
+    fn finest(self, other: Self) -> Self {
+        let finer = |a: Option<f32>, b: Option<f32>| a.into_iter().chain(b).reduce(f32::min);
+        Self {
+            min_text_size: finer(self.min_text_size, other.min_text_size),
+            min_stroke_width: finer(self.min_stroke_width, other.min_stroke_width),
+        }
+    }
+}
+
+pub fn svg_marks(bytes: &[u8]) -> Result<SvgMarks, ImageError> {
+    let mut reader = Reader::from_reader(bytes);
+    let mut buffer = Vec::new();
+    let mut depth = 0usize;
+    let mut marks = SvgMarks::default();
+    loop {
+        match reader.read_event_into(&mut buffer) {
+            Ok(Event::Start(_)) => depth += 1,
+            Ok(Event::End(_)) => depth = depth.saturating_sub(1),
+            Ok(Event::Empty(element)) if depth == 1 && element.name().as_ref() == b"metadata" => {
+                marks = SvgMarks {
+                    min_text_size: recorded_size(&element, MIN_TEXT_ATTRIBUTE)?,
+                    min_stroke_width: recorded_size(&element, MIN_STROKE_ATTRIBUTE)?,
+                };
+            }
+            Ok(Event::Eof) => return Ok(marks),
+            Err(error) => return Err(ImageError::Decode(error.to_string())),
+            Ok(_) => {}
+        }
+        buffer.clear();
+    }
+}
+
+fn recorded_size(element: &BytesStart<'_>, name: &str) -> Result<Option<f32>, ImageError> {
+    let malformed = || ImageError::Decode(format!("malformed {name} record"));
+    let attribute = element.try_get_attribute(name).map_err(|_| malformed())?;
+    attribute
+        .map(|attribute| {
+            std::str::from_utf8(&attribute.value)
+                .ok()
+                .and_then(|value| value.parse().ok())
+                .filter(|size: &f32| size.is_finite() && *size > 0.0)
+                .ok_or_else(malformed)
+        })
+        .transpose()
+}
+
+fn marks_element(marks: SvgMarks) -> String {
+    let attribute = |name: &str, value: Option<f32>| {
+        value.map_or(String::new(), |value| format!(" {name}=\"{value}\""))
+    };
+    let text = attribute(MIN_TEXT_ATTRIBUTE, marks.min_text_size);
+    let stroke = attribute(MIN_STROKE_ATTRIBUTE, marks.min_stroke_width);
+    if text.is_empty() && stroke.is_empty() {
+        return String::new();
+    }
+    format!("<metadata{text}{stroke}/>\n")
+}
+
+fn measure_marks(group: &usvg::Group) -> SvgMarks {
+    group
+        .children()
+        .iter()
+        .fold(SvgMarks::default(), |marks, node| {
+            marks.finest(match node {
+                usvg::Node::Group(child) => measure_marks(child),
+                usvg::Node::Text(text) => SvgMarks {
+                    min_text_size: text_size(text),
+                    ..Default::default()
+                },
+                usvg::Node::Path(path) => SvgMarks {
+                    min_stroke_width: stroke_width(path),
+                    ..Default::default()
+                },
+                _ => SvgMarks::default(),
+            })
+        })
+}
+
+fn smallest_scale(transform: tiny_skia::Transform) -> f32 {
+    let (x, y) = transform.get_scale();
+    x.min(y)
+}
+
+/// Extreme transforms overflow or vanish and leave nothing worth recording.
+fn recordable(size: f32) -> Option<f32> {
+    (size.is_finite() && size > 0.0).then_some(size)
+}
+
+fn stroke_width(path: &usvg::Path) -> Option<f32> {
+    let stroke = path
+        .stroke()
+        .filter(|stroke| path.is_visible() && stroke.opacity().get() > 0.0)?;
+    recordable(stroke.width().get() * smallest_scale(path.abs_transform()))
+}
+
+fn text_size(text: &usvg::Text) -> Option<f32> {
+    let scale = smallest_scale(text.abs_transform());
+    text.chunks()
+        .iter()
+        .flat_map(|chunk| {
+            chunk.spans().iter().filter(|span| {
+                span.is_visible()
+                    && chunk
+                        .text()
+                        .get(span.start()..span.end())
+                        .is_some_and(|run| !run.trim().is_empty())
+            })
+        })
+        .filter_map(|span| recordable(span.font_size().get() * scale))
+        .reduce(f32::min)
 }
 
 pub fn rasterize_svg_rgba8(bytes: &[u8], max_edge: u32) -> Result<ProxyImage, ImageError> {

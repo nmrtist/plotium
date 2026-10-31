@@ -233,6 +233,15 @@ impl FigureDiagnosticScan {
                     bounds: geometry::shape_bounds(frame, s.shape.to_render(), s.stroke_width),
                 },
                 ContentKind::RasterImage(i) => {
+                    let marks = app
+                        .doc
+                        .assets
+                        .get(&i.asset)
+                        .map_or(Ok(None), |a| {
+                            crate::export::vector_image_marks(c, o.id, i, a)
+                        })
+                        .map(Option::unwrap_or_default)
+                        .map_err(|e| format!("image_marks_unavailable: {e}"));
                     let mut pixels = None;
                     let status = if let Err(e) = i.validate() {
                         format!("invalid_asset_geometry: {e}")
@@ -288,6 +297,7 @@ impl FigureDiagnosticScan {
                         bounds,
                         clip: parent.filter(|p| p.clip_children).map(|p| p.frame.rect()),
                         status,
+                        marks,
                     }
                 }
             };
@@ -344,6 +354,8 @@ impl FigureDiagnosticScan {
             project_context: app.session.project_context,
             revision,
             scale: params.output.size_mm[0] / c.size_mm[0],
+            required_font_pt: crate::export::required_font_pt(c),
+            required_line_pt: crate::export::required_line_pt(c),
             params,
             page: Rect::new(0., 0., w, h),
             items,

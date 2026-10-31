@@ -153,6 +153,9 @@ target 调用 `plotium_preview_plan`：
   是信息性事实，包括有意的手动范围裁切；曲线证据只覆盖所列原生 run 的点范围。
 - `text_container_overflow` 是基于原生宽度／行距**估计**的警告，不是精确字形边界；
   文字不会自动换行或缩小。
+- `image_text_too_small` 是警告：矢量图片内的文字在输出尺寸下小于页面的最小字号。
+  源 SVG 中已存为路径的文字不会被测量。`image_stroke_too_thin` 是针对真实描边的同类警告，
+  填充形状不计入。两者都由 `text_overflow` 检查启用。
 - `content_frame_overlap` 是信息性事实，允许有意重叠。
 - `axis_ticks_sparse` 是警告：在输出尺寸下，显示刻度标签的坐标轴画出的刻度少于两个，
   读不出刻度比例。增大面板，或调小 `object.figure.typography.tick_pt`。

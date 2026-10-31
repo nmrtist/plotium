@@ -190,6 +190,10 @@ owning plot's legend through `evidence.other_target` / `other_component`.
   range clipping. Curve evidence applies to the reported native run's point range.
 - `text_container_overflow` is a warning based on native width/line-spacing
   **estimates**, not exact glyph ink. Text does not automatically wrap or shrink.
+- `image_text_too_small` is a warning: text inside a vector image prints below
+  the page's minimum at the output size. Text stored as paths in the source
+  SVG is not measured. `image_stroke_too_thin` is the same warning for real
+  strokes; filled shapes do not count. The `text_overflow` check enables both.
 - `content_frame_overlap` is informational; deliberate overlap is allowed.
 - `axis_ticks_sparse` is a warning: at the output size an axis with shown tick
   labels draws fewer than two ticks, so its scale cannot be read. Enlarge the

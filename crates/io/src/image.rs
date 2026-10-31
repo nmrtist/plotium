@@ -7,7 +7,10 @@ use std::io::Cursor;
 mod proxy;
 pub use proxy::decode_proxy_rgba8;
 mod svg;
-pub use svg::{SvgFontDatabase, SvgFragment, normalize_svg, rasterize_svg_rgba8, svg_fragment};
+pub use svg::{
+    SvgFontDatabase, SvgFragment, SvgMarks, normalize_svg, rasterize_svg_rgba8, svg_fragment,
+    svg_marks,
+};
 
 pub const SOFT_PIXEL_LIMIT: u64 = 100_000_000;
 pub const HARD_PIXEL_LIMIT: u64 = 500_000_000;

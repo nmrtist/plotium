@@ -25,6 +25,95 @@ fn fonts() -> Arc<SvgFontDatabase> {
     Arc::new(database)
 }
 
+const NO_TEXT: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><path d="M0 0H8V8Z"/></svg>"##;
+
+#[test]
+fn normalization_records_the_smallest_text_size_in_user_units() {
+    // 120 pt is 160 user units, so the viewBox draws 10-unit text at 13.33.
+    let labelled = normalize_svg(LABELLED, fonts()).unwrap();
+    assert!(!String::from_utf8_lossy(&labelled).contains("<text"));
+    let size = svg_marks(&labelled).unwrap().min_text_size.unwrap();
+    assert!((size - 40.0 / 3.0).abs() < 1e-3, "{size}");
+
+    let plain = normalize_svg(NO_TEXT, fonts()).unwrap();
+    assert_eq!(svg_marks(&plain).unwrap(), SvgMarks::default());
+}
+
+#[test]
+fn smallest_text_follows_transforms_and_skips_blank_runs() {
+    let source = br##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <text x="5" y="20" font-family="sans-serif" font-size="12">N</text>
+      <g transform="scale(0.5)"><text x="5" y="80" font-family="sans-serif" font-size="10">O</text></g>
+      <text x="5" y="90" font-family="sans-serif" font-size="2" xml:space="preserve">   </text>
+    </svg>"##;
+    let normalized = normalize_svg(source, fonts()).unwrap();
+    assert_eq!(svg_marks(&normalized).unwrap().min_text_size, Some(5.0));
+}
+
+#[test]
+fn text_size_reads_the_font_shorthand_through_transforms() {
+    let source = br##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <g transform="scale(0.1)"><text x="50" y="500" style="font: 240px sans-serif">N</text></g>
+    </svg>"##;
+    let normalized = normalize_svg(source, fonts()).unwrap();
+    let size = svg_marks(&normalized).unwrap().min_text_size.unwrap();
+    assert!((size - 24.0).abs() < 1e-3, "{size}");
+}
+
+#[test]
+fn only_real_strokes_count_and_transforms_scale_them() {
+    let source = br##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <path d="M0 0H90V90Z" fill="#000" stroke="transparent" stroke-width="0.1"/>
+      <path d="M0 5H90" fill="none" stroke="#000" stroke-width="3"/>
+      <g transform="scale(0.25)"><path d="M0 9H90" fill="none" stroke="#000" stroke-width="2"/></g>
+    </svg>"##;
+    let normalized = normalize_svg(source, fonts()).unwrap();
+    assert_eq!(svg_marks(&normalized).unwrap().min_stroke_width, Some(0.5));
+
+    let filled = normalize_svg(NO_TEXT, fonts()).unwrap();
+    assert_eq!(svg_marks(&filled).unwrap().min_stroke_width, None);
+}
+
+#[test]
+fn a_record_counts_only_as_an_empty_metadata_child_of_the_root() {
+    let source = br##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <!-- <metadata data-plotium-min-text-size="0.01"/> -->
+      <desc>data-plotium-min-text-size="0.01"</desc>
+      <g><metadata data-plotium-min-stroke-width="0.01"/></g>
+      <text x="5" y="20" font-family="sans-serif" font-size="12">N</text>
+    </svg>"##;
+    let normalized = normalize_svg(source, fonts()).unwrap();
+    let marks = svg_marks(&normalized).unwrap();
+    assert_eq!(marks.min_text_size, Some(12.0));
+    assert_eq!(marks.min_stroke_width, None);
+}
+
+#[test]
+fn extreme_transforms_never_write_an_unreadable_record() {
+    let source = br##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <g transform="scale(1e20)"><path d="M0 0H8" fill="none" stroke="#000"/></g>
+      <g transform="scale(1e-6)"><g transform="scale(1e-6)"><g transform="scale(1e-6)"><g transform="scale(1e-6)">
+        <path d="M0 0H8" fill="none" stroke="#000"/>
+      </g></g></g></g>
+    </svg>"##;
+    let normalized = normalize_svg(source, fonts()).unwrap();
+    assert!(svg_marks(&normalized).is_ok());
+}
+
+#[test]
+fn a_malformed_record_is_an_error() {
+    let bytes = br#"<svg xmlns="http://www.w3.org/2000/svg"><metadata data-plotium-min-text-size="tiny"/></svg>"#;
+    assert!(svg_marks(bytes).is_err());
+}
+
+#[test]
+fn recorded_text_size_leaves_size_and_fragments_unchanged() {
+    let normalized = normalize_svg(LABELLED, fonts()).unwrap();
+    let fragment = svg_fragment(&normalized, "a-").unwrap();
+    assert!(!fragment.markup.contains("metadata"));
+    assert_eq!(fragment.size, [160.0, 80.0]);
+}
+
 #[test]
 fn sniff_accepts_prologs_that_precede_the_root() {
     assert_eq!(sniff(LABELLED), RasterFormat::Svg);

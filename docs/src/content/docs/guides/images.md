@@ -60,6 +60,12 @@ file is added. Export to SVG, PDF, PNG, JPEG, and TIFF keeps the drawing sharp
 at any size; EMF output and **Copy Figure** to Office currently use pixels for
 it. Line widths scale with the image and do not follow the figure's theme.
 
+Plotium records the smallest text size and stroke width when you add an SVG, and
+the Export dialog checks them at the image's placed size. Text the source file
+already stored as paths, such as Matplotlib's default SVG output, cannot be
+measured; save with `svg.fonttype: none` to include it. Filled shapes have no
+stroke and are not checked.
+
 ## Missing or damaged images
 
 Plotium checks every embedded image when a project opens. If one is missing,
