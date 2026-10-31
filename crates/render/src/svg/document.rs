@@ -1,7 +1,7 @@
 use super::{
     Document, DocumentItem, Rect, write_document_object, write_overlay, write_panel_letter,
 };
-use crate::{DocumentRaster, RasterFit};
+use crate::{DocumentRaster, DocumentVector, RasterFit};
 use base64::Engine as _;
 use image::ImageEncoder as _;
 use std::fmt::Write as _;
@@ -110,6 +110,10 @@ fn write_raster(svg: &mut String, raster: &DocumentRaster, item_index: usize) {
     if !raster.visible || raster.opacity <= 0.0 {
         return;
     }
+    if let Some(vector) = &raster.vector {
+        write_vector(svg, raster, vector, item_index);
+        return;
+    }
     let Some(image) = prepared_raster(raster) else {
         return;
     };
@@ -153,6 +157,101 @@ fn write_raster(svg: &mut String, raster: &DocumentRaster, item_index: usize) {
         h = raster.frame.height,
         opacity = raster.opacity.clamp(0.0, 1.0),
     );
+}
+
+/// Places vector content with the same crop, turn, and fit a raster would get.
+fn write_vector(
+    svg: &mut String,
+    raster: &DocumentRaster,
+    vector: &DocumentVector,
+    item_index: usize,
+) {
+    let Some(placement) = vector_placement(raster, vector.size) else {
+        return;
+    };
+    let Some(clip) = intersect(raster.clip, raster.frame)
+        .and_then(|clip| intersect(Some(clip), placement.destination))
+    else {
+        return;
+    };
+    let clip_id = format!("raster-clip-{item_index}");
+    let _ = write!(
+        svg,
+        r#"<defs><clipPath id="{clip_id}"><rect x="{x:.3}" y="{y:.3}" width="{w:.3}" height="{h:.3}"/></clipPath></defs>"#,
+        x = clip.left,
+        y = clip.top,
+        w = clip.width,
+        h = clip.height,
+    );
+    let [a, b, c, d, e, f] = placement.matrix;
+    let _ = write!(
+        svg,
+        r#"<g clip-path="url(#{clip_id})" opacity="{opacity:.4}" xmlns:xlink="http://www.w3.org/1999/xlink"><g transform="matrix({a:.6} {b:.6} {c:.6} {d:.6} {e:.4} {f:.4})">{markup}</g></g>"#,
+        opacity = raster.opacity.clamp(0.0, 1.0),
+        markup = vector.markup,
+    );
+}
+
+struct VectorPlacement {
+    /// Page-space rectangle the cropped content fills, before frame clipping.
+    destination: Rect,
+    /// SVG `matrix()` from the content's user space to page space.
+    matrix: [f32; 6],
+}
+
+fn vector_placement(raster: &DocumentRaster, size: [f32; 2]) -> Option<VectorPlacement> {
+    let [width, height] = size;
+    let [left, top, right, bottom] = raster.crop;
+    if width <= 0.0 || height <= 0.0 || left >= right || top >= bottom {
+        return None;
+    }
+    let turns = raster.quarter_turns % 4;
+    // Clockwise turns of the content into a box anchored at the origin, as
+    // `[a, b, c, d, e, f]` so they compose with the fit below.
+    let [a, b, c, d, e, f] = match turns {
+        0 => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        1 => [0.0, 1.0, -1.0, 0.0, height, 0.0],
+        2 => [-1.0, 0.0, 0.0, -1.0, width, height],
+        _ => [0.0, -1.0, 1.0, 0.0, 0.0, width],
+    };
+    let map = |x: f32, y: f32| [a * x + c * y + e, b * x + d * y + f];
+    let corners = [
+        map(left * width, top * height),
+        map(right * width, bottom * height),
+    ];
+    let view_left = corners[0][0].min(corners[1][0]);
+    let view_top = corners[0][1].min(corners[1][1]);
+    let view_width = (corners[0][0] - corners[1][0]).abs();
+    let view_height = (corners[0][1] - corners[1][1]).abs();
+    let frame = raster.frame;
+    let (scale_x, scale_y) = match raster.fit {
+        RasterFit::Stretch => (frame.width / view_width, frame.height / view_height),
+        RasterFit::Contain => {
+            let scale = (frame.width / view_width).min(frame.height / view_height);
+            (scale, scale)
+        }
+        RasterFit::Cover => {
+            let scale = (frame.width / view_width).max(frame.height / view_height);
+            (scale, scale)
+        }
+    };
+    let destination = Rect::new(
+        frame.left + (frame.width - view_width * scale_x) * 0.5,
+        frame.top + (frame.height - view_height * scale_y) * 0.5,
+        view_width * scale_x,
+        view_height * scale_y,
+    );
+    Some(VectorPlacement {
+        destination,
+        matrix: [
+            a * scale_x,
+            b * scale_y,
+            c * scale_x,
+            d * scale_y,
+            (e - view_left) * scale_x + destination.left,
+            (f - view_top) * scale_y + destination.top,
+        ],
+    })
 }
 
 pub(crate) fn prepared_raster(raster: &DocumentRaster) -> Option<image::RgbaImage> {
@@ -239,6 +338,7 @@ mod tests {
             nearest: true,
             clip: None,
             visible: true,
+            vector: None,
         };
 
         let prepared = prepared_raster(&raster).unwrap();
@@ -270,6 +370,7 @@ mod tests {
             nearest: false,
             clip: Some(clip),
             visible: true,
+            vector: None,
         };
         let svg = export_document(&Document {
             width: 20.0,

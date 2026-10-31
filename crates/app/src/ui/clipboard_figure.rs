@@ -107,6 +107,9 @@ fn build_payload(
         let png = raster
             .to_png()
             .map_err(|error| ClipboardFigureError::PngEncode(error.into()))?;
+        let mut document = document;
+        plotium_core::export::rasterize_vector_fallbacks(&mut document, &app.doc.assets)
+            .map_err(ClipboardFigureError::Export)?;
         let emf =
             plotium_render::emf::export_document_emf(&document).map_err(|error| error.to_string());
         Ok(FigurePayload {

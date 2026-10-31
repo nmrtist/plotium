@@ -1,10 +1,10 @@
-//! Bounded explicit local raster input; the existing native asset store owns bytes.
+//! Bounded explicit local image input; the existing native asset store owns bytes.
 use super::{AssetId, AssetRecord};
 use std::collections::BTreeMap;
 use std::{io::Read, path::Path};
 pub(super) fn prepare_image(path: &Path, total: &mut usize) -> Result<AssetRecord, String> {
     if !path.is_absolute() {
-        return Err("Image path must name an absolute local PNG/JPEG file.".into());
+        return Err("Image path must name an absolute local PNG/JPEG/SVG file.".into());
     }
     if !std::fs::metadata(path)
         .map_err(|e| format!("Image asset unavailable at {}: {e}", path.display()))?
@@ -26,6 +26,9 @@ pub(super) fn prepare_image(path: &Path, total: &mut usize) -> Result<AssetRecor
     if bytes.len() > 1024 * 1024 || *total > 4 * 1024 * 1024 {
         return Err("Images allow 1 MiB per file and 4 MiB per batch.".into());
     }
+    if plotium_io::image::sniff(&bytes) == plotium_io::image::RasterFormat::Svg {
+        return prepare_svg(&bytes);
+    }
     let probe =
         plotium_io::image::probe(&bytes).map_err(|e| format!("Image asset unavailable: {e}"))?;
     if !matches!(
@@ -33,13 +36,27 @@ pub(super) fn prepare_image(path: &Path, total: &mut usize) -> Result<AssetRecor
         plotium_io::image::RasterFormat::Png | plotium_io::image::RasterFormat::Jpeg
     ) || probe.decoded_bytes > 4 * 1024 * 1024
     {
-        return Err("Use PNG/JPEG with at most 4 MiB decoded RGBA8 per image.".into());
+        return Err("Use SVG, or PNG/JPEG with at most 4 MiB decoded RGBA8 per image.".into());
     }
     let decoded = plotium_io::image::decode_rgba8(&bytes, false)
         .map_err(|e| format!("Image asset unavailable: {e}"))?;
     Ok(AssetRecord {
         id: AssetId::new(),
         sha256: decoded.sha256,
+        format: probe.format.name().to_ascii_lowercase(),
+        pixel_size: [probe.width, probe.height],
+        bytes,
+    })
+}
+
+fn prepare_svg(source: &[u8]) -> Result<AssetRecord, String> {
+    let bytes = crate::export::normalize_svg_asset(source)
+        .map_err(|e| format!("Image asset unavailable: {e}"))?;
+    let probe =
+        plotium_io::image::probe(&bytes).map_err(|e| format!("Image asset unavailable: {e}"))?;
+    Ok(AssetRecord {
+        id: AssetId::new(),
+        sha256: plotium_io::image::sha256(&bytes),
         format: probe.format.name().to_ascii_lowercase(),
         pixel_size: [probe.width, probe.height],
         bytes,

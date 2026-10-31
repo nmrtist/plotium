@@ -4531,6 +4531,7 @@ dependencies = [
  "nmr",
  "num-complex",
  "quick-xml 0.41.0",
+ "resvg 0.48.1",
  "rust_xlsxwriter",
  "serde",
  "serde_json",

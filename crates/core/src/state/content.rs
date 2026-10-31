@@ -77,6 +77,13 @@ pub struct AssetRecord {
     pub bytes: Vec<u8>,
 }
 
+impl AssetRecord {
+    /// Vector assets have no fixed resolution; `pixel_size` is nominal.
+    pub fn is_vector(&self) -> bool {
+        self.format == "svg"
+    }
+}
+
 #[derive(Clone)]
 pub enum ContentKind {
     Plot(Box<PlotObject>),

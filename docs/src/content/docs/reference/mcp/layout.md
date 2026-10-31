@@ -15,7 +15,7 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `page` | At least one of `size_mm: [width,height]` or `size_preset`, `margin_mm: [top,right,bottom,left]`, `gutter_mm`; lengths in mm. A journal `size_preset` sets the column width and keeps the height of a page with content; paper and slide presets set both dimensions. Presets also replace the page margins (0 mm journal, 15 mm paper, 10 mm slides) unless `margin_mm` is given; the result reports `size_preset` |
 | `panel_frame` | `target: EXACT_PANEL_TARGET`, `frame_pt: [x,y,width,height]` in page pt |
 | `content_frame` | `target: EXACT_CONTENT_TARGET`, complete `frame_pt: [x,y,width,height]` in parent-local pt; changes only this item |
-| `image_replace` | `target: EXACT_RASTER_TARGET`, `path`; replaces only its asset reference with frozen local PNG/JPEG |
+| `image_replace` | `target: EXACT_RASTER_TARGET`, `path`; replaces only its asset reference with frozen local PNG/JPEG/SVG |
 | `content_delete` | `target: EXACT_CONTENT_TARGET`; removes this content, retaining its empty parent |
 | `panel_delete` | `target: EXACT_PANEL_TARGET`; requires an originally empty panel |
 | `series_delete` | `target: EXACT_SERIES_TARGET`; removes a non-final explicit Series |
@@ -26,7 +26,7 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `grid` | `panels`, `rows`, `cols`; native Frame-basis cells in supplied target order |
 | `text_create` | `parent: EXACT_CANVAS_OR_PANEL_TARGET`, `name`, `frame_pt`, `text`, `font_pt` |
 | `text_set` | `target: EXACT_TEXT_TARGET`, `text`; optional `font_pt` |
-| `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG or JPEG) |
+| `image_create` | `parent`, `name`, `frame_pt`, `path: "/absolute/local/image.png"` (PNG, JPEG, or SVG) |
 | `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"`, `color: "#rrggbb"` |
 | `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
 | `annotation_create` (arrow) | `target: EXACT_PLOT_TARGET`, `kind: "arrow"`, tail `at: [x,y]`, head `to: [x,y]`; optional `head: none\|open\|filled\|double`, `line_width_pt`, `color: "#rrggbb"` |
@@ -172,7 +172,9 @@ at most 200 panels per layout operation.
 
 Image preflight reads only explicitly named absolute regular files: at most 8
 image inputs (creation and replacement combined; duplicates still count), 1 MiB encoded per file, 4 MiB encoded per batch, and 4 MiB decoded RGBA8
-per image. PNG/JPEG probing and decoding reuse native image I/O; bytes are frozen
+per PNG/JPEG image. SVG is normalized at preflight (text to outlines, external
+references dropped) and stays vector in SVG, PDF, and bitmap output. Probing and
+decoding reuse native image I/O; bytes are frozen
 in the plan and embedded in the native asset store at commit. Identical encoded
 assets are shared, not linked to the external path. Missing/damaged assets or
 unsupported formats reject the entire batch with `invalid_parameters` and a
@@ -242,7 +244,7 @@ frame, z-order, name, visibility and all native image attributes:
 `page_index`, crop, fit, quarter-turn rotation, opacity, interpolation and
 preserve_aspect. Other references to the old asset remain unchanged. A retained
 crop/fit can make the new image look different; settings are never reset to hide
-that effect. PNG/JPEG replacement requires the existing `page_index` to be 0;
+that effect. Replacement requires the existing `page_index` to be 0;
 other pages reject the batch instead of silently changing page index. Replacement
 requires the target/parent unlocked, but not Free layout or Auto height off.
 `image.replaceable` and `replace_error` disclose that eligibility.

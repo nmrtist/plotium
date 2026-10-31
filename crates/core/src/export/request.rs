@@ -136,17 +136,17 @@ pub(crate) fn encode_canvas(
                     asset: i.asset,
                     reason: e.to_string(),
                 })?;
-            let [w, h] = if i.page_index == 0 {
-                [probe.width, probe.height]
+            let bytes = if i.page_index == 0 {
+                probe.decoded_bytes
             } else {
-                plotium_io::image::tiff_page_dimensions(&a.bytes, i.page_index).ok_or_else(
-                    || ExportError::CorruptImageAsset {
+                let [w, h] = plotium_io::image::tiff_page_dimensions(&a.bytes, i.page_index)
+                    .ok_or_else(|| ExportError::CorruptImageAsset {
                         asset: i.asset,
                         reason: "Image page unavailable".into(),
-                    },
-                )?
+                    })?;
+                u64::from(w) * u64::from(h) * 4
             };
-            decoded = decoded.saturating_add(u64::from(w) * u64::from(h) * 4);
+            decoded = decoded.saturating_add(bytes);
             if decoded > 64 * 1024 * 1024 {
                 return Err(ExportError::SvgParse(
                     "Decoded export assets exceed 64 MiB".into(),

@@ -256,20 +256,19 @@ impl ImagePreviewSnapshot {
                 let probe = plotium_io::image::probe(&a.bytes).map_err(|e| {
                     AutomationError::PreviewAsset(format!("asset {}: {e}", i.asset))
                 })?;
-                let [w, h] = if i.page_index == 0 {
-                    [probe.width, probe.height]
+                let bytes = if i.page_index == 0 {
+                    probe.decoded_bytes
                 } else {
-                    plotium_io::image::tiff_page_dimensions(&a.bytes, i.page_index).ok_or_else(
-                        || {
+                    let [w, h] = plotium_io::image::tiff_page_dimensions(&a.bytes, i.page_index)
+                        .ok_or_else(|| {
                             AutomationError::PreviewAsset(format!(
                                 "asset {} page {} is unavailable",
                                 i.asset, i.page_index
                             ))
-                        },
-                    )?
+                        })?;
+                    u64::from(w).saturating_mul(u64::from(h)).saturating_mul(4)
                 };
-                decoded = decoded
-                    .saturating_add(u64::from(w).saturating_mul(u64::from(h)).saturating_mul(4));
+                decoded = decoded.saturating_add(bytes);
                 check_budget(
                     decoded,
                     PREVIEW_DECODED_BYTES,

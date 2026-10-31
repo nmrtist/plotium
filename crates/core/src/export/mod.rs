@@ -1,6 +1,7 @@
 mod asset_render;
 mod fonts;
 pub(crate) use fonts::diagnostic_font_status;
+pub use fonts::normalize_svg_asset;
 mod pdf;
 mod precheck;
 mod preset;
@@ -17,7 +18,7 @@ mod raster;
 mod state_tests;
 mod trim;
 
-pub use asset_render::{MissingImagePolicy, prepare_render_document};
+pub use asset_render::{MissingImagePolicy, prepare_render_document, rasterize_vector_fallbacks};
 pub use precheck::{
     ComplianceStatus, PrecheckReport, image_precheck_items, page_metrics, precheck_report,
 };

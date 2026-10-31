@@ -318,6 +318,7 @@ mod tests {
             nearest: false,
             clip: None,
             visible: true,
+            vector: None,
         }
     }
 

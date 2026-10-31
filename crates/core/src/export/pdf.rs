@@ -2,15 +2,19 @@ use super::{ExportError, fonts};
 use pdf_writer::{Content, Finish, Name, Pdf, Rect, Ref, TextStr};
 use std::collections::HashMap;
 
+/// Parsing at PDF's own resolution leaves no page scale for svg2pdf to apply:
+/// its gradient pattern matrices do not account for one.
+const PDF_POINTS_PER_INCH: f32 = 72.0;
+
 pub(super) fn render(svgs: &[String]) -> Result<Vec<u8>, ExportError> {
     if svgs.len() == 1 {
         let tree = parse_svg(&svgs[0])?;
         return svg2pdf::to_pdf(
             &tree,
             svg2pdf::ConversionOptions::default(),
-            // usvg resolves physical SVG units to CSS pixels (96/in), not
-            // PDF points. Match the multi-page placement below.
-            svg2pdf::PageOptions { dpi: 96.0 },
+            svg2pdf::PageOptions {
+                dpi: PDF_POINTS_PER_INCH,
+            },
         )
         .map_err(|error| ExportError::Pdf(error.to_string()));
     }
@@ -36,14 +40,8 @@ fn render_multi_page(svgs: &[String]) -> Result<Vec<u8>, ExportError> {
         let svg_id = *ref_map
             .get(&svg_id)
             .ok_or_else(|| ExportError::Pdf("could not renumber SVG PDF object".into()))?;
-        // usvg reports CSS pixels (96/in), while a PDF MediaBox uses points
-        // (72/in). The SVG XObject is normalized and then placed at this size.
-        embedded.push((
-            chunk,
-            svg_id,
-            size.width() * 72.0 / 96.0,
-            size.height() * 72.0 / 96.0,
-        ));
+        // The SVG XObject is normalized and then placed at this size.
+        embedded.push((chunk, svg_id, size.width(), size.height()));
     }
 
     let mut pdf = Pdf::new();
@@ -82,7 +80,10 @@ fn render_multi_page(svgs: &[String]) -> Result<Vec<u8>, ExportError> {
 }
 
 fn parse_svg(svg: &str) -> Result<svg2pdf::usvg::Tree, ExportError> {
-    let mut options = svg2pdf::usvg::Options::default();
+    let mut options = svg2pdf::usvg::Options {
+        dpi: PDF_POINTS_PER_INCH,
+        ..Default::default()
+    };
     fonts::load_pdf_system_fonts(options.fontdb_mut());
     svg2pdf::usvg::Tree::from_str(svg, &options)
         .map_err(|error| ExportError::SvgParse(error.to_string()))

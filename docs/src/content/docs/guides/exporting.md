@@ -31,8 +31,9 @@ workflow.
 
 Every figure format includes embedded images and applies their crop, rotation,
 opacity, fit, interpolation, Panel clipping, and z-order. SVG embeds image
-pixels rather than linking to a local path; PDF and bitmap output matches the
-same page. If a source is missing or damaged, export stops by default. Enable
+pixels rather than linking to a local path, and SVG, PDF, and bitmap output keep
+[vector images](/guides/images/#vector-images) as paths; PDF and bitmap output
+matches the same page. If a source is missing or damaged, export stops by default. Enable
 **Export with missing-image placeholders** only when a labelled review copy is
 preferable to no output.
 

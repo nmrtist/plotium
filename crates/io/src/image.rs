@@ -6,6 +6,8 @@ use std::io::Cursor;
 
 mod proxy;
 pub use proxy::decode_proxy_rgba8;
+mod svg;
+pub use svg::{SvgFontDatabase, SvgFragment, normalize_svg, rasterize_svg_rgba8, svg_fragment};
 
 pub const SOFT_PIXEL_LIMIT: u64 = 100_000_000;
 pub const HARD_PIXEL_LIMIT: u64 = 500_000_000;
@@ -41,7 +43,7 @@ impl RasterFormat {
     pub fn supported(self) -> bool {
         matches!(
             self,
-            Self::Png | Self::Jpeg | Self::Tiff | Self::WebP | Self::Bmp
+            Self::Png | Self::Jpeg | Self::Tiff | Self::WebP | Self::Bmp | Self::Svg
         )
     }
 }
@@ -137,7 +139,7 @@ fn bmp_dpi(bytes: &[u8]) -> Option<[f32; 2]> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ImageError {
-    #[error("detected {format}; supported image formats are PNG, JPEG, TIFF, WebP, and BMP")]
+    #[error("detected {format}; supported image formats are PNG, JPEG, TIFF, WebP, BMP, and SVG")]
     Unsupported { format: &'static str },
     #[error("animated {format} is not supported by this import path")]
     Animated { format: &'static str },
@@ -183,6 +185,9 @@ pub fn probe(bytes: &[u8]) -> Result<ImageProbe, ImageError> {
         return Err(ImageError::Unsupported {
             format: format.name(),
         });
+    }
+    if format == RasterFormat::Svg {
+        return svg::probe(bytes);
     }
     let animated = animation_marker(format, bytes);
     let reader = image::ImageReader::new(Cursor::new(bytes))
@@ -484,13 +489,14 @@ fn animation_marker(format: RasterFormat, bytes: &[u8]) -> bool {
 }
 
 fn looks_like_svg(bytes: &[u8]) -> bool {
-    let prefix = &bytes[..bytes.len().min(1024)];
-    std::str::from_utf8(prefix)
-        .ok()
-        .map(str::trim_start)
-        .is_some_and(|text| {
-            text.starts_with("<svg") || (text.starts_with("<?xml") && text.contains("<svg"))
-        })
+    // Lossy: the prefix may end inside a multi-byte character.
+    let prefix = String::from_utf8_lossy(&bytes[..bytes.len().min(1024)]);
+    let text = prefix.trim_start_matches('\u{feff}').trim_start();
+    text.starts_with("<svg")
+        || (["<?xml", "<!--", "<!DOCTYPE"]
+            .iter()
+            .any(|start| text.starts_with(start))
+            && text.contains("<svg"))
 }
 
 #[cfg(test)]

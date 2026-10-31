@@ -82,6 +82,7 @@ fn embedded_raster_records_alpha_blend_in_document_order() {
             nearest: false,
             clip: None,
             visible: true,
+            vector: None,
         })],
     };
     let bytes = export_document_emf(&document).expect("image EMF export");

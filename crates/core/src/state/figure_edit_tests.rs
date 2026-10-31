@@ -164,6 +164,35 @@ fn figure_native_text_and_labels_keep_ids_across_undo_and_reject_wire_reconstruc
     assert_eq!(text.text, "Edited");
 }
 #[test]
+fn figure_svg_assets_are_normalized_frozen_and_survive_save() {
+    let mut a = fixture();
+    let canvas = TargetRef::resource(a.doc.canvases[0].resource_id.into());
+    let dir = std::env::temp_dir().join(format!("plotium-svg-images-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&dir).unwrap();
+    let svg = dir.join("structure.svg");
+    std::fs::write(
+        &svg,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="40pt" height="20pt"><!-- source --><path d="M1 1 L39 19" stroke="black"/></svg>"#,
+    )
+    .unwrap();
+    let p = plan(
+        &a,
+        json!([{"op":"image_create","parent":canvas,"name":"structure","frame_pt":[10,220,40,20],"path":svg}]),
+    );
+    std::fs::remove_file(&svg).unwrap();
+    a.commit_figure_edit(p).unwrap();
+    let asset = a.doc.assets.values().next().unwrap();
+    assert!(asset.is_vector());
+    assert_eq!(asset.pixel_size, [54, 27]);
+    assert!(!String::from_utf8_lossy(&asset.bytes).contains("source"));
+    let project = dir.join("structure.plotium");
+    crate::project::save_project(&a, &project, false).unwrap();
+    let loaded = crate::project::load_project(&project).unwrap();
+    assert_eq!(loaded.doc.assets, a.doc.assets);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn figure_png_jpeg_assets_are_frozen_deduplicated_and_undo_redo_retains_ids() {
     let mut a = fixture();
     let canvas = TargetRef::resource(a.doc.canvases[0].resource_id.into());

@@ -435,8 +435,8 @@ pub(crate) fn load_and_note(app: &mut PlotiumApp, path: &std::path::Path) {
 pub(crate) fn open_file(app: &mut PlotiumApp) {
     if let Some(paths) = rfd::FileDialog::new()
         .add_filter(
-            "Images (*.png, *.jpg, *.jpeg, *.tif, *.tiff, *.webp, *.bmp)",
-            &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp"],
+            "Images (*.png, *.jpg, *.jpeg, *.tif, *.tiff, *.webp, *.bmp, *.svg)",
+            &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "svg"],
         )
         .add_filter(
             "All supported data (*.mzML, *.wiff, *.rasx, *.raw, *.vms, *.xdi, *.000, *.txt, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",

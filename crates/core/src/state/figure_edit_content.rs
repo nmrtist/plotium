@@ -56,7 +56,7 @@ pub(super) fn image_target(page: &CanvasDocument, target: &TargetRef) -> Result<
     };
     if image.page_index != 0 {
         return Err(
-            "PNG/JPEG replacement requires page_index 0; the existing page index is never reset."
+            "Image replacement requires page_index 0; the existing page index is never reset."
                 .into(),
         );
     }

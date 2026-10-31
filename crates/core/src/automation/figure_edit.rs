@@ -60,7 +60,7 @@ pub fn figure_edit_schema() -> Value {
         variant(
             "image_replace",
             vec!["target", "path"],
-            json!({"target":target,"path":{"type":"string","description":"Absolute explicitly named PNG/JPEG regular file; frozen at preflight. Replace only the asset reference of a raster at page_index 0; retain all other fields."}}),
+            json!({"target":target,"path":{"type":"string","description":"Absolute explicitly named PNG/JPEG/SVG regular file; frozen at preflight. Replace only the asset reference of a raster at page_index 0; retain all other fields."}}),
         ),
         variant(
             "panel_label",
@@ -100,7 +100,7 @@ pub fn figure_edit_schema() -> Value {
         variant(
             "image_create",
             vec!["parent", "name", "frame_pt", "path"],
-            json!({"parent":target,"name":name,"frame_pt":arr(4),"path":{"type":"string","description":"Absolute explicitly named local PNG/JPEG regular file; frozen at preflight, no adjacent file lookup."}}),
+            json!({"parent":target,"name":name,"frame_pt":arr(4),"path":{"type":"string","description":"Absolute explicitly named local PNG/JPEG/SVG regular file; frozen at preflight, no adjacent file lookup. SVG stays vector in SVG, PDF, and PNG output."}}),
         ),
         variant(
             "annotation_create",

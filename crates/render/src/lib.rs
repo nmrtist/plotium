@@ -117,6 +117,15 @@ pub struct DocumentRaster {
     /// Optional page-space bounds imposed by a containing layout panel.
     pub clip: Option<Rect>,
     pub visible: bool,
+    /// Vector source for SVG output; `pixels` stay the fallback for the screen
+    /// and for EMF.
+    pub vector: Option<DocumentVector>,
+}
+
+/// Self-contained SVG markup drawn in a `size`-sized user space from the origin.
+pub struct DocumentVector {
+    pub markup: Arc<str>,
+    pub size: [f32; 2],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

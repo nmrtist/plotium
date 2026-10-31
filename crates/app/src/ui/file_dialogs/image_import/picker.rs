@@ -32,7 +32,7 @@ pub(crate) fn replace_selected_image(app: &mut PlotiumApp) {
     let Some(path) = rfd::FileDialog::new()
         .add_filter(
             "Images",
-            &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp"],
+            &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "svg"],
         )
         .set_title("Replace image")
         .pick_file()
@@ -63,8 +63,8 @@ fn pick_images(
 ) {
     let Some(paths) = rfd::FileDialog::new()
         .add_filter(
-            "Images (*.png, *.jpg, *.jpeg, *.tif, *.tiff, *.webp, *.bmp)",
-            &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp"],
+            "Images (*.png, *.jpg, *.jpeg, *.tif, *.tiff, *.webp, *.bmp, *.svg)",
+            &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "svg"],
         )
         .add_filter("All files", &["*"])
         .set_title("Add images to the figure")
