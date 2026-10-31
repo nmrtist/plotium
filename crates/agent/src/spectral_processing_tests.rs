@@ -63,6 +63,23 @@ fn xps_dataset() -> Dataset {
     })))
 }
 
+/// An arctangent edge with a slow oscillation, on the k grid autobk expects.
+fn xas_dataset(step: f64) -> Dataset {
+    let mut text = String::from("# Energy I0 It\n");
+    for index in 0..900 {
+        let energy = 6900.0 + 1100.0 * f64::from(index) / 899.0;
+        let above = (energy - 7112.0).max(0.0);
+        let k = (above / 3.81).sqrt();
+        let oscillation = 0.1 * (4.0 * k).sin() * (-0.02 * k * k).exp();
+        let edge = 0.5 + ((energy - 7112.0) / 2.0).atan() / std::f64::consts::PI;
+        let mu = 0.2 + step * (edge + oscillation * f64::from(u8::from(above > 0.0)));
+        text.push_str(&format!("{energy} 1000 {}\n", 1000.0 * (-mu).exp()));
+    }
+    Dataset::Xas(Box::new(XasDataset::load(
+        plotium_io::xas::parse(&text).unwrap(),
+    )))
+}
+
 fn app_with(datasets: Vec<Dataset>) -> (PlotiumApp, Session) {
     let mut app = PlotiumApp::new();
     app.doc.datasets.extend(datasets);
@@ -339,4 +356,82 @@ fn saved_schemes_apply_to_datasets_of_the_same_kind() {
         serde_json::to_value(applied).unwrap()["normalization"],
         "Area"
     );
+}
+
+#[test]
+fn xas_settings_edit_through_the_connector() {
+    let (mut app, mut session) = app_with(vec![xas_dataset(1.0)]);
+    let report = inspect(&mut session, &mut app, 0);
+    let target = &report["axes"][0];
+    assert_eq!(target["axis"], "energy");
+    assert_eq!(target["calibration"]["available"], false);
+    assert_eq!(target["columns"].as_array().unwrap().len(), 3);
+
+    let mut settings = target["settings"].clone();
+    settings["transform"]["kweight"] = json!(3);
+    edit(
+        &mut session,
+        &mut app,
+        0,
+        json!([{"op":"set_xas","signal":target["signal"],"processing":settings}]),
+    );
+    let xas = app.doc.datasets[0].as_xas().unwrap();
+    assert_eq!(xas.params.transform.kweight, 3);
+
+    edit(
+        &mut session,
+        &mut app,
+        0,
+        json!([{"op":"apply_xas_preset","preset":"larch"}]),
+    );
+    let xas = app.doc.datasets[0].as_xas().unwrap();
+    assert_eq!(xas.params.transform.kmin, 0.0);
+    assert!(app.can_undo());
+}
+
+#[test]
+fn xas_edits_reject_partial_settings_and_other_kinds() {
+    let (mut app, mut session) = app_with(vec![xas_dataset(1.0), xrd_dataset()]);
+    let partial = json!([{"op":"set_xas","signal":null,"processing":{"energy_shift":1.0}}]);
+    assert!(plan_edit(&mut session, &mut app, 0, partial).is_err());
+    let preset = json!([{"op":"apply_xas_preset","preset":"larch"}]);
+    assert!(plan_edit(&mut session, &mut app, 1, preset).is_err());
+    let current = serde_json::to_value(app.doc.datasets[0].as_xas().unwrap().params).unwrap();
+    let mut misspelled = current.clone();
+    misspelled["transform"]["k_weight"] = json!(3);
+    let edit = json!([{"op":"set_xas","signal":app.doc.datasets[0].as_xas().unwrap().signal,"processing":misspelled}]);
+    assert!(plan_edit(&mut session, &mut app, 0, edit).is_err());
+    let cleared = json!([{"op":"set_xas","signal":null,"processing":current}]);
+    assert!(plan_edit(&mut session, &mut app, 0, cleared).is_err());
+    let invalid = {
+        let xas = app.doc.datasets[0].as_xas().unwrap();
+        let mut settings = serde_json::to_value(xas.params).unwrap();
+        settings["transform"]["kweight"] = json!(1000);
+        json!([{"op":"set_xas","signal":xas.signal,"processing":settings}])
+    };
+    assert!(plan_edit(&mut session, &mut app, 0, invalid).is_err());
+}
+
+#[test]
+fn a_saved_xas_scheme_applies_without_moving_the_target_axis() {
+    let (mut app, _) = app_with(vec![xas_dataset(1.0), xas_dataset(0.8)]);
+    let mut source = app.doc.datasets[0].as_xas().unwrap().params;
+    source.energy_shift = 2.0;
+    source.transform.kweight = 3;
+    let signal = app.doc.datasets[0].as_xas().unwrap().signal;
+    app.doc.datasets[0]
+        .as_xas_mut()
+        .unwrap()
+        .apply_processing(signal, source);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("xas.plotiumproc");
+    plotium_core::project::save_scheme(&path, &app.doc.datasets[0]).unwrap();
+    let scheme = plotium_core::project::load_scheme(&path).unwrap();
+    assert_eq!(scheme.xas.as_ref().unwrap().energy_shift, 0.0);
+    let state = plotium_core::project::apply_scheme(&scheme, &app.doc.datasets[1]).unwrap();
+    let plotium_core::actions::DatasetProcessingState::Xas { processing, .. } = state else {
+        panic!("expected an XAS state");
+    };
+    assert_eq!(processing.transform.kweight, 3);
+    assert_eq!(processing.energy_shift, 0.0);
 }

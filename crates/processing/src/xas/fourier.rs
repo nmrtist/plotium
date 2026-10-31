@@ -156,6 +156,7 @@ impl XafsFft {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct XftfParams {
     pub kmin: f64,
     pub kmax: f64,

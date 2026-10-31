@@ -187,6 +187,14 @@ fn check_opening_defaults(path: &Path) {
     );
 }
 
+/// Fe is clean; a single dilute Hg fluorescence scan is noisy at high k.
+fn check_warnings(path: &Path, fluorescence: bool) {
+    let dataset = XasDataset::load(xas::load(path).unwrap());
+    let codes: Vec<_> = dataset.checks().iter().map(|check| check.code).collect();
+    let expected: &[&str] = if fluorescence { &["noisy_high_k"] } else { &[] };
+    assert_eq!(codes, expected, "{path:?}");
+}
+
 #[test]
 #[ignore = "needs PLOTIUM_XAS_EXAMPLES"]
 fn beamline_scans_match_larch_through_the_dataset() {
@@ -206,6 +214,7 @@ fn beamline_scans_match_larch_through_the_dataset() {
             if !fluorescence {
                 check_opening_defaults(&path);
             }
+            check_warnings(&path, fluorescence);
             scans += 1;
         }
     }

@@ -5,8 +5,9 @@ use crate::project::{
     AxisPipelineDto, ProcessingStepDto, StepKindDto, StepSourceDto, pipeline_from_dto,
     pipeline_to_dto,
 };
-use crate::state::{Dataset, PlotiumApp};
+use crate::state::{Dataset, PlotiumApp, XasSignal};
 use plotium_processing::StepId;
+use plotium_processing::xas::{AutobkParams, PreEdgeParams, XasProcessing, XftfParams};
 use plotium_processing::xrd::{SavitzkyGolay, SnipBackground, XrdNormalization, XrdProcessing};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -43,6 +44,33 @@ pub enum PipelineEdit {
     SetXrd {
         processing: XrdSettings,
     },
+    SetXas {
+        #[serde(deserialize_with = "Option::deserialize")]
+        signal: Option<XasSignal>,
+        processing: Box<XasSettings>,
+    },
+    ApplyXasPreset {
+        preset: plotium_processing::xas::XasPreset,
+    },
+}
+/// Complete XAS settings. In `pre_edge`, a null or omitted Option key means automatic.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct XasSettings {
+    energy_shift: f64,
+    pre_edge: PreEdgeParams,
+    autobk: AutobkParams,
+    transform: XftfParams,
+}
+impl From<XasSettings> for XasProcessing {
+    fn from(settings: XasSettings) -> Self {
+        Self {
+            energy_shift: settings.energy_shift,
+            pre_edge: settings.pre_edge,
+            autobk: settings.autobk,
+            transform: settings.transform,
+        }
+    }
 }
 /// Complete XRD settings: a key left out is an error, never a cleared step.
 #[derive(Deserialize)]
@@ -158,6 +186,7 @@ pub(super) fn prepare(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value, Automa
     super::processing_edit_spectra::reject_pending(app, dataset)?;
     match dataset {
         Dataset::Xrd(_) => return super::processing_edit_spectra::prepare_xrd(params.edits),
+        Dataset::Xas(xas) => return super::processing_edit_spectra::prepare_xas(xas, params.edits),
         Dataset::Xps(xps) => {
             return super::processing_edit_spectra::prepare_xps(dataset, xps, params.edits);
         }
@@ -209,8 +238,12 @@ pub(super) fn prepare(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value, Automa
                 let position = insertion(&axes[a].1, before)?;
                 axes[a].1.steps.insert(position, value);
             }
-            PipelineEdit::SetXrd { .. } => {
-                return Err(invalid("set_xrd applies only to XRD datasets."));
+            PipelineEdit::SetXrd { .. }
+            | PipelineEdit::SetXas { .. }
+            | PipelineEdit::ApplyXasPreset { .. } => {
+                return Err(invalid(
+                    "set_xrd, set_xas and apply_xas_preset apply only to their dataset kind.",
+                ));
             }
         }
     }
@@ -286,7 +319,9 @@ pub fn processing_edit_schema() -> Value {
         edit_schema("add",json!({"axis":{"type":"string","description":"direct, f2 or f1 for NMR; the region ID from processing inspect for XPS"},"kind":super::scientific_schema::step_kind(),"before":{"type":["integer","null"],"minimum":0}}),&["axis","kind"]),
         edit_schema("remove",json!({"step":{"type":"integer","minimum":0}}),&["step"]),
         edit_schema("move",json!({"step":{"type":"integer","minimum":0},"before":{"type":["integer","null"],"minimum":0}}),&["step"]),
-        edit_schema("set_xrd",json!({"processing":super::scientific_schema::xrd_processing()}),&["processing"])
+        edit_schema("set_xrd",json!({"processing":super::scientific_schema::xrd_processing()}),&["processing"]),
+        edit_schema("set_xas",json!({"signal":super::scientific_schema::xas_signal(),"processing":super::scientific_schema::xas_processing()}),&["signal","processing"]),
+        edit_schema("apply_xas_preset",json!({"preset":{"enum":["athena","larch"]}}),&["preset"])
     ]}}}})
 }
 fn edit_schema(op: &str, mut fields: Value, required: &[&str]) -> Value {
@@ -296,5 +331,5 @@ fn edit_schema(op: &str, mut fields: Value, required: &[&str]) -> Value {
     json!({"type":"object","properties":fields,"required":keys,"additionalProperties":false})
 }
 pub(super) fn descriptor() -> ToolDescriptor {
-    ToolDescriptor {id:PROCESSING_EDIT.into(),version:1,title:"Edit processing pipeline".into(),description:"Edit parameters, enable, add, remove and reorder steps using stable StepIds. XPS steps are Window, Smooth or Normalize and add to one region. XRD replaces its settings with set_xrd. Proposed IDs are frozen in preflight.".into(),parameter_schema:processing_edit_schema(),result_schema:super::scientific_schema::task_result(),target_kinds:vec![ResourceKindId::new(KIND_DATASET)],required_capabilities:vec![CapabilityId::new(CAP_PROCESSING_SCHEME)],effect:EffectLevel::Reversible,undoable:true,deterministic:true,task_kind:"background".into()}
+    ToolDescriptor {id:PROCESSING_EDIT.into(),version:1,title:"Edit processing pipeline".into(),description:"Edit parameters, enable, add, remove and reorder steps using stable StepIds. XPS steps are Window, Smooth or Normalize and add to one region. XRD replaces its settings with set_xrd; XAS replaces them with set_xas or apply_xas_preset, starting from processing.inspect settings. Proposed IDs are frozen in preflight.".into(),parameter_schema:processing_edit_schema(),result_schema:super::scientific_schema::task_result(),target_kinds:vec![ResourceKindId::new(KIND_DATASET)],required_capabilities:vec![CapabilityId::new(CAP_PROCESSING_SCHEME)],effect:EffectLevel::Reversible,undoable:true,deterministic:true,task_kind:"background".into()}
 }

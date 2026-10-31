@@ -175,7 +175,12 @@ more than 1 eV at its edge. A fixed E0 moves with the energy shift.
 around E0, k-weighted χ(k), and |χ(R)|. Each panel stays linked to the scan, but
 the XANES range is set from E0 when the page is built. The data export writes the
 μ(E), reference, normalized, flattened, background, χ(k), and |χ(R)| curves as
-columns. Processing schemes and templates do not cover XAS yet.
+columns. Processing schemes and templates carry the XAS parameters, but not the
+energy shift, a fixed E0, or the signal, which belong to each scan. A scan too short
+for a scheme's post-edge or k range keeps its own.
+
+Over MCP, `processing.inspect` also reports the columns, calibration, and three
+checks: `e0_far_from_table`, `short_post_edge`, and `noisy_high_k`.
 
 ## Rigaku powder XRD
 

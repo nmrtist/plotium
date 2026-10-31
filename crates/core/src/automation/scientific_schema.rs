@@ -35,6 +35,21 @@ pub(super) fn xrd_processing() -> Value {
         json!({"background":background,"smoothing":smoothing,"normalization":{"enum":["None","Maximum","Area"]}}),
     )
 }
+pub(super) fn xas_signal() -> Value {
+    let column =
+        json!({"type":"integer","minimum":0,"description":"A column id from processing.inspect."});
+    json!({"oneOf":[
+        {"type":"null"},
+        external("Transmission",object(json!({"i0":column,"transmitted":column}))),
+        external("Fluorescence",object(json!({"signal":column,"i0":column}))),
+        external("Absorption",object(json!({"column":column})))
+    ]})
+}
+pub(super) fn xas_processing() -> Value {
+    json!({"type":"object","additionalProperties":false,"required":["energy_shift","pre_edge","autobk","transform"],
+        "description":"Copy settings from processing.inspect and change what is needed. In pre_edge, null means automatic.",
+        "properties":{"energy_shift":{"type":"number"},"pre_edge":{"type":"object"},"autobk":{"type":"object"},"transform":{"type":"object"}}})
+}
 pub(super) fn fit_options() -> Value {
     object(json!({
         "solver":{"enum":["bounded_trust_region","levenberg_marquardt"]},

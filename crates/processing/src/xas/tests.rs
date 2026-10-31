@@ -220,3 +220,22 @@ fn edges_come_from_the_table() {
     assert_eq!(edge_energy("fe", "k"), Some(7112.0));
     assert_eq!(nearest_edge(12280.0).map(|edge| edge.0), Some("Hg"));
 }
+
+#[test]
+fn out_of_range_settings_are_rejected() {
+    let cases: [fn(&mut XasProcessing); 8] = [
+        |p| p.transform.kweight = 1000,
+        |p| p.pre_edge.nvict = 1000,
+        |p| p.pre_edge.nnorm = Some(99),
+        |p| p.pre_edge.step = Some(-1.0),
+        |p| p.transform.dk = -1.0,
+        |p| p.transform.rmax_out = -1.0,
+        |p| p.transform.nfft = 0,
+        |p| p.autobk.kstep = 0.0,
+    ];
+    for case in cases {
+        let mut params = XasProcessing::default();
+        case(&mut params);
+        assert!(params.validate().is_err(), "{params:?}");
+    }
+}

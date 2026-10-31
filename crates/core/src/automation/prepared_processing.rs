@@ -23,6 +23,9 @@ fn freeze_state(state: &DatasetProcessingState) -> Result<Value, AutomationError
             json!({"axes":[{"axis":"f2","pipeline":crate::project::pipeline_to_dto(&params.f2)},{"axis":"f1","pipeline":crate::project::pipeline_to_dto(&params.f1)}],"group_delay_correct":group_delay_correct,"layout":crate::project::layout_to_str(params.layout)}),
         ),
         DatasetProcessingState::Xrd(processing) => Ok(json!({"xrd":processing})),
+        DatasetProcessingState::Xas { signal, processing } => {
+            Ok(json!({"xas":{"signal":signal,"processing":processing}}))
+        }
         DatasetProcessingState::Xps {
             region_recipes,
             next_step_id,
@@ -83,6 +86,7 @@ pub(super) fn prepare_scheme(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value,
                 incompatible_scheme |= match source {
                     Dataset::Xrd(_) => scheme.xrd.is_some(),
                     Dataset::Xps(_) => scheme.xps.is_some(),
+                    Dataset::Xas(_) => scheme.xas.is_some(),
                     _ => true,
                 };
                 skipped.push(json!({"target":target,"reason":error.to_string()}));

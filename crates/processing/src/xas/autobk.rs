@@ -20,6 +20,7 @@ const RESIDUAL_KSTEP: f64 = 0.05;
 const JACOBIAN_STEP: f64 = 1e-3;
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AutobkParams {
     pub rbkg: f64,
     pub nknots: Option<usize>,

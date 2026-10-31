@@ -137,7 +137,11 @@ XDI 或 XDAC 文件头，或者列名中既有能量，又有 μ，或有 I0 加
 **Process** 选项卡中的 **Summary Figure** 会新增一个双栏页面，包含 E0 附近的 XANES、
 k 加权 χ(k) 和 |χ(R)|。每个面板都和扫描保持关联，但 XANES 范围在生成页面时按 E0 确定。
 数据导出把 μ(E)、参考、归一化、压平、背景、χ(k) 和 |χ(R)| 曲线写成列。
-处理方案和模板暂不支持 XAS。
+处理方案和模板保存 XAS 参数，但不保存能量平移、固定的 E0 和信号，这些属于每条扫描。
+扫描放不下方案的后边或 k 范围时，保留自己的范围。
+
+通过 MCP，`processing.inspect` 还会报告列、校准信息和三项检查：`e0_far_from_table`、
+`short_post_edge`、`noisy_high_k`。
 
 ## Rigaku 粉末 XRD
 

@@ -1,8 +1,13 @@
 use super::{
     AutobkParams, KTOE, PreEdge, PreEdgeParams, XafsWindow, XasError, XftfParams, autobk,
-    energy_to_k, is_positive, k_weighted, pre_edge, prepare_spectrum, xftf,
+    check_transform, energy_to_k, is_positive, k_weighted, pre_edge, prepare_spectrum, xftf,
 };
 
+const MAX_NNORM: usize = 5;
+const MAX_VICTOREEN: i32 = 4;
+const MIN_RBKG: f64 = 0.1;
+const MAX_RBKG: f64 = 5.0;
+const MAX_K_WEIGHT: i32 = 3;
 /// Below this photoelectron wavenumber a scan has no usable EXAFS region, as
 /// in XANES-only measurements.
 const MIN_EXAFS_K: f64 = 4.0;
@@ -22,7 +27,8 @@ pub struct XasProcessing {
     pub transform: XftfParams,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum XasPreset {
     Larch,
     Athena,
@@ -99,8 +105,13 @@ impl XasProcessing {
     pub fn validate(&self) -> Result<(), XasError> {
         let invalid = |message: &str| Err(XasError::InvalidParameter(message.to_owned()));
         let (pre, bkg, ft) = (&self.pre_edge, &self.autobk, &self.transform);
-        if !self.energy_shift.is_finite() {
-            return invalid("the energy shift must be finite");
+        let finite = |value: Option<f64>| value.is_none_or(f64::is_finite);
+        if !self.energy_shift.is_finite()
+            || ![pre.e0, pre.pre1, pre.pre2, pre.norm1, pre.norm2]
+                .into_iter()
+                .all(finite)
+        {
+            return invalid("energies must be finite");
         }
         if let (Some(low), Some(high)) = (pre.pre1, pre.pre2)
             && low >= high
@@ -112,13 +123,46 @@ impl XasProcessing {
         {
             return invalid("the post-edge range must increase");
         }
-        if !is_positive(bkg.rbkg) {
-            return invalid("Rbkg must be positive");
+        if pre.step.is_some_and(|step| !is_positive(step)) {
+            return invalid("the edge step must be positive");
         }
-        if !ft.kmin.is_finite() || ft.kmin < 0.0 || ft.kmin >= ft.kmax {
+        if pre.nnorm.is_some_and(|order| order > MAX_NNORM) {
+            return invalid("the post-edge polynomial order must be at most 5");
+        }
+        if !(-MAX_VICTOREEN..=MAX_VICTOREEN).contains(&pre.nvict) {
+            return invalid("the Victoreen exponent must be between -4 and 4");
+        }
+        if !(MIN_RBKG..=MAX_RBKG).contains(&bkg.rbkg) {
+            return invalid("Rbkg must be between 0.1 and 5 Å");
+        }
+        if !(0..=MAX_K_WEIGHT).contains(&bkg.kweight) || !(0..=MAX_K_WEIGHT).contains(&ft.kweight) {
+            return invalid("k weights must be between 0 and 3");
+        }
+        let k_end = bkg.kmax.unwrap_or(f64::INFINITY);
+        if !bkg.kmin.is_finite() || bkg.kmin < 0.0 || bkg.kmin >= k_end {
+            return invalid("the background k range must increase from zero or above");
+        }
+        if !ft.kmin.is_finite() || ft.kmin < 0.0 || !ft.kmax.is_finite() || ft.kmin >= ft.kmax {
             return invalid("the k range must increase from zero or above");
         }
-        Ok(())
+        let widths = [bkg.dk, ft.dk, ft.dk2];
+        if !widths
+            .iter()
+            .all(|width| width.is_finite() && *width >= 0.0)
+        {
+            return invalid("window widths cannot be negative");
+        }
+        if !is_positive(ft.rmax_out) {
+            return invalid("the output R range must be positive");
+        }
+        if !(bkg.clamp_lo.is_finite() && bkg.clamp_hi.is_finite())
+            || bkg.clamp_lo < 0.0
+            || bkg.clamp_hi < 0.0
+        {
+            return invalid("background clamps cannot be negative");
+        }
+        check_transform(bkg.kstep, bkg.nfft)?;
+        check_transform(ft.kstep, ft.nfft)
     }
 }
 
@@ -166,6 +210,14 @@ pub fn reduce(
         && !(*first..=*last).contains(&e0)
     {
         issues.push(format!("E0 = {e0:.1} eV is outside the scan."));
+    }
+    if let (Some(edge), Some(last)) = (&edge, energy.last())
+        && params
+            .pre_edge
+            .norm1
+            .is_some_and(|norm1| edge.e0 + norm1 >= *last)
+    {
+        issues.push("The post-edge range starts past the end of the scan.".to_owned());
     }
     let exafs = edge.as_ref().and_then(|edge| {
         let reach = energy.last().map_or(0.0, |last| {
