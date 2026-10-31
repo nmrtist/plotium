@@ -1,4 +1,4 @@
-use plotium_core::state::{ObjectId, PlotiumApp, Tool};
+use plotium_core::state::{Dataset, ObjectId, PlotiumApp, Tool};
 
 use super::{CommandExecutionClass, CommandId};
 
@@ -111,5 +111,28 @@ pub(super) fn peak_height_gate(app: &PlotiumApp) -> Result<(), &'static str> {
     requires(
         crate::ui::canvas::can_reset_peak_height(app),
         "Select an unlocked numeric trace plot before resetting peak height.",
+    )
+}
+
+pub(super) fn template_gate(
+    app: &PlotiumApp,
+    dataset: Option<usize>,
+    id: CommandId,
+) -> Result<(), &'static str> {
+    let usable = |di| crate::ui::processing_templates::can_use_templates(app, di);
+    let reason = if id == CommandId::SaveProcessingTemplate {
+        "Select a dataset with a processing pipeline before saving a template."
+    } else {
+        "Select a dataset with a processing pipeline before applying a template."
+    };
+    requires(dataset.is_some_and(usable), reason)
+}
+
+pub(super) fn xas_summary_gate(dataset: Option<&Dataset>) -> Result<(), &'static str> {
+    requires(
+        dataset
+            .and_then(Dataset::as_xas)
+            .is_some_and(|xas| xas.k_end().is_some()),
+        "Select an XAS scan with an EXAFS region before building the summary figure.",
     )
 }

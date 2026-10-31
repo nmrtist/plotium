@@ -2,6 +2,7 @@
 
 mod editors;
 mod surface;
+mod xas;
 
 use egui::{Button, Ui};
 use egui_phosphor::regular as icon;
@@ -71,19 +72,26 @@ fn panel_menu(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
         reset_to_default(app, di);
         ui.close();
     }
-    if ui.button("Load scheme…").clicked() {
+    // Schemes and templates store pipelines that do not describe XAS yet.
+    let reusable = app.doc.datasets[di].as_xas().is_none();
+    let recipe_button = |ui: &mut Ui, label: &str| {
+        ui.add_enabled(reusable, Button::new(label))
+            .on_disabled_hover_text("Use the presets on the card: XAS has no schemes yet.")
+            .clicked()
+    };
+    if recipe_button(ui, "Load scheme…") {
         crate::ui::file_dialogs::load_processing_scheme(app, di);
         ui.close();
     }
-    if ui.button("Save scheme…").clicked() {
+    if recipe_button(ui, "Save scheme…") {
         crate::ui::file_dialogs::save_processing_scheme(app, di);
         ui.close();
     }
-    if ui.button("Save as template…").clicked() {
+    if recipe_button(ui, "Save as template…") {
         crate::ui::processing_templates::open_save_template_dialog(app, di);
         ui.close();
     }
-    if ui.button("Apply template…").clicked() {
+    if recipe_button(ui, "Apply template…") {
         crate::ui::processing_templates::open_template_browser(app, di);
         ui.close();
     }

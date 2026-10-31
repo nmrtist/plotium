@@ -355,7 +355,13 @@ pub fn reset_processing(dataset: &Dataset) -> Option<DatasetProcessingState> {
             plotium_processing::xrd::XrdProcessing::default(),
         )),
         Dataset::Xps(_) => None,
-        Dataset::Xas(_) => None,
+        Dataset::Xas(xas) => {
+            let signal = crate::state::default_signal(&xas.scan);
+            Some(DatasetProcessingState::Xas {
+                signal,
+                processing: Box::new(crate::state::default_processing(&xas.scan, signal)),
+            })
+        }
     }?;
     let mut next = dataset_next_step_id(dataset);
     match &mut state {

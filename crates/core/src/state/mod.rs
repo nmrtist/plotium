@@ -189,6 +189,7 @@ mod units;
 mod viewport;
 mod workflow_tab;
 mod xas;
+mod xas_figure;
 mod xps;
 mod xrd;
 

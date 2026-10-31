@@ -102,6 +102,7 @@ pub enum CommandId {
     About,
     SaveProcessingTemplate,
     ApplyProcessingTemplate,
+    XasSummaryFigure,
     Craft,
     RunCraft,
     CraftComponentTable,
@@ -436,16 +437,10 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         CommandId::ToggleGrid => {
             requires(has_canvas, "Open a canvas before changing its layout grid.")
         }
-        CommandId::SaveProcessingTemplate => requires(
-            active_dataset
-                .is_some_and(|di| super::processing_templates::can_use_templates(app, di)),
-            "Select a non-table dataset before saving a processing template.",
-        ),
-        CommandId::ApplyProcessingTemplate => requires(
-            active_dataset
-                .is_some_and(|di| super::processing_templates::can_use_templates(app, di)),
-            "Select a non-table dataset before applying a processing template.",
-        ),
+        CommandId::SaveProcessingTemplate | CommandId::ApplyProcessingTemplate => {
+            helpers::template_gate(app, active_dataset, id)
+        }
+        CommandId::XasSummaryFigure => helpers::xas_summary_gate(dataset()),
         CommandId::Craft | CommandId::RunCraft | CommandId::CraftComponentTable => {
             craft::gate(app, id)
         }
@@ -755,6 +750,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         Applicability::Always => true,
         Applicability::LineAlignmentOnly => app.trace_alignment_target().is_some(),
         Applicability::TableOnly => is_table(),
+        Applicability::XasOnly => dataset().and_then(Dataset::as_xas).is_some(),
         Applicability::SeriesOnly => is_series(),
         Applicability::Homonuclear2dOnly => dataset()
             .and_then(Dataset::as_nmr2d)

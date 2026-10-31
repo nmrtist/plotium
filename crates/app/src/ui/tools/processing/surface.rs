@@ -101,6 +101,10 @@ pub(super) fn render(app: &mut PlotiumApp, host: &mut Ui) {
         render_xrd(app, host, di);
         return;
     }
+    if app.doc.datasets[di].as_xas().is_some() {
+        super::xas::render(app, host, di);
+        return;
+    }
     let Some(shape) = surface_shape(&app.doc.datasets[di]) else {
         app.session.ui.close_task_tab(TaskDockTab::Processing);
         return;

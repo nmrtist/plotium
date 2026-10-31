@@ -156,9 +156,26 @@ Transmission is used when the sample shows an edge step of at least 0.1;
 otherwise fluorescence is used, then an absorption column from the file. The
 import report lists rows that were dropped and any stage that could not run, and
 the Data list shows the latest of these. The dataset offers normalized μ(E), μ(E), flattened μ(E), k-weighted
-χ(k), |χ(R)|, and the reference channel, computed with the default parameters of
-[Larch](https://xraypy.github.io/xraylarch/). A scan that ends below k = 4 Å⁻¹ stops
+χ(k), |χ(R)|, and the reference channel, computed with Athena's default parameters using
+the [Larch](https://xraypy.github.io/xraylarch/) algorithms. A scan that ends below k = 4 Å⁻¹ stops
 at normalization.
+
+Select the scan and choose **Processing** on the **Process** tab. The **XAS
+Processing** card shows the signal channels, energy shift, E0, normalization
+ranges, background, and Fourier transform, and lists anything the scan could not
+complete. A new scan uses **Athena defaults**, a Hanning window from k = 3 Å⁻¹ to
+2 Å⁻¹ before the end of the data; **Larch defaults** transform over k 0–20 Å⁻¹ with
+a Kaiser-Bessel window. A scan with less than 300 eV of post-edge range gets its
+normalization range from Larch automatically. The energy
+button shifts the reference foil's edge to its tabulated value. It is unavailable
+without a reference channel, when that channel shows no edge, or when it steps
+more than 1 eV at its edge. A fixed E0 moves with the energy shift.
+
+**Summary Figure** on the **Process** tab adds a double-column page with the XANES
+around E0, k-weighted χ(k), and |χ(R)|. Each panel stays linked to the scan, but
+the XANES range is set from E0 when the page is built. The data export writes the
+μ(E), reference, normalized, flattened, background, χ(k), and |χ(R)| curves as
+columns. Processing schemes and templates do not cover XAS yet.
 
 ## Rigaku powder XRD
 

@@ -481,7 +481,7 @@ impl Dataset {
             Dataset::MassSpec(_) => &[ToolGroup::MassSpectrometry],
             Dataset::Xrd(_) => &[ToolGroup::Processing],
             Dataset::Xps(_) => &[ToolGroup::Xps],
-            Dataset::Xas(_) => &[],
+            Dataset::Xas(_) => &[ToolGroup::Processing],
         }
     }
 

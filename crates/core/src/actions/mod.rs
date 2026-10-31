@@ -55,6 +55,10 @@ pub enum DatasetProcessingState {
     Electrophysiology(crate::state::ElectrophysiologyProcessing),
     Afm,
     Xrd(XrdProcessing),
+    Xas {
+        signal: Option<crate::state::XasSignal>,
+        processing: Box<plotium_processing::xas::XasProcessing>,
+    },
     Xps {
         active_region: plotium_io::xps::XpsRegionId,
         measurement_shifts: std::collections::BTreeMap<plotium_io::xps::XpsMeasurementId, f64>,

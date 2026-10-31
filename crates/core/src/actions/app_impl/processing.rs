@@ -57,6 +57,10 @@ impl PlotiumApp {
             (Dataset::Xrd(data), DatasetProcessingState::Xrd(processing)) => {
                 data.params = *processing;
             }
+            (Dataset::Xas(data), DatasetProcessingState::Xas { signal, processing }) => {
+                data.signal = *signal;
+                data.params = **processing;
+            }
             (
                 Dataset::Xps(xps),
                 DatasetProcessingState::Xps {
@@ -407,6 +411,9 @@ pub(super) fn validate_processing_state(
             plotium_processing::nmr_execution::validate_2d_domains(&dataset.data, params)?;
             Ok(())
         }
+        (Dataset::Xas(_), DatasetProcessingState::Xas { processing, .. }) => processing
+            .validate()
+            .map_err(|error| format!("Cannot apply invalid XAS processing: {error}")),
         (Dataset::Xrd(_), DatasetProcessingState::Xrd(processing)) => {
             plotium_processing::xrd::validate(*processing)
                 .map_err(|error| format!("Cannot apply invalid XRD processing pipeline: {error}"))

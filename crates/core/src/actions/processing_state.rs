@@ -16,6 +16,7 @@ impl DatasetProcessingState {
             | Self::Electrophysiology(_)
             | Self::Afm
             | Self::Xrd(_)
+            | Self::Xas { .. }
             | Self::Xps { .. } => None,
         }
     }
@@ -34,6 +35,7 @@ impl DatasetProcessingState {
             | Self::Electrophysiology(_)
             | Self::Afm
             | Self::Xrd(_)
+            | Self::Xas { .. }
             | Self::Xps { .. } => None,
         }
     }
@@ -54,7 +56,10 @@ impl DatasetProcessingState {
             Dataset::Electrophysiology(d) => Self::Electrophysiology(d.processing),
             Dataset::Afm(_) => Self::Afm,
             Dataset::MassSpec(_) => Self::Table,
-            Dataset::Xas(_) => Self::Table,
+            Dataset::Xas(data) => Self::Xas {
+                signal: data.signal,
+                processing: Box::new(data.params),
+            },
             Dataset::Xrd(data) => Self::Xrd(data.params),
             Dataset::Xps(xps) => Self::Xps {
                 active_region: xps.active_region,
@@ -82,6 +87,7 @@ impl DatasetProcessingState {
             | Self::Electrophysiology(_)
             | Self::Afm
             | Self::Xrd(_)
+            | Self::Xas { .. }
             | Self::Xps { .. } => Vec::new(),
         };
         pipelines
@@ -184,6 +190,10 @@ impl DatasetProcessingState {
                 Ok(ProcessingRebuild::Rebuilt)
             }
             (Dataset::Afm(_), Self::Afm) => Ok(ProcessingRebuild::Unchanged),
+            (Dataset::Xas(data), Self::Xas { signal, processing }) => {
+                data.apply_processing(*signal, **processing);
+                Ok(ProcessingRebuild::Rebuilt)
+            }
             (Dataset::Xrd(data), Self::Xrd(processing)) => {
                 data.apply_processing(*processing).map_err(|error| {
                     ProcessingStateError::InvalidPipeline {
@@ -371,6 +381,7 @@ impl DatasetProcessingState {
             Self::Electrophysiology(_) => "Electrophysiology",
             Self::Afm => "AFM",
             Self::Xrd(_) => "XRD",
+            Self::Xas { .. } => "XAS",
             Self::Xps { .. } => "XPS",
         }
     }

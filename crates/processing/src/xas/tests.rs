@@ -191,3 +191,32 @@ fn extreme_parameters_fail_without_panicking() {
     };
     assert!(xftf(&[0.0, 1.0], &[0.0, 0.0], &params).is_err());
 }
+
+#[test]
+fn athena_preset_stops_the_transform_before_the_data_ends() {
+    let current = XasProcessing {
+        energy_shift: 1.5,
+        ..XasProcessing::default()
+    };
+    let params = XasPreset::Athena.apply(&current, Some(14.0));
+    assert_eq!(params.energy_shift, 1.5);
+    assert_eq!((params.transform.kmin, params.transform.kmax), (3.0, 12.0));
+    close(params.pre_edge.norm2.unwrap(), KTOE * 196.0 - 100.0, 1e-9);
+    assert_eq!(params.transform.window, XafsWindow::Hanning);
+    assert_eq!(XasPreset::Larch.apply(&params, None), current);
+    assert!(params.validate().is_ok());
+}
+
+#[test]
+fn invalid_ranges_are_rejected() {
+    let mut params = XasProcessing::default();
+    params.transform.kmin = 15.0;
+    params.transform.kmax = 5.0;
+    assert!(params.validate().is_err());
+}
+
+#[test]
+fn edges_come_from_the_table() {
+    assert_eq!(edge_energy("fe", "k"), Some(7112.0));
+    assert_eq!(nearest_edge(12280.0).map(|edge| edge.0), Some("Hg"));
+}

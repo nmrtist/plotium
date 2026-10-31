@@ -214,6 +214,7 @@ pub(super) fn command_identity(
         CommandId::ApplyProcessingTemplate => {
             plain("Apply Processing Template…", Some(icon::MAGIC_WAND))
         }
+        CommandId::XasSummaryFigure => plain("Summary Figure", Some(icon::CHART_LINE)),
         CommandId::Craft => plain("CRAFT…", Some(icon::WAVES)),
         CommandId::RunCraft => plain("Run CRAFT", Some(icon::PLAY)),
         CommandId::CraftComponentTable => plain("Create CRAFT Data Table", Some(icon::TABLE)),
@@ -516,6 +517,7 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::ManageCanvasStyles => "view.style.manage",
         CommandId::SaveProcessingTemplate => "process.save_template",
         CommandId::ApplyProcessingTemplate => "process.apply_template",
+        CommandId::XasSummaryFigure => "process.xas.summary_figure",
         CommandId::Craft => "process.craft",
         CommandId::RunCraft => "process.craft.run",
         CommandId::CraftComponentTable => "process.craft.component_table",
