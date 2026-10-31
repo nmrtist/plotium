@@ -251,7 +251,7 @@ impl Node<'_> {
                             "opacity":image.opacity,"interpolation":match image.interpolation {crate::state::ImageInterpolation::Auto=>"auto",crate::state::ImageInterpolation::Nearest=>"nearest",crate::state::ImageInterpolation::Linear=>"linear"},
                             "preserve_aspect":image.preserve_aspect,
                             "replaceable":c.validate_content_edit(o.id,false).is_ok() && image.page_index==0,
-                            "replace_error":c.validate_content_edit(o.id,false).err().or_else(||(image.page_index!=0).then(||"PNG/JPEG replacement requires page_index 0; the existing page index is never reset.".to_owned()))
+                            "replace_error":c.validate_content_edit(o.id,false).err().or_else(||(image.page_index!=0).then(||"Image replacement requires page_index 0; the existing page index is never reset.".to_owned()))
                         });
                     }
                     ContentKind::Shape(shape) => {

@@ -1,9 +1,15 @@
-use super::{HARD_DECODED_BYTES, ImageError, ImageProbe, ProxyImage, ResourceClass, probe};
+use super::{
+    HARD_DECODED_BYTES, ImageError, ImageProbe, ProxyImage, RasterFormat, ResourceClass, probe,
+    rasterize_svg_rgba8,
+};
 use image::ImageDecoder;
 use std::io::Cursor;
 
 pub fn decode_proxy_rgba8(bytes: &[u8], max_edge: u32) -> Result<ProxyImage, ImageError> {
     let probe = probe(bytes)?;
+    if probe.format == RasterFormat::Svg {
+        return rasterize_svg_rgba8(bytes, max_edge);
+    }
     if probe.class == ResourceClass::Rejected {
         return Err(ImageError::TooLarge {
             width: probe.width,

@@ -15,7 +15,7 @@ description: 通过 MCP 安排页面、面板、文字和图片，精确删除�
 | `page` | 至少提供 `size_mm: [宽,高]` 或 `size_preset`、`margin_mm: [上,右,下,左]`、`gutter_mm` 之一，长度均为 mm。期刊 `size_preset` 设定栏宽，已有内容的页面保持原高度；纸张和幻灯片预设同时设定宽高。未给 `margin_mm` 时页边距改为预设值（期刊 0 mm、纸张 15 mm、幻灯片 10 mm）；结果中返回 `size_preset` |
 | `panel_frame` | `target: 完整面板目标`、`frame_pt: [x,y,宽,高]`，页面 pt |
 | `content_frame` | `target: 完整内容目标`、完整 `frame_pt: [x,y,宽,高]`，父局部 pt；只改该内容 |
-| `image_replace` | `target: 完整 raster 目标`、`path`；以冻结的本地 PNG/JPEG 仅替换资产引用 |
+| `image_replace` | `target: 完整 raster 目标`、`path`；以冻结的本地 PNG/JPEG/SVG 仅替换资产引用 |
 | `content_delete` | `target: 完整内容目标`；删除内容并保留空父 panel |
 | `panel_delete` | `target: 完整 Panel 目标`；要求原始状态已为空 |
 | `series_delete` | `target: 完整 Series 目标`；删除非末条显式 Series |
@@ -26,7 +26,7 @@ description: 通过 MCP 安排页面、面板、文字和图片，精确删除�
 | `grid` | `panels`、`rows`、`cols`；按所给目标顺序分配原生 Frame-basis 网格格子 |
 | `text_create` | `parent: 完整画布或面板目标`、`name`、`frame_pt`、`text`、`font_pt` |
 | `text_set` | `target: 完整文字目标`、`text`；可选 `font_pt` |
-| `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG 或 JPEG） |
+| `image_create` | `parent`、`name`、`frame_pt`、`path: "/absolute/local/image.png"`（PNG、JPEG 或 SVG） |
 | `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"`、`color: "#rrggbb"` |
 | `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
 | `annotation_create`（箭头） | `target: 完整图目标`、`kind: "arrow"`、箭尾 `at: [x,y]`、箭头 `to: [x,y]`；可选 `head: none\|open\|filled\|double`、`line_width_pt`、`color: "#rrggbb"` |
@@ -143,7 +143,7 @@ GUI 已有子集 Grid 按钮；使用当前页面边距／gutter，不修改已�
 每次布局最多 200 个面板。
 
 图片预检仅读取明确指定的绝对路径普通文件：每批最多 8 次图片输入（创建与替换合计，重复输入也计数）、每文件编码大小 1 MiB、
-每批编码合计 4 MiB，每张解码 RGBA8 最多 4 MiB。PNG/JPEG 探测和解码复用原生 I/O；
+每批编码合计 4 MiB，每张 PNG/JPEG 解码 RGBA8 最多 4 MiB。SVG 在预检时归一化（文字转轮廓、丢弃外部引用），在 SVG、PDF 和位图输出中保持矢量。探测和解码复用原生 I/O；
 预检冻结字节，提交后嵌入原生资产库，不依赖外部路径，相同编码资产复用。资产缺失、
 损坏或格式不支持使整批以 `invalid_parameters` 及明确资产错误拒绝。不扫描目录、
 访问网络或回写源文件。
@@ -193,7 +193,7 @@ pt；左上原点，X 向右、Y 向下。读取新增完整 `parent`、`frame_s
 `image_replace` 仅赋值目标 AssetId，保留 ContentId、父级、frame、z-order、名称、
 可见性及全部图片属性：`page_index`、crop、fit、90°步进旋转、opacity、interpolation、
 preserve_aspect。其他旧资产引用不变。保留的 crop/fit 可能使新图呈现不同，不自动清空
-设置。PNG/JPEG 要求既有 `page_index=0`；非零页整批拒绝，不静默归零。换图要求目标／
+设置。换图要求既有 `page_index=0`；非零页整批拒绝，不静默归零。换图要求目标／
 父级解锁，但不要求 Free 布局或关闭 Auto height；`image.replaceable`、`replace_error`
 返回适用性。
 

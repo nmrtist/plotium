@@ -7,8 +7,8 @@ description: Add micrographs, photos, and other images to figure pages and panel
 
 To place each image on its own fitted page, choose **Add Images…** from the File
 menu, Ribbon, or command palette. You can select multiple PNG, JPEG, TIFF, WebP,
-or BMP files. Plotium recognizes the format from the file's contents, not its
-extension. GIF and SVG images are not supported. You can also drop files onto
+BMP, or SVG files. Plotium recognizes the format from the file's contents, not
+its extension. GIF images are not supported. You can also drop files onto
 the board; each image gets a new page even if you drop it over an existing one.
 
 Plotium asks for confirmation before importing an image above 100 megapixels
@@ -50,6 +50,16 @@ quarter-turn rotation, opacity, fit, interpolation, Panel clipping, and layer
 order therefore match the authored page without depending on the source file's
 original path.
 
+## Vector images
+
+SVG files, such as chemical structures saved from ChemDraw, Ketcher, or RDKit,
+stay vector. Plotium converts their text to outlines when you add them, so
+labels look the same on every computer but can no longer be edited, and it
+ignores links to other files. A text label needs its font installed when the
+file is added. Export to SVG, PDF, PNG, JPEG, and TIFF keeps the drawing sharp
+at any size; EMF output and **Copy Figure** to Office currently use pixels for
+it. Line widths scale with the image and do not follow the figure's theme.
+
 ## Missing or damaged images
 
 Plotium checks every embedded image when a project opens. If one is missing,
@@ -69,8 +79,8 @@ You can ask an AI client connected to Plotium to do this for you, for example:
 > Add the micrograph at /Users/me/images/sem.png to panel b, fitted to the
 > panel. Show me a preview.
 
-The AI can add local PNG and JPEG files of up to 1 MiB each (and at most 4 MiB
-when decoded); give it the file's full path. Add larger images yourself with
+The AI can add local SVG, PNG, and JPEG files of up to 1 MiB each (PNG and JPEG
+at most 4 MiB when decoded); give it the file's full path. Add larger images yourself with
 **Add Images…**. The
 change appears in Plotium right away and is one Undo step. Check the preview
 before you agree. See

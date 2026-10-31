@@ -260,6 +260,9 @@ pub fn image_precheck_items(
                 missing += 1;
                 continue;
             };
+            if asset.is_vector() {
+                continue;
+            }
             if probe.high_precision || probe.has_icc {
                 converted += 1;
             }
@@ -599,6 +602,36 @@ mod tests {
 
         let missing = image_precheck_items(&[&canvas], &BTreeMap::new(), None);
         assert_eq!(missing[0].status, ComplianceStatus::Fail);
+    }
+
+    #[test]
+    fn vector_images_have_no_effective_ppi() {
+        let bytes = br#"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>"#.to_vec();
+        let id = AssetId::new();
+        let asset = AssetRecord {
+            id,
+            sha256: Sha256::digest(&bytes).into(),
+            format: "svg".to_owned(),
+            pixel_size: [8, 8],
+            bytes,
+        };
+        let mut canvas = CanvasDocument::new("precheck".to_owned(), [100.0, 100.0]);
+        canvas.objects.push(CanvasObject {
+            id: ObjectId::new(1),
+            name: "image".to_owned(),
+            frame: ObjectFrame::new(0.0, 0.0, 144.0, 144.0),
+            locked: false,
+            visible: true,
+            kind: CanvasObjectKind::RasterImage(RasterImageContent::new(id)),
+        });
+
+        let items = image_precheck_items(&[&canvas], &BTreeMap::from([(id, asset)]), None);
+        assert!(
+            items
+                .iter()
+                .all(|item| item.status == ComplianceStatus::Pass)
+        );
+        assert!(!items.iter().any(|item| item.label.contains("PPI")));
     }
 
     #[test]

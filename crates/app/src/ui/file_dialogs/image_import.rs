@@ -245,6 +245,9 @@ fn prepare_bytes(
     options: ImportOptions,
 ) -> Result<Vec<Candidate>, Failure> {
     let detected = plotium_io::image::sniff(&bytes).name().to_owned();
+    if plotium_io::image::sniff(&bytes) == plotium_io::image::RasterFormat::Svg {
+        return prepare_svg(basename, &bytes, &detected, options).map(|candidate| vec![candidate]);
+    }
     let source_dpi = plotium_io::image::metadata_dpi(&bytes);
     let probe = plotium_io::image::probe(&bytes).map_err(|error| {
         failure(
@@ -252,7 +255,7 @@ fn prepare_bytes(
             &detected,
             "probe",
             error.to_string(),
-            "Choose a supported PNG, JPEG, TIFF, WebP, or BMP file.",
+            "Choose a supported PNG, JPEG, TIFF, WebP, BMP, or SVG file.",
         )
     })?;
     if options.import_all_tiff_pages && probe.format != plotium_io::image::RasterFormat::Tiff {
@@ -261,7 +264,7 @@ fn prepare_bytes(
             &detected,
             "probe_pages",
             "the all-pages command accepts TIFF sources only".to_owned(),
-            "Choose Add Images… for PNG, JPEG, WebP, or BMP sources.",
+            "Choose Add Images… for PNG, JPEG, WebP, BMP, or SVG sources.",
         ));
     }
     if probe.animated && !options.allow_first_frame {
@@ -434,6 +437,42 @@ fn prepare_bytes(
         }
     }
     Ok(candidates)
+}
+
+/// Embeds the normalized form, which already carries no source metadata.
+fn prepare_svg(
+    basename: String,
+    source: &[u8],
+    detected: &str,
+    options: ImportOptions,
+) -> Result<Candidate, Failure> {
+    if options.import_all_tiff_pages {
+        return Err(failure(
+            &basename,
+            detected,
+            "probe_pages",
+            "the all-pages command accepts TIFF sources only".to_owned(),
+            "Choose Add Images… for PNG, JPEG, WebP, BMP, or SVG sources.",
+        ));
+    }
+    let remedy = "Re-export the SVG from its source application and retry.";
+    let bytes = plotium_core::export::normalize_svg_asset(source)
+        .map_err(|error| failure(&basename, detected, "normalize", error.to_string(), remedy))?;
+    let probe = plotium_io::image::probe(&bytes)
+        .map_err(|error| failure(&basename, detected, "probe", error.to_string(), remedy))?;
+    let preview = rebuild_preview(&bytes, 0)
+        .map_err(|error| failure(&basename, detected, "decode", error.to_string(), remedy))?;
+    Ok(Candidate {
+        basename,
+        sha256: plotium_io::image::sha256(&bytes),
+        bytes: Arc::new(bytes),
+        format: probe.format.name().to_ascii_lowercase(),
+        pixel_size: [probe.width, probe.height],
+        auto_page_size_mm: physical_image_size_mm([probe.width, probe.height], None),
+        page_index: 0,
+        warning: None,
+        preview,
+    })
 }
 
 fn commit(app: &mut PlotiumApp, job: &mut ImportJob, results: Vec<Result<Candidate, Failure>>) {

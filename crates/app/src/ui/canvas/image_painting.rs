@@ -60,6 +60,7 @@ pub(crate) fn canvas_document(app: &PlotiumApp, ci: usize) -> plotium_render::Do
                 ),
                 clip,
                 visible: panel_visible && object.visible,
+                vector: None,
             });
     }
     plotium_render::Document {

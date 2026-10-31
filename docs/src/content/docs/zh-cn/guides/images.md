@@ -6,8 +6,8 @@ description: 把显微图、照片等图片添加到图形页面和 Panel 中。
 ## 添加图片
 
 若要让每张图片各占一个适配大小的页面，请从 File 菜单、Ribbon 或命令面板选择
-**Add Images…**。一次可以选择多张 PNG、JPEG、TIFF、WebP 或 BMP 图片。Plotium 按文件内容而不是扩展名
-判断格式。不支持 GIF 和 SVG 图片。也可以
+**Add Images…**。一次可以选择多张 PNG、JPEG、TIFF、WebP、BMP 或 SVG 图片。Plotium 按文件内容而不是扩展名
+判断格式。不支持 GIF 图片。也可以
 直接把文件拖到画板上；即使落点位于已有页面内，每张图片仍会新建一个页面。
 
 图片超过 1 亿像素或预计解码后超过 512 MiB 时，Plotium 会要求确认；超过 5 亿像素或
@@ -40,6 +40,13 @@ Plotium 创建图片页面时，会优先采用图片的 DPI 信息确定实际�
 以及 **Copy Figure** 则从项目中嵌入的原图采样。裁剪、90 度旋转、透明度、适配、
 插值、Panel 裁切和图层顺序都会与画板一致，也不依赖源文件原先所在的路径。
 
+## 矢量图片
+
+SVG 文件（例如从 ChemDraw、Ketcher 或 RDKit 保存的化学结构式）保持矢量。添加时 Plotium
+会把其中的文字转为轮廓，所以标签在任何电脑上都显示一致，但不能再编辑；指向其他文件的链接会被忽略。
+添加文件时，电脑上需要装有文字标签所用的字体。导出 SVG、PDF、PNG、JPEG 和 TIFF 时，图形在任何尺寸下
+都保持清晰；EMF 输出和向 Office 的 **Copy Figure** 目前对它使用像素。线宽随图片缩放，不跟随图表主题。
+
 ## 图片缺失或损坏
 
 打开项目时，Plotium 会校验每张嵌入图片。若图片缺失、损坏或与记录不符，项目仍会打开，并在原位置保留带说明的占位项。请在对象
@@ -54,6 +61,6 @@ Plotium 创建图片页面时，会优先采用图片的 DPI 信息确定实际�
 
 > 把 /Users/me/images/sem.png 这张显微图放进 Panel b，按 Panel 大小适配，先给我看预览。
 
-AI 可以添加本地的 PNG 和 JPEG 文件，每个文件不超过 1 MiB（解码后不超过 4 MiB），
+AI 可以添加本地的 SVG、PNG 和 JPEG 文件，每个文件不超过 1 MiB（PNG 和 JPEG 解码后不超过 4 MiB），
 请告诉它文件的完整路径。更大的图片请自己用 **Add Images…** 添加。修改会立即出现在
 Plotium 里，是一步 Undo。同意之前请先看预览。参见[权限、审阅与撤销](/zh-cn/ai/control-and-review/)。

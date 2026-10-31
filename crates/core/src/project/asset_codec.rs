@@ -201,7 +201,7 @@ pub(super) fn load_assets(
 }
 
 fn valid_format(format: &str) -> bool {
-    matches!(format, "png" | "jpeg" | "tiff" | "webp" | "bmp")
+    matches!(format, "png" | "jpeg" | "tiff" | "webp" | "bmp" | "svg")
 }
 
 fn format_matches_header(format: &str, bytes: &[u8]) -> bool {
@@ -212,5 +212,6 @@ fn format_matches_header(format: &str, bytes: &[u8]) -> bool {
             | ("tiff", plotium_io::image::RasterFormat::Tiff)
             | ("webp", plotium_io::image::RasterFormat::WebP)
             | ("bmp", plotium_io::image::RasterFormat::Bmp)
+            | ("svg", plotium_io::image::RasterFormat::Svg)
     )
 }

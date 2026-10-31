@@ -1,4 +1,5 @@
 use resvg::usvg::fontdb::Database;
+use std::sync::{Arc, OnceLock};
 
 /// Load platform fonts and make SVG's generic families resolve on systems that
 /// do not install fontdb's defaults, such as Arial and Times New Roman
@@ -16,6 +17,18 @@ pub(super) fn load_system_fonts(database: &mut Database) {
     if let Some(family) = generic.serif {
         database.set_serif_family(family);
     }
+}
+
+/// Normalizes a source SVG against the platform fonts, once per process, so an
+/// embedded asset no longer depends on them.
+pub fn normalize_svg_asset(bytes: &[u8]) -> Result<Vec<u8>, plotium_io::image::ImageError> {
+    static FONTS: OnceLock<Arc<Database>> = OnceLock::new();
+    let fonts = FONTS.get_or_init(|| {
+        let mut database = Database::new();
+        load_system_fonts(&mut database);
+        Arc::new(database)
+    });
+    plotium_io::image::normalize_svg(bytes, Arc::clone(fonts))
 }
 
 // svg2pdf still uses fontdb 0.23. Keep its font fallback policy identical to

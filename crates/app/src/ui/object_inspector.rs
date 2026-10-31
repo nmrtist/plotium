@@ -151,7 +151,10 @@ fn raster_image_section(app: &mut PlotiumApp, ci: usize, id: ObjectId, ui: &mut 
     let mut continuous = Vec::new();
     ui.separator();
     ui.label(crate::typography::headline("Image"));
-    if let Some(asset) = app.doc.assets.get(&before.asset) {
+    let asset = app.doc.assets.get(&before.asset);
+    if asset.is_some_and(|asset| asset.is_vector()) {
+        ui.label("Vector image (SVG), text as outlines");
+    } else if let Some(asset) = asset {
         let source_pixels = if before.page_index == 0 {
             asset.pixel_size
         } else {

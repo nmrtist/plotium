@@ -9,6 +9,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 const MAX_EXPORT_SAMPLE_EDGE: u32 = 4096;
+/// Long edge of the pixels an SVG asset falls back to in EMF output.
+const VECTOR_FALLBACK_EDGE: u32 = 2048;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MissingImagePolicy {
@@ -52,8 +54,16 @@ pub fn prepare_render_document<'a>(
                     decoded_assets.insert(key, (*decoded).clone());
                 })
         };
-        let decoded = match decoded {
-            Ok(decoded) => decoded,
+        let prepared = decoded.and_then(|decoded| {
+            let vector = assets
+                .get(&image.asset)
+                .filter(|asset| asset.is_vector())
+                .map(|asset| vector_content(asset, index))
+                .transpose()?;
+            Ok((decoded, vector))
+        });
+        let (decoded, vector) = match prepared {
+            Ok(prepared) => prepared,
             Err(_error) if missing_policy == MissingImagePolicy::Placeholder => {
                 items[index] = missing_image_placeholder(frame, visible);
                 continue;
@@ -82,6 +92,7 @@ pub fn prepare_render_document<'a>(
             nearest: image.interpolation == ImageInterpolation::Nearest,
             clip,
             visible,
+            vector,
         });
     }
     Ok(plotium_render::Document {
@@ -90,6 +101,32 @@ pub fn prepare_render_document<'a>(
         background: canvas.background,
         items,
     })
+}
+
+/// Fills the pixels of vector items for an output that cannot draw their paths.
+pub fn rasterize_vector_fallbacks(
+    document: &mut plotium_render::Document<'_>,
+    assets: &BTreeMap<AssetId, AssetRecord>,
+) -> Result<(), ExportError> {
+    for item in &mut document.items {
+        let plotium_render::DocumentItem::Raster(raster) = item else {
+            continue;
+        };
+        if raster.vector.is_none() {
+            continue;
+        }
+        let Some(asset) = assets.values().find(|a| a.sha256 == raster.source_hash) else {
+            continue;
+        };
+        let fallback = plotium_io::image::rasterize_svg_rgba8(&asset.bytes, VECTOR_FALLBACK_EDGE)
+            .map_err(|error| ExportError::CorruptImageAsset {
+            asset: asset.id,
+            reason: error.to_string(),
+        })?;
+        raster.pixel_size = fallback.pixel_size;
+        raster.pixels = Arc::from(fallback.rgba8);
+    }
+    Ok(())
 }
 
 fn decode_asset(asset: &AssetRecord, page_index: u32) -> Result<DecodedAsset, ExportError> {
@@ -105,6 +142,14 @@ fn decode_asset(asset: &AssetRecord, page_index: u32) -> Result<DecodedAsset, Ex
             asset: asset.id,
             reason: error.to_string(),
         })?;
+    if asset.is_vector() {
+        return Ok(DecodedAsset {
+            sha256: actual,
+            pixel_size: [0, 0],
+            source_pixel_size: [probe.width, probe.height],
+            pixels: Arc::from(Vec::new()),
+        });
+    }
     let source_pixel_size = if page_index == 0 {
         [probe.width, probe.height]
     } else {
@@ -143,6 +188,22 @@ fn decode_asset(asset: &AssetRecord, page_index: u32) -> Result<DecodedAsset, Ex
             reason: error.to_string(),
         }),
     }
+}
+
+/// Item-indexed id prefix: one asset placed twice must not repeat its ids.
+fn vector_content(
+    asset: &AssetRecord,
+    item_index: usize,
+) -> Result<plotium_render::DocumentVector, ExportError> {
+    let fragment = plotium_io::image::svg_fragment(&asset.bytes, &format!("svg{item_index}-"))
+        .map_err(|error| ExportError::CorruptImageAsset {
+            asset: asset.id,
+            reason: error.to_string(),
+        })?;
+    Ok(plotium_render::DocumentVector {
+        markup: Arc::from(fragment.markup),
+        size: fragment.size,
+    })
 }
 
 #[derive(Clone)]
