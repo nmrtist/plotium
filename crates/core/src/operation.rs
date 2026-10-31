@@ -61,6 +61,9 @@ pub enum DiagnosticCode {
     ProcessingSchemeApplyFailed,
     ProcessingSchemeSaveSucceeded,
     ProcessingSchemeSaveFailed,
+    XasMergeSucceeded,
+    XasMergeUnaligned,
+    XasMergeFailed,
 }
 
 impl DiagnosticCode {
@@ -98,6 +101,9 @@ impl DiagnosticCode {
             Self::ProcessingSchemeApplyFailed => "processing.scheme.apply.failed",
             Self::ProcessingSchemeSaveSucceeded => "processing.scheme.save.succeeded",
             Self::ProcessingSchemeSaveFailed => "processing.scheme.save.failed",
+            Self::XasMergeSucceeded => "xas.merge.succeeded",
+            Self::XasMergeUnaligned => "xas.merge.unaligned",
+            Self::XasMergeFailed => "xas.merge.failed",
         }
     }
 }
@@ -190,6 +196,7 @@ pub enum OperationKind {
     ImageImport,
     ProcessingSchemeLoadAndApply,
     ProcessingSchemeSave,
+    XasMerge,
 }
 
 impl OperationKind {
@@ -206,6 +213,7 @@ impl OperationKind {
             Self::ImageImport => "image.import",
             Self::ProcessingSchemeLoadAndApply => "processing.scheme.load_and_apply",
             Self::ProcessingSchemeSave => "processing.scheme.save",
+            Self::XasMerge => "xas.merge",
         }
     }
 }

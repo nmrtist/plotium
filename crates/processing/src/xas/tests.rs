@@ -239,3 +239,18 @@ fn out_of_range_settings_are_rejected() {
         assert!(params.validate().is_err(), "{params:?}");
     }
 }
+
+#[test]
+fn alignment_finds_a_shift_smaller_than_the_step() {
+    let energy: Vec<f64> = (0..400)
+        .map(|index| 7000.0 + f64::from(index) * 0.5)
+        .collect();
+    let curve = |shift: f64| -> Vec<f64> {
+        energy
+            .iter()
+            .map(|e| ((e - 7100.0 - shift) / 2.0).atan() + 0.1 * ((e - 7100.0 - shift) / 4.0).sin())
+            .collect()
+    };
+    let shift = alignment_shift((&energy, &curve(0.0)), (&energy, &curve(0.13)), 7100.0).unwrap();
+    assert!((shift + 0.13).abs() < 0.01, "{shift}");
+}

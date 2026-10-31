@@ -103,6 +103,7 @@ pub enum CommandId {
     SaveProcessingTemplate,
     ApplyProcessingTemplate,
     XasSummaryFigure,
+    MergeXasScans,
     Craft,
     RunCraft,
     CraftComponentTable,
@@ -441,6 +442,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             helpers::template_gate(app, active_dataset, id)
         }
         CommandId::XasSummaryFigure => helpers::xas_summary_gate(dataset()),
+        CommandId::MergeXasScans => helpers::xas_merge_gate(app),
         CommandId::Craft | CommandId::RunCraft | CommandId::CraftComponentTable => {
             craft::gate(app, id)
         }

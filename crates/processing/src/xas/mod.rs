@@ -2,6 +2,7 @@
 //! AUTOBK background removal, and the XAFS Fourier transform. Defaults and
 //! numerical choices follow Larch so results can be compared with it directly.
 
+mod align;
 mod autobk;
 mod edges;
 mod fourier;
@@ -9,6 +10,7 @@ mod normalize;
 mod reduction;
 mod spline;
 
+pub use align::{MAX_ALIGNMENT_SHIFT, alignment_shift};
 pub use autobk::{Autobk, AutobkParams, autobk};
 pub use edges::{edge_energy, nearest_edge};
 pub use fourier::{ChiR, XafsWindow, XftfParams, ft_window, xftf};

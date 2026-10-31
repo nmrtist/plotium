@@ -191,6 +191,7 @@ mod workflow_tab;
 mod xas;
 mod xas_checks;
 mod xas_figure;
+mod xas_merge;
 mod xps;
 mod xrd;
 
@@ -292,6 +293,7 @@ pub use viewport::*;
 pub use workflow_tab::WorkflowTab;
 pub use xas::*;
 pub use xas_checks::*;
+pub use xas_merge::*;
 pub use xps::*;
 pub use xrd::*;
 

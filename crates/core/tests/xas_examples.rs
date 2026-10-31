@@ -195,6 +195,56 @@ fn check_warnings(path: &Path, fluorescence: bool) {
     assert_eq!(codes, expected, "{path:?}");
 }
 
+/// The authors shifted each scan and merged the results, so their merged mu(E)
+/// is compared in the first scan's project energy frame.
+fn check_merge(directory: &Path, names: &[String]) {
+    let scans: Vec<XasDataset> = names
+        .iter()
+        .map(|name| XasDataset::load(xas::load(&directory.join("raw").join(name)).unwrap()))
+        .collect();
+    let refs: Vec<&XasDataset> = scans.iter().collect();
+    let (merged, aligned) = plotium_core::state::merge_scans(&refs, "merge").unwrap();
+    let parameters: Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            directory
+                .join("exports_larch/sample")
+                .join(format!("{}_parameters.json", names[0])),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let first_shift = number(&parameters, "energy_shift_eV");
+    let merged_directory = directory.join("exports_larch/merged");
+    let export = std::fs::read_dir(&merged_directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.to_string_lossy().ends_with("_norm.txt"))
+        .unwrap();
+    let reference = read_table(&export);
+    let energy: Vec<f64> = merged.columns[0]
+        .values
+        .iter()
+        .map(|e| e + first_shift)
+        .collect();
+    let mu = &merged.columns[1].values;
+    let saved: Vec<f64> = column(&reference, 3);
+    let at: Vec<f64> = column(&reference, 0);
+    let interpolated: Vec<f64> = at
+        .iter()
+        .map(|e| {
+            let right = energy.partition_point(|v| v < e).clamp(1, energy.len() - 1);
+            let t = (e - energy[right - 1]) / (energy[right] - energy[right - 1]);
+            mu[right - 1] + t * (mu[right] - mu[right - 1])
+        })
+        .collect();
+    let error = relative_rms(&interpolated, &saved);
+    println!(
+        "{directory:?}: {} scans, {aligned:?}, merged mu RMS {error:.2e}",
+        names.len()
+    );
+    assert!(error < 5e-4, "merge {error:.2e}");
+}
+
 #[test]
 #[ignore = "needs PLOTIUM_XAS_EXAMPLES"]
 fn beamline_scans_match_larch_through_the_dataset() {
@@ -202,6 +252,14 @@ fn beamline_scans_match_larch_through_the_dataset() {
     let mut scans = 0;
     for (beamline, fluorescence) in [("01_NSLS_X23A2_Fe_K", false), ("02_APS_20BM_Hg_L3", true)] {
         let directory = root.join(beamline);
+        let raw_names: Vec<String> = std::fs::read_dir(directory.join("raw"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| !name.starts_with("Fe_pyrite"))
+            .collect();
+        let mut sorted = raw_names;
+        sorted.sort();
+        check_merge(&directory, &sorted);
         let mut paths: Vec<_> = std::fs::read_dir(directory.join("raw"))
             .unwrap()
             .map(|entry| entry.unwrap().path())
