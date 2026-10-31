@@ -4549,7 +4549,9 @@ dependencies = [
  "num-complex",
  "plotium-analysis",
  "plotium-io",
+ "rustfft",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

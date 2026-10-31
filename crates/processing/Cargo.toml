@@ -15,5 +15,9 @@ nmr.workspace = true
 plotium-io.workspace = true
 plotium-analysis.workspace = true
 num-complex.workspace = true
+rustfft.workspace = true
 thiserror.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
