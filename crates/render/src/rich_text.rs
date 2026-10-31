@@ -301,6 +301,34 @@ fn escape(s: &str) -> String {
         .replace('>', "&gt;")
 }
 
+/// Font sizes per doubling that text may use while the workspace camera moves.
+#[cfg(feature = "screen")]
+const NAVIGATION_FONT_STEPS: f32 = 8.0;
+
+/// Every font size has its own glyphs in the shared atlas, so a continuously
+/// zooming camera would rasterize all text each frame and overflow the atlas.
+#[cfg(feature = "screen")]
+pub fn navigation_font_size(size: f32) -> f32 {
+    2.0_f32.powf((size.log2() * NAVIGATION_FONT_STEPS).round() / NAVIGATION_FONT_STEPS)
+}
+
+#[cfg(feature = "screen")]
+fn navigation_text_id() -> egui::Id {
+    egui::Id::new("plotium.render.navigation_text")
+}
+
+#[cfg(feature = "screen")]
+fn navigation_text(ctx: &egui::Context) -> bool {
+    ctx.data(|data| data.get_temp(navigation_text_id()))
+        .unwrap_or(false)
+}
+
+/// Selects whether text painted from now on snaps to navigation font sizes.
+#[cfg(feature = "screen")]
+pub(crate) fn set_navigation_text(ctx: &egui::Context, enabled: bool) {
+    ctx.data_mut(|data| data.insert_temp(navigation_text_id(), enabled));
+}
+
 /// An egui galley for `text`, with scripts set smaller and aligned to the
 /// top or bottom of the line.
 #[cfg(feature = "screen")]
@@ -310,7 +338,10 @@ pub(crate) fn galley(
     font: egui::FontId,
     color: egui::Color32,
 ) -> std::sync::Arc<egui::Galley> {
-    let font = figure_font(painter, font);
+    let mut font = figure_font(painter, font);
+    if navigation_text(painter.ctx()) {
+        font.size = navigation_font_size(font.size);
+    }
     if !has_scripts(text) {
         return painter.layout_no_wrap(text.to_owned(), font, color);
     }
