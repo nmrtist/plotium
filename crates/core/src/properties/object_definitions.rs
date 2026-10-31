@@ -12,6 +12,7 @@ pub const CHART_TYPE_ID: PropertyId = PropertyId("object.chart.type_id");
 pub const CHART_BINS_AUTO: PropertyId = PropertyId("object.chart.bins.auto");
 pub const CHART_BINS_COUNT: PropertyId = PropertyId("object.chart.bins.count");
 pub const CHART_STACKED: PropertyId = PropertyId("object.chart.stacked");
+pub const CHART_BAR_HATCH: PropertyId = PropertyId("object.chart.bar_hatch");
 pub const CHART_COLORMAP: PropertyId = PropertyId("object.chart.colormap");
 pub const CHART_VIEW_AZIMUTH: PropertyId = PropertyId("object.chart.view_angles.0");
 pub const CHART_VIEW_ELEVATION: PropertyId = PropertyId("object.chart.view_angles.1");
@@ -169,6 +170,7 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
     definition(CHART_BINS_AUTO, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(true)), "Automatic histogram bins", &["auto bins"]),
     definition(CHART_BINS_COUNT, ValueSchema::IntWithDrag { min: 1, max: 512, drag_step: 1.0 }, DefaultPolicy::Fixed(PropertyValue::Int(20)), "Histogram bin count", &["bins", "bucket count"]),
     definition(CHART_STACKED, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Stack grouped bars", &["stacked bars"]),
+    tiered(Tier::Advanced, CHART_BAR_HATCH, ValueSchema::Enum { variants: line_display::HATCHES }, DefaultPolicy::Fixed(PropertyValue::Enum(line_display::HATCH_DEFAULT)), "Chart bar hatch", &["bar pattern", "bar hatch"]),
     definition(CHART_COLORMAP, ValueSchema::Enum { variants: COLORMAPS }, DefaultPolicy::Fixed(PropertyValue::Enum("viridis")), "Chart colormap", &["colour map"]),
     definition(CHART_VIEW_AZIMUTH, ValueSchema::Float { bounds: FloatBounds::inclusive(-180.0_f64.to_radians(), 180.0_f64.to_radians()), display: FloatDisplay::Degrees, drag_step: Some(1.0) }, DefaultPolicy::Fixed(PropertyValue::Float(-50.0_f64.to_radians())), "Surface azimuth", &["view azimuth"]),
     definition(CHART_VIEW_ELEVATION, ValueSchema::Float { bounds: FloatBounds::inclusive(5.0_f64.to_radians(), 90.0_f64.to_radians()), display: FloatDisplay::Degrees, drag_step: Some(1.0) }, DefaultPolicy::Fixed(PropertyValue::Float(30.0_f64.to_radians())), "Surface elevation", &["view elevation"]),
@@ -194,3 +196,22 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
     definition(SHAPE_FILL_COLOR, ValueSchema::Color, DefaultPolicy::Fixed(PropertyValue::Color(FILL_FALLBACK)), "Shape fill color", &["fill colour"]),
     definition(LOCKED, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Lock object", &["locked"]),
 ];
+
+/// Whether a Chart-section property is rendered for a resolved chart type.
+///
+/// The panel-density calibration calls this same predicate while enumerating
+/// the chart-type discriminator, so the budget cannot drift from the provider
+/// that decides which rows a user actually sees.
+#[doc(hidden)]
+pub fn chart_property_applies_to_type(property: PropertyId, chart_type: &str) -> bool {
+    match property {
+        CHART_TYPE_ID => true,
+        CHART_BINS_AUTO | CHART_BINS_COUNT => chart_type == "table_histogram",
+        CHART_STACKED => chart_type == "table_bar_grouped",
+        CHART_BAR_HATCH => matches!(chart_type, "table_bar" | "table_bar_grouped"),
+        CHART_COLORMAP => matches!(chart_type, "table_heatmap" | "table_surface"),
+        CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION => chart_type == "table_surface",
+        CHART_TRANSPOSE => chart_type == "table_heatmap",
+        _ => false,
+    }
+}

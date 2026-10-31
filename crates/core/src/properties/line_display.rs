@@ -3,7 +3,9 @@ use super::provider::PropertyProvider;
 use super::target::{resolved_schema, series_context};
 use super::*;
 use crate::state::PlotiumApp;
-use plotium_figure::{ColorSource, LineStyle, Marker, PositiveFiniteF32, SeriesEncoding};
+use plotium_figure::{
+    ColorSource, HatchPattern, LineStyle, Marker, PositiveFiniteF32, SeriesEncoding,
+};
 
 pub const COLOR: PropertyId = PropertyId("series.line.color");
 pub const LABEL: PropertyId = PropertyId("series.label");
@@ -18,6 +20,7 @@ pub const MARKER_EVERY: PropertyId = PropertyId("series.line.marker_every");
 pub const BAR_WIDTH: PropertyId = PropertyId("series.bar.width");
 pub const BAR_EDGE_COLOR: PropertyId = PropertyId("series.bar.edge_color");
 pub const BAR_EDGE_WIDTH: PropertyId = PropertyId("series.bar.edge_width");
+pub const BAR_HATCH: PropertyId = PropertyId("series.bar.hatch");
 pub const Y_AXIS: PropertyId = PropertyId("series.y_axis");
 pub const LEFT: &str = "left";
 pub const RIGHT: &str = "right";
@@ -29,6 +32,35 @@ const MAX_MARKER_EVERY: i64 = 1000;
 const MARKER_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
 const BAR_WIDTH_BOUNDS: FloatBounds = FloatBounds::inclusive(0.05, 1.);
 const BAR_EDGE_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 5.);
+const HATCH_NONE: &str = "none";
+const HATCH_FORWARD: &str = "forward";
+const HATCH_BACKWARD: &str = "backward";
+const HATCH_CROSS: &str = "cross";
+pub(super) const HATCH_DEFAULT: &str = HATCH_NONE;
+pub(super) const HATCHES: &[EnumVariant] = &[
+    EnumVariant::new(HATCH_NONE, "None"),
+    EnumVariant::new(HATCH_FORWARD, "Forward diagonal"),
+    EnumVariant::new(HATCH_BACKWARD, "Backward diagonal"),
+    EnumVariant::new(HATCH_CROSS, "Crosshatch"),
+];
+pub(super) fn hatch_id(hatch: Option<HatchPattern>) -> &'static str {
+    match hatch {
+        None => HATCH_NONE,
+        Some(HatchPattern::Forward) => HATCH_FORWARD,
+        Some(HatchPattern::Backward) => HATCH_BACKWARD,
+        Some(HatchPattern::Cross) => HATCH_CROSS,
+    }
+}
+/// `None` for an unknown id, `Some(None)` for no hatch.
+pub(super) fn hatch_from_id(id: &str) -> Option<Option<HatchPattern>> {
+    match id {
+        HATCH_NONE => Some(None),
+        HATCH_FORWARD => Some(Some(HatchPattern::Forward)),
+        HATCH_BACKWARD => Some(Some(HatchPattern::Backward)),
+        HATCH_CROSS => Some(Some(HatchPattern::Cross)),
+        _ => None,
+    }
+}
 const STYLES: &[EnumVariant] = &[
     EnumVariant::new("solid", "Solid"),
     EnumVariant::new("dashed", "Dashed"),
@@ -120,6 +152,11 @@ const DEFINITIONS: &[PropertyDefinition] = &[
             drag_step: Some(0.05),
         },
         "Bar outline width",
+    ),
+    advanced(
+        BAR_HATCH,
+        ValueSchema::Enum { variants: HATCHES },
+        "Bar hatch",
     ),
 ];
 pub(crate) struct DisplayProvider;
@@ -273,6 +310,11 @@ impl PropertyProvider for DisplayProvider {
                     Some(line.bar_edge_width.is_some()),
                 )
             }
+            BAR_HATCH => (
+                PropertyValue::Enum(hatch_id(line.bar_hatch)),
+                PropertyValue::Enum(HATCH_DEFAULT),
+                Some(line.bar_hatch.is_some()),
+            ),
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
         let marker_property = matches!(
@@ -308,6 +350,8 @@ impl PropertyProvider for DisplayProvider {
                 Availability::Disabled("Choose a line or scatter curve to edit markers.")
             } else if d.id == BAR_EDGE_COLOR && kind != plotium_figure::SeriesKind::Bar {
                 Availability::Disabled("Choose a bar curve to edit its outline color.")
+            } else if d.id == BAR_HATCH && kind != plotium_figure::SeriesKind::Bar {
+                Availability::Disabled("Choose a bar curve to edit its hatch.")
             } else if matches!(d.id, BAR_WIDTH | BAR_EDGE_WIDTH)
                 && !matches!(
                     kind,
@@ -516,6 +560,9 @@ impl PropertyProvider for DisplayProvider {
             }
             (BAR_EDGE_COLOR, PropertyValue::Color(color)) => {
                 line.bar_edge_color = (!matches!(op, EditOp::Reset)).then_some(color);
+            }
+            (BAR_HATCH, PropertyValue::Enum(v)) => {
+                line.bar_hatch = hatch_from_id(v).ok_or_else(invalid)?;
             }
             (BAR_EDGE_WIDTH, PropertyValue::Float(v)) => {
                 BAR_EDGE_BOUNDS.check(d.id, "bar outline width", v)?;

@@ -26,6 +26,7 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::line_display::BAR_WIDTH,
     properties::line_display::BAR_EDGE_COLOR,
     properties::line_display::BAR_EDGE_WIDTH,
+    properties::line_display::BAR_HATCH,
     properties::line_display::Y_AXIS,
     properties::chart_layout::SPREAD,
     properties::chart_layout::VALUE_LABELS,

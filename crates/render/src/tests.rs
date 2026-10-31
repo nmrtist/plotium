@@ -455,7 +455,7 @@ fn bar_swatches_carry_the_bar_outline() {
     let edges: Vec<_> = legend_entries(&fig)
         .iter()
         .map(|(_, _, mark)| match mark {
-            LegendMark::Rect { edge } => *edge,
+            LegendMark::Rect { edge, .. } => *edge,
             _ => panic!("polygons legend as rectangles"),
         })
         .collect();

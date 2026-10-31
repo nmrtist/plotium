@@ -14,6 +14,7 @@ pub(crate) enum LegendMark {
     /// A filled swatch, outlined like the shape it stands for.
     Rect {
         edge: Option<(Color, f32)>,
+        hatch: Option<plotium_figure::Hatch>,
     },
 }
 
@@ -60,7 +61,10 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
                 plotium_figure::SeriesKind::Stick => LegendMark::Line,
                 plotium_figure::SeriesKind::Bar
                 | plotium_figure::SeriesKind::Box
-                | plotium_figure::SeriesKind::Violin => LegendMark::Rect { edge: None },
+                | plotium_figure::SeriesKind::Violin => LegendMark::Rect {
+                    edge: None,
+                    hatch: None,
+                },
             }
         };
         if let Some((_, _, existing)) = entries.iter_mut().find(|(name, color, existing)| {
@@ -88,7 +92,12 @@ pub(crate) fn legend_entries(fig: &Figure) -> Vec<(&str, Color, LegendMark)> {
         let edge = poly
             .stroke
             .filter(|(color, width)| *color != fig.background && *width > 0.0);
-        entries.push((poly.name.as_str(), poly.fill, LegendMark::Rect { edge }));
+        let hatch = poly.hatch;
+        entries.push((
+            poly.name.as_str(),
+            poly.fill,
+            LegendMark::Rect { edge, hatch },
+        ));
     }
     entries
 }

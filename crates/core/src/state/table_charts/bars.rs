@@ -4,7 +4,7 @@
 use super::super::ChartContext;
 use super::super::table::{TableDataset, series_color};
 use super::{empty_axes_figure, row_labels, title_of};
-use plotium_figure::{Axis, ErrorBar, Figure, Polygon};
+use plotium_figure::{Axis, ErrorBar, Figure, Hatch, Polygon};
 
 impl TableDataset {
     /// A bar chart of one column's values against the table's x ruler: each row
@@ -194,6 +194,19 @@ pub(crate) fn grouped_bar_figure(dataset: &TableDataset, ctx: &ChartContext) -> 
     fig
 }
 
+/// Lay the chart's hatch over every bar, in the ink of each bar's fill.
+pub(crate) fn hatch_bars(mut figure: Figure, ctx: &ChartContext) -> Figure {
+    if let Some(pattern) = ctx.bar_hatch {
+        for bar in &mut figure.polygons {
+            bar.hatch = Some(Hatch {
+                pattern,
+                color: bar.fill.ink_shade(),
+            });
+        }
+    }
+    figure
+}
+
 fn plot_sigma(series: &super::super::table_native::TypedPlotSeries, row: usize) -> Option<f64> {
     series
         .uncertainty
@@ -290,6 +303,23 @@ mod tests {
             assert!(p.points.iter().all(|pt| pt[0] > -0.41 && pt[0] < 0.41));
         }
         assert!(fig.y.min < 0.0, "negative bar expands the range");
+    }
+
+    #[test]
+    fn a_chart_hatch_covers_every_bar_in_the_ink_of_its_fill() {
+        use plotium_figure::HatchPattern;
+        let ctx = ChartContext {
+            bar_hatch: Some(HatchPattern::Forward),
+            ..ChartContext::default()
+        };
+        let fig = super::grouped_bar_figure(&two_column_table(), &ctx);
+        let fig = super::hatch_bars(fig, &ctx);
+        assert!(!fig.polygons.is_empty());
+        for bar in &fig.polygons {
+            let hatch = bar.hatch.expect("hatched bar");
+            assert_eq!(hatch.pattern, HatchPattern::Forward);
+            assert_eq!(hatch.color, bar.fill.ink_shade());
+        }
     }
 
     #[test]

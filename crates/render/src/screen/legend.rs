@@ -90,12 +90,21 @@ pub(super) fn paint(
                 );
                 painter.circle_filled(Pos2::new(lx + sw * 0.5, ly), 3.0 * scale, col(*color));
             }
-            LegendMark::Rect { edge } => {
+            LegendMark::Rect { edge, hatch } => {
                 let swatch = egui::Rect::from_min_size(
                     Pos2::new(lx, ly - 4.0 * scale),
                     Vec2::new(sw, 8.0 * scale),
                 );
                 painter.rect_filled(swatch, 1.0 * scale, col(*color));
+                if let Some(hatch) = hatch {
+                    let area = crate::Rect::new(
+                        swatch.left(),
+                        swatch.top(),
+                        swatch.width(),
+                        swatch.height(),
+                    );
+                    crate::hatch::paint(painter, &area.corners(), *hatch, area, scale);
+                }
                 if let Some((edge, width)) = edge {
                     painter.rect_stroke(
                         swatch,

@@ -85,6 +85,15 @@ Plotium 分析工具生成的表格已经带有不确定度，导入的表格则
 对称 ±σ、分开的上下误差，或带置信水平的置信区间。要在自己编写的 CSV 或 TSV 中标出不确定度列，
 见[误差棒列](/zh-cn/guides/importing-data/#误差棒列)。
 
+## 带阴影的柱子
+
+通过 **Curve columns** 或 **Add curve** 添加的柱状曲线可以加阴影：在对象检查器的 **Line › Advanced** 中，把
+**Bar hatch** 设为 **Forward diagonal**、**Backward diagonal** 或 **Crosshatch**。斜线使用
+**Bar outline color** 的颜色，缩放图时线距保持不变。要做空心柱，把曲线颜色设为白色；要让某一根柱子样式
+不同，把它放进单独的曲线。阴影会显示在图例中，并以真实矢量线条出现在所有导出格式里。
+
+图表库的 **Bar** 和 **Grouped bars** 在 **Chart › Advanced** 中有一个 **Bar hatch**，作用于全部柱子，斜线使用各柱颜色的深色。
+
 ## 一张图中的多个数据集
 
 一个图框可以同时显示多个 1D 数据集——可叠加显示，也可以按可调的垂直间距与 3D 错切

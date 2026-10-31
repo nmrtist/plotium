@@ -76,7 +76,7 @@ break hides.
 | Marker and marker size | `series.line.marker`, `series.line.marker_size` |
 | Marker fill, edge colour, edge width | `series.line.marker_fill`, `series.line.marker_edge_color`, `series.line.marker_edge_width` |
 | Hollow marker, marker every N points | `series.line.marker_hollow`, `series.line.marker_every` |
-| Bar width, edge colour, edge width | `series.bar.width`, `series.bar.edge_color`, `series.bar.edge_width` |
+| Bar width, edge colour, edge width, hatch | `series.bar.width`, `series.bar.edge_color`, `series.bar.edge_width`, `series.bar.hatch` |
 | Error bars show, replicates | `series.error_bars` (`unspecified`, `sd`, `sem`, `ci95`), `series.replicates` |
 
 ### Typography
@@ -97,6 +97,7 @@ break hides.
 | Chart type | `object.chart.type_id` |
 | Auto bins, bins | `object.chart.bins.auto`, `object.chart.bins.count` |
 | Stacked bars | `object.chart.stacked` |
+| Chart bar hatch | `object.chart.bar_hatch` |
 | Colormap | `object.chart.colormap` |
 | Transpose heatmap | `object.chart.transpose` |
 | Stack fill, gradient, side scale | `object.stack.occlude`, `object.stack.gradient`, `object.stack.sequence_scale` |

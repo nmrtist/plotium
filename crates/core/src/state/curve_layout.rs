@@ -193,6 +193,7 @@ fn lower_bar(
             let mut rect =
                 Polygon::rect(series.name.clone(), x0, x1, bar.baseline, y, series.color);
             rect.origin = series.origin;
+            rect.hatch = bar.style.hatch_for(series.color);
             figure
                 .polygons
                 .push(match bar.style.edge_for(series.color) {

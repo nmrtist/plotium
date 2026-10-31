@@ -14,13 +14,14 @@ use plotium_figure::ColormapId;
 #[path = "object_definitions.rs"]
 mod definitions;
 pub use definitions::{
-    ALIGN_CENTER, ALIGN_LEFT, ALIGN_RIGHT, CHART_BINS_AUTO, CHART_BINS_COUNT, CHART_COLORMAP,
-    CHART_STACKED, CHART_TRANSPOSE, CHART_TYPE_ID, CHART_VIEW_AZIMUTH, CHART_VIEW_ELEVATION,
-    COLOR_OVERLAY, LOCKED, OFFSET, PANEL_USER_NOTE, PANEL_VISIBLE, SERIES_VISIBLE, SHAPE_ARROW,
-    SHAPE_ELLIPSE, SHAPE_FILL_COLOR, SHAPE_FILL_ENABLED, SHAPE_KIND, SHAPE_LINE, SHAPE_RECT,
-    SHAPE_STROKE, SHAPE_STROKE_WIDTH, STACK_GRADIENT, STACK_MODE, STACK_NORMALIZE, STACK_OCCLUDE,
-    STACK_SEQUENCE_SCALE, STACK_SHEAR_X, STACK_SPACING_Y, SUPERIMPOSED, TEXT, TEXT_ALIGN,
-    TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
+    ALIGN_CENTER, ALIGN_LEFT, ALIGN_RIGHT, CHART_BAR_HATCH, CHART_BINS_AUTO, CHART_BINS_COUNT,
+    CHART_COLORMAP, CHART_STACKED, CHART_TRANSPOSE, CHART_TYPE_ID, CHART_VIEW_AZIMUTH,
+    CHART_VIEW_ELEVATION, COLOR_OVERLAY, LOCKED, OFFSET, PANEL_USER_NOTE, PANEL_VISIBLE,
+    SERIES_VISIBLE, SHAPE_ARROW, SHAPE_ELLIPSE, SHAPE_FILL_COLOR, SHAPE_FILL_ENABLED, SHAPE_KIND,
+    SHAPE_LINE, SHAPE_RECT, SHAPE_STROKE, SHAPE_STROKE_WIDTH, STACK_GRADIENT, STACK_MODE,
+    STACK_NORMALIZE, STACK_OCCLUDE, STACK_SEQUENCE_SCALE, STACK_SHEAR_X, STACK_SPACING_Y,
+    SUPERIMPOSED, TEXT, TEXT_ALIGN, TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
+    chart_property_applies_to_type,
 };
 use definitions::{DEFINITIONS, FILL_FALLBACK, NO_GRADIENT, STACK_MODES};
 
@@ -285,8 +286,8 @@ fn plot_value(
                 schema,
             ))
         }
-        CHART_TYPE_ID | CHART_BINS_AUTO | CHART_BINS_COUNT | CHART_STACKED | CHART_COLORMAP
-        | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION | CHART_TRANSPOSE => {
+        CHART_TYPE_ID | CHART_BINS_AUTO | CHART_BINS_COUNT | CHART_STACKED | CHART_BAR_HATCH
+        | CHART_COLORMAP | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION | CHART_TRANSPOSE => {
             let current_id = crate::state::resolved_chart_type_for_field(
                 &capabilities,
                 domain,
@@ -345,24 +346,6 @@ fn plot_value(
             schema,
         )),
         _ => Err(PropertyError::UnknownProperty(definition.id.to_string())),
-    }
-}
-
-/// Whether a Chart-section property is rendered for a resolved chart type.
-///
-/// The panel-density calibration calls this same predicate while enumerating
-/// the chart-type discriminator, so the budget cannot drift from the provider
-/// that decides which rows a user actually sees.
-#[doc(hidden)]
-pub fn chart_property_applies_to_type(property: PropertyId, chart_type: &str) -> bool {
-    match property {
-        CHART_TYPE_ID => true,
-        CHART_BINS_AUTO | CHART_BINS_COUNT => chart_type == "table_histogram",
-        CHART_STACKED => chart_type == "table_bar_grouped",
-        CHART_COLORMAP => matches!(chart_type, "table_heatmap" | "table_surface"),
-        CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION => chart_type == "table_surface",
-        CHART_TRANSPOSE => chart_type == "table_heatmap",
-        _ => false,
     }
 }
 
@@ -459,8 +442,8 @@ fn write_object(
                 _ => unreachable!("validated stack value"),
             }
         }
-        CHART_TYPE_ID | CHART_BINS_AUTO | CHART_BINS_COUNT | CHART_STACKED | CHART_COLORMAP
-        | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION | CHART_TRANSPOSE => {
+        CHART_TYPE_ID | CHART_BINS_AUTO | CHART_BINS_COUNT | CHART_STACKED | CHART_BAR_HATCH
+        | CHART_COLORMAP | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION | CHART_TRANSPOSE => {
             let automatic_seed = (id == CHART_BINS_AUTO && value == PropertyValue::Bool(false))
                 .then(|| live_auto_bins(app, canvas, object))
                 .flatten()
@@ -482,6 +465,10 @@ fn write_object(
                 (CHART_BINS_AUTO, PropertyValue::Bool(false)) => chart.bins = Some(automatic_seed),
                 (CHART_BINS_COUNT, PropertyValue::Int(value)) => chart.bins = Some(value as usize),
                 (CHART_STACKED, PropertyValue::Bool(value)) => chart.stacked = value,
+                (CHART_BAR_HATCH, PropertyValue::Enum(value)) => {
+                    chart.bar_hatch =
+                        line_display::hatch_from_id(value).expect("validated bar hatch")
+                }
                 (CHART_TRANSPOSE, PropertyValue::Bool(value)) => chart.transpose = value,
                 (CHART_COLORMAP, PropertyValue::Enum(value)) => {
                     chart.colormap = ColormapId::from_id(value).expect("validated colormap")
@@ -624,6 +611,9 @@ fn chart_value(
         CHART_BINS_AUTO => Ok(PropertyValue::Bool(plot.chart.bins.is_none())),
         CHART_BINS_COUNT => Ok(PropertyValue::Int(plot.chart.bins.unwrap_or(20) as i64)),
         CHART_STACKED => Ok(PropertyValue::Bool(plot.chart.stacked)),
+        CHART_BAR_HATCH => Ok(PropertyValue::Enum(line_display::hatch_id(
+            plot.chart.bar_hatch,
+        ))),
         CHART_TRANSPOSE => Ok(PropertyValue::Bool(plot.chart.transpose)),
         CHART_COLORMAP => Ok(PropertyValue::Enum(plot.chart.colormap.id())),
         CHART_VIEW_AZIMUTH => Ok(PropertyValue::Float(

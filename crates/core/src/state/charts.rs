@@ -55,6 +55,8 @@ pub struct ChartContext {
     pub bins: Option<usize>,
     /// Multi-column bar mode: stacked instead of grouped.
     pub stacked: bool,
+    /// Hatch over every bar of a bar chart.
+    pub bar_hatch: Option<plotium_figure::HatchPattern>,
     /// Colormap for value-mapped charts (heatmap, 3D surface).
     pub colormap: plotium_figure::ColormapId,
     /// 3D surface view as `[azimuth°, elevation°]`.
@@ -388,6 +390,8 @@ pub struct ChartSpec {
     pub bins: Option<usize>,
     /// Multi-column bars: stacked instead of grouped.
     pub stacked: bool,
+    /// Hatch over every bar of a bar chart.
+    pub bar_hatch: Option<plotium_figure::HatchPattern>,
     pub colormap: plotium_figure::ColormapId,
     /// 3D surface view as `[azimuth°, elevation°]`.
     pub view_angles: [f32; 2],
@@ -402,6 +406,7 @@ impl Default for ChartSpec {
             column: None,
             bins: None,
             stacked: false,
+            bar_hatch: None,
             colormap: plotium_figure::ColormapId::default(),
             view_angles: SURFACE_DEFAULT_VIEW,
             transpose: false,
@@ -422,6 +427,7 @@ impl ChartSpec {
             column: self.column,
             bins: self.bins,
             stacked: self.stacked,
+            bar_hatch: self.bar_hatch,
             colormap: self.colormap,
             view_angles: self.view_angles,
             transpose: self.transpose,
@@ -510,11 +516,12 @@ fn build_table_line(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
 
 fn build_table_bar(dataset: &Dataset, ctx: &ChartContext) -> Option<Figure> {
     let table = dataset.as_table()?;
-    Some(table.bar_figure(ctx.column))
+    Some(table_charts::hatch_bars(table.bar_figure(ctx.column), ctx))
 }
 
 fn build_table_bar_grouped(dataset: &Dataset, ctx: &ChartContext) -> Option<Figure> {
-    Some(table_charts::grouped_bar_figure(dataset.as_table()?, ctx))
+    let figure = table_charts::grouped_bar_figure(dataset.as_table()?, ctx);
+    Some(table_charts::hatch_bars(figure, ctx))
 }
 
 fn build_table_histogram(dataset: &Dataset, ctx: &ChartContext) -> Option<Figure> {

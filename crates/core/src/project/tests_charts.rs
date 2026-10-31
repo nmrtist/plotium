@@ -85,6 +85,7 @@ fn project_roundtrip_preserves_chart_options() {
         column: Some(selected_column),
         bins: Some(7),
         stacked: true,
+        bar_hatch: Some(plotium_figure::HatchPattern::Cross),
         colormap: plotium_figure::ColormapId::Plasma,
         view_angles: [-30.0, 55.0],
         transpose: true,
@@ -100,6 +101,7 @@ fn project_roundtrip_preserves_chart_options() {
     assert_eq!(chart.type_id, "table_histogram");
     assert_eq!(chart.bins, Some(7));
     assert!(chart.stacked);
+    assert_eq!(chart.bar_hatch, Some(plotium_figure::HatchPattern::Cross));
     assert_eq!(chart.colormap, plotium_figure::ColormapId::Plasma);
     assert_eq!(chart.view_angles, [-30.0, 55.0]);
     assert!(chart.transpose);

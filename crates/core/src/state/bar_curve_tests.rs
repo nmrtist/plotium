@@ -428,3 +428,30 @@ fn a_numeric_line_beside_bars_keeps_its_true_x() {
     let xs: Vec<f64> = figure(&app).series[0].points.iter().map(|p| p[0]).collect();
     assert_eq!(xs, vec![1.0, 2.0, 3.0, 4.0]);
 }
+
+#[test]
+fn bar_hatch_is_a_series_property_drawn_in_the_outline_color() {
+    use plotium_figure::{Color, Hatch, HatchPattern};
+    let mut app = fixture();
+    let s = source(&app, X, Y, None);
+    let summary = create(&mut app, vec![curve(CurveKind::Bar, s)]);
+    let target = summary.series_defaults[0].target.clone();
+    assert!(figure(&app).polygons.iter().all(|p| p.hatch.is_none()));
+
+    set(&mut app, &target, "series.bar.hatch", json!("cross"));
+    set(&mut app, &target, "series.bar.edge_color", json!("#404040"));
+    set(&mut app, &target, "series.bar.edge_width", json!(0.0));
+    let hatch = Hatch {
+        pattern: HatchPattern::Cross,
+        color: Color::rgb(0x40, 0x40, 0x40),
+    };
+    let polygons = &figure(&app).polygons;
+    assert!(polygons.iter().all(|p| p.hatch == Some(hatch)));
+    assert!(polygons.iter().all(|p| p.stroke.is_none()));
+
+    let reset = app
+        .plan_property_reset(line_display::BAR_HATCH, std::slice::from_ref(&target))
+        .unwrap();
+    app.commit_property(reset);
+    assert!(figure(&app).polygons.iter().all(|p| p.hatch.is_none()));
+}

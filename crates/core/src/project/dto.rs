@@ -380,6 +380,9 @@ pub struct ViewCanvasObject {
     /// Multi-column bar charts: stacked instead of grouped.
     #[serde(default, skip_serializing_if = "is_false")]
     pub chart_stacked: bool,
+    /// Hatch over every bar of a bar chart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chart_bar_hatch: Option<plotium_figure::HatchPattern>,
     /// Colormap id for value-mapped charts; absent = default. Kept as a string
     /// so files from newer builds with unknown maps still open.
     #[serde(default, skip_serializing_if = "Option::is_none")]

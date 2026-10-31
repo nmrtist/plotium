@@ -1,5 +1,30 @@
 use crate::{Color, SeriesOrigin};
 
+/// Distance between neighbouring hatch lines, in points.
+pub const HATCH_SPACING_PT: f32 = 3.0;
+/// Hatch line width, in points.
+pub const HATCH_LINE_PT: f32 = 0.5;
+
+/// Line direction of a hatched fill, as seen on the page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HatchPattern {
+    /// Lines rising to the right, like `/`.
+    Forward,
+    /// Lines falling to the right, like `\\`.
+    Backward,
+    /// Both diagonals.
+    Cross,
+}
+
+/// Diagonal lines drawn over a polygon's fill. Spacing is in page points, so
+/// the pattern keeps its density when the plot is resized or zoomed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Hatch {
+    pub pattern: HatchPattern,
+    pub color: Color,
+}
+
 /// A filled polygon in data-space coordinates: bars, box bodies, violin
 /// strips, stacked segments, and pie wedges all lower to this one primitive.
 ///
@@ -18,6 +43,8 @@ pub struct Polygon {
     pub opacity: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stroke: Option<(Color, f32)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hatch: Option<Hatch>,
     /// Native Series a bar, box or violin mark was lowered from; runtime only.
     #[serde(skip)]
     pub origin: Option<SeriesOrigin>,
@@ -35,6 +62,7 @@ impl Polygon {
             fill,
             opacity: 1.0,
             stroke: None,
+            hatch: None,
             origin: None,
         }
     }
@@ -52,6 +80,11 @@ impl Polygon {
 
     pub fn with_stroke(mut self, color: Color, width: f32) -> Self {
         self.stroke = Some((color, width));
+        self
+    }
+
+    pub fn with_hatch(mut self, hatch: Hatch) -> Self {
+        self.hatch = Some(hatch);
         self
     }
 }

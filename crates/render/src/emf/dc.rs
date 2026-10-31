@@ -221,6 +221,42 @@ impl Dc {
         }
     }
 
+    pub fn hatched_polygon(
+        &mut self,
+        outline: &[(f32, f32)],
+        fill: Color,
+        stroke: Option<(Color, f32)>,
+        hatch: Option<plotium_figure::Hatch>,
+        clip: crate::Rect,
+    ) {
+        self.polygon(outline, Some(fill), stroke);
+        self.hatch(outline, hatch, clip);
+    }
+
+    /// A legend swatch: a filled rectangle under its hatch.
+    pub fn swatch(
+        &mut self,
+        rect: crate::Rect,
+        fill: Color,
+        stroke: Option<(Color, f32)>,
+        hatch: Option<plotium_figure::Hatch>,
+    ) {
+        self.rect(rect, Some(fill), stroke);
+        self.hatch(&rect.corners(), hatch, rect);
+    }
+
+    fn hatch(
+        &mut self,
+        outline: &[(f32, f32)],
+        hatch: Option<plotium_figure::Hatch>,
+        clip: crate::Rect,
+    ) {
+        if let Some(hatch) = hatch {
+            let lines = crate::hatch::hatch_lines(outline, hatch.pattern, clip, 1.0);
+            self.segments(&lines, hatch.color, plotium_figure::HATCH_LINE_PT);
+        }
+    }
+
     pub fn segments(&mut self, segs: &[[(f32, f32); 2]], color: Color, width: f32) {
         if segs.is_empty() {
             return;
