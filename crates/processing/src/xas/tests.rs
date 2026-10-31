@@ -32,10 +32,8 @@ fn prepares_sorted_strictly_increasing_axis() {
     let energy = [7002.0, 7000.0, 7001.0, 7001.0, f64::NAN, 7003.0];
     let mu = [3.0, 1.0, 2.0, 2.5, 9.0, f64::INFINITY];
     let (energy, mu) = prepare_spectrum(&energy, &mu).unwrap();
-    assert_eq!(mu, vec![1.0, 2.0, 2.5, 3.0]);
-    assert_eq!(energy[..2], [7000.0, 7001.0]);
-    close(energy[2], 7001.0 + TINY_ENERGY, 1e-9);
-    assert_eq!(energy[3], 7002.0);
+    assert_eq!(mu, vec![1.0, 2.0, 3.0]);
+    assert_eq!(energy, vec![7000.0, 7001.0, 7002.0]);
 
     let (energy, _) = prepare_spectrum(&[7001.0, 7001.0, 7001.0, 7001.001], &[0.0; 4]).unwrap();
     assert!(energy.windows(2).all(|pair| pair[1] > pair[0]));

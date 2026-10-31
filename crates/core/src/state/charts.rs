@@ -15,6 +15,7 @@ pub enum DataDomain {
     MassSpectrometry,
     Xrd,
     Xps,
+    Xas,
 }
 
 /// How a domain's datasets combine when several are stacked onto one plot:
@@ -38,6 +39,7 @@ impl DataDomain {
             | DataDomain::MassSpectrometry => Some(StackKind::Line),
             DataDomain::Xrd => Some(StackKind::Line),
             DataDomain::Xps => Some(StackKind::Line),
+            DataDomain::Xas => Some(StackKind::Line),
             DataDomain::Nmr2d => Some(StackKind::Field),
             DataDomain::PseudoNmr | DataDomain::Afm => None,
         }
@@ -108,6 +110,17 @@ static CHART_TYPES: &[ChartDescriptor] = &[
         ],
         needs_column: false,
         build: build_xps_spectrum,
+    },
+    ChartDescriptor {
+        id: "xas_spectrum",
+        name: "XAS spectrum",
+        recommended_domains: &[DataDomain::Xas],
+        required_capabilities: &[
+            crate::automation::CAP_FIELD_CURVE_1D,
+            crate::automation::CAP_FIELD_XAS_SPECTRUM,
+        ],
+        needs_column: false,
+        build: build_xas_spectrum,
     },
     ChartDescriptor {
         id: "mass_chromatogram",
@@ -428,6 +441,10 @@ fn build_nmr_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> 
 
 fn build_xrd_pattern(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
     Some(dataset.as_xrd()?.figure())
+}
+
+fn build_xas_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
+    dataset.as_xas()?.figure()
 }
 
 fn build_xps_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {

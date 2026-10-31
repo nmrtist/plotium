@@ -1,5 +1,9 @@
 use super::*;
 
+fn column_name(scan: &XasScan, id: XasColumnId) -> &str {
+    &scan.columns[id.0 as usize].name
+}
+
 const XDAC: &str = "XDAC V1.4 Datafile V1
 \"sample.000\" created on 1/2/2011 at 1:10:04 PM on X-23A2
 Diffraction element= Si (311).  Ring energy= 2.80 GeV
@@ -71,10 +75,10 @@ fn reads_xdac_scan() {
     assert_eq!(scan.energy().len(), 4);
     assert_eq!(scan.energy()[1], 6921.99811);
     let channels = &scan.channels;
-    assert_eq!(channels.energy, 0);
-    assert_eq!(scan.columns[channels.i0.unwrap()].name, "I0");
-    assert_eq!(scan.columns[channels.transmission.unwrap()].name, "It");
-    assert_eq!(scan.columns[channels.reference.unwrap()].name, "Ir");
+    assert_eq!(channels.energy, XasColumnId(0));
+    assert_eq!(column_name(&scan, channels.i0.unwrap()), "I0");
+    assert_eq!(column_name(&scan, channels.transmission.unwrap()), "It");
+    assert_eq!(column_name(&scan, channels.reference.unwrap()), "Ir");
     assert!(channels.fluorescence.is_empty());
     assert_eq!(scan.beamline.as_deref(), Some("X-23A2"));
     assert_eq!(scan.sample.as_deref(), Some("standard on tape"));
@@ -89,12 +93,13 @@ fn reads_labview_scan_with_multi_word_labels() {
     assert_eq!(scan.columns[0].name, "Mono Energy");
     assert_eq!(scan.columns[1].name, "Scaler preset time");
     let channels = &scan.channels;
-    assert_eq!(scan.columns[channels.energy].name, "Mono Energy");
-    assert_eq!(scan.columns[channels.i0.unwrap()].name, "I0");
-    assert_eq!(scan.columns[channels.transmission.unwrap()].name, "I1");
-    assert_eq!(scan.columns[channels.reference.unwrap()].name, "Iref");
+    assert_eq!(column_name(&scan, channels.energy), "Mono Energy");
+    assert_eq!(column_name(&scan, channels.i0.unwrap()), "I0");
+    assert_eq!(column_name(&scan, channels.transmission.unwrap()), "I1");
+    assert_eq!(column_name(&scan, channels.reference.unwrap()), "Iref");
     assert_eq!(
-        scan.columns[channels.fluorescence[0]].name, "DXP12:Hg_Sum",
+        column_name(&scan, channels.fluorescence[0]),
+        "DXP12:Hg_Sum",
         "the first element sum outranks the total"
     );
     assert_eq!(channels.fluorescence.len(), 2);
@@ -107,9 +112,9 @@ fn reads_xdi_and_converts_kev() {
     let scan = parse(XDI).unwrap();
     assert_eq!(scan.kind, XasFileKind::Xdi);
     assert!((scan.energy()[0] - 8979.0).abs() < 1e-9);
-    assert_eq!(scan.channels.transmission, Some(2));
-    assert_eq!(scan.channels.reference, Some(3));
-    assert_eq!(scan.channels.mu, Some(4));
+    assert_eq!(scan.channels.transmission, Some(XasColumnId(2)));
+    assert_eq!(scan.channels.reference, Some(XasColumnId(3)));
+    assert_eq!(scan.channels.mu, Some(XasColumnId(4)));
     assert_eq!(scan.beamline.as_deref(), Some("APS 13-ID"));
     assert_eq!(scan.element.as_deref(), Some("Cu"));
     assert_eq!(scan.edge.as_deref(), Some("K"));
@@ -125,7 +130,7 @@ fn reads_plain_columns_and_guesses_kev() {
     let text = "# energy mu\n8.9790 0.1\n8.9792 0.2\n8.9794 0.3\n8.9796 0.4\n";
     let scan = parse(text).unwrap();
     assert!((scan.energy()[1] - 8979.2).abs() < 1e-9);
-    assert_eq!(scan.channels.mu, Some(1));
+    assert_eq!(scan.channels.mu, Some(XasColumnId(1)));
     assert_eq!(scan.warnings.len(), 1);
 }
 
@@ -133,7 +138,7 @@ fn reads_plain_columns_and_guesses_kev() {
 fn reads_a_header_without_comment_marks() {
     let text = "Energy I0 It\n7000 1 2\n7001 1 2\n7002 1 2\n7003 1 2\n";
     let scan = parse(text).unwrap();
-    assert_eq!(scan.channels.transmission, Some(2));
+    assert_eq!(scan.channels.transmission, Some(XasColumnId(2)));
     assert!(scan.warnings.is_empty());
 }
 
@@ -142,7 +147,7 @@ fn unlabeled_columns_default_to_the_first_as_energy() {
     let text = "7000 1\n7001 2\n7002 3\n7003 4\n";
     let scan = parse(text).unwrap();
     assert_eq!(scan.columns[0].name, "col1");
-    assert_eq!(scan.channels.energy, 0);
+    assert_eq!(scan.channels.energy, XasColumnId(0));
     assert!(scan.warnings[0].contains("col1"));
 }
 
@@ -184,7 +189,7 @@ fn keeps_row_order_of_a_descending_scan() {
 #[test]
 fn prefers_a_mono_energy_over_other_energies() {
     let text = "# Ring_Energy Mono_Energy I0\n2800 7000 1\n2800 7001 1\n2800 7002 1\n2800 7003 1\n";
-    assert_eq!(parse(text).unwrap().channels.energy, 1);
+    assert_eq!(parse(text).unwrap().channels.energy, XasColumnId(1));
 }
 
 #[test]
@@ -192,14 +197,17 @@ fn does_not_mistake_detector_columns_for_i0() {
     let text = "# Energy IC0 ROI0 ROI1\n7000 1 2 3\n7001 1 2 3\n7002 1 2 3\n7003 1 2 3\n";
     assert_eq!(parse(text).unwrap().channels.i0, None);
     let text = "# Energy DTcorr_I0 It\n7000 1 2\n7001 1 2\n7002 1 2\n7003 1 2\n";
-    assert_eq!(parse(text).unwrap().channels.i0, Some(1));
+    assert_eq!(parse(text).unwrap().channels.i0, Some(XasColumnId(1)));
 }
 
 #[test]
 fn skips_monitors_and_normalized_data_as_fluorescence() {
     let text = "# Energy I0 I0_Sum normfluor Hg_Sum\n\
                 7000 1 1 1 1\n7001 1 1 1 1\n7002 1 1 1 1\n7003 1 1 1 1\n";
-    assert_eq!(parse(text).unwrap().channels.fluorescence, vec![4]);
+    assert_eq!(
+        parse(text).unwrap().channels.fluorescence,
+        vec![XasColumnId(4)]
+    );
 }
 
 #[test]
@@ -222,7 +230,10 @@ fn takes_units_from_the_chosen_column() {
 #[test]
 fn ignores_a_dashed_rule_below_the_labels() {
     let text = "# Energy I0 It\n# ------ -- --\n7000 1 2\n7001 1 2\n7002 1 2\n7003 1 2\n";
-    assert_eq!(parse(text).unwrap().channels.transmission, Some(2));
+    assert_eq!(
+        parse(text).unwrap().channels.transmission,
+        Some(XasColumnId(2))
+    );
 }
 
 #[test]
@@ -232,4 +243,28 @@ fn reads_an_edge_energy_with_a_unit_and_reports_a_bad_one() {
     let scan = parse(&XDAC.replace("E0= 7112.00", "E0= unknown")).unwrap();
     assert_eq!(scan.nominal_e0, None);
     assert!(scan.warnings[0].contains("E0"));
+}
+
+#[test]
+fn detection_needs_a_named_energy_column() {
+    let directory = tempfile::tempdir().unwrap();
+    let scan = directory.path().join("foil.0001");
+    std::fs::write(&scan, "# Energy I0 It\n1 2 3\n2 2 3\n3 2 3\n4 2 3\n").unwrap();
+    assert_eq!(detect(&scan), Some(XasFormat::Columns));
+    let unnamed = directory.path().join("numbers.txt");
+    std::fs::write(&unnamed, "1 2 3\n2 2 3\n3 2 3\n4 2 3\n").unwrap();
+    assert_eq!(detect(&unnamed), None);
+    for (name, header) in [
+        ("spectrum.txt", "# Energy Intensity"),
+        ("xps.txt", "# Binding_Energy_(eV) CPS other"),
+        ("relax.txt", "# step total_energy forces"),
+        ("monitor.txt", "# Energy I0 Time"),
+    ] {
+        let table = directory.path().join(name);
+        std::fs::write(&table, format!("{header}\n1 2 3\n2 2 3\n3 2 3\n4 2 3\n")).unwrap();
+        assert_eq!(detect(&table), None, "{header}");
+    }
+    let delimited = directory.path().join("table.csv");
+    std::fs::write(&delimited, "# Energy I0 It\n1 2 3\n2 2 3\n3 2 3\n4 2 3\n").unwrap();
+    assert_eq!(detect(&delimited), None);
 }

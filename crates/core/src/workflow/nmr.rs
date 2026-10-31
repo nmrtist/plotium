@@ -75,5 +75,6 @@ pub fn inspect_nmr_dataset(dataset: &nmr::Dataset) -> Result<InspectionReport, W
         mass_spectrometry: None,
         xrd: None,
         xps: None,
+        xas: None,
     })
 }

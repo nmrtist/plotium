@@ -3,7 +3,7 @@ title: 支持的格式
 description: Plotium 可导入的文件格式，按仪器和数据类型列出各导入器读取的内容与限制。
 ---
 
-Plotium 直接读取厂商 NMR、LC–MS、XRD、XPS、AFM 与电生理格式，无需任何转换步骤。
+Plotium 直接读取厂商 NMR、LC–MS、XRD、XPS、XAS、AFM 与电生理格式，无需任何转换步骤。
 如何打开文件、查看导入进度，见[导入数据](/zh-cn/guides/importing-data/)。
 
 ## 总览
@@ -18,6 +18,7 @@ Plotium 直接读取厂商 NMR、LC–MS、XRD、XPS、AFM 与电生理格式，
 | SCIEX legacy WIFF | `.wiff` + `.wiff.scan` | 支持单样本与多样本 legacy 数据；两个文件必须放在一起 |
 | mzML | `.mzML` | 使用 32 位或 64 位数组的质心/轮廓谱图及 TIC、BPC、SIM 或 SRM 色谱图 |
 | Rigaku 粉末 XRD | `.rasx`、FI `.raw`、RAS_RAW `.txt` | 衍射图样、采集元数据，以及文件提供的衰减系数 |
+| XAS 扫描 | XDI、NSLS XDAC、带列名的线站列式文本（扩展名不限） | 能量、探测器通道、样品和吸收边元数据 |
 | VAMAS XPS | `.vms` | ISO 14976 `NORM` / `REGULAR` XPS 区块，支持多个测量位置与谱区 |
 | CasaXPS 文本 | `.txt` | 含原始谱、背景、包络、组件和拟合参数的结构化八行头导出 |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | 图像、力曲线、Force Volume 与 PeakForce Capture 数据立方体 |
@@ -113,6 +114,19 @@ DIA 没有 selected ion，其隔离窗目标也不会被误写成 selected-ion m
 
 导入器支持小端 32 位和 64 位浮点 m/z、时间与强度数组，可不压缩或使用 zlib
 压缩。Numpress、大端数组以及缺少必需数组的谱图或色谱图会使导入停止并显示错误。
+
+## XAS 扫描
+
+线站文件的扩展名常是运行编号，例如 `.000`、`.0001`，所以 Plotium 按内容识别：
+XDI 或 XDAC 文件头，或者列名中既有能量，又有 μ，或有 I0 加 It 或荧光信号。其他文本
+仍按表格处理，`.csv` 和 `.tsv` 文件也一样。扩展名不是 `.000` 的运行编号文件，请在
+打开对话框里选择 **All files**。导入文件夹时按内容查找这些文件。能量统一换算为 eV，
+各行按能量排序，重复的能量只保留第一行。
+
+样品边跳不小于 0.1 时使用透射；否则使用荧光，再其次使用文件自带的吸收列。
+导入报告会列出被丢弃的行和无法完成的步骤，Data 列表显示其中最新的一条。数据集提供归一化 μ(E)、μ(E)、压平 μ(E)、k 加权 χ(k)、|χ(R)|
+和参考通道，均按 [Larch](https://xraypy.github.io/xraylarch/) 的默认参数计算。
+扫描终点低于 k = 4 Å⁻¹ 时只做到归一化。
 
 ## Rigaku 粉末 XRD
 

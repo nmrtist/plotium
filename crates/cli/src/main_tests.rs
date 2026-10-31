@@ -126,6 +126,7 @@ fn text_inspection_includes_mass_spectrometry_statistics() {
         }),
         xrd: None,
         xps: None,
+        xas: None,
     };
 
     let output = text_report(&report);

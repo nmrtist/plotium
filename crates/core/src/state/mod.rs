@@ -188,6 +188,7 @@ mod ui_state;
 mod units;
 mod viewport;
 mod workflow_tab;
+mod xas;
 mod xps;
 mod xrd;
 
@@ -287,6 +288,7 @@ pub use ui_state::*;
 pub use units::*;
 pub use viewport::*;
 pub use workflow_tab::WorkflowTab;
+pub use xas::*;
 pub use xps::*;
 pub use xrd::*;
 

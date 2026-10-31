@@ -108,6 +108,7 @@ fn dataset_context<'a>(
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
         | Dataset::Xrd(_)
+        | Dataset::Xas(_)
         | Dataset::Xps(_) => Err(PropertyError::NotApplicable(
             "Group-delay correction applies only to NMR datasets.".to_owned(),
         )),

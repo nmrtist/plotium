@@ -81,6 +81,13 @@ fn convert_acquisition(
                 source,
             )
         }
+        Acquisition::Xas(data) => {
+            let source = data.source.clone();
+            (
+                Dataset::Xas(Box::new(crate::state::XasDataset::load(*data))),
+                source,
+            )
+        }
         Acquisition::Xps(data) => {
             let source = data.source.clone();
             (
@@ -118,6 +125,10 @@ pub fn dataset_title(dataset: &Dataset) -> String {
             .name
             .clone()
             .unwrap_or_else(|| short_name(&data.data.source)),
+        Dataset::Xas(data) => data
+            .name
+            .clone()
+            .unwrap_or_else(|| short_name(&data.scan.source)),
         Dataset::Xps(data) => data
             .name
             .clone()

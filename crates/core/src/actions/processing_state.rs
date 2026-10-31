@@ -54,6 +54,7 @@ impl DatasetProcessingState {
             Dataset::Electrophysiology(d) => Self::Electrophysiology(d.processing),
             Dataset::Afm(_) => Self::Afm,
             Dataset::MassSpec(_) => Self::Table,
+            Dataset::Xas(_) => Self::Table,
             Dataset::Xrd(data) => Self::Xrd(data.params),
             Dataset::Xps(xps) => Self::Xps {
                 active_region: xps.active_region,

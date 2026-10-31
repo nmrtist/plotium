@@ -274,7 +274,9 @@ fn extension_open_kind(path: &Path) -> RecentOpenKind {
     };
     if has_extension("plotium") {
         RecentOpenKind::Project
-    } else if has_extension("txt") && plotium_io::xrd::is_rigaku_profile(path) {
+    } else if has_extension("txt")
+        && (plotium_io::xrd::is_rigaku_profile(path) || plotium_io::xas::detect(path).is_some())
+    {
         RecentOpenKind::DataFile
     } else if has_extension("csv") || has_extension("tsv") || has_extension("txt") {
         RecentOpenKind::DelimitedTable

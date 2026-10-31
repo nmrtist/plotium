@@ -370,6 +370,7 @@ pub enum Acquisition {
     MassSpec(Box<MassSpecRun>),
     Xrd(Box<XrdData>),
     Xps(Box<xps::XpsExperiment>),
+    Xas(Box<xas::XasScan>),
 }
 
 /// A one-dimensional powder X-ray diffraction pattern.
@@ -696,7 +697,12 @@ pub fn detect_format(path: impl AsRef<Path>) -> Result<DataFormat, IoError> {
         _ => match nmr_bridge::read_options().detect(path) {
             Ok(format) => nmr_bridge::detected_format(format, path),
             Err(error) if error.kind() == nmr::ReadErrorKind::Unrecognized => {
-                Err(IoError::Unsupported(format!("unrecognised scientific acquisition {}", path.display())))
+                xas::detect(path).map(DataFormat::Xas).ok_or_else(|| {
+                    IoError::Unsupported(format!(
+                        "unrecognised scientific acquisition {}",
+                        path.display()
+                    ))
+                })
             }
             Err(error) => Err(IoError::Nmr(Box::new(error))),
         },
@@ -721,6 +727,7 @@ pub fn load_path(path: impl AsRef<Path>) -> Result<LoadResult, IoError> {
         DataFormat::Xrd(XrdFormat::RigakuProfile) => xrd::load_profile(path),
         DataFormat::Xps(XpsFormat::VamasXps) => xps::load_vamas(path),
         DataFormat::Xps(XpsFormat::CasaXpsText) => xps::load_casaxps(path),
+        DataFormat::Xas(_) => xas::load_result(path),
     }
 }
 pub mod image;

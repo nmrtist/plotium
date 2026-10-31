@@ -29,6 +29,7 @@ pub(super) fn collect_data_files(folder: &Path, output: &mut Vec<PathBuf>) -> st
                 || recognized_raw
                 || recognized_casaxps
                 || plotium_io::nmr_bridge::is_candidate(&path)
+                || plotium_io::xas::detect(&path).is_some()
             {
                 output.push(path);
             }

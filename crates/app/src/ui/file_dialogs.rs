@@ -439,7 +439,7 @@ pub(crate) fn open_file(app: &mut PlotiumApp) {
             &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp"],
         )
         .add_filter(
-            "All supported data (*.mzML, *.wiff, *.rasx, *.raw, *.vms, *.txt, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
+            "All supported data (*.mzML, *.wiff, *.rasx, *.raw, *.vms, *.xdi, *.000, *.txt, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
             origin::OPEN_FILE_FILTER_EXTENSIONS,
         )
         .add_filter("Rigaku XRD (*.rasx, *.raw, *.txt)", &["rasx", "raw", "txt"])
@@ -453,6 +453,7 @@ pub(crate) fn open_file(app: &mut PlotiumApp) {
         .add_filter("mzML mass spectrometry (*.mzML)", &["mzML"])
         .add_filter("SCIEX legacy WIFF (*.wiff)", &["wiff"])
         .add_filter("XPS (*.vms, CasaXPS *.txt)", &["vms", "txt"])
+        .add_filter("XAS scans (*.xdi, *.dat, *.txt, *.000)", &["xdi", "dat", "txt", "000"])
         .add_filter("Bruker TopSpin (fid, ser)", &["fid", "ser"])
         .add_filter("Varian/Agilent VnmrJ (fid)", &["fid"])
         .add_filter("Archive (*.zip)", &["zip"])

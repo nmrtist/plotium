@@ -720,6 +720,24 @@ fn text_report(report: &InspectionReport) -> String {
             lines.push(format!("xrd.wavelength_angstrom: {wavelength}"));
         }
     }
+    if let Some(xas) = &report.xas {
+        lines.push(format!("xas.point_count: {}", xas.point_count));
+        lines.push(format!(
+            "xas.energy_range_ev: {:.2}..{:.2}",
+            xas.energy_range_ev[0], xas.energy_range_ev[1]
+        ));
+        lines.push(format!("xas.columns: {}", xas.columns.join(", ")));
+        for (key, value) in [
+            ("beamline", &xas.beamline),
+            ("sample", &xas.sample),
+            ("element", &xas.element),
+            ("edge", &xas.edge),
+        ] {
+            if let Some(value) = value {
+                lines.push(format!("xas.{key}: {value}"));
+            }
+        }
+    }
     for warning in &report.warnings {
         lines.push(format!("warning.{}: {}", warning.code, warning.message));
     }

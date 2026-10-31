@@ -3,7 +3,7 @@ title: Supported formats
 description: File formats Plotium can import, by instrument and data type, with what each importer reads and its limits.
 ---
 
-Plotium reads vendor NMR, LC–MS, XRD, XPS, AFM, and electrophysiology formats
+Plotium reads vendor NMR, LC–MS, XRD, XPS, XAS, AFM, and electrophysiology formats
 directly, with no conversion step. For how to open files and follow an import,
 see [Importing data](/guides/importing-data/).
 
@@ -19,6 +19,7 @@ see [Importing data](/guides/importing-data/).
 | SCIEX legacy WIFF | `.wiff` + `.wiff.scan` | Single- and multi-sample legacy runs; both files must remain together |
 | mzML | `.mzML` | Centroided/profile spectra and TIC, BPC, SIM, or SRM chromatograms with 32-bit or 64-bit arrays |
 | Rigaku powder XRD | `.rasx`, FI `.raw`, RAS_RAW `.txt` | Diffraction pattern, acquisition metadata, and attenuation when available |
+| XAS scans | XDI, NSLS XDAC, labeled beamline columns (any extension) | Energy, detector channels, sample and edge metadata |
 | VAMAS XPS | `.vms` | ISO 14976 `NORM` / `REGULAR` XPS blocks, including multiple measurement positions and regions |
 | CasaXPS text | `.txt` | Structured eight-line export with raw spectrum, background, envelope, components, and fitted parameters |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | Images, force curves, force-volume and PeakForce Capture cubes |
@@ -140,6 +141,24 @@ The importer accepts little-endian 32-bit and 64-bit floating-point m/z, time,
 and intensity arrays with no compression or zlib compression. Numpress,
 big-endian arrays, and spectra or chromatograms without their required arrays
 stop the import with an error.
+
+## XAS scans
+
+Beamline files often use run numbers as extensions, such as `.000` or `.0001`, so
+Plotium recognizes them by content: an XDI or XDAC header, or labeled columns
+that name energy and either μ or I0 with It or a fluorescence signal. Other text
+stays a table, and so does any `.csv` or `.tsv` file. In the open dialog, choose
+**All files** for a run-number extension other than `.000`. Importing a folder
+finds these files by content. Energy is converted to eV, rows are sorted by
+energy, and the first row of a repeated energy is kept.
+
+Transmission is used when the sample shows an edge step of at least 0.1;
+otherwise fluorescence is used, then an absorption column from the file. The
+import report lists rows that were dropped and any stage that could not run, and
+the Data list shows the latest of these. The dataset offers normalized μ(E), μ(E), flattened μ(E), k-weighted
+χ(k), |χ(R)|, and the reference channel, computed with the default parameters of
+[Larch](https://xraypy.github.io/xraylarch/). A scan that ends below k = 4 Å⁻¹ stops
+at normalization.
 
 ## Rigaku powder XRD
 

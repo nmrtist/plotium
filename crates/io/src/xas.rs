@@ -2,6 +2,7 @@
 //! beamline column files such as the APS LabVIEW scans.
 
 use crate::IoError;
+use crate::format::{DataFormat, XasFormat};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -9,20 +10,48 @@ use std::path::Path;
 
 const MAX_XAS_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MIN_POINTS: usize = 4;
+const SNIFF_BYTES: u64 = 4096;
 /// Thresholds from Larch `guess_energy_units`, so a file reads the same in both.
 const KEV_MAX: f64 = 120.0;
 const KEV_STEP: f64 = 0.005;
 const ANGLE_MAX: f64 = 90.0;
 const MOTOR_STEPS_MIN: f64 = 200_000.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum XasFileKind {
     Xdi,
     Xdac,
     Columns,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl XasFileKind {
+    fn format(self) -> XasFormat {
+        match self {
+            Self::Xdi => XasFormat::Xdi,
+            Self::Xdac => XasFormat::Xdac,
+            Self::Columns => XasFormat::Columns,
+        }
+    }
+}
+
+/// A column's position in its file, fixed for the life of the scan.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(transparent)]
+pub struct XasColumnId(pub u32);
+
+impl XasColumnId {
+    fn at(index: usize) -> Self {
+        Self(index as u32)
+    }
+
+    fn index(self) -> usize {
+        self.0 as usize
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct XasColumn {
     pub name: String,
     pub values: Vec<f64>,
@@ -30,23 +59,24 @@ pub struct XasColumn {
 
 /// Column positions guessed from their labels. The energy column is always
 /// known; every other role may be absent and stays editable by the caller.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct XasChannels {
-    pub energy: usize,
-    pub i0: Option<usize>,
-    pub transmission: Option<usize>,
-    pub reference: Option<usize>,
+    pub energy: XasColumnId,
+    pub i0: Option<XasColumnId>,
+    pub transmission: Option<XasColumnId>,
+    pub reference: Option<XasColumnId>,
     /// Fluorescence candidates: named channels, then detector sums in file
     /// order. Multi-element detectors report one sum per emission line, so the
     /// caller picks the line of the absorbing element.
-    pub fluorescence: Vec<usize>,
+    pub fluorescence: Vec<XasColumnId>,
     /// An absorption coefficient the file already carries.
-    pub mu: Option<usize>,
+    pub mu: Option<XasColumnId>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct XasScan {
     pub kind: XasFileKind,
+    pub source: String,
     /// Energy is converted to eV; columns keep the file's row order.
     pub columns: Vec<XasColumn>,
     pub channels: XasChannels,
@@ -62,14 +92,102 @@ pub struct XasScan {
 
 impl XasScan {
     pub fn energy(&self) -> &[f64] {
-        &self.columns[self.channels.energy].values
+        &self.columns[self.channels.energy.index()].values
     }
 
-    pub fn column(&self, index: usize) -> Option<&[f64]> {
+    pub fn column(&self, id: XasColumnId) -> Option<&[f64]> {
         self.columns
-            .get(index)
+            .get(id.index())
             .map(|column| column.values.as_slice())
     }
+
+    pub fn len(&self) -> usize {
+        self.energy().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.energy().is_empty()
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        let points = self
+            .columns
+            .get(self.channels.energy.index())
+            .map_or(0, |column| column.values.len());
+        if points < MIN_POINTS || self.columns.iter().any(|c| c.values.len() != points) {
+            return Err("XAS payload has inconsistent columns");
+        }
+        let in_range = |id: &XasColumnId| id.index() < self.columns.len();
+        let channels = &self.channels;
+        if !channels
+            .i0
+            .iter()
+            .chain(&channels.transmission)
+            .chain(&channels.reference)
+            .chain(&channels.mu)
+            .chain(&channels.fluorescence)
+            .all(in_range)
+        {
+            return Err("XAS channel refers to a missing column");
+        }
+        Ok(())
+    }
+}
+
+/// The format of a text scan: XDI, XDAC, or columns named as energy and as a
+/// measured signal, which a plain table of energies lacks. Beamline files carry
+/// run numbers as extensions, so only the content can identify them.
+pub fn detect(path: &Path) -> Option<XasFormat> {
+    if !path.is_file() || path.extension().is_some_and(is_delimited_extension) {
+        return None;
+    }
+    let mut head = Vec::new();
+    File::open(path)
+        .ok()?
+        .take(SNIFF_BYTES)
+        .read_to_end(&mut head)
+        .ok()?;
+    if head.contains(&0) {
+        return None;
+    }
+    let scan = load(path).ok()?;
+    let channels = &scan.channels;
+    let measured = channels.mu.is_some()
+        || (channels.i0.is_some()
+            && (channels.transmission.is_some() || !channels.fluorescence.is_empty()));
+    (scan.kind != XasFileKind::Columns
+        || (measured && is_energy_label(&scan.columns[channels.energy.index()].name)))
+    .then(|| scan.kind.format())
+}
+
+fn is_delimited_extension(extension: &std::ffi::OsStr) -> bool {
+    extension.eq_ignore_ascii_case("csv") || extension.eq_ignore_ascii_case("tsv")
+}
+
+pub fn load_result(path: &Path) -> Result<crate::LoadResult, IoError> {
+    let scan = load(path)?;
+    let format = DataFormat::Xas(scan.kind.format());
+    let warnings = scan
+        .warnings
+        .iter()
+        .map(|message| crate::LoadWarning {
+            code: crate::LoadWarningCode::InvalidMetadata,
+            message: message.clone(),
+            path: Some(path.to_path_buf()),
+        })
+        .collect();
+    Ok(crate::LoadResult::new(
+        crate::Acquisition::Xas(Box::new(scan)),
+        crate::AcquisitionIdentity::from_path(path),
+        format,
+        crate::Provenance {
+            selected_path: path.to_path_buf(),
+            data_path: path.to_path_buf(),
+            parameter_paths: Vec::new(),
+            companion_paths: Vec::new(),
+        },
+        warnings,
+    ))
 }
 
 pub fn load(path: &Path) -> Result<XasScan, IoError> {
@@ -79,7 +197,9 @@ pub fn load(path: &Path) -> Result<XasScan, IoError> {
     }
     let mut bytes = Vec::new();
     file.take(MAX_XAS_FILE_BYTES).read_to_end(&mut bytes)?;
-    parse(&String::from_utf8_lossy(&bytes))
+    let mut scan = parse(&String::from_utf8_lossy(&bytes))?;
+    scan.source = path.display().to_string();
+    Ok(scan)
 }
 
 pub fn parse(text: &str) -> Result<XasScan, IoError> {
@@ -420,10 +540,10 @@ fn assemble(
     if channels.energy_guessed {
         warnings.push(format!(
             "no column is named as energy; using \"{}\"",
-            columns[channels.roles.energy].name
+            columns[channels.roles.energy.index()].name
         ));
     }
-    let energy_index = channels.roles.energy;
+    let energy_index = channels.roles.energy.index();
     let declared = units.get(energy_index).and_then(Option::as_deref);
     let unit = match declared {
         Some(unit) if unit.eq_ignore_ascii_case("ev") => EnergyUnit::Ev,
@@ -449,6 +569,7 @@ fn assemble(
     }
     Ok(XasScan {
         kind,
+        source: String::new(),
         columns,
         channels: channels.roles,
         beamline: None,
@@ -557,15 +678,17 @@ fn guess_channels(columns: &[XasColumn]) -> GuessedChannels {
                 && !monitor
                 && (key.contains("fluo") || key.ends_with("sum"))
         }))
+        .map(XasColumnId::at)
         .collect();
     GuessedChannels {
         roles: XasChannels {
-            energy: energy.unwrap_or(0),
-            i0,
-            transmission: exact(&["it", "i1", "itrans", "itr", "itransmission"]),
-            reference: exact(&["ir", "iref", "irefer", "ireference", "i2"]),
+            energy: XasColumnId::at(energy.unwrap_or(0)),
+            i0: i0.map(XasColumnId::at),
+            transmission: exact(&["it", "i1", "itrans", "itr", "itransmission"])
+                .map(XasColumnId::at),
+            reference: exact(&["ir", "iref", "irefer", "ireference", "i2"]).map(XasColumnId::at),
             fluorescence,
-            mu: exact(&["mu", "xmu", "mutrans", "mufluor"]),
+            mu: exact(&["mu", "xmu", "mutrans", "mufluor"]).map(XasColumnId::at),
         },
         energy_guessed: energy.is_none(),
     }

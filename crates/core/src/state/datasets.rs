@@ -660,6 +660,7 @@ pub enum Dataset {
     MassSpec(Box<MassSpecDataset>),
     Xrd(Box<XrdDataset>),
     Xps(Box<XpsDataset>),
+    Xas(Box<XasDataset>),
 }
 
 fn set_pipeline_pivot_frac(pipe: &mut AxisPipeline, frac: f64) {

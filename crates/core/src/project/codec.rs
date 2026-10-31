@@ -252,6 +252,7 @@ pub(crate) fn write_dataset_payload(writer: &mut impl Write, blob: &DatasetBlob<
         DatasetBlob::MassSpec(dataset) => super::mass_spec_convert::write(writer, dataset),
         DatasetBlob::Xrd(data) => super::xrd_convert::write(writer, data),
         DatasetBlob::Xps(experiment) => super::xps_convert::write(writer, experiment),
+        DatasetBlob::Xas(scan) => super::xas_convert::write(writer, scan),
     }
 }
 

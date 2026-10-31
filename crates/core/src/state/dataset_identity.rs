@@ -11,6 +11,7 @@ impl Dataset {
             Dataset::MassSpec(dataset) => dataset.resource_id,
             Dataset::Xrd(dataset) => dataset.resource_id,
             Dataset::Xps(dataset) => dataset.resource_id,
+            Dataset::Xas(dataset) => dataset.resource_id,
         }
     }
 
@@ -24,6 +25,7 @@ impl Dataset {
             Dataset::MassSpec(dataset) => dataset.resource_id = id,
             Dataset::Xrd(dataset) => dataset.resource_id = id,
             Dataset::Xps(dataset) => dataset.resource_id = id,
+            Dataset::Xas(dataset) => dataset.resource_id = id,
         }
     }
 }

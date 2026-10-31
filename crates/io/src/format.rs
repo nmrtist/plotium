@@ -8,6 +8,7 @@ pub enum DataFormat {
     MassSpectrometry(MassSpectrometryFormat),
     Xrd(XrdFormat),
     Xps(XpsFormat),
+    Xas(XasFormat),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +53,13 @@ pub enum XpsFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XasFormat {
+    Xdi,
+    Xdac,
+    Columns,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScientificDataType {
     Nmr,
     Electrophysiology,
@@ -59,6 +67,7 @@ pub enum ScientificDataType {
     MassSpectrometry,
     Xrd,
     Xps,
+    Xas,
 }
 
 impl DataFormat {
@@ -70,6 +79,7 @@ impl DataFormat {
             Self::MassSpectrometry(_) => ScientificDataType::MassSpectrometry,
             Self::Xrd(_) => ScientificDataType::Xrd,
             Self::Xps(_) => ScientificDataType::Xps,
+            Self::Xas(_) => ScientificDataType::Xas,
         }
     }
 
@@ -89,6 +99,9 @@ impl DataFormat {
             }
             Self::MassSpectrometry(MassSpectrometryFormat::MzMl) => "mzml",
             Self::MassSpectrometry(MassSpectrometryFormat::SciexWiff) => "sciex-wiff",
+            Self::Xas(XasFormat::Xdi) => "xas-xdi",
+            Self::Xas(XasFormat::Xdac) => "xas-xdac",
+            Self::Xas(XasFormat::Columns) => "xas-columns",
             Self::Xrd(XrdFormat::RigakuRasx) => "rigaku-rasx",
             Self::Xrd(XrdFormat::RigakuRaw) => "rigaku-raw-fi",
             Self::Xrd(XrdFormat::RigakuProfile) => "rigaku-profile",

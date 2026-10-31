@@ -25,9 +25,14 @@ mod mass_spec_layout;
 mod nmr_inspection;
 #[path = "workflow/trace_collection.rs"]
 mod trace_collection;
+#[path = "workflow/xas.rs"]
+mod xas;
 #[path = "workflow/xps.rs"]
 mod xps;
+#[path = "workflow/xrd.rs"]
+mod xrd;
 pub use nmr_inspection::{inspect_file, inspect_nmr_dataset};
+pub use xas::XasReport;
 pub const INSPECTION_SCHEMA: &str = "plotium.inspect.v1";
 #[derive(Clone, Debug, Serialize)]
 pub struct InspectionReport {
@@ -47,6 +52,8 @@ pub struct InspectionReport {
     pub xrd: Option<XrdReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub xps: Option<XpsReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xas: Option<XasReport>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -606,6 +613,7 @@ fn inspection_report(
             mass_spectrometry: None,
             xrd: None,
             xps: None,
+            xas: None,
         };
     }
     match acquisition {
@@ -653,6 +661,7 @@ fn inspection_report(
                 mass_spectrometry: None,
                 xrd: None,
                 xps: None,
+                xas: None,
             }
         }
         Acquisition::Afm(data) => {
@@ -692,6 +701,7 @@ fn inspection_report(
                 mass_spectrometry: None,
                 xrd: None,
                 xps: None,
+                xas: None,
             }
         }
         Acquisition::MassSpec(run) => {
@@ -730,41 +740,14 @@ fn inspection_report(
                 }),
                 xrd: None,
                 xps: None,
+                xas: None,
             }
         }
-        Acquisition::Xrd(data) => InspectionReport {
-            schema: INSPECTION_SCHEMA,
-            format: format.as_str().to_owned(),
-            provenance: ProvenanceReport {
-                selected_path: provenance.selected_path.clone(),
-                data_path: provenance.data_path.clone(),
-                parameter_paths: provenance.parameter_paths.clone(),
-                companion_paths: provenance.companion_paths.clone(),
-            },
-            dimension: DimensionReport {
-                count: 1,
-                shape: vec![data.len()],
-            },
-            domain: "xrd".to_owned(),
-            warnings: warnings.iter().map(warning_report).collect(),
-            electrophysiology: None,
-            afm: None,
-            mass_spectrometry: None,
-            xrd: Some(XrdReport {
-                instrument: data.instrument.clone(),
-                target: data.target.clone(),
-                wavelength_angstrom: data.wavelength_angstrom,
-                two_theta_range_deg: [
-                    data.two_theta_deg.first().copied().unwrap_or(0.0),
-                    data.two_theta_deg.last().copied().unwrap_or(0.0),
-                ],
-                point_count: data.len(),
-            }),
-            xps: None,
-        },
+        Acquisition::Xrd(data) => xrd::inspection_report(format, provenance, warnings, data),
         Acquisition::Xps(experiment) => {
             xps::inspection_report(format, provenance, warnings, experiment)
         }
+        Acquisition::Xas(scan) => xas::inspection_report(format, provenance, warnings, scan),
     }
 }
 

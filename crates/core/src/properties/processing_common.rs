@@ -162,6 +162,7 @@ pub(super) fn raw_point_count(dataset: &Dataset, axis: PhaseAxis) -> usize {
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
         | Dataset::Xrd(_)
+        | Dataset::Xas(_)
         | Dataset::Xps(_) => 0,
     }
 }

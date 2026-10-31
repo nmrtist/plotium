@@ -165,6 +165,7 @@ pub fn canvas_to_view(
                         Dataset::MassSpec(_) => "line_plot",
                         Dataset::Xrd(_) => "line_plot",
                         Dataset::Xps(_) => "line_plot",
+                        Dataset::Xas(_) => "line_plot",
                     };
                     let series = series_convert::save_series(
                         datasets,

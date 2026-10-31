@@ -43,6 +43,7 @@ pub(super) fn inspection_report(
         afm: None,
         mass_spectrometry: None,
         xrd: None,
+        xas: None,
         xps: Some(XpsReport {
             measurement_count: experiment.measurements.len(),
             region_count: experiment.regions.len(),
