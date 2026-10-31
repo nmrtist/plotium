@@ -89,7 +89,7 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&Sta
                     col = color.to_hex(),
                 );
             }
-            LegendMark::Rect { edge } => {
+            LegendMark::Rect { edge, hatch } => {
                 let stroke = edge.map_or(String::new(), |(edge, width)| {
                     format!(r#" stroke="{}" stroke-width="{width}""#, edge.to_hex())
                 });
@@ -99,6 +99,10 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&Sta
                     y = ly - 4.0,
                     col = color.to_hex(),
                 );
+                if let Some(hatch) = hatch {
+                    let swatch = crate::Rect::new(lx, ly - 4.0, sw, 8.0);
+                    crate::hatch::write_svg(s, &swatch.corners(), *hatch, swatch);
+                }
             }
         }
         let _ = write!(

@@ -11,7 +11,7 @@ mod matrix;
 mod pie;
 pub(crate) mod sequence;
 
-pub(crate) use bars::grouped_bar_figure;
+pub(crate) use bars::{grouped_bar_figure, hatch_bars};
 pub(crate) use dist::{box_figure, histogram_figure, violin_figure};
 pub(crate) use matrix::{heatmap_figure, surface_figure};
 pub(crate) use pie::pie_figure;

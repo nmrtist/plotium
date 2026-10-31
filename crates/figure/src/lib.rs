@@ -21,7 +21,7 @@ pub use heatmap::HeatmapGrid;
 pub use sequence_scale::SequenceScale;
 pub use text_anchor::TextAnchor;
 mod polygon;
-pub use polygon::Polygon;
+pub use polygon::{HATCH_LINE_PT, HATCH_SPACING_PT, Hatch, HatchPattern, Polygon};
 mod reference_line;
 mod typeface;
 pub use display::*;

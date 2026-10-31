@@ -90,6 +90,19 @@ statement it supports. They never change the drawing. An AI client that checks
 the figure compares the chart with them and suggests better-fitting forms
 without switching on its own.
 
+## Hatched bars
+
+A bar curve added with **Curve columns** or **Add curve** can be hatched: set
+**Bar hatch** under **Line › Advanced** in the Object inspector to **Forward diagonal**,
+**Backward diagonal** or **Crosshatch**. The lines take the **Bar outline
+color** and stay the same distance apart when you resize or zoom the plot.
+For hollow bars, set the curve color to white. To style one bar apart from the
+others, put it in its own curve. The hatch appears in the legend and in every
+export format as real vector lines.
+
+The gallery's **Bar** and **Grouped bars** charts have one **Bar hatch** under
+**Chart › Advanced** that covers every bar, drawn in a dark shade of each bar's color.
+
 ## Error bars
 
 Error bars come from a column that holds the uncertainty of another column.

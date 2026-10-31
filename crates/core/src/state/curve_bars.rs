@@ -1,6 +1,6 @@
 //! Bar styling, category slots and numeric slot widths of explicit curves;
 //! [`super::curve_layout`] lays the marks out.
-use plotium_figure::{Color, ErrorBar, LineEncoding, Series};
+use plotium_figure::{Color, ErrorBar, Hatch, HatchPattern, LineEncoding, Series};
 use std::collections::HashMap;
 
 /// Caps span this fraction of their bar, the usual journal proportion.
@@ -20,6 +20,9 @@ pub(super) struct BarStyle {
     /// Outline color (`None` derives it from each bar's fill) and width in
     /// points; `None` draws no outline.
     pub edge: Option<(Option<Color>, f32)>,
+    /// Hatch lines take the explicit outline color, or derive it like the
+    /// outline does.
+    pub hatch: Option<(HatchPattern, Option<Color>)>,
 }
 
 impl BarStyle {
@@ -29,6 +32,7 @@ impl BarStyle {
         Self {
             width: line.bar_width(),
             edge: (edge > 0.0).then_some((line.bar_edge_color, edge)),
+            hatch: line.bar_hatch.map(|pattern| (pattern, line.bar_edge_color)),
         }
     }
 
@@ -36,6 +40,14 @@ impl BarStyle {
     pub(super) fn edge_for(self, fill: Color) -> Option<(Color, f32)> {
         self.edge
             .map(|(color, width)| (bar_edge_color(color, fill), width))
+    }
+
+    /// The resolved hatch over a bar filled with `fill`.
+    pub(super) fn hatch_for(self, fill: Color) -> Option<Hatch> {
+        self.hatch.map(|(pattern, color)| Hatch {
+            pattern,
+            color: bar_edge_color(color, fill),
+        })
     }
 }
 

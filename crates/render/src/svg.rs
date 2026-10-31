@@ -343,6 +343,9 @@ fn write_figure(
             r#"<polygon points="{pts}" fill="{col}"{opacity}{stroke}/>"#,
             col = poly.fill.to_hex(),
         );
+        if let Some(hatch) = poly.hatch {
+            crate::hatch::write_svg(s, &outline, hatch, plot);
+        }
     }
     for annotation in &fig.range_annotations {
         let Some((x0, x1)) = crate::range_annotation_xs(&proj, annotation) else {

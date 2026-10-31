@@ -165,6 +165,9 @@ pub struct LineEncoding {
     /// [`DEFAULT_BAR_EDGE_WIDTH_PT`] (see [`LineEncoding::bar_edge_width`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_edge_width: Option<FiniteF64>,
+    /// Hatch drawn over the bar fill in the outline color; only bars read it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bar_hatch: Option<crate::HatchPattern>,
     /// Horizontal spread of replicate points that share an x slot, as a
     /// fraction of the mark they overlay; `None` stacks them on one line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -213,6 +216,7 @@ impl Default for LineEncoding {
             bar_width: None,
             bar_edge_color: None,
             bar_edge_width: None,
+            bar_hatch: None,
             spread: None,
             value_labels: false,
         }

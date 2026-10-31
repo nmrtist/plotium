@@ -219,6 +219,28 @@ fn every_chart_property_supports_reset() {
         PropertyValue::Bool(true),
     );
     reset(&mut app, &target, object::CHART_STACKED);
+    set(
+        &mut app,
+        &target,
+        object::CHART_BAR_HATCH,
+        PropertyValue::Enum("cross"),
+    );
+    let hatched = app.doc.canvases[0]
+        .object(id)
+        .and_then(|object| object.plot())
+        .unwrap();
+    assert_eq!(
+        hatched.chart.bar_hatch,
+        Some(plotium_figure::HatchPattern::Cross)
+    );
+    assert!(
+        hatched
+            .figure()
+            .polygons
+            .iter()
+            .all(|bar| bar.hatch.is_some())
+    );
+    reset(&mut app, &target, object::CHART_BAR_HATCH);
 
     set(
         &mut app,

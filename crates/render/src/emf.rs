@@ -478,7 +478,7 @@ fn write_figure_content(
                 fig.background,
                 1.0,
             );
-            dc.polygon(&outline, Some(fill), stroke);
+            dc.hatched_polygon(&outline, fill, stroke, poly.hatch, plot);
         }
         for annotation in &fig.range_annotations {
             let Some((x0, x1)) = crate::range_annotation_xs(&proj, annotation) else {
@@ -708,8 +708,8 @@ fn write_legend(dc: &mut Dc, fig: &Figure, plot: Rect, stack: Option<&crate::Sta
                     None,
                 );
             }
-            LegendMark::Rect { edge } => {
-                dc.rect(Rect::new(lx, ly - 4.0, sw, 8.0), Some(*color), *edge)
+            LegendMark::Rect { edge, hatch } => {
+                dc.swatch(Rect::new(lx, ly - 4.0, sw, 8.0), *color, *edge, *hatch)
             }
         }
         dc.text(

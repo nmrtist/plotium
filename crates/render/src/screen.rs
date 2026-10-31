@@ -356,6 +356,9 @@ fn paint_with_detail_and_stats_impl(
         .map(|(c, w)| Stroke::new(w * scale, col(c)))
         .unwrap_or(Stroke::NONE);
         clipped.add(Shape::convex_polygon(pts, fill, stroke));
+        if let Some(hatch) = poly.hatch {
+            crate::hatch::paint(&clipped, &outline, hatch, plot, scale);
+        }
     }
 
     crate::screen_annotations::paint(&clipped, fig, &proj, plot, scale);

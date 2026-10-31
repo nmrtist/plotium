@@ -116,6 +116,7 @@ pub fn canvas_to_view(
                 chart_column: None,
                 chart_bins: None,
                 chart_stacked: false,
+                chart_bar_hatch: None,
                 chart_colormap: None,
                 chart_view: None,
                 chart_transpose: false,
@@ -186,6 +187,7 @@ pub fn canvas_to_view(
                         chart_column: plot.chart.column.map(|column| column.to_string()),
                         chart_bins: plot.chart.bins,
                         chart_stacked: plot.chart.stacked,
+                        chart_bar_hatch: plot.chart.bar_hatch,
                         chart_colormap: (plot.chart.colormap
                             != plotium_figure::ColormapId::default())
                         .then(|| plot.chart.colormap.id().to_owned()),
@@ -525,6 +527,7 @@ pub fn view_to_canvas(
                         })?,
                     bins: view_object.chart_bins,
                     stacked: view_object.chart_stacked,
+                    bar_hatch: view_object.chart_bar_hatch,
                     // Unknown ids (from a newer build) fall back to the default map.
                     colormap: view_object
                         .chart_colormap

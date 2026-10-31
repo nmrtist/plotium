@@ -7,6 +7,7 @@ mod axis_break;
 pub mod contour;
 mod curve_style;
 pub mod diagnostics;
+mod hatch;
 pub mod integral;
 mod label_placement;
 pub use label_placement::{LabelLayout, ReferenceLabelBox, TextLabelBox, label_layout};
@@ -226,6 +227,15 @@ impl Rect {
 
     pub fn bottom(&self) -> f32 {
         self.top + self.height
+    }
+
+    pub(crate) fn corners(&self) -> [(f32, f32); 4] {
+        [
+            (self.left, self.top),
+            (self.right(), self.top),
+            (self.right(), self.bottom()),
+            (self.left, self.bottom()),
+        ]
     }
 }
 
