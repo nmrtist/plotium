@@ -427,6 +427,96 @@ fn initial_image_size_uses_page_points_and_preserves_aspect() {
 }
 
 #[test]
+fn vector_images_keep_their_natural_size_until_they_exceed_the_bounds() {
+    assert_eq!(natural_vector_size([100, 40], [252.0, 170.0]), [75.0, 30.0]);
+    let fitted = natural_vector_size([615, 461], [252.0, 170.0]);
+    assert!((fitted[1] - 170.0).abs() < 1e-3);
+    assert!((fitted[0] - 226.8).abs() < 0.1);
+}
+
+fn svg_candidate(pixel_size: [u32; 2]) -> Candidate {
+    Candidate {
+        format: "svg".to_owned(),
+        ..candidate("structure.svg", pixel_size)
+    }
+}
+
+#[test]
+fn vector_image_on_a_page_stays_natural_and_on_the_page() {
+    let mut app = PlotiumApp::default();
+    let page = CanvasDocument::new("Page".to_owned(), DEFAULT_CANVAS_SIZE_MM);
+    let [page_width, page_height] = page.size_pt();
+    let canvas = page.resource_id;
+    app.doc.canvases.push(page);
+    let target = ImportImageTarget::Canvas {
+        canvas,
+        position: None,
+    };
+
+    let mut job = ready_job(&mut app, target);
+    commit(
+        &mut app,
+        &mut job,
+        vec![
+            Ok(svg_candidate([100, 40])),
+            Ok(svg_candidate([4000, 1000])),
+        ],
+    );
+    let natural = app.doc.canvases[0].objects[0].frame;
+    assert_eq!(
+        [natural.x, natural.y, natural.width, natural.height],
+        [12.0, 12.0, 75.0, 30.0]
+    );
+    let fitted = app.doc.canvases[0].objects[1].frame;
+    assert_eq!(fitted.x, 0.0);
+    assert!((fitted.width - page_width).abs() < 1e-3);
+    assert!(fitted.y + fitted.height <= page_height);
+}
+
+#[test]
+fn tiny_vector_images_keep_the_minimum_content_frame() {
+    let mut app = PlotiumApp::default();
+    let page = CanvasDocument::new("Page".to_owned(), DEFAULT_CANVAS_SIZE_MM);
+    let canvas = page.resource_id;
+    app.doc.canvases.push(page);
+    let target = ImportImageTarget::Canvas {
+        canvas,
+        position: None,
+    };
+
+    let mut job = ready_job(&mut app, target);
+    commit(&mut app, &mut job, vec![Ok(svg_candidate([1000, 1]))]);
+    let frame = app.doc.canvases[0].objects[0].frame;
+    assert!(frame.height >= 1.0);
+    assert!(frame.width >= 1.0);
+}
+
+#[test]
+fn vector_image_in_a_panel_fits_the_panel() {
+    let mut app = PlotiumApp::default();
+    let mut page = CanvasDocument::new("Page".to_owned(), DEFAULT_CANVAS_SIZE_MM);
+    let panel = page.create_panel(
+        "Panel".to_owned(),
+        ObjectFrame::new(20.0, 30.0, 120.0, 90.0),
+    );
+    let canvas = page.resource_id;
+    app.doc.canvases.push(page);
+    let target = ImportImageTarget::Panel {
+        canvas,
+        panel,
+        position: Some([40.0, 50.0]),
+    };
+
+    let mut job = ready_job(&mut app, target);
+    commit(&mut app, &mut job, vec![Ok(svg_candidate([800, 400]))]);
+    let frame = app.doc.canvases[0].objects[0].frame;
+    assert_eq!(
+        [frame.x, frame.y, frame.width, frame.height],
+        [0.0, 20.0, 120.0, 60.0]
+    );
+}
+
+#[test]
 fn automatic_page_uses_physical_size_and_caps_width_at_nature_single_column() {
     let sized = physical_image_size_mm([600, 300], Some([300.0, 300.0]));
     assert!((sized[0] - 50.8).abs() < 1e-4);
