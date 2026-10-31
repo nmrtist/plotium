@@ -128,6 +128,23 @@ pub(super) fn template_gate(
     requires(dataset.is_some_and(usable), reason)
 }
 
+pub(super) fn xas_merge_gate(app: &PlotiumApp) -> Result<(), &'static str> {
+    let selection = &app.session.ui.data_selection;
+    let scans = selection
+        .iter()
+        .filter(|index| {
+            app.doc
+                .datasets
+                .get(**index)
+                .is_some_and(|d| d.as_xas().is_some())
+        })
+        .count();
+    requires(
+        scans >= 2 && scans == selection.len(),
+        "Select two or more XAS scans in the Data list before merging.",
+    )
+}
+
 pub(super) fn xas_summary_gate(dataset: Option<&Dataset>) -> Result<(), &'static str> {
     requires(
         dataset

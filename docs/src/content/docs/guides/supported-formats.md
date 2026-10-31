@@ -179,6 +179,15 @@ columns. Processing schemes and templates carry the XAS parameters, but not the
 energy shift, a fixed E0, or the signal, which belong to each scan. A scan too short
 for a scheme's post-edge or k range keeps its own.
 
+Select two or more scans in the Data list and choose **Merge Scans** on the
+**Process** tab to average them in μ(E) on the first scan's energies. Scans with a
+usable reference foil are aligned on it first; a warning says when they were not,
+and why. Only energies every scan covers are averaged, and scans of different
+edges are refused. The merge is a new dataset with its own parameters that lists
+its sources. It holds μ(E) as an absorption signal without a reference channel, so
+calibrate the scans before merging.
+**Stack** overlays scans or references, labeled by dataset.
+
 Over MCP, `processing.inspect` also reports the columns, calibration, and three
 checks: `e0_far_from_table`, `short_post_edge`, and `noisy_high_k`.
 

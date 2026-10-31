@@ -152,7 +152,7 @@ fn steepest_point(
 }
 
 /// Central differences per array index, one-sided at both ends.
-fn gradient(values: &[f64]) -> Vec<f64> {
+pub(super) fn gradient(values: &[f64]) -> Vec<f64> {
     let last = values.len() - 1;
     (0..=last)
         .map(|index| {

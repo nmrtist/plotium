@@ -86,6 +86,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::SaveProcessingTemplate,
         CommandId::ApplyProcessingTemplate,
         CommandId::XasSummaryFigure,
+        CommandId::MergeXasScans,
         CommandId::Craft,
         CommandId::RunCraft,
         CommandId::CraftComponentTable,

@@ -132,6 +132,18 @@ pub enum XasCalibrationError {
     CoarseReference(f64),
 }
 
+impl XasCalibrationError {
+    pub fn reason(self) -> String {
+        match self {
+            Self::NoReference => "a scan has no reference channel".to_owned(),
+            Self::NoReferenceEdge => "a reference channel shows no edge".to_owned(),
+            Self::CoarseReference(step) => {
+                format!("the reference steps {step:.1} eV at its edge, too coarse to align on")
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct XasDataset {
     pub resource_id: DatasetId,
@@ -193,9 +205,9 @@ impl XasDataset {
         self.processed.exafs.as_ref()?.k.last().copied()
     }
 
-    /// The shift that puts the reference foil's edge on its tabulated energy.
-    /// A sample's own edge is chemically shifted, so only a foil can calibrate.
-    pub fn calibration(&self) -> Result<XasCalibration, XasCalibrationError> {
+    /// Where the reference foil's edge is, when it can be located well enough to
+    /// move the energy axis by it.
+    pub(super) fn foil_edge(&self) -> Result<f64, XasCalibrationError> {
         let reference = self
             .reference
             .as_ref()
@@ -204,14 +216,20 @@ impl XasDataset {
             .reference_edge
             .filter(|foil| foil.step >= MIN_REFERENCE_STEP)
             .ok_or(XasCalibrationError::NoReferenceEdge)?;
-        let measured = foil.e0;
-        let index = reference.energy.partition_point(|e| *e < measured);
+        let index = reference.energy.partition_point(|e| *e < foil.e0);
         let start = index.saturating_sub(EDGE_STEP_POINTS);
         let stop = (index + EDGE_STEP_POINTS).min(reference.energy.len() - 1);
         let step = (reference.energy[stop] - reference.energy[start]) / (stop - start) as f64;
         if step > MAX_CALIBRATION_STEP {
             return Err(XasCalibrationError::CoarseReference(step));
         }
+        Ok(foil.e0)
+    }
+
+    /// The shift that puts the reference foil's edge on its tabulated energy.
+    /// A sample's own edge is chemically shifted, so only a foil can calibrate.
+    pub fn calibration(&self) -> Result<XasCalibration, XasCalibrationError> {
+        let measured = self.foil_edge()?;
         let (element, edge, energy) =
             processing::nearest_edge(measured).ok_or(XasCalibrationError::NoReference)?;
         Ok(XasCalibration {

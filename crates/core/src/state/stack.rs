@@ -154,7 +154,22 @@ impl PlotiumApp {
                 };
                 split_columns(part.series, column_names, part.error_bars, width)
             } else {
-                vec![(self.series_label(sb), part.series, part.error_bars)]
+                let mut label = self.series_label(sb);
+                // A field names its curve by quantity, which every scan shares.
+                if encoded_curve && let [series] = part.series.as_mut_slice() {
+                    let first_resource = binding.series.first().map(|s| s.source.resource);
+                    let across_datasets = binding
+                        .series
+                        .iter()
+                        .any(|s| Some(s.source.resource) != first_resource);
+                    if sb.label.is_none() && across_datasets {
+                        label = crate::workflow::dataset_title(&self.doc.datasets[dataset]);
+                    }
+                    if across_datasets {
+                        series.name.clone_from(&label);
+                    }
+                }
+                vec![(label, part.series, part.error_bars)]
             };
             for (column, (name, mut series, mut error_bars)) in traces.into_iter().enumerate() {
                 let peak = series
