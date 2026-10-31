@@ -12,6 +12,7 @@ pub const CHART_STACKED: PropertyId = PropertyId("object.chart.stacked");
 pub const CHART_COLORMAP: PropertyId = PropertyId("object.chart.colormap");
 pub const CHART_VIEW_AZIMUTH: PropertyId = PropertyId("object.chart.view_angles.0");
 pub const CHART_VIEW_ELEVATION: PropertyId = PropertyId("object.chart.view_angles.1");
+pub const CHART_TRANSPOSE: PropertyId = PropertyId("object.chart.transpose");
 pub const PANEL_USER_NOTE: PropertyId = PropertyId("object.panel.user_note");
 pub const PANEL_VISIBLE: PropertyId = PropertyId("object.panel.visible");
 pub const SERIES_VISIBLE: PropertyId = PropertyId("series.visible");
@@ -143,6 +144,7 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
     definition(CHART_COLORMAP, ValueSchema::Enum { variants: COLORMAPS }, DefaultPolicy::Fixed(PropertyValue::Enum("viridis")), "Chart colormap", &["colour map"]),
     definition(CHART_VIEW_AZIMUTH, ValueSchema::Float { bounds: FloatBounds::inclusive(-180.0_f64.to_radians(), 180.0_f64.to_radians()), display: FloatDisplay::Degrees, drag_step: Some(1.0) }, DefaultPolicy::Fixed(PropertyValue::Float(-50.0_f64.to_radians())), "Surface azimuth", &["view azimuth"]),
     definition(CHART_VIEW_ELEVATION, ValueSchema::Float { bounds: FloatBounds::inclusive(5.0_f64.to_radians(), 90.0_f64.to_radians()), display: FloatDisplay::Degrees, drag_step: Some(1.0) }, DefaultPolicy::Fixed(PropertyValue::Float(30.0_f64.to_radians())), "Surface elevation", &["view elevation"]),
+    definition(CHART_TRANSPOSE, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Transpose heatmap", &["swap heatmap axes", "swap rows and columns"]),
     definition(
         PANEL_USER_NOTE,
         ValueSchema::Text,

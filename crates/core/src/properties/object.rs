@@ -15,11 +15,11 @@ use plotium_figure::ColormapId;
 mod definitions;
 pub use definitions::{
     ALIGN_CENTER, ALIGN_LEFT, ALIGN_RIGHT, CHART_BINS_AUTO, CHART_BINS_COUNT, CHART_COLORMAP,
-    CHART_STACKED, CHART_TYPE_ID, CHART_VIEW_AZIMUTH, CHART_VIEW_ELEVATION, COLOR_OVERLAY, LOCKED,
-    OFFSET, PANEL_USER_NOTE, PANEL_VISIBLE, SERIES_VISIBLE, SHAPE_ARROW, SHAPE_ELLIPSE,
-    SHAPE_FILL_COLOR, SHAPE_FILL_ENABLED, SHAPE_KIND, SHAPE_LINE, SHAPE_RECT, SHAPE_STROKE,
-    SHAPE_STROKE_WIDTH, STACK_MODE, STACK_NORMALIZE, STACK_SHEAR_X, STACK_SPACING_Y, SUPERIMPOSED,
-    TEXT, TEXT_ALIGN, TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
+    CHART_STACKED, CHART_TRANSPOSE, CHART_TYPE_ID, CHART_VIEW_AZIMUTH, CHART_VIEW_ELEVATION,
+    COLOR_OVERLAY, LOCKED, OFFSET, PANEL_USER_NOTE, PANEL_VISIBLE, SERIES_VISIBLE, SHAPE_ARROW,
+    SHAPE_ELLIPSE, SHAPE_FILL_COLOR, SHAPE_FILL_ENABLED, SHAPE_KIND, SHAPE_LINE, SHAPE_RECT,
+    SHAPE_STROKE, SHAPE_STROKE_WIDTH, STACK_MODE, STACK_NORMALIZE, STACK_SHEAR_X, STACK_SPACING_Y,
+    SUPERIMPOSED, TEXT, TEXT_ALIGN, TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
 };
 use definitions::{DEFINITIONS, FILL_FALLBACK, STACK_MODES};
 
@@ -281,7 +281,7 @@ fn plot_value(
             ))
         }
         CHART_TYPE_ID | CHART_BINS_AUTO | CHART_BINS_COUNT | CHART_STACKED | CHART_COLORMAP
-        | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION => {
+        | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION | CHART_TRANSPOSE => {
             let current_id = crate::state::resolved_chart_type_for_field(
                 &capabilities,
                 domain,
@@ -356,6 +356,7 @@ pub fn chart_property_applies_to_type(property: PropertyId, chart_type: &str) ->
         CHART_STACKED => chart_type == "table_bar_grouped",
         CHART_COLORMAP => matches!(chart_type, "table_heatmap" | "table_surface"),
         CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION => chart_type == "table_surface",
+        CHART_TRANSPOSE => chart_type == "table_heatmap",
         _ => false,
     }
 }
@@ -448,11 +449,18 @@ fn write_object(
             }
         }
         CHART_TYPE_ID | CHART_BINS_AUTO | CHART_BINS_COUNT | CHART_STACKED | CHART_COLORMAP
-        | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION => {
+        | CHART_VIEW_AZIMUTH | CHART_VIEW_ELEVATION | CHART_TRANSPOSE => {
             let automatic_seed = (id == CHART_BINS_AUTO && value == PropertyValue::Bool(false))
                 .then(|| live_auto_bins(app, canvas, object))
                 .flatten()
                 .unwrap_or(20);
+            // Titles, ranges and ticks follow the data to its new axis.
+            if id == CHART_TRANSPOSE
+                && value
+                    != PropertyValue::Bool(transaction.chart_spec(app, canvas, object)?.transpose)
+            {
+                transaction.axis_overrides(app, canvas, object)?.swap_axes();
+            }
             let chart = transaction.chart_spec(app, canvas, object)?;
             match (id, value) {
                 (CHART_TYPE_ID, PropertyValue::Enum(value)) => chart.type_id = value.to_owned(),
@@ -463,6 +471,7 @@ fn write_object(
                 (CHART_BINS_AUTO, PropertyValue::Bool(false)) => chart.bins = Some(automatic_seed),
                 (CHART_BINS_COUNT, PropertyValue::Int(value)) => chart.bins = Some(value as usize),
                 (CHART_STACKED, PropertyValue::Bool(value)) => chart.stacked = value,
+                (CHART_TRANSPOSE, PropertyValue::Bool(value)) => chart.transpose = value,
                 (CHART_COLORMAP, PropertyValue::Enum(value)) => {
                     chart.colormap = ColormapId::from_id(value).expect("validated colormap")
                 }
@@ -604,6 +613,7 @@ fn chart_value(
         CHART_BINS_AUTO => Ok(PropertyValue::Bool(plot.chart.bins.is_none())),
         CHART_BINS_COUNT => Ok(PropertyValue::Int(plot.chart.bins.unwrap_or(20) as i64)),
         CHART_STACKED => Ok(PropertyValue::Bool(plot.chart.stacked)),
+        CHART_TRANSPOSE => Ok(PropertyValue::Bool(plot.chart.transpose)),
         CHART_COLORMAP => Ok(PropertyValue::Enum(plot.chart.colormap.id())),
         CHART_VIEW_AZIMUTH => Ok(PropertyValue::Float(
             f64::from(plot.chart.view_angles[0]).to_radians(),

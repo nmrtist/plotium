@@ -384,6 +384,9 @@ pub struct ViewCanvasObject {
     /// 3D surface `[azimuth°, elevation°]`; absent = default view.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chart_view: Option<[f32; 2]>,
+    /// Heatmap with the x ruler across and the columns up.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub chart_transpose: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stack: Option<StackDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

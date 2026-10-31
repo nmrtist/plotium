@@ -63,6 +63,8 @@ impl AfmDataset {
             values,
             x_bounds: [0.0, channel.scan_size_x],
             y_bounds: [0.0, channel.scan_size_y],
+            x_edges: None,
+            y_edges: None,
             colormap,
             value_range: [minimum, maximum],
         });

@@ -84,6 +84,7 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(object::CHART_BINS_COUNT, "Bins", CHART_HOME),
     object_entry(object::CHART_STACKED, "Stacked", CHART_HOME),
     object_entry(object::CHART_COLORMAP, "Colormap", CHART_HOME),
+    object_entry(object::CHART_TRANSPOSE, "Transpose", CHART_HOME),
     object_entry(object::CHART_VIEW_AZIMUTH, "Azimuth", CHART_HOME),
     object_entry(object::CHART_VIEW_ELEVATION, "Elevation", CHART_HOME),
     object_entry(object::PANEL_USER_NOTE, "Note", PANEL_HOME),

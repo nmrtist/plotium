@@ -5,6 +5,7 @@
 
 use super::super::ChartContext;
 use super::super::table::TableDataset;
+use super::sequence::{is_strictly_monotonic, sequence_axis};
 use super::{darkened, empty_axes_figure, row_labels, title_of};
 use plotium_figure::{Axis, AxisFrame, Figure, HeatmapGrid, Polygon};
 
@@ -23,9 +24,70 @@ struct TableMatrix {
     values: Vec<f32>,
     lo: f32,
     hi: f32,
+    /// The x ruler, one position per row.
+    row_positions: Vec<f64>,
     row_labels: Vec<String>,
     column_names: Vec<String>,
     row_axis_label: String,
+}
+
+/// One heatmap dimension: the drawn axis plus its cell span and, on a numeric
+/// axis, the cell boundaries in table order.
+struct GridAxis {
+    axis: Axis,
+    bounds: [f64; 2],
+    edges: Option<Vec<f64>>,
+}
+
+/// A numeric axis when `positions` are strictly monotonic, otherwise one slot
+/// per name. `first_high` puts the first table entry at the high screen end of
+/// a left-to-right or bottom-to-top reading axis.
+fn grid_axis(
+    label: String,
+    positions: Option<&[f64]>,
+    names: Vec<String>,
+    first_high: bool,
+) -> GridAxis {
+    match positions.and_then(cell_edges) {
+        Some(edges) => {
+            let (first, last) = (edges[0], edges[edges.len() - 1]);
+            GridAxis {
+                axis: Axis::new(label, first.min(last), first.max(last))
+                    .reversed((first < last) == first_high),
+                bounds: [first, last],
+                edges: Some(edges),
+            }
+        }
+        None => {
+            let slots = names.len() as f64;
+            GridAxis {
+                axis: Axis::categorical(label, names).reversed(first_high),
+                bounds: [-0.5, slots - 0.5],
+                edges: None,
+            }
+        }
+    }
+}
+
+/// Cell boundaries around monotonic centres: midpoints between neighbours, and
+/// a half-step beyond each end so the outer cells keep their full width.
+fn cell_edges(centers: &[f64]) -> Option<Vec<f64>> {
+    if centers.len() < 2 || !is_strictly_monotonic(centers) {
+        return None;
+    }
+    let mut edges = Vec::with_capacity(centers.len() + 1);
+    edges.push(centers[0] - (centers[1] - centers[0]) / 2.0);
+    edges.extend(centers.windows(2).map(|pair| (pair[0] + pair[1]) / 2.0));
+    let last = centers.len() - 1;
+    edges.push(centers[last] + (centers[last] - centers[last - 1]) / 2.0);
+    edges.iter().all(|edge| edge.is_finite()).then_some(edges)
+}
+
+/// Swap a row-major grid's rows and columns.
+fn transposed(values: &[f32], rows: usize, cols: usize) -> Vec<f32> {
+    (0..cols)
+        .flat_map(|col| (0..rows).map(move |row| values[row * cols + col]))
+        .collect()
 }
 
 /// Read a bounded dense view through stable presentation bindings. The typed
@@ -60,6 +122,7 @@ fn table_matrix(dataset: &TableDataset, max_rows: usize, max_cols: usize) -> Opt
         hi += 0.5;
     }
     let row_labels = row_labels(&plot.x);
+    let row_positions = plot.x;
     let column_names = columns.iter().map(|column| column.name.clone()).collect();
     Some(TableMatrix {
         rows,
@@ -67,6 +130,7 @@ fn table_matrix(dataset: &TableDataset, max_rows: usize, max_cols: usize) -> Opt
         values,
         lo,
         hi,
+        row_positions,
         row_labels,
         column_names,
         row_axis_label: plot.x_label,
@@ -80,18 +144,50 @@ pub(crate) fn heatmap_figure(dataset: &TableDataset, ctx: &ChartContext) -> Figu
         return empty_axes_figure(dataset, "", "");
     };
 
-    let x = Axis::categorical("", matrix.column_names.clone());
-    // Reversed so table row 0 reads at the top, like the sheet itself.
-    let y =
-        Axis::categorical(matrix.row_axis_label.clone(), matrix.row_labels.clone()).reversed(true);
-    let mut fig = Figure::new(title_of(dataset), x, y);
+    let sequence = sequence_axis(matrix.column_names.iter().map(String::as_str));
+    let (column_label, column_positions) = match &sequence {
+        Some(axis) => (axis.label.clone(), Some(axis.values.as_slice())),
+        None => (String::new(), None),
+    };
+    let row_positions = Some(matrix.row_positions.as_slice());
+    let (rows, cols, values, x, y) = if ctx.transpose {
+        (
+            matrix.cols,
+            matrix.rows,
+            transposed(&matrix.values, matrix.rows, matrix.cols),
+            grid_axis(
+                matrix.row_axis_label,
+                row_positions,
+                matrix.row_labels,
+                false,
+            ),
+            grid_axis(column_label, column_positions, matrix.column_names, false),
+        )
+    } else {
+        (
+            matrix.rows,
+            matrix.cols,
+            matrix.values,
+            grid_axis(column_label, column_positions, matrix.column_names, false),
+            // Table row 0 reads at the top, like the sheet itself.
+            grid_axis(
+                matrix.row_axis_label,
+                row_positions,
+                matrix.row_labels,
+                true,
+            ),
+        )
+    };
+    let mut fig = Figure::new(title_of(dataset), x.axis, y.axis);
     fig.axis_frame = AxisFrame::Box;
     fig.heatmap = Some(HeatmapGrid {
-        rows: matrix.rows,
-        cols: matrix.cols,
-        values: matrix.values,
-        x_bounds: [-0.5, matrix.cols as f64 - 0.5],
-        y_bounds: [-0.5, matrix.rows as f64 - 0.5],
+        rows,
+        cols,
+        values,
+        x_bounds: x.bounds,
+        y_bounds: y.bounds,
+        x_edges: x.edges,
+        y_edges: y.edges,
         colormap: ctx.colormap,
         value_range: [matrix.lo, matrix.hi],
     });
@@ -234,17 +330,126 @@ mod tests {
         .unwrap()
     }
 
+    fn named_table(rows: &[f64], names: &[&str]) -> TableDataset {
+        let series = names
+            .iter()
+            .enumerate()
+            .map(|(c, name)| FloatSeries {
+                name: (*name).to_owned(),
+                unit: String::new(),
+                values: (0..rows.len())
+                    .map(|r| Some((r * names.len() + c) as f64))
+                    .collect(),
+                uncertainty: None,
+                fit: None,
+            })
+            .collect();
+        materialized_float_series_table(
+            (
+                "2θ".into(),
+                "°".into(),
+                rows.iter().map(|&x| Some(x)).collect(),
+            ),
+            series,
+            "plotium.test.named-matrix-table.v1",
+        )
+        .unwrap()
+    }
+
     #[test]
-    fn heatmap_maps_the_whole_table_with_categorical_axes() {
+    fn heatmap_maps_the_whole_table_with_numeric_axes() {
         let fig = super::heatmap_figure(&grid_table(4, 3), &ChartContext::default());
         let grid = fig.heatmap.as_ref().expect("heatmap grid");
         assert_eq!((grid.rows, grid.cols), (4, 3));
         assert_eq!(grid.values.len(), 12);
         assert_eq!(grid.value_range, [0.0, 11.0]);
-        assert_eq!(fig.x.categories.as_ref().unwrap().len(), 3);
-        assert_eq!(fig.y.categories.as_ref().unwrap().len(), 4);
+        assert!(fig.x.categories.is_none() && fig.y.categories.is_none());
+        assert_eq!((fig.y.min, fig.y.max), (-0.5, 3.5));
+        assert_eq!(grid.y_bounds, [-0.5, 3.5]);
+        assert_eq!(fig.x.label, "col");
         assert!(fig.y.reversed, "row 0 reads at the top");
         assert_eq!(fig.axis_frame, AxisFrame::Box);
+    }
+
+    #[test]
+    fn heatmap_keeps_slots_for_columns_without_a_sequence() {
+        let fig = super::heatmap_figure(
+            &named_table(&[1.0, 2.0], &["Fe", "Co", "Ni"]),
+            &ChartContext::default(),
+        );
+        let grid = fig.heatmap.as_ref().unwrap();
+        assert_eq!(fig.x.categories.as_ref().unwrap().len(), 3);
+        assert_eq!(grid.x_bounds, [-0.5, 2.5]);
+        assert!(grid.x_edges.is_none());
+        assert!(fig.y.categories.is_none());
+    }
+
+    #[test]
+    fn heatmap_keeps_slots_for_a_ruler_that_turns_back() {
+        let fig = super::heatmap_figure(
+            &named_table(&[1.0, 3.0, 2.0], &["Fe", "Co"]),
+            &ChartContext::default(),
+        );
+        assert_eq!(fig.y.categories.as_ref().unwrap().len(), 3);
+        assert!(fig.y.reversed, "row 0 reads at the top");
+    }
+
+    #[test]
+    fn transposed_heatmap_puts_the_ruler_on_x_and_the_sequence_on_y() {
+        let table = named_table(&[20.0, 20.5, 21.0], &["0 min", "1 min", "4 min", "10 min"]);
+        let ctx = ChartContext {
+            transpose: true,
+            ..ChartContext::default()
+        };
+        let fig = super::heatmap_figure(&table, &ctx);
+        let grid = fig.heatmap.as_ref().unwrap();
+        assert_eq!((grid.rows, grid.cols), (4, 3));
+        // Sequence 0 (first column) is grid row 0; ruler position 1 is its col 1.
+        assert_eq!(grid.values[1], 4.0);
+        // Scan 2 (third column) at ruler position 0.
+        assert_eq!(grid.values[2 * 3], 2.0);
+        assert!(fig.x.label.contains("2θ"));
+        assert_eq!(fig.y.label, "Time (min)");
+        assert!(!fig.x.reversed && !fig.y.reversed);
+        assert_eq!((fig.x.min, fig.x.max), (19.75, 21.25));
+    }
+
+    #[test]
+    fn uneven_sequence_steps_keep_their_true_cell_heights() {
+        let table = named_table(&[20.0, 21.0], &["0 min", "1 min", "4 min", "10 min"]);
+        let ctx = ChartContext {
+            transpose: true,
+            ..ChartContext::default()
+        };
+        let fig = super::heatmap_figure(&table, &ctx);
+        let grid = fig.heatmap.as_ref().unwrap();
+        assert_eq!(
+            grid.y_edges.as_deref(),
+            Some(&[-0.5, 0.5, 2.5, 7.0, 13.0][..])
+        );
+        assert_eq!(grid.cell_bounds(2, 0)[2..], [2.5, 7.0]);
+        assert_eq!((fig.y.min, fig.y.max), (-0.5, 13.0));
+    }
+
+    #[test]
+    fn positions_that_overflow_their_cell_edges_keep_slots() {
+        let fig = super::heatmap_figure(
+            &named_table(&[1.0, 2.0, f64::MAX], &["Fe", "Co"]),
+            &ChartContext::default(),
+        );
+        assert_eq!(fig.y.categories.as_ref().unwrap().len(), 3);
+        assert!(fig.y.max.is_finite());
+    }
+
+    #[test]
+    fn descending_ruler_keeps_table_order_when_transposed() {
+        let ctx = ChartContext {
+            transpose: true,
+            ..ChartContext::default()
+        };
+        let fig = super::heatmap_figure(&named_table(&[3.0, 2.0, 1.0], &["1 K", "2 K"]), &ctx);
+        assert!(fig.x.reversed, "first row stays on the left");
+        assert_eq!((fig.x.min, fig.x.max), (0.5, 3.5));
     }
 
     #[test]

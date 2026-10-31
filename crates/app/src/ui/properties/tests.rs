@@ -219,7 +219,7 @@ fn migrated_object_sections_keep_their_existing_density() {
         ),
         (
             panel::CHART_SECTION,
-            7,
+            8,
             4,
             "table_surface: type, colormap, azimuth, elevation",
         ),

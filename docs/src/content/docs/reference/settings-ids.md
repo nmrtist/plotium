@@ -98,6 +98,7 @@ break hides.
 | Auto bins, bins | `object.chart.bins.auto`, `object.chart.bins.count` |
 | Stacked bars | `object.chart.stacked` |
 | Colormap | `object.chart.colormap` |
+| Transpose heatmap | `object.chart.transpose` |
 | Purpose, claim | `object.intent.purpose`, `object.intent.claim` |
 | Heatmap colour range, range centre | `series.heatmap.range_span`, `series.heatmap.range_center` |
 

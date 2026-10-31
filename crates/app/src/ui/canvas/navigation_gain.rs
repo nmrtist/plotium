@@ -39,9 +39,13 @@ pub(super) fn scale_line_intensity(
     else {
         return false;
     };
-    if plot_object.figure().y.categories.is_some() {
-        app.session.status =
-            "This categorical plot has no continuous display-intensity scale.".to_owned();
+    let figure = plot_object.figure();
+    let table_heatmap = figure
+        .heatmap
+        .as_ref()
+        .is_some_and(|grid| grid.y_edges.is_some());
+    if figure.y.categories.is_some() || table_heatmap {
+        app.session.status = "This plot has no continuous display-intensity scale.".to_owned();
         return true;
     }
     if supports_peak_height(app, canvas, object) {

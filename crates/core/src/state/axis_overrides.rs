@@ -251,6 +251,21 @@ pub fn equal_scale_unavailable(figure: &Figure) -> Option<&'static str> {
     }
 }
 
+/// Set an axis window. A table heatmap's window stays on its cells: the range
+/// may come from another chart type of the same plot, in another quantity.
+fn apply_range(axis: &mut Axis, range: AxisRange, on_cells: bool) {
+    if !on_cells {
+        axis.min = range.min;
+        axis.max = range.max;
+        return;
+    }
+    let (min, max) = (range.min.max(axis.min), range.max.min(axis.max));
+    if min < max {
+        axis.min = min;
+        axis.max = max;
+    }
+}
+
 /// Per-plot author overrides applied after rebuilding a figure from its data.
 /// `None` keeps the corresponding value derived by the chart builder.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -339,17 +354,18 @@ impl AxisOverrides {
         if let Some(label) = &self.y_label {
             figure.y.label.clone_from(label);
         }
+        let heatmap = figure.heatmap.as_ref();
+        let x_cells = heatmap.is_some_and(|grid| grid.x_edges.is_some());
+        let y_cells = heatmap.is_some_and(|grid| grid.y_edges.is_some());
         if let Some(range) = self.x_range
             && figure.x.categories.is_none()
         {
-            figure.x.min = range.min;
-            figure.x.max = range.max;
+            apply_range(&mut figure.x, range, x_cells);
         }
         if let Some(range) = self.y_range
             && figure.y.categories.is_none()
         {
-            figure.y.min = range.min;
-            figure.y.max = range.max;
+            apply_range(&mut figure.y, range, y_cells);
         }
         // A stored lock outlives a rebinding that leaves no equal-scale axes.
         if let Some(lock) = self.lock_aspect
@@ -360,7 +376,9 @@ impl AxisOverrides {
         self.apply_right_axis(figure);
         self.apply_scales(figure);
         // A break would distort the equal data scale of a locked aspect.
-        let breakable = |axis: &Axis| !figure.lock_aspect && axis.categories.is_none();
+        let breakable = |axis: &Axis| {
+            !figure.lock_aspect && axis.categories.is_none() && figure.heatmap.is_none()
+        };
         figure.x.axis_break = self.x_break.filter(|_| breakable(&figure.x));
         // The right axis would keep running straight past a left y break.
         figure.y.axis_break = self

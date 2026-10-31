@@ -202,6 +202,8 @@ fn nmr_scalar_heatmap(
             spectrum.f1_ppm.first().copied().unwrap_or(0.0),
             spectrum.f1_ppm.last().copied().unwrap_or(0.0),
         ],
+        x_edges: None,
+        y_edges: None,
         colormap: heatmap.colormap,
         value_range: heatmap
             .value_range

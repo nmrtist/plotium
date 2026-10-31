@@ -532,6 +532,13 @@ pub struct HeatmapGrid {
     /// Data-space y of the row-0 edge and the last-row edge; rows divide this
     /// span evenly.
     pub y_bounds: [f64; 2],
+    /// `cols + 1` x cell boundaries for unevenly spaced columns, replacing the
+    /// even division of `x_bounds`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x_edges: Option<Vec<f64>>,
+    /// `rows + 1` y cell boundaries for unevenly spaced rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y_edges: Option<Vec<f64>>,
     pub colormap: ColormapId,
     /// Value range mapped to the colormap ends; cells clamp outside it.
     pub value_range: [f32; 2],
@@ -555,12 +562,19 @@ impl HeatmapGrid {
 
     /// Data-space rectangle `[x0, x1, y0, y1]` covered by one cell.
     pub fn cell_bounds(&self, row: usize, col: usize) -> [f64; 4] {
-        let dx = (self.x_bounds[1] - self.x_bounds[0]) / self.cols.max(1) as f64;
-        let dy = (self.y_bounds[1] - self.y_bounds[0]) / self.rows.max(1) as f64;
-        let x0 = self.x_bounds[0] + col as f64 * dx;
-        let y0 = self.y_bounds[0] + row as f64 * dy;
-        [x0, x0 + dx, y0, y0 + dy]
+        let [x0, x1] = cell_span(self.x_edges.as_deref(), self.x_bounds, self.cols, col);
+        let [y0, y1] = cell_span(self.y_edges.as_deref(), self.y_bounds, self.rows, row);
+        [x0, x1, y0, y1]
     }
+}
+
+fn cell_span(edges: Option<&[f64]>, bounds: [f64; 2], count: usize, index: usize) -> [f64; 2] {
+    if let Some(&[start, end]) = edges.and_then(|edges| edges.get(index..index + 2)) {
+        return [start, end];
+    }
+    let step = (bounds[1] - bounds[0]) / count.max(1) as f64;
+    let start = bounds[0] + index as f64 * step;
+    [start, start + step]
 }
 
 /// Border treatment for the data area. Open axes suit 1D traces and ordinary
