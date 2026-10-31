@@ -14,7 +14,14 @@ const LABELLED: &[u8] = br##"<?xml version="1.0" encoding="UTF-8"?>
 fn fonts() -> Arc<SvgFontDatabase> {
     let mut database = SvgFontDatabase::new();
     database.load_system_fonts();
-    database.set_sans_serif_family("Arial");
+    // Arial is absent on Linux runners; any installed family exercises outlining.
+    let family = database
+        .faces()
+        .next()
+        .map(|face| face.families[0].0.clone());
+    if let Some(family) = family {
+        database.set_sans_serif_family(family);
+    }
     Arc::new(database)
 }
 
