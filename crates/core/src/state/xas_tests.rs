@@ -380,3 +380,85 @@ fn short_scans_keep_a_valid_post_edge_range() {
         );
     }
 }
+
+#[test]
+fn checks_flag_a_short_post_edge_and_stay_quiet_on_a_full_scan() {
+    assert_eq!(dataset(&spectrum(900, 8000.0)).checks(), Vec::new());
+    let short = dataset(&spectrum(300, 7160.0));
+    let codes: Vec<_> = short.checks().into_iter().map(|check| check.code).collect();
+    assert_eq!(codes, ["short_post_edge"]);
+}
+
+#[test]
+fn checks_flag_noise_at_high_k() {
+    let rows: Vec<_> = spectrum(900, 8000.0)
+        .into_iter()
+        .enumerate()
+        .map(|(index, (energy, mu))| {
+            let sign = if index % 2 == 0 { 1.0 } else { -1.0 };
+            (energy, mu + sign * 0.02)
+        })
+        .collect();
+    let codes: Vec<_> = dataset(&rows)
+        .checks()
+        .into_iter()
+        .map(|check| check.code)
+        .collect();
+    assert!(codes.contains(&"noisy_high_k"), "{codes:?}");
+}
+
+#[test]
+fn e0_is_checked_against_the_edge_the_file_declares() {
+    let mut text = String::from(
+        "# XDI/1.0\n# Element.symbol: Cu\n# Element.edge: K\n# Column.1: energy eV\n\
+         # Column.2: i0\n# Column.3: itrans\n#---\n",
+    );
+    for (energy, mu) in spectrum(900, 8000.0) {
+        text.push_str(&format!("{energy} 1000 {}\n", 1000.0 * (-mu).exp()));
+    }
+    let codes: Vec<_> = XasDataset::load(parse(&text).unwrap())
+        .checks()
+        .into_iter()
+        .map(|check| check.code)
+        .collect();
+    assert!(codes.contains(&"e0_far_from_table"), "{codes:?}");
+}
+
+#[test]
+fn a_scheme_keeps_the_short_scan_ranges() {
+    let long = dataset(&spectrum(1100, 8000.0));
+    let short = dataset(&spectrum(600, 7312.0));
+    let adopted = short.adopt_scheme(long.params);
+    adopted.validate().unwrap();
+    assert_eq!(adopted.pre_edge.norm2, short.params.pre_edge.norm2);
+    assert_eq!(adopted.transform.kmax, short.params.transform.kmax);
+    let same = long.adopt_scheme(long.params);
+    assert_eq!(same, long.params);
+}
+
+#[test]
+fn defaults_and_presets_pass_validation() {
+    let dataset = dataset(&spectrum(900, 8000.0));
+    dataset.params.validate().unwrap();
+    for preset in plotium_processing::xas::XasPreset::ALL {
+        preset
+            .apply(&dataset.params, dataset.k_end())
+            .validate()
+            .unwrap();
+    }
+}
+
+#[test]
+fn a_post_edge_past_the_scan_says_so() {
+    let mut dataset = dataset(&spectrum(900, 8000.0));
+    let mut params = dataset.params;
+    params.pre_edge.norm1 = Some(5000.0);
+    params.pre_edge.norm2 = Some(6000.0);
+    dataset.apply_processing(dataset.signal, params);
+    assert!(
+        dataset
+            .issues()
+            .iter()
+            .any(|issue| issue.contains("post-edge"))
+    );
+}

@@ -119,7 +119,11 @@ impl<'a> ProjectResourceProvider<'a> {
         let mut capabilities = vec![cap(CAP_RENAME), cap(CAP_PREVIEW)];
         if matches!(
             dataset,
-            Dataset::Nmr(_) | Dataset::Nmr2D(_) | Dataset::Xrd(_) | Dataset::Xps(_)
+            Dataset::Nmr(_)
+                | Dataset::Nmr2D(_)
+                | Dataset::Xrd(_)
+                | Dataset::Xps(_)
+                | Dataset::Xas(_)
         ) {
             capabilities.push(cap(CAP_PROCESSING_SCHEME));
         }

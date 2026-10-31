@@ -222,6 +222,11 @@ pub(super) fn execute(
                     }).collect(),
                 Dataset::Xrd(x) => vec![json!({"axis":"2theta","settings":x.params,"valid":true,
                     "pending_apply":super::processing_edit_spectra::has_pending_edit(app, dataset)})],
+                Dataset::Xas(x) => vec![json!({"axis":"energy","signal":x.signal,"settings":x.params,
+                    "columns":x.column_summary(),"e0":x.edge_e0(),"edge_step":x.edge_step(),
+                    "k_end":x.k_end(),"issues":x.issues(),"checks":x.checks(),
+                    "calibration":x.calibration_summary(),"valid":x.has_spectrum(),
+                    "pending_apply":super::processing_edit_spectra::has_pending_edit(app, dataset)})],
                 Dataset::Xps(x) => x.experiment.regions.iter().map(|region| json!({
                     "axis":region.id.0.to_string(),"region":region.name,
                     "pipeline":{"steps":x.recipe(region.id).map(|recipe| &recipe.steps)},

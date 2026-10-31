@@ -72,26 +72,19 @@ fn panel_menu(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
         reset_to_default(app, di);
         ui.close();
     }
-    // Schemes and templates store pipelines that do not describe XAS yet.
-    let reusable = app.doc.datasets[di].as_xas().is_none();
-    let recipe_button = |ui: &mut Ui, label: &str| {
-        ui.add_enabled(reusable, Button::new(label))
-            .on_disabled_hover_text("Use the presets on the card: XAS has no schemes yet.")
-            .clicked()
-    };
-    if recipe_button(ui, "Load scheme…") {
+    if ui.button("Load scheme…").clicked() {
         crate::ui::file_dialogs::load_processing_scheme(app, di);
         ui.close();
     }
-    if recipe_button(ui, "Save scheme…") {
+    if ui.button("Save scheme…").clicked() {
         crate::ui::file_dialogs::save_processing_scheme(app, di);
         ui.close();
     }
-    if recipe_button(ui, "Save as template…") {
+    if ui.button("Save as template…").clicked() {
         crate::ui::processing_templates::open_save_template_dialog(app, di);
         ui.close();
     }
-    if recipe_button(ui, "Apply template…") {
+    if ui.button("Apply template…").clicked() {
         crate::ui::processing_templates::open_template_browser(app, di);
         ui.close();
     }

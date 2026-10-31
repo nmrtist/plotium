@@ -77,6 +77,7 @@ fn applying_a_scheme_reports_an_invalid_stored_smoothing_window() {
     let scheme = ProcessingScheme {
         xrd: None,
         xps: None,
+        xas: None,
         schema_version: 1,
         dimension_count: 1,
         pipelines: vec![pipeline_to_dto(&pipeline)],

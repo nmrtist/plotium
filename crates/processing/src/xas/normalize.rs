@@ -10,6 +10,7 @@ const SMOOTH_PADDING: f64 = 5.0;
 
 /// Every range is relative to `e0` and left `None` for the automatic choice.
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PreEdgeParams {
     pub e0: Option<f64>,
     pub step: Option<f64>,

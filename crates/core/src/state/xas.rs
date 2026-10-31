@@ -253,6 +253,47 @@ impl XasDataset {
         columns
     }
 
+    pub fn edge_step(&self) -> Option<f64> {
+        self.processed.edge.as_ref().map(|edge| edge.edge_step)
+    }
+
+    /// The column ids a signal can name, with the labels the file gave them.
+    pub fn column_summary(&self) -> Vec<(XasColumnId, &str)> {
+        self.scan
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(index, column)| (XasColumnId(index as u32), column.name.as_str()))
+            .collect()
+    }
+
+    /// `settings` from a scheme, on this scan's own energy axis. Ranges measured
+    /// on a longer scan would fit nothing here, so this scan keeps its own.
+    pub fn adopt_scheme(&self, settings: XasProcessing) -> XasProcessing {
+        let own = &self.params;
+        let reach = self.edge_e0().and_then(|e0| {
+            let last = self.processed.energy.last()?;
+            Some(last - e0)
+        });
+        let mut pre_edge = settings.pre_edge;
+        pre_edge.e0 = own.pre_edge.e0;
+        if reach.is_some_and(|reach| pre_edge.norm2.is_some_and(|norm2| norm2 > reach)) {
+            pre_edge.norm1 = own.pre_edge.norm1;
+            pre_edge.norm2 = own.pre_edge.norm2;
+            pre_edge.nnorm = own.pre_edge.nnorm;
+        }
+        let mut transform = settings.transform;
+        if self.k_end().is_some_and(|end| transform.kmax > end) {
+            transform.kmax = own.transform.kmax;
+        }
+        XasProcessing {
+            energy_shift: own.energy_shift,
+            pre_edge,
+            transform,
+            ..settings
+        }
+    }
+
     pub fn edge_e0(&self) -> Option<f64> {
         self.processed.edge.as_ref().map(|edge| edge.e0)
     }

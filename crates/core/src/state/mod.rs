@@ -189,6 +189,7 @@ mod units;
 mod viewport;
 mod workflow_tab;
 mod xas;
+mod xas_checks;
 mod xas_figure;
 mod xps;
 mod xrd;
@@ -290,6 +291,7 @@ pub use units::*;
 pub use viewport::*;
 pub use workflow_tab::WorkflowTab;
 pub use xas::*;
+pub use xas_checks::*;
 pub use xps::*;
 pub use xrd::*;
 

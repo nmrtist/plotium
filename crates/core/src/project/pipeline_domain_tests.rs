@@ -21,6 +21,7 @@ fn stack_scheme_rejects_an_invalid_dormant_f1_pipeline() {
     let scheme = ProcessingScheme {
         xrd: None,
         xps: None,
+        xas: None,
         schema_version: 1,
         dimension_count: 2,
         pipelines: invalid_stack_pipelines(),

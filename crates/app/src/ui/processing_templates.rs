@@ -11,7 +11,7 @@ pub(crate) fn can_use_templates(app: &PlotiumApp, di: usize) -> bool {
     app.doc
         .datasets
         .get(di)
-        .is_some_and(|d| !matches!(d, Dataset::Table(_) | Dataset::Xas(_)))
+        .is_some_and(|d| !matches!(d, Dataset::Table(_)))
 }
 
 pub(crate) fn open_save_template_dialog(app: &mut PlotiumApp, di: usize) {

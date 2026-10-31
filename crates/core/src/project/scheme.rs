@@ -1,6 +1,7 @@
 use super::*;
 use crate::actions::{Action, DatasetProcessingState};
 use crate::state::DatasetId;
+use plotium_processing::xas::XasProcessing;
 use plotium_processing::xps::{XpsProcessingStep, XpsStepKind};
 use plotium_processing::xrd::XrdProcessing;
 use std::collections::HashSet;
@@ -23,6 +24,8 @@ pub struct ProcessingScheme {
     pub xrd: Option<XrdProcessing>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xps: Option<Vec<XpsSchemeStep>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xas: Option<XasProcessing>,
 }
 
 /// One step of an XPS region recipe; the adopting dataset mints its identity.
@@ -267,9 +270,18 @@ pub fn apply_scheme(
         Dataset::MassSpec(_) => Err(incompatible(
             "the imported data has no Plotium LC–MS processing pipeline",
         )),
-        Dataset::Xas(_) => Err(incompatible(
-            "processing schemes do not apply to XAS spectra yet",
-        )),
+        Dataset::Xas(xas) => {
+            let settings = scheme
+                .xas
+                .ok_or_else(|| incompatible("this scheme has no XAS settings"))?;
+            settings
+                .validate()
+                .map_err(|error| incompatible(&error.to_string()))?;
+            Ok(DatasetProcessingState::Xas {
+                signal: xas.signal,
+                processing: Box::new(xas.adopt_scheme(settings)),
+            })
+        }
         Dataset::Xrd(_) => {
             let processing = scheme
                 .xrd
@@ -389,6 +401,7 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
                 group_delay_correct: n.group_delay_correct,
                 xrd: None,
                 xps: None,
+                xas: None,
             })
         }
         Dataset::Nmr2D(n) => {
@@ -406,13 +419,31 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
                 group_delay_correct: n.group_delay_correct,
                 xrd: None,
                 xps: None,
+                xas: None,
             })
         }
         Dataset::Table(_) => None,
         Dataset::Electrophysiology(_) => None,
         Dataset::Afm(_) => None,
         Dataset::MassSpec(_) => None,
-        Dataset::Xas(_) => None,
+        Dataset::Xas(xas) => Some(ProcessingScheme {
+            schema_version: SCHEME_VERSION,
+            dimension_count: 1,
+            pipelines: Vec::new(),
+            layout: None,
+            group_delay_correct: scheme_gd_default(),
+            xrd: None,
+            xps: None,
+            xas: Some(XasProcessing {
+                // The shift and a fixed E0 describe one scan's energy axis.
+                energy_shift: 0.0,
+                pre_edge: plotium_processing::xas::PreEdgeParams {
+                    e0: None,
+                    ..xas.params.pre_edge
+                },
+                ..xas.params
+            }),
+        }),
         Dataset::Xrd(xrd) => Some(ProcessingScheme {
             schema_version: SCHEME_VERSION,
             dimension_count: 1,
@@ -421,6 +452,7 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
             group_delay_correct: scheme_gd_default(),
             xrd: Some(xrd.params),
             xps: None,
+            xas: None,
         }),
         Dataset::Xps(xps) => Some(ProcessingScheme {
             schema_version: SCHEME_VERSION,
@@ -439,6 +471,7 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
                     })
                     .collect(),
             ),
+            xas: None,
         }),
     }
 }
@@ -507,6 +540,7 @@ mod plan_tests {
             group_delay_correct: true,
             xrd: None,
             xps: None,
+            xas: None,
         };
         let plan = plan_scheme_application(&scheme, &[], &[9, 9]);
         assert_eq!(plan.targets().len(), 1);

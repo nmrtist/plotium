@@ -2,8 +2,9 @@
 use super::processing_edit::{PipelineEdit, invalid};
 use super::*;
 use crate::actions::DatasetProcessingState;
-use crate::state::{Dataset, PlotiumApp, XpsDataset};
+use crate::state::{Dataset, PlotiumApp, XasDataset, XpsDataset};
 use plotium_io::xps::XpsRegionId;
+use plotium_processing::xas::XasProcessing;
 use plotium_processing::xps::{XpsProcessingRecipe, XpsProcessingStep, XpsStepKind};
 use plotium_processing::xrd::XrdProcessing;
 use plotium_processing::{StepId, StepSource};
@@ -18,10 +19,11 @@ pub(super) fn has_pending_edit(app: &PlotiumApp, dataset: &Dataset) -> bool {
         .is_some_and(|(id, _)| *id == dataset.resource_id())
 }
 
-/// A paused desktop edit restores its own snapshot on Discard, so an XRD or XPS
+/// A paused desktop edit restores its own snapshot on Discard, so an XRD, XAS or XPS
 /// recipe must not change underneath it.
 pub(super) fn reject_pending(app: &PlotiumApp, dataset: &Dataset) -> Result<(), AutomationError> {
-    if matches!(dataset, Dataset::Xrd(_) | Dataset::Xps(_)) && has_pending_edit(app, dataset) {
+    let recipe = matches!(dataset, Dataset::Xrd(_) | Dataset::Xps(_) | Dataset::Xas(_));
+    if recipe && has_pending_edit(app, dataset) {
         return Err(AutomationError::Execution(
             "Apply or discard the paused processing edit in Plotium first.".into(),
         ));
@@ -40,6 +42,51 @@ pub(super) fn prepare_xrd(edits: Vec<PipelineEdit>) -> Result<Value, AutomationE
     let settings = settings.ok_or_else(|| invalid("Supply an XRD edit."))?;
     plotium_processing::xrd::validate(settings).map_err(|e| invalid(e.to_string()))?;
     Ok(json!({"xrd":settings}))
+}
+
+pub(super) fn prepare_xas(
+    xas: &XasDataset,
+    edits: Vec<PipelineEdit>,
+) -> Result<Value, AutomationError> {
+    let (mut signal, mut processing) = (xas.signal, xas.params);
+    for edit in edits {
+        match edit {
+            PipelineEdit::SetXas {
+                signal: next,
+                processing: settings,
+            } => {
+                if next.is_none() && xas.signal.is_some() {
+                    return Err(invalid("A scan with a signal must keep one."));
+                }
+                signal = next;
+                let mut settings = XasProcessing::from(*settings);
+                let shift = settings.energy_shift;
+                let e0_unchanged = settings.pre_edge.e0 == processing.pre_edge.e0;
+                settings.energy_shift = processing.energy_shift;
+                processing = if e0_unchanged {
+                    settings.with_energy_shift(shift)
+                } else {
+                    XasProcessing {
+                        energy_shift: shift,
+                        ..settings
+                    }
+                };
+            }
+            PipelineEdit::ApplyXasPreset { preset } => {
+                processing = preset.apply(&processing, xas.k_end());
+            }
+            _ => {
+                return Err(invalid(
+                    "XAS datasets are edited with set_xas or apply_xas_preset.",
+                ));
+            }
+        }
+    }
+    processing.validate().map_err(|e| invalid(e.to_string()))?;
+    if let Some(signal) = signal {
+        crate::state::signal_mu(&xas.scan, signal).map_err(|e| invalid(e.to_string()))?;
+    }
+    Ok(json!({"xas":{"signal":signal,"processing":processing}}))
 }
 
 type RegionRecipes = BTreeMap<XpsRegionId, XpsProcessingRecipe>;
@@ -135,8 +182,12 @@ pub(super) fn prepare_xps(
                 let position = insertion(steps, before)?;
                 steps.insert(position, value);
             }
-            PipelineEdit::SetXrd { .. } => {
-                return Err(invalid("set_xrd applies only to XRD datasets."));
+            PipelineEdit::SetXrd { .. }
+            | PipelineEdit::SetXas { .. }
+            | PipelineEdit::ApplyXasPreset { .. } => {
+                return Err(invalid(
+                    "set_xrd, set_xas and apply_xas_preset apply only to their dataset kind.",
+                ));
             }
         }
     }
@@ -147,7 +198,7 @@ pub(super) fn prepare_xps(
     Ok(frozen)
 }
 
-/// The XRD or XPS recipe frozen in preflight, or `None` for an NMR freeze.
+/// The XRD, XAS or XPS recipe frozen in preflight, or `None` for an NMR freeze.
 pub(super) fn state_from_frozen(
     dataset: &Dataset,
     frozen: &Value,
@@ -159,6 +210,21 @@ pub(super) fn state_from_frozen(
             Dataset::Xrd(_) => Ok(Some(DatasetProcessingState::Xrd(settings))),
             _ => Err(invalid(
                 "Frozen XRD settings do not belong to this dataset.",
+            )),
+        };
+    }
+    if let Some(value) = frozen.get("xas") {
+        let parse_error = |e: serde_json::Error| invalid(e.to_string());
+        let signal = serde_json::from_value(value["signal"].clone()).map_err(parse_error)?;
+        let processing: XasProcessing =
+            serde_json::from_value(value["processing"].clone()).map_err(parse_error)?;
+        return match dataset {
+            Dataset::Xas(_) => Ok(Some(DatasetProcessingState::Xas {
+                signal,
+                processing: Box::new(processing),
+            })),
+            _ => Err(invalid(
+                "Frozen XAS settings do not belong to this dataset.",
             )),
         };
     }
