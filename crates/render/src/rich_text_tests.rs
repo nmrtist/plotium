@@ -128,3 +128,36 @@ fn figure_font_uses_the_registered_family_for_proportional_text() {
         ]
     );
 }
+
+#[cfg(feature = "screen")]
+#[test]
+fn navigation_font_sizes_collapse_a_zoom_gesture_onto_few_sizes() {
+    let sizes: std::collections::BTreeSet<u32> = (0..1_000)
+        .map(|step| 10.0 + step as f32 * 0.01)
+        .map(|size| {
+            let snapped = navigation_font_size(size);
+            assert!((snapped / size - 1.0).abs() < 0.05, "{size} -> {snapped}");
+            snapped.to_bits()
+        })
+        .collect();
+    assert!(sizes.len() <= 9, "{}", sizes.len());
+}
+
+#[cfg(feature = "screen")]
+#[test]
+fn navigation_text_snaps_galleys_only_while_enabled() {
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let width = |size| {
+            let font = egui::FontId::proportional(size);
+            galley(ui.painter(), "1234", font, egui::Color32::BLACK)
+                .size()
+                .x
+        };
+        assert_ne!(width(20.0), width(20.2));
+        set_navigation_text(ui.ctx(), true);
+        assert_eq!(width(20.0), width(20.2));
+        set_navigation_text(ui.ctx(), false);
+        assert_ne!(width(20.0), width(20.2));
+    });
+}

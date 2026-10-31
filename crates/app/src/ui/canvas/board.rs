@@ -334,7 +334,7 @@ pub(crate) fn paint_frame_captions(
             continue;
         }
         let page = bt.page_screen_rect(canvas);
-        let font = egui::FontId::proportional((11.0 * bt.zoom).clamp(7.0, 28.0));
+        let font = board_caption_font(painter.ctx(), bt.zoom);
         let galley = painter.layout(
             lines
                 .into_iter()

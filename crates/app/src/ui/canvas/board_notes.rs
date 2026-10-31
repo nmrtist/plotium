@@ -14,7 +14,7 @@ pub(crate) fn handle_frame_caption_interactions(
             continue;
         }
         let page = bt.page_screen_rect(canvas);
-        let font = egui::FontId::proportional((11.0 * bt.zoom).clamp(7.0, 28.0));
+        let font = board_caption_font(ui.ctx(), bt.zoom);
         let mut y = page.bottom() + CAPTION_GAP_PX;
         for line in frame_caption_lines(app, ci) {
             let text = line.text;
@@ -153,7 +153,7 @@ fn panel_note_row_rect(
     let bt = BoardTransform::from_board(app.session.board, screen);
     let page = bt.page_screen_rect(canvas);
     let color = ui.visuals().text_color();
-    let font = egui::FontId::proportional((11.0 * bt.zoom).clamp(7.0, 28.0));
+    let font = board_caption_font(ui.ctx(), bt.zoom);
     let mut y = page.bottom() + CAPTION_GAP_PX;
     for line in frame_caption_lines(app, ci) {
         let text = line.text;

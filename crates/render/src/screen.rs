@@ -20,7 +20,8 @@ use overlay::paint_document_overlay;
 pub enum ScreenRenderDetail {
     #[default]
     Full,
-    /// Temporarily omit sub-pixel detail during workspace camera movement.
+    /// Temporarily omit sub-pixel detail and snap text to coarse font sizes
+    /// during workspace camera movement.
     Interactive,
 }
 
@@ -657,6 +658,7 @@ fn paint_document_impl(
     if let Some(stats) = stats.as_deref_mut() {
         stats.record_document(detail);
     }
+    crate::rich_text::set_navigation_text(painter.ctx(), detail == ScreenRenderDetail::Interactive);
     let page = Rect::new(
         screen.left + viewport.pan[0],
         screen.top + viewport.pan[1],
@@ -727,6 +729,7 @@ fn paint_document_impl(
             DocumentItem::PanelLabel { .. } => {}
         }
     }
+    crate::rich_text::set_navigation_text(painter.ctx(), false);
 }
 
 use crate::screen_raster::paint_document_raster;

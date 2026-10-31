@@ -125,7 +125,7 @@ pub(super) fn paint_sheet_body(
         return;
     }
     let preview = sheet_preview(ui.ctx(), t);
-    let font = egui::FontId::proportional(font_size);
+    let font = egui::FontId::proportional(super::workspace_font_size(ui.ctx(), font_size));
     let pad = 4.0;
     let visible = painter.clip_rect().intersect(rect);
     let column_rect = |k: usize| {
