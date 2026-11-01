@@ -577,6 +577,10 @@ impl PlotiumApp {
                     let current = dataset
                         .and_then(|_| self.session.compute.current_field_version(key.source.field));
                     let field = key.source.field;
+                    let unavailable = match &result {
+                        EstimateResult::Unavailable(message) => Some(message.clone()),
+                        _ => None,
+                    };
                     if self.session.compute.finish_estimate(key, result, current)
                         && let Some(dataset) = dataset
                     {
@@ -584,6 +588,9 @@ impl PlotiumApp {
                         // cache. Rebuilding resolves each binding's current key;
                         // it never writes a worker result into a plot directly.
                         self.rebuild_canvases_for_field(dataset, field);
+                        if let Some(message) = unavailable {
+                            self.session.status = message;
+                        }
                     }
                 }
                 Done::EstimateFieldFailed { key, message } => {
@@ -598,6 +605,15 @@ impl PlotiumApp {
                         })
                         .and_then(|_| self.session.compute.current_field_version(key.source.field));
                     if current == Some(key.source.version) {
+                        let field = key.source.field;
+                        if self.session.compute.finish_estimate(
+                            key,
+                            EstimateResult::Unavailable(message.clone()),
+                            current,
+                        ) && let Some(index) = self.doc.dataset_index(field.resource)
+                        {
+                            self.rebuild_canvases_for_field(index, field);
+                        }
                         self.session.status =
                             format!("Field estimate could not be computed: {message}");
                     }

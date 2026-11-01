@@ -11,6 +11,7 @@ name = "plotium_analysis"
 path = "src/lib.rs"
 
 [dependencies]
+nmr.workspace = true
 plotium-io.workspace = true
 num-complex.workspace = true
 nalgebra.workspace = true

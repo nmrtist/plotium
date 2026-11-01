@@ -138,14 +138,7 @@ impl super::Dataset {
                             id,
                             "nmr.real",
                             "Real",
-                            capabilities(
-                                id,
-                                &[
-                                    CAP_FIELD_SIGNED,
-                                    CAP_FIELD_NOISE_SCALE,
-                                    CAP_FIELD_NMR_CONTOUR,
-                                ],
-                            ),
+                            capabilities(id, &field_nmr::real_capabilities(nmr)),
                             dimensions.clone(),
                             units.clone(),
                             "contour",

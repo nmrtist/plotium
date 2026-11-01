@@ -1,13 +1,31 @@
 //! Robust scale estimators shared by scientific field providers.
 
 /// Stable identity and implementation version for the 2D NMR noise estimator.
-pub const ROBUST_DIFFERENCE_MAD_ID: &str = "robust_difference_mad";
-pub const ROBUST_DIFFERENCE_MAD_VERSION: u32 = 1;
+pub const NMR_BACKGROUND_ID: &str = "amplitude_mad";
+pub const NMR_BACKGROUND_VERSION: u32 = 1;
 
 /// Stable identity and implementation version for the de-planed background
 /// estimator used by scalar height-like fields.
 pub const DEPLANED_LOCATION_SCALE_ID: &str = "deplaned_location_scale";
 pub const DEPLANED_LOCATION_SCALE_VERSION: u32 = 1;
+
+/// Median amplitude and Gaussian-calibrated MAD of finite displayed samples.
+/// Adjacent samples need not be independent; this is a display scale, not a
+/// claim that signal or structured artifacts have been separated from noise.
+pub fn amplitude_location_scale(values: &[f32]) -> Option<(f64, f64)> {
+    let mut samples: Vec<_> = values
+        .iter()
+        .copied()
+        .filter(|v| v.is_finite())
+        .map(f64::from)
+        .collect();
+    let location = median(&mut samples)?;
+    for value in &mut samples {
+        *value = (*value - location).abs();
+    }
+    let scale = median(&mut samples)? / 0.674_489_750_196_081_7;
+    Some((location, scale))
+}
 
 /// Estimate white-noise scale from horizontal and vertical first differences.
 /// Differences never cross a row boundary; combining both axes avoids giving a
@@ -170,6 +188,16 @@ fn median(values: &mut [f64]) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn amplitude_mad_uses_finite_samples_and_even_medians() {
+        let (location, scale) =
+            amplitude_location_scale(&[f32::NAN, -3.0, -1.0, 1.0, 3.0, f32::INFINITY]).unwrap();
+        assert_eq!(location, 0.0);
+        assert!((scale - 2.0 / 0.674_489_750_196_081_7).abs() < 1e-12);
+        assert_eq!(amplitude_location_scale(&[7.0; 4]), Some((7.0, 0.0)));
+        assert_eq!(amplitude_location_scale(&[f32::NAN]), None);
+    }
 
     #[test]
     fn white_noise_estimate_is_close_to_its_known_sigma() {

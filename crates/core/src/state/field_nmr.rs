@@ -59,3 +59,21 @@ pub(super) fn inactive_descriptor(
         ])),
     })
 }
+
+/// Completed provenance is authoritative while an edited recipe is still pending.
+pub(super) fn real_capabilities(nmr: &super::super::Nmr2DDataset) -> Vec<&'static str> {
+    if nmr
+        .native_processed
+        .dataset()
+        .as_processed()
+        .is_some_and(nmr::processed::ProcessedDataset::has_magnitude_history)
+    {
+        vec![CAP_FIELD_SIGNED, CAP_FIELD_NMR_CONTOUR]
+    } else {
+        vec![
+            CAP_FIELD_SIGNED,
+            CAP_FIELD_NOISE_SCALE,
+            CAP_FIELD_NMR_CONTOUR,
+        ]
+    }
+}

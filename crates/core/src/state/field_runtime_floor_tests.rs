@@ -1,16 +1,6 @@
-//! The peak floor under a σ-anchored contour base.
-//!
-//! A noise estimator measures thermal noise. A plane with large dynamic range
-//! also carries the sampling artefacts of its own strongest feature, well above
-//! that floor, and a ladder anchored to thermal σ alone sinks into them. The
-//! anchor therefore resolves against `max(σ, fraction × peak)` — and says which
-//! of the two it used, because the two describe different pictures.
-//!
-//! These tests pin three things: that a field whose σ is ordinary next to its
-//! peak resolves *exactly* as it did before the floor existed; that a field with
-//! the measured dynamic range of the spectrum this was calibrated on is held at
-//! the floor; and that the calibrated fraction itself is what the measurement
-//! says it should be.
+//! Explicit strong-peak protection remains honored independently of the default.
+//! These tests check policy arithmetic against a recorded historical summary;
+//! they do not validate the new estimator on the original experimental plane.
 
 use super::tests::{finite, source};
 use super::*;
@@ -32,11 +22,12 @@ const NOESY_SIGMA: f64 = 1.6690e3;
 const NOESY_ARTEFACT_KNEE_FRACTION: f64 = 8.0e-5;
 
 fn scale_estimate(scale: f64) -> EstimateResult {
-    EstimateResult::Scale(ScaleEstimate {
+    EstimateResult::Noise(NoiseEstimate {
+        baseline: 0.0,
         scale: EstimatedScale::new(scale).expect("test scales are finite and non-negative"),
         provenance: EstimateProvenance {
-            estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-            version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+            estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+            version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
         },
     })
 }
@@ -127,9 +118,7 @@ fn the_terms_swap_at_the_reciprocal_of_the_fraction_without_a_step() {
     assert_eq!((scale, term), (100.0, NoiseScaleTerm::PeakFloor));
 }
 
-/// The spectrum that motivated the floor. Its σ is 2.5e-5 of its peak, twenty
-/// times below the floor, so the floor decides the ladder — and the resolved
-/// base lands above the artefact knee the measurement found.
+/// An explicit peak fraction applied to the historical calibration summary.
 #[test]
 fn the_calibrating_noesy_is_held_above_its_measured_artefact_floor() {
     let summary = spanning(NOESY_PEAK);
@@ -155,8 +144,8 @@ fn the_calibrating_noesy_is_held_above_its_measured_artefact_floor() {
          {:e}, or the ladder is drawing t1 noise",
         NOESY_ARTEFACT_KNEE_FRACTION * NOESY_PEAK
     );
-    // Without the floor the same spectrum anchors at five thermal σ, three
-    // orders of magnitude further down and squarely inside that noise.
+    // The unfloored synthetic summary yields a base about twenty times lower.
+    // This checks arithmetic, not the new background diagnostics on real data.
     let unfloored = resolved(&floored_spec(5.0, 0.0, 14), summary, NOESY_SIGMA);
     let unfloored_base = unfloored
         .positive
@@ -203,26 +192,18 @@ fn a_degenerate_estimate_is_not_floored() {
     );
 }
 
-/// The calibration itself, so a change to it is a deliberate edit with the
-/// measurements in front of the editor rather than a silent drift.
+/// Automatic settings no longer assume a universal artifact-to-peak ratio.
 #[test]
-fn the_default_noise_anchor_carries_the_calibrated_floor() {
-    let policy = contour_base_policy(CONTOUR_BASE_NOISE_FLOOR, crate::state::NO_PEAK)
-        .expect("the noise floor is a known policy");
+fn the_default_noise_anchor_uses_measured_background_only() {
+    let policy = contour_base_policy(CONTOUR_BASE_NOISE_FLOOR, crate::state::NO_PEAK).unwrap();
     let ContourBasePolicy::NoiseFloor {
         multiplier,
         peak_fraction,
         ..
     } = policy
     else {
-        panic!("the noise-floor kind builds a noise-floor policy");
+        panic!("noise floor policy")
     };
     assert_eq!(multiplier.get(), 5.0);
-    assert_eq!(peak_fraction.get(), 1.0e-4);
-    // The default lowest level is therefore 0.05 % of a field's peak whenever
-    // the floor is in force: eighty times below the peak fraction §12 rejects
-    // for suppressing weak cross peaks, and above the artefact floor measured
-    // on the calibrating spectrum.
-    assert!(multiplier.get() * peak_fraction.get() < 0.04);
-    assert!(multiplier.get() * peak_fraction.get() > NOESY_ARTEFACT_KNEE_FRACTION);
+    assert_eq!(peak_fraction.get(), 0.0);
 }

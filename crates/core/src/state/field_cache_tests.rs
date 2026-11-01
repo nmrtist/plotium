@@ -1,7 +1,7 @@
 use super::*;
 use crate::state::{
-    DatasetId, EstimateKind, EstimateProvenance, EstimatedScale, FieldId, FiniteF64,
-    ResolvedContourLevels, ScaleEstimate,
+    DatasetId, EstimateKind, EstimateProvenance, EstimatedScale, FieldId, FiniteF64, NoiseEstimate,
+    ResolvedContourLevels,
 };
 use plotium_figure::{EstimatorSelection, PositiveFiniteF64};
 
@@ -34,7 +34,8 @@ fn estimate_key(source: VersionedFieldRef, version: u32) -> EstimateKey {
 }
 
 fn scale_estimate() -> EstimateResult {
-    EstimateResult::Scale(ScaleEstimate {
+    EstimateResult::Noise(NoiseEstimate {
+        baseline: 0.0,
         scale: EstimatedScale::Positive(PositiveFiniteF64::new(1.0).expect("positive literal")),
         provenance: EstimateProvenance {
             estimator: "test.estimator".to_owned(),

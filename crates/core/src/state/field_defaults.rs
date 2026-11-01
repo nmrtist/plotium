@@ -119,3 +119,16 @@ pub fn default_contour_spec(
         },
     }
 }
+
+/// Stored policies must remain applicable after reprocessing changes a field's
+/// representation; do not silently interpret modulus amplitudes as Gaussian.
+pub(crate) fn contour_estimator_error(
+    spec: &ContourSpec,
+    caps: &FieldCapabilities,
+) -> Option<&'static str> {
+    std::iter::once(&spec.positive).chain(spec.negative.iter()).find_map(|level| match level.base {
+        plotium_figure::ContourBasePolicy::NoiseFloor { .. } if !caps.contains(CAP_FIELD_NOISE_SCALE) => Some("This field does not support phase-sensitive noise estimation. Choose an absolute contour level or reset contours."),
+        plotium_figure::ContourBasePolicy::BackgroundScale { .. } if !caps.contains(CAP_FIELD_LOCATION_SCALE) => Some("This field does not support background estimation. Choose an absolute contour level or reset contours."),
+        _ => None,
+    })
+}

@@ -103,7 +103,7 @@ fn a_cached_estimate_resolves_the_level_and_reading_it_stays_free() {
     contour_probe::reset();
     let readout = contour_readout(&app, &target);
 
-    assert_eq!(readout.anchor, ContourAnchor::Measured);
+    assert!(matches!(readout.anchor, ContourAnchor::Measured));
     assert_eq!(readout.kind, CONTOUR_BASE_NOISE_FLOOR);
     let level = readout.lowest_level.expect("a measured anchor has a level");
     assert!(level > 0.0, "a positive half's lowest level is positive");
@@ -163,38 +163,58 @@ fn phase_preview_readout_reports_fixed_threshold_without_starting_measurements()
     );
 }
 
-/// §4.3, and the whole point of spelling the floor into the policy: when the
-/// floor is what the level came from, the readout says so rather than passing
-/// the level off as a multiple of an estimate that did not produce it.
-///
-/// The plane is flat noise around zero with one feature a million times larger —
-/// the shape of every spectrum with a dominant diagonal or solvent peak — so its
-/// robust σ is far below the anchor's floor.
+/// An explicitly requested peak floor remains distinct from measured noise.
 #[test]
-fn a_field_whose_sigma_falls_under_the_floor_reads_as_floored() {
-    let mut plane = vec![0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0];
-    plane.extend([0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
-    plane.push(1.0e6);
+fn an_explicit_peak_floor_is_reported_with_the_baseline_allowance() {
+    let mut seed = 42_u64;
+    let mut uniform = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed as f64 / u64::MAX as f64).max(f64::MIN_POSITIVE)
+    };
+    let mut plane: Vec<_> = (0..128 * 128)
+        .map(|_| (-2.0 * uniform().ln()).sqrt() * (std::f64::consts::TAU * uniform()).cos())
+        .collect();
+    plane[0] = 1.0e6;
     let (mut app, target) = crate::properties::tests::contour_app_with_plane(&plane);
+    let plot = app.doc.canvases[0].objects[0].plot_mut().unwrap();
+    let plotium_figure::SeriesEncoding::Contour(spec) = &mut plot.binding.series[0].encoding else {
+        panic!("contour fixture")
+    };
+    for half in std::iter::once(&mut spec.positive).chain(spec.negative.iter_mut()) {
+        let plotium_figure::ContourBasePolicy::NoiseFloor { peak_fraction, .. } = &mut half.base
+        else {
+            panic!("noise fixture")
+        };
+        *peak_fraction = plotium_figure::UnitInterval::new(1.0e-4).unwrap();
+    }
     warm(&mut app);
-
     contour_probe::reset();
     let readout = contour_readout(&app, &target);
-
-    assert_eq!(readout.kind, CONTOUR_BASE_NOISE_FLOOR);
-    assert_eq!(
-        readout.anchor,
-        ContourAnchor::Floored,
-        "a field this far past the floor cannot be described as `5 × σ`: {readout:?}"
-    );
+    assert_eq!(readout.anchor, ContourAnchor::Floored);
     assert_eq!(readout.peak_fraction, Some(1.0e-4));
     let level = readout.lowest_level.expect("a floored anchor has a level");
-    assert!(
-        (level - readout.magnitude * 1.0e-4 * 1.0e6).abs() < 1.0e-6,
-        "the level comes from the floor, not the estimate: {readout:?}"
-    );
+    assert!((level - readout.baseline.unwrap() - readout.magnitude * 100.0).abs() < 1.0e-6);
     assert_eq!(contour_probe::queued_estimates(), 0);
     assert_eq!(contour_probe::field_payload_materializations(), 0);
+}
+
+#[test]
+fn small_constant_plane_has_measured_zero_spread_without_repeated_jobs() {
+    let (mut app, target) = crate::properties::tests::contour_app_with_plane(&[1.0; 16]);
+    warm(&mut app);
+    contour_probe::reset();
+    for _ in 0..3 {
+        rebuild(&mut app);
+    }
+    let readout = contour_readout(&app, &target);
+    assert_eq!(readout.anchor, ContourAnchor::Degenerate);
+    assert_eq!(readout.lowest_level, None);
+    assert_eq!(readout.noise_sigma, Some(0.0));
+    assert_eq!(readout.baseline, Some(1.0));
+    assert_eq!(contour_probe::queued_estimates(), 0);
+    assert!(!app.session.status.contains("absolute"));
 }
 
 /// §4.3 on a policy that needs no measurement: an absolute level is its own

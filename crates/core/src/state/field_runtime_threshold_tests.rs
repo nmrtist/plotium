@@ -9,7 +9,7 @@
 use super::tests::{finite, grid_dataset, source, summary};
 use crate::state::{
     ChartSpec, ContourResolution, DataBinding, DataDomain, EstimateProvenance, EstimateResult,
-    EstimatedScale, FieldSummary, FieldVersion, PlotiumApp, ScaleEstimate, StackSpec,
+    EstimatedScale, FieldSummary, FieldVersion, NoiseEstimate, PlotiumApp, StackSpec,
     resolve_contour_levels,
 };
 use plotium_figure::{
@@ -128,11 +128,12 @@ fn a_policy_base_above_the_peak_suppresses_that_half_without_wrapping_to_zero() 
         levels,
         unreachable,
     } = resolve_contour_levels(source(32, 1, 1), &spec, summary(), |_| {
-        Some(EstimateResult::Scale(ScaleEstimate {
+        Some(EstimateResult::Noise(NoiseEstimate {
+            baseline: 0.0,
             scale: EstimatedScale::new(3.0).expect("positive scale"),
             provenance: EstimateProvenance {
-                estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-                version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+                estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+                version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
             },
         }))
     })
@@ -171,11 +172,12 @@ fn raising_a_shared_policy_past_only_the_weaker_half_never_reveals_negative_leve
         levels,
         unreachable,
     } = resolve_contour_levels(source(33, 1, 1), &spec, asymmetric, |_| {
-        Some(EstimateResult::Scale(ScaleEstimate {
+        Some(EstimateResult::Noise(NoiseEstimate {
+            baseline: 0.0,
             scale: EstimatedScale::new(1.0).expect("positive scale"),
             provenance: EstimateProvenance {
-                estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-                version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+                estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+                version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
             },
         }))
     })
