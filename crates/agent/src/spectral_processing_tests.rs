@@ -474,3 +474,101 @@ fn xrd_axis_needs_a_wavelength_and_keeps_the_pattern() {
     assert_eq!(xrd.params.wavelength_angstrom, Some(0.7));
     assert!(xrd.figure().x.label.starts_with('Q'));
 }
+
+fn merge_plan(
+    session: &mut Session,
+    app: &mut PlotiumApp,
+    ids: Vec<String>,
+) -> Result<Value, Failure> {
+    call(
+        session,
+        app,
+        "plotium_plan",
+        json!({"tool_id":"xas.merge","parameters":{},"ids":ids}),
+    )
+}
+
+#[test]
+fn scans_merge_through_the_connector_in_one_undo_step() {
+    let (mut app, mut session) = app_with(vec![xas_dataset(1.0), xas_dataset(0.8)]);
+    let ids: Vec<_> = app
+        .doc
+        .datasets
+        .iter()
+        .map(|d| d.resource_id().to_string())
+        .collect();
+    let (datasets, canvases) = (app.doc.datasets.len(), app.doc.canvases.len());
+    let plan = merge_plan(&mut session, &mut app, ids.clone()).unwrap();
+    assert!(plan.to_string().contains("unaligned"), "{plan}");
+    let result = session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    assert!(
+        result.to_string().contains("no reference channel"),
+        "{result}"
+    );
+    assert_eq!(result["value"]["alignment"], "unaligned");
+    assert_eq!(result["produced"].as_array().unwrap().len(), 2);
+    assert_eq!(app.doc.datasets.len(), datasets + 1);
+    assert_eq!(app.doc.canvases.len(), canvases + 1);
+    let merged = app.doc.datasets.last().unwrap().as_xas().unwrap();
+    let sources = &merged.lineage.as_ref().unwrap().sources;
+    assert_eq!(sources[0].to_string(), ids[0]);
+    assert_eq!(sources[1].to_string(), ids[1]);
+    app.undo();
+    assert_eq!(app.doc.datasets.len(), datasets);
+    assert_eq!(app.doc.canvases.len(), canvases);
+}
+
+#[test]
+fn xas_merge_refuses_what_the_desktop_refuses() {
+    let (mut app, mut session) = app_with(vec![xas_dataset(1.0), xrd_dataset()]);
+    let ids: Vec<_> = app
+        .doc
+        .datasets
+        .iter()
+        .map(|d| d.resource_id().to_string())
+        .collect();
+    assert!(merge_plan(&mut session, &mut app, ids[..1].to_vec()).is_err());
+    assert!(merge_plan(&mut session, &mut app, ids).is_err());
+}
+
+#[test]
+fn xas_merge_refuses_repeated_ids() {
+    let (mut app, mut session) = app_with(vec![xas_dataset(1.0), xas_dataset(0.8)]);
+    let first = app.doc.datasets[0].resource_id().to_string();
+    let second = app.doc.datasets[1].resource_id().to_string();
+    let repeated = vec![first.clone(), first.clone()];
+    assert!(merge_plan(&mut session, &mut app, repeated).is_err());
+    let weighted = vec![first.clone(), first, second];
+    assert!(merge_plan(&mut session, &mut app, weighted).is_err());
+}
+
+#[test]
+fn the_order_of_ids_decides_the_first_scan() {
+    let (mut app, mut session) = app_with(vec![xas_dataset(1.0), xas_dataset(0.8)]);
+    let ids: Vec<_> = app
+        .doc
+        .datasets
+        .iter()
+        .rev()
+        .map(|d| d.resource_id().to_string())
+        .collect();
+    let plan = merge_plan(&mut session, &mut app, ids.clone()).unwrap();
+    session
+        .call(
+            &mut app,
+            "plotium_execute",
+            json!({"plan_id":plan["plan_id"]}),
+        )
+        .unwrap();
+    let merged = app.doc.datasets.last().unwrap().as_xas().unwrap();
+    assert_eq!(
+        merged.lineage.as_ref().unwrap().sources[0].to_string(),
+        ids[0]
+    );
+}

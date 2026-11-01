@@ -87,6 +87,7 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
                         | ANALYSIS_RESULTS_INSPECT
                         | TOOL_SET_MANY
                         | DATASET_DELETE
+                        | XAS_MERGE
                 ))
             .count()
             - 7,
