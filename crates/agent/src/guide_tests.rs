@@ -24,7 +24,7 @@ fn guide_edit_preserves_series_and_other_plot_with_one_native_undo_and_roundtrip
         guide::POSITION.as_str(),
         json!([0., 1.]),
     );
-    expected.set_legend_position([0., 1.]);
+    expected.set_legend_position([0., 1.], None);
     assert_eq!(
         a.doc.canvases[0].objects[0].plot().unwrap().axis_overrides,
         expected
@@ -89,6 +89,7 @@ fn guide_modes_reset_only_the_required_coupling_and_hidden_position_remains_edit
         guide::LAYOUT.as_str(),
         json!("horizontal"),
     );
+    write(&mut a, &mut s, &ids[..1], guide::COLUMNS.as_str(), json!(3));
     write(
         &mut a,
         &mut s,
@@ -121,6 +122,7 @@ fn guide_modes_reset_only_the_required_coupling_and_hidden_position_remains_edit
             o.guide_layout,
             serde_json::from_value(json!("horizontal")).unwrap()
         );
+        assert_eq!(o.guide_columns, Some(3));
         write(
             &mut a,
             &mut s,

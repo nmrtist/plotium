@@ -1,8 +1,5 @@
 use super::col;
-use crate::{
-    LegendMark, Rect, StackPlacement, legend_entries, legend_entry_origin, legend_layout,
-    legend_rect_placed, renders_legend,
-};
+use crate::{LegendMark, Rect, StackPlacement, legend_entries, legend_entry_origin, placed_legend};
 use egui::{Align2, Pos2, Stroke, Vec2};
 use plotium_figure::Figure;
 
@@ -14,15 +11,12 @@ pub(super) fn paint(
     stack: Option<&StackPlacement>,
 ) {
     let entries = legend_entries(fig);
-    if !renders_legend(fig) {
-        return;
-    }
-    let layout = legend_layout(fig, &entries);
-    let font = fig.typography.legend_pt * scale;
-    let sw = layout.swatch * scale;
-    let Some(box_geometry) = legend_rect_placed(fig, plot, scale, stack) else {
+    let Some((layout, box_geometry)) = placed_legend(fig, plot, scale, stack) else {
         return;
     };
+    let font = fig.typography.legend_pt * scale;
+    let sw = layout.swatch * scale;
+    let dot = layout.dot_radius * scale;
     // Legends draw neither a frame nor a backing.
     let (bx, by) = (box_geometry.left, box_geometry.top);
     let font_id = crate::rich_text::plot_font(font, &fig.typography);
@@ -81,19 +75,20 @@ pub(super) fn paint(
                 );
             }
             LegendMark::Points => {
-                painter.circle_filled(Pos2::new(lx + sw * 0.5, ly), 3.0 * scale, col(*color));
+                painter.circle_filled(Pos2::new(lx + sw * 0.5, ly), dot, col(*color));
             }
             LegendMark::LinePoints => {
                 painter.line_segment(
                     [Pos2::new(lx, ly), Pos2::new(lx + sw, ly)],
                     Stroke::new(2.0 * scale, col(*color)),
                 );
-                painter.circle_filled(Pos2::new(lx + sw * 0.5, ly), 3.0 * scale, col(*color));
+                painter.circle_filled(Pos2::new(lx + sw * 0.5, ly), dot, col(*color));
             }
             LegendMark::Rect { edge, hatch } => {
+                let height = layout.rect_height * scale;
                 let swatch = egui::Rect::from_min_size(
-                    Pos2::new(lx, ly - 4.0 * scale),
-                    Vec2::new(sw, 8.0 * scale),
+                    Pos2::new(lx, ly - height * 0.5),
+                    Vec2::new(sw, height),
                 );
                 painter.rect_filled(swatch, 1.0 * scale, col(*color));
                 if let Some(hatch) = hatch {
@@ -117,7 +112,7 @@ pub(super) fn paint(
         }
         crate::rich_text::paint(
             painter,
-            Pos2::new(lx + sw + 5.0 * scale, ly),
+            Pos2::new(lx + sw + layout.text_gap * scale, ly),
             Align2::LEFT_CENTER,
             name,
             font_id.clone(),

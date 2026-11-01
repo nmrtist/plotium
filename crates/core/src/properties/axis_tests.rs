@@ -49,6 +49,7 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
             guide_visibility: Some(plotium_figure::GuideVisibility::Hide),
             guide_placement: Some(plotium_figure::GuidePlacement::OutsideRight),
             guide_layout: Some(plotium_figure::GuideLayout::Horizontal),
+            guide_columns: Some(3),
             guide_title: Some("Channels".to_owned()),
             ..AxisOverrides::default()
         },
@@ -105,6 +106,9 @@ fn every_axis_and_guide_property_reset_clears_its_stored_override() {
         }),
         (guide::LAYOUT, |value: &AxisOverrides| {
             value.guide_layout.is_none()
+        }),
+        (guide::COLUMNS, |value: &AxisOverrides| {
+            value.guide_columns.is_none()
         }),
         (guide::TITLE, |value: &AxisOverrides| {
             value.guide_title.is_none()

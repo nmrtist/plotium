@@ -1,9 +1,10 @@
 //! Room for an automatic legend: when every inside anchor covers data, widen
 //! the automatic axis windows on one anchor's side until it is clear.
+use crate::legend_layout::{LegendLayout, column_options};
 use crate::legend_placement::{
     ANCHORS, LEGEND_INSET, anchor_boxes, clip, coverage, for_each_segment, grow,
 };
-use crate::{Projector, Rect, axis_layout, legend_entries, legend_layout, renders_legend};
+use crate::{Projector, Rect, axis_layout, legend_entries, renders_legend};
 use plotium_figure::{Axis, Figure, GuidePlacement};
 
 /// Largest growth of an axis span made to clear a legend slot. A legend that
@@ -16,13 +17,14 @@ const GRID: usize = 256;
 /// Widen automatic axis windows so an automatic legend gets an inside slot
 /// free of data, for a plot object of `size` points.
 ///
-/// Nothing changes while some anchor is already clear. Otherwise each anchor
-/// may extend the axis ends on its own side — x, y, or both by the same
-/// fraction — and the smallest growth that clears an anchor wins; ties keep
-/// the anchor order and then x before y. Only axes passed as growable and not
-/// categorical are touched. A growable right axis follows the left y axis by
-/// the same fraction on the same screen side, so both keep their alignment.
-/// Returns whether the figure changed.
+/// Nothing changes while some column count already has a clear anchor.
+/// Otherwise each anchor may extend the axis ends on its own side — x, y, or
+/// both by the same fraction — and the smallest growth over all column counts
+/// and anchors wins; ties keep fewer columns, the anchor order and then x
+/// before y. Only axes passed as growable and not categorical are touched. A
+/// growable right axis follows the left y axis by the same fraction on the
+/// same screen side, so both keep their alignment. Returns whether the figure
+/// changed.
 pub fn make_legend_room(
     fig: &mut Figure,
     size: [f32; 2],
@@ -45,29 +47,86 @@ pub fn make_legend_room(
     {
         return false;
     }
-    let legend = legend_layout(fig, &legend_entries(fig));
-    // The same tight zones that automatic placement treats as clear.
-    let zones = |fig: &Figure| {
-        let layout = axis_layout(fig, size[0], size[1]);
-        let outer = Rect::new(0.0, 0.0, size[0], size[1]);
-        let plot = Projector::new(fig, outer, &layout.margins).plot;
-        let boxes = anchor_boxes(plot, legend.width, legend.height, LEGEND_INSET);
-        (plot, boxes.map(|r| grow(r, LEGEND_INSET * 0.25)))
-    };
-    let (plot, base_zones) = zones(fig);
-    if plot.width <= 0.0 || plot.height <= 0.0 || coverage(fig, plot, &base_zones).contains(&0) {
+    let plot = plot_rect(fig, size);
+    if plot.width <= 0.0 || plot.height <= 0.0 {
         return false;
     }
+    let free_width = plot.width - 2.0 * LEGEND_INSET;
+    let options = column_options(fig, &legend_entries(fig), free_width);
+    let already_clear = options
+        .iter()
+        .any(|legend| coverage(fig, plot, &anchor_zones(plot, legend)).contains(&0));
+    if already_clear {
+        return false;
+    }
+    let grid = Occupancy::new(fig);
+    let growth = Growth {
+        x: grow_x,
+        y: grow_y,
+        y2: grow_y2,
+    };
+    let mut best: Option<Room> = None;
+    for legend in &options {
+        let Some(room) = room_for(fig, size, legend, &grid, growth) else {
+            continue;
+        };
+        if best.as_ref().is_none_or(|b| room.fraction < b.fraction) {
+            best = Some(room);
+        }
+    }
+    let Some(best) = best else {
+        return false;
+    };
+    fig.x = best.x;
+    fig.y = best.y;
+    fig.y2 = best.y2;
+    true
+}
 
+#[derive(Clone, Copy)]
+struct Growth {
+    x: bool,
+    y: bool,
+    y2: bool,
+}
+
+/// Axis windows that clear an anchor, and the growth they took.
+struct Room {
+    fraction: f64,
+    x: Axis,
+    y: Axis,
+    y2: Option<Axis>,
+}
+
+fn plot_rect(fig: &Figure, size: [f32; 2]) -> Rect {
+    let layout = axis_layout(fig, size[0], size[1]);
+    let outer = Rect::new(0.0, 0.0, size[0], size[1]);
+    Projector::new(fig, outer, &layout.margins).plot
+}
+
+/// The same tight zones that automatic placement treats as clear.
+fn anchor_zones(plot: Rect, legend: &LegendLayout) -> [Rect; 8] {
+    anchor_boxes(plot, legend.width, legend.height, LEGEND_INSET)
+        .map(|r| grow(r, LEGEND_INSET * 0.25))
+}
+
+/// The smallest growth that gives `legend` a clear anchor. The figure is only
+/// borrowed for trials and ends unchanged.
+fn room_for(
+    fig: &mut Figure,
+    size: [f32; 2],
+    legend: &LegendLayout,
+    grid: &Occupancy,
+    growth: Growth,
+) -> Option<Room> {
     let (base_x, base_y) = (fig.x.clone(), fig.y.clone());
     let base_y2 = fig.y2.clone();
-    let grid = Occupancy::new(fig);
     let mut candidates = Vec::new();
     for (index, [fx, fy]) in ANCHORS.iter().enumerate() {
         // `Some(true)` extends the axis maximum, `Some(false)` its minimum:
         // whichever end sits on the anchor's screen side.
-        let x_side = (grow_x && *fx != 0.5).then_some((*fx == 1.0) != base_x.reversed);
-        let y_side = (grow_y && *fy != 0.5).then_some((*fy == 0.0) != base_y.reversed);
+        let x_side = (growth.x && *fx != 0.5).then_some((*fx == 1.0) != base_x.reversed);
+        let y_side = (growth.y && *fy != 0.5).then_some((*fy == 0.0) != base_y.reversed);
         let mut options = vec![[x_side, None], [None, y_side]];
         if x_side.is_some() && y_side.is_some() {
             options.push([x_side, y_side]);
@@ -76,8 +135,9 @@ pub fn make_legend_room(
             let mut grid_clear = |fraction: f64| {
                 fig.x = widened(&base_x, sides[0], fraction);
                 fig.y = widened(&base_y, sides[1], fraction);
-                fig.y2 = widened_y2(&base_y, base_y2.as_ref(), sides[1], grow_y2, fraction);
-                let (plot, trial) = zones(fig);
+                fig.y2 = widened_y2(&base_y, base_y2.as_ref(), sides[1], growth.y2, fraction);
+                let plot = plot_rect(fig, size);
+                let trial = anchor_zones(plot, legend);
                 grid.is_clear(fig, &base_x, &base_y, plot, trial[index])
             };
             if !grid_clear(MAX_ROOM_GROWTH) {
@@ -100,19 +160,27 @@ pub fn make_legend_room(
     // The grid over-approximates the data, so its answers are confirmed
     // with the exact test that automatic placement uses.
     candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut room = None;
     for (fraction, index, sides) in candidates {
         fig.x = widened(&base_x, sides[0], fraction);
         fig.y = widened(&base_y, sides[1], fraction);
-        fig.y2 = widened_y2(&base_y, base_y2.as_ref(), sides[1], grow_y2, fraction);
-        let (plot, trial) = zones(fig);
+        fig.y2 = widened_y2(&base_y, base_y2.as_ref(), sides[1], growth.y2, fraction);
+        let plot = plot_rect(fig, size);
+        let trial = anchor_zones(plot, legend);
         if coverage(fig, plot, &trial[index..=index]) == [0] {
-            return true;
+            room = Some(Room {
+                fraction,
+                x: fig.x.clone(),
+                y: fig.y.clone(),
+                y2: fig.y2.clone(),
+            });
+            break;
         }
     }
     fig.x = base_x;
     fig.y = base_y;
     fig.y2 = base_y2;
-    false
+    room
 }
 
 /// `axis` with one end moved outward by `fraction` of its span, measured in

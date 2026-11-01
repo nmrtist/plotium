@@ -1,6 +1,7 @@
-//! Automatic legend placement: choose the inside anchor that covers the least
-//! plotted data, so the default legend sits in empty plot space.
+//! Automatic legend placement: choose the column count and inside anchor that
+//! cover the least plotted data, so the default legend sits in empty plot space.
 use crate::Rect;
+use crate::legend_layout::LegendLayout;
 use plotium_figure::{Figure, SeriesKind, YAxisSide};
 
 /// Gap between an automatic legend and the plot edges, in points at scale 1.
@@ -20,16 +21,42 @@ pub(crate) const ANCHORS: [[f32; 2]; 8] = [
     [0.5, 1.0],
 ];
 
-/// Top-left corner of an automatically placed legend of `width` × `height`.
-/// Every anchor keeps the same `inset` from the plot edges; ties keep the
-/// earlier anchor in [`ANCHORS`], so an empty plot gets the upper right.
-pub(crate) fn auto_legend_origin(
+/// The first of `options`, which must not be empty, with an anchor clear of
+/// data and that anchor's top-left corner. When none is clear, the layout
+/// covering the least, keeping fewer columns on a tie.
+pub(crate) fn auto_legend(
+    fig: &Figure,
+    plot: Rect,
+    options: &[LegendLayout],
+    scale: f32,
+) -> (LegendLayout, (f32, f32)) {
+    let inset = LEGEND_INSET * scale;
+    let mut best = (options[0], (plot.left, plot.top), usize::MAX);
+    for layout in options {
+        let width = layout.width * scale;
+        let height = layout.height * scale;
+        let (origin, covered) = best_anchor(fig, plot, width, height, inset);
+        if covered < best.2 {
+            best = (*layout, origin, covered);
+        }
+        if covered == 0 {
+            break;
+        }
+    }
+    (best.0, best.1)
+}
+
+/// Top-left corner of the best anchor for a legend of `width` × `height`, and
+/// how much data it covers. Every anchor keeps the same `inset` from the plot
+/// edges; ties keep the earlier anchor in [`ANCHORS`], so an empty plot gets
+/// the upper right.
+fn best_anchor(
     fig: &Figure,
     plot: Rect,
     width: f32,
     height: f32,
     inset: f32,
-) -> (f32, f32) {
+) -> ((f32, f32), usize) {
     let candidates = anchor_boxes(plot, width, height, inset);
     // Data that merely touches the text is still crowded, so test a slightly
     // grown box. Equally clear anchors then prefer more breathing room, judged
@@ -44,7 +71,7 @@ pub(crate) fn auto_legend_origin(
     let best = (0..ANCHORS.len())
         .min_by_key(|&index| (scores[index], scores[index + ANCHORS.len()], index))
         .unwrap_or(0);
-    (candidates[best].left, candidates[best].top)
+    ((candidates[best].left, candidates[best].top), scores[best])
 }
 
 /// Legend boxes at every anchor in [`ANCHORS`] order.

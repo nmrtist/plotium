@@ -225,7 +225,7 @@ fn a_dragged_legend_keeps_its_placement() {
     let object_id = app.doc.canvases[0].objects[0].id;
     let before = plot(&app, 0).axis_overrides.clone();
     let mut after = before.clone();
-    after.set_legend_position([0.2, 0.8]);
+    after.set_legend_position([0.2, 0.8], None);
     let position = PropertyAddress::new(plot_target.clone(), guide::POSITION);
     app.execute_hand_edit(
         crate::actions::Action::set_axis_overrides(0, object_id, before, after.clone()),

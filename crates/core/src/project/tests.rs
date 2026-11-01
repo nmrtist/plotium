@@ -272,6 +272,7 @@ fn project_roundtrip_preserves_data_recipe_and_view() {
         guide_visibility: Some(plotium_figure::GuideVisibility::Hide),
         guide_placement: Some(plotium_figure::GuidePlacement::Inside),
         guide_layout: Some(plotium_figure::GuideLayout::Horizontal),
+        guide_columns: Some(3),
         guide_title: Some("Channels".to_owned()),
         legend_position: Some([0.25, 0.75]),
         ..AxisOverrides::default()

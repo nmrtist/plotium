@@ -71,6 +71,7 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::guide::VISIBILITY,
     properties::guide::PLACEMENT,
     properties::guide::LAYOUT,
+    properties::guide::COLUMNS,
     properties::guide::TITLE,
     properties::guide::POSITION,
 ];

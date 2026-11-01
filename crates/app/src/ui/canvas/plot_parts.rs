@@ -302,9 +302,10 @@ fn nudge_part(
             else {
                 return false;
             };
+            let pinned = plotium_render::legend_columns_to_pin(figure, plot, scale);
             let before = plot_object.axis_overrides.clone();
             let mut after = before.clone();
-            after.set_legend_position(position);
+            after.set_legend_position(position, pinned);
             begin_nudge(
                 app,
                 PendingNudge::Plot {

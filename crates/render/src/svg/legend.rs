@@ -1,21 +1,14 @@
-use crate::{
-    LegendMark, Rect, StackPlacement, legend_entries, legend_entry_origin, legend_layout,
-    legend_rect_placed, renders_legend,
-};
+use crate::{LegendMark, Rect, StackPlacement, legend_entries, legend_entry_origin, placed_legend};
 use plotium_figure::Figure;
 use std::fmt::Write;
 
 pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&StackPlacement>) {
     let entries = legend_entries(fig);
-    if !renders_legend(fig) {
-        return;
-    }
     let font = fig.typography.legend_pt;
-    let layout = legend_layout(fig, &entries);
-    let sw = layout.swatch;
-    let Some(box_geometry) = legend_rect_placed(fig, plot, 1.0, stack) else {
+    let Some((layout, box_geometry)) = placed_legend(fig, plot, 1.0, stack) else {
         return;
     };
+    let sw = layout.swatch;
     // Legends draw neither a frame nor a backing.
     let (bx, by) = (box_geometry.left, box_geometry.top);
     if !fig.guide_title.trim().is_empty() {
@@ -75,17 +68,19 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&Sta
             LegendMark::Points => {
                 let _ = write!(
                     s,
-                    r#"<circle cx="{cx:.2}" cy="{ly:.2}" r="3" fill="{col}"/>"#,
+                    r#"<circle cx="{cx:.2}" cy="{ly:.2}" r="{r:.2}" fill="{col}"/>"#,
                     cx = lx + sw * 0.5,
+                    r = layout.dot_radius,
                     col = color.to_hex(),
                 );
             }
             LegendMark::LinePoints => {
                 let _ = write!(
                     s,
-                    r#"<line x1="{lx:.2}" y1="{ly:.2}" x2="{x2:.2}" y2="{ly:.2}" stroke="{col}" stroke-width="2"/><circle cx="{cx:.2}" cy="{ly:.2}" r="3" fill="{col}"/>"#,
+                    r#"<line x1="{lx:.2}" y1="{ly:.2}" x2="{x2:.2}" y2="{ly:.2}" stroke="{col}" stroke-width="2"/><circle cx="{cx:.2}" cy="{ly:.2}" r="{r:.2}" fill="{col}"/>"#,
                     x2 = lx + sw,
                     cx = lx + sw * 0.5,
+                    r = layout.dot_radius,
                     col = color.to_hex(),
                 );
             }
@@ -95,12 +90,14 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&Sta
                 });
                 let _ = write!(
                     s,
-                    r#"<rect x="{lx:.2}" y="{y:.2}" width="{sw:.2}" height="8" rx="1" fill="{col}"{stroke}/>"#,
-                    y = ly - 4.0,
+                    r#"<rect x="{lx:.2}" y="{y:.2}" width="{sw:.2}" height="{height:.2}" rx="1" fill="{col}"{stroke}/>"#,
+                    y = ly - layout.rect_height * 0.5,
+                    height = layout.rect_height,
                     col = color.to_hex(),
                 );
                 if let Some(hatch) = hatch {
-                    let swatch = crate::Rect::new(lx, ly - 4.0, sw, 8.0);
+                    let height = layout.rect_height;
+                    let swatch = crate::Rect::new(lx, ly - height * 0.5, sw, height);
                     crate::hatch::write_svg(s, &swatch.corners(), *hatch, swatch);
                 }
             }
@@ -108,7 +105,7 @@ pub(super) fn write(s: &mut String, fig: &Figure, plot: Rect, stack: Option<&Sta
         let _ = write!(
             s,
             r#"<text x="{tx:.2}" y="{y:.2}" font-size="{font}" fill="{axis}">{txt}</text>"#,
-            tx = lx + sw + 5.0,
+            tx = lx + sw + layout.text_gap,
             y = ly + font * crate::rich_text::MIDDLE_TO_BASELINE,
             axis = fig.typography.legend_color.to_hex(),
             txt = crate::rich_text::svg_content(name, font),

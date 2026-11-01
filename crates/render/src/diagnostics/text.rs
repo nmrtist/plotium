@@ -228,9 +228,8 @@ pub fn figure_text_boxes_placed(
             );
         }
     }
-    if let Some(r) = legend_rect_placed(fig, plot, 1., stack) {
+    if let Some((l, r)) = placed_legend(fig, plot, 1., stack) {
         let entries = legend_entries(fig);
-        let l = legend_layout(fig, &entries);
         add(
             "guide.legend.title",
             &fig.guide_title,
@@ -247,7 +246,7 @@ pub fn figure_text_boxes_placed(
             add(
                 "guide.legend.text",
                 name,
-                r.left + x + l.swatch + 5.,
+                r.left + x + l.swatch + l.text_gap,
                 r.top + y - ty.legend_pt * 0.5,
                 ty.legend_pt,
                 0.,

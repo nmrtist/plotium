@@ -405,8 +405,9 @@ fn update_furniture_drag(app: &mut PlotiumApp, ci: usize, canvas_rect: egui::Rec
             ) else {
                 return;
             };
+            let pinned = plotium_render::legend_columns_to_pin(plot_object.figure(), plot, scale);
             let mut overrides = plot_object.axis_overrides.clone();
-            overrides.set_legend_position(position);
+            overrides.set_legend_position(position, pinned);
             app.set_axis_overrides_value(ci, object, &overrides);
         }
         FurnitureTarget::PlotLabel {

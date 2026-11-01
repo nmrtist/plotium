@@ -62,7 +62,7 @@ description: 自动化窗口、工作流、命令行和 AI 客户端使用的稳
 
 | 设置 | ID |
 | --- | --- |
-| 图例显示、位置、排列、标题 | `object.guides.visibility`、`object.guides.position`、`object.guides.layout`、`object.guides.title` |
+| 图例显示、位置、排列、列数、标题 | `object.guides.visibility`、`object.guides.position`、`object.guides.layout`、`object.guides.columns`、`object.guides.title` |
 | 图例摆放位置 | `object.guides.placement` |
 | 图例文字 | `series.label` |
 | 曲线是否可见 | `series.visible` |

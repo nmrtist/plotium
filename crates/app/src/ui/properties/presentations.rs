@@ -219,14 +219,8 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         canvas_step: false,
         uses_canvas_length_unit: false,
     },
-    PropertyPresentation {
-        id: guide::LAYOUT,
-        localized_label: LocalizedText("Layout"),
-        localized_aliases: &[LocalizedText("legend direction")],
-        home_route: GUIDE_HOME,
-        canvas_step: false,
-        uses_canvas_length_unit: false,
-    },
+    object_entry(guide::LAYOUT, "Layout", GUIDE_HOME),
+    object_entry(guide::COLUMNS, "Columns (0 = auto)", GUIDE_HOME),
     PropertyPresentation {
         id: guide::TITLE,
         localized_label: LocalizedText("Title"),

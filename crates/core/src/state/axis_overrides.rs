@@ -295,6 +295,7 @@ pub struct AxisOverrides {
     pub guide_visibility: Option<GuideVisibility>,
     pub guide_placement: Option<GuidePlacement>,
     pub guide_layout: Option<GuideLayout>,
+    pub guide_columns: Option<u32>,
     pub guide_title: Option<String>,
     pub legend_position: Option<[f32; 2]>,
     /// Author text anchored in data coordinates, lowered on every apply.
@@ -419,6 +420,7 @@ impl AxisOverrides {
         if let Some(layout) = self.guide_layout {
             figure.guide_layout = layout;
         }
+        figure.guide_columns = self.guide_columns;
         if let Some(title) = &self.guide_title {
             figure.guide_title.clone_from(title);
         }
@@ -429,9 +431,14 @@ impl AxisOverrides {
     }
 
     /// A dragged or explicitly positioned legend is always an inside guide.
-    pub fn set_legend_position(&mut self, position: [f32; 2]) {
+    /// Place the legend by hand. `pinned_columns` comes from
+    /// `plotium_render::legend_columns_to_pin`.
+    pub fn set_legend_position(&mut self, position: [f32; 2], pinned_columns: Option<u32>) {
         self.guide_placement = Some(plotium_figure::GuidePlacement::Inside);
         self.legend_position = Some(position);
+        if pinned_columns.is_some() {
+            self.guide_columns = pinned_columns;
+        }
     }
 
     pub fn reset_guide_placement(&mut self) {

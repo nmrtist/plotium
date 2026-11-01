@@ -68,7 +68,7 @@ break hides.
 
 | Setting | ID |
 | --- | --- |
-| Legend visibility, position, layout, title | `object.guides.visibility`, `object.guides.position`, `object.guides.layout`, `object.guides.title` |
+| Legend visibility, position, layout, columns, title | `object.guides.visibility`, `object.guides.position`, `object.guides.layout`, `object.guides.columns`, `object.guides.title` |
 | Legend placement | `object.guides.placement` |
 | Legend text | `series.label` |
 | Curve visible | `series.visible` |

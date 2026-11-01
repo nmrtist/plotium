@@ -428,8 +428,10 @@ pub use guide_geometry::{
     GuideGeometry, guide_geometry, guide_geometry_placed, legend_entry_count,
 };
 mod legend_content;
+mod legend_layout;
 mod legend_placement;
 use legend_content::{LegendMark, legend_entries};
+use legend_layout::{LegendLayout, legend_entry_origin, legend_layout};
 mod legend_room;
 pub use legend_room::make_legend_room;
 
@@ -448,66 +450,10 @@ pub fn renders_color_scale(fig: &Figure) -> bool {
     fig.heatmap.is_some() && !matches!(fig.guide_visibility, plotium_figure::GuideVisibility::Hide)
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct LegendLayout {
-    pub row: f32,
-    pub swatch: f32,
-    pub padding: f32,
-    pub entry_width: f32,
-    pub columns: usize,
-    pub title_height: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-/// Keep legend geometry identical across screen, SVG, and EMF output.
-pub(crate) fn legend_layout(fig: &Figure, entries: &[(&str, Color, LegendMark)]) -> LegendLayout {
-    let font = fig.typography.legend_pt;
-    let row = (font * 1.4).max(9.0);
-    let swatch = (font * 1.8).max(10.0);
-    let padding = (font * 0.6).max(3.0);
-    let chars = entries
-        .iter()
-        .map(|(name, _, _)| rich_text::width_in_chars(name))
-        .fold(0.0, f32::max);
-    let entry_width = swatch + 5.0 + chars * font * 0.6;
-    let columns = if matches!(fig.guide_layout, plotium_figure::GuideLayout::Horizontal) {
-        entries.len().max(1)
-    } else {
-        1
-    };
-    let title_height = if fig.guide_title.trim().is_empty() {
-        0.0
-    } else {
-        row
-    };
-    let title_width = rich_text::width_in_chars(&fig.guide_title) * font * 0.6;
-    let entries_width = entry_width * columns as f32;
-    let entry_rows = entries.len().div_ceil(columns).max(1);
-    LegendLayout {
-        row,
-        swatch,
-        padding,
-        entry_width,
-        columns,
-        title_height,
-        width: entries_width.max(title_width) + padding * 2.0,
-        height: title_height + entry_rows as f32 * row + padding * 2.0,
-    }
-}
-
-pub(crate) fn legend_entry_origin(layout: &LegendLayout, index: usize) -> (f32, f32) {
-    let column = index % layout.columns;
-    let row = index / layout.columns;
-    (
-        layout.padding + layout.entry_width * column as f32,
-        layout.padding + layout.title_height + layout.row * (row as f32 + 0.5),
-    )
-}
-
 /// Legend box in output coordinates. Manual coordinates are fractions of the
 /// space in which the complete box can move, so resizing keeps it inside.
-/// Auto placement picks the inside anchor that covers the least data.
+/// Auto placement picks the column count and inside anchor that cover the
+/// least data.
 pub fn legend_rect(fig: &Figure, plot: Rect, scale: f32) -> Option<Rect> {
     legend_rect_placed(fig, plot, scale, None)
 }
@@ -521,11 +467,32 @@ pub fn legend_rect_placed(
     scale: f32,
     stack: Option<&StackPlacement>,
 ) -> Option<Rect> {
-    let entries = legend_entries(fig);
+    placed_legend(fig, plot, scale, stack).map(|(_, rect)| rect)
+}
+
+/// The legend's layout and box, resolved together because automatic columns
+/// depend on where the data leaves room.
+pub(crate) fn placed_legend(
+    fig: &Figure,
+    plot: Rect,
+    scale: f32,
+    stack: Option<&StackPlacement>,
+) -> Option<(LegendLayout, Rect)> {
     if !renders_legend(fig) {
         return None;
     }
-    let layout = legend_layout(fig, &entries);
+    let automatic_place = fig.guide_placement == plotium_figure::GuidePlacement::Auto
+        && fig.legend_position.is_none();
+    let options = {
+        let entries = legend_entries(fig);
+        let free_width = plot.width / scale - 2.0 * legend_placement::LEGEND_INSET;
+        legend_layout::column_options(fig, &entries, free_width)
+    };
+    let (layout, auto_origin) = if automatic_place {
+        legend_placement::auto_legend(fig, plot, &options, scale)
+    } else {
+        (options[0], (plot.left, plot.top))
+    };
     let width = layout.width * scale;
     let height = layout.height * scale;
     let available_x = (plot.width - width).max(0.0);
@@ -542,13 +509,7 @@ pub fn legend_rect_placed(
             plotium_figure::GuidePlacement::OutsideBottom => {
                 (plot.left, plot.bottom() + 8.0 * scale)
             }
-            plotium_figure::GuidePlacement::Auto => legend_placement::auto_legend_origin(
-                fig,
-                plot,
-                width,
-                height,
-                legend_placement::LEGEND_INSET * scale,
-            ),
+            plotium_figure::GuidePlacement::Auto => auto_origin,
             plotium_figure::GuidePlacement::Inside => (
                 (plot.right() - width - 8.0 * scale).max(plot.left + 2.0 * scale),
                 plot.top + 8.0 * scale,
@@ -561,7 +522,17 @@ pub fn legend_rect_placed(
             )
         },
     );
-    Some(Rect::new(left, top, width, height))
+    Some((layout, Rect::new(left, top, width, height)))
+}
+
+/// Column count to store when the legend is placed by hand. Automatic columns
+/// stop applying then, so a multi-column legend would otherwise reflow.
+pub fn legend_columns_to_pin(fig: &Figure, plot: Rect, scale: f32) -> Option<u32> {
+    if !legend_layout::has_automatic_columns(fig, legend_entries(fig).len()) {
+        return None;
+    }
+    let (layout, _) = placed_legend(fig, plot, scale, None)?;
+    (layout.columns > 1).then_some(layout.columns as u32)
 }
 
 /// Geometry for a heatmap's continuous colour scale. The scale is vertical by

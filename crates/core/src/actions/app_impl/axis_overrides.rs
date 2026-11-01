@@ -190,6 +190,7 @@ impl PlotiumApp {
             || cleared(&before.guide_visibility, &after.guide_visibility)
             || cleared(&before.guide_placement, &after.guide_placement)
             || cleared(&before.guide_layout, &after.guide_layout)
+            || cleared(&before.guide_columns, &after.guide_columns)
             || cleared(&before.guide_title, &after.guide_title)
             || cleared(&before.legend_position, &after.legend_position);
 
