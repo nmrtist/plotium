@@ -640,11 +640,11 @@ fn inward_ticks_point_into_the_plot_and_free_their_margin() {
 fn axis_strokes_and_tick_length_follow_the_figure_typography() {
     let mut fig = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
     fig.typography.axis_line_pt = 0.6;
-    fig.typography.tick_length_pt = 2.5;
+    fig.typography.tick_length_pt = 2.25;
     let svg = svg::export(&fig);
     assert!(svg.contains(r#"stroke-width="0.6""#));
     assert!(!svg.contains(r#"stroke-width="1""#));
-    assert!(svg.contains("v2.5\""));
+    assert!(svg.contains("v2.25\""));
 }
 
 #[test]
@@ -697,15 +697,15 @@ fn minor_ticks_are_half_length_and_follow_the_tick_direction() {
     let plain_margins = Margins::for_figure(&fig);
     fig.typography.minor_ticks = 1;
     let out = svg::export(&fig);
-    assert!(!plain.contains("v1.5") && out.contains("v1.5"));
+    assert!(!plain.contains("v1.25") && out.contains("v1.25"));
     let x_minors = minor_tick_values(&fig.x, &axis_layout(&fig, fig.width, fig.height).x_ticks, 1);
-    assert_eq!(out.matches("v1.5").count(), x_minors.len());
-    assert!(out.contains("h1.5"));
+    assert_eq!(out.matches("v1.25").count(), x_minors.len());
+    assert!(out.contains("h1.25"));
     assert_eq!(Margins::for_figure(&fig), plain_margins);
 
     fig.typography.tick_direction = TickDirection::In;
     let inward = svg::export(&fig);
-    assert!(inward.contains("v-1.5"));
+    assert!(inward.contains("v-1.25"));
 }
 
 #[test]

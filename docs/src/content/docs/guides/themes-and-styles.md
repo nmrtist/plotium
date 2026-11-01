@@ -56,7 +56,7 @@ enlarges the axis text for slides.
 
 The **Nature** theme follows the Nature Portfolio final-artwork guidelines: 7 pt
 text with strokes scaled to it — 0.3 pt axes, ticks, bar outlines and new
-reference lines and arrows, 0.5 pt line series — outward 3 pt ticks, 3 pt
+reference lines and arrows, 0.5 pt line series — outward 2.5 pt ticks, 3 pt
 markers without an outline and the colour-blind-safe Okabe–Ito palette. Marker
 outlines you drew by hand stay. Its sizes assume a Nature column width, so
 applying it to a canvas that matches none of the Nature size presets (89, 136 or

@@ -207,8 +207,8 @@ impl Theme {
     /// Nature Portfolio final-artwork guidelines: 7 pt text (inside the
     /// 5–7 pt range), strokes scaled to that text ([`nature_strokes`]: 0.3 pt
     /// axes, ticks, bar outlines and new reference lines and arrows; 0.5 pt
-    /// line series), outward 3 pt ticks, 3 pt markers without an outline, and
-    /// the colour-blind-safe Okabe–Ito palette.
+    /// line series), outward 2.5 pt ticks, 3 pt markers without an outline,
+    /// and the colour-blind-safe Okabe–Ito palette.
     fn nature() -> Theme {
         let black = Color::rgb(0, 0, 0);
         let text_pt = 7.0;
@@ -226,7 +226,7 @@ impl Theme {
                 legend_pt: text_pt,
                 legend_color: black,
                 axis_line_pt: aux_pt,
-                tick_length_pt: 3.0,
+                tick_length_pt: 2.5,
                 tick_direction: TickDirection::Out,
                 minor_ticks: 0,
                 typeface: Typeface::Arial,
