@@ -523,7 +523,7 @@ impl Session {
             }
             if !matches!(
                 args.tool_id.as_str(),
-                "resource.rename" | "figure.apply_theme" | DATASET_DELETE
+                "resource.rename" | "figure.apply_theme" | DATASET_DELETE | XAS_MERGE
             ) {
                 check_property(&args.parameters)?;
             }

@@ -20,6 +20,7 @@ Scientific edits use `plotium_plan` / `plotium_execute`:
 
 | Operation | Parameters and target |
 | --- | --- |
+| `xas.merge` | Two or more XAS datasets in `ids`, first one sets the energy grid; takes `{}`. Aligns on reference foils when each scan has a usable one, otherwise preflight and `value.reason` say why not. Adds a dataset and canvas in one Undo step |
 | `processing.edit` | One NMR, XRD, XPS or XAS dataset; `edits` uses `replace`, `enable`, `add`, `remove` or `move` on stable StepIds; XPS `add` names a region ID as `axis` and takes `Window`, `Smooth` or `Normalize`; XRD uses `set_xrd` with complete `processing` settings, plus optional `axis` and `wavelength_angstrom`; XAS uses `set_xas` with `signal` and complete `processing` settings copied from `processing.inspect`, or `apply_xas_preset` with `athena` or `larch` |
 | `processing.apply_scheme` | `path`, optional `compatible_only`; preflight freezes scheme bytes, fingerprint and compatible target configurations; a scheme applies to datasets of its own kind, and an XPS scheme replaces the active region's recipe |
 | `diffusion.set_input` | One dataset; complete `input`; invalid input errors include a structured validation report |

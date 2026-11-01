@@ -4,7 +4,7 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 26] = [
     "analysis.diffusion.plot",
     "plot.field.create",
     "analysis.dosy.build",
@@ -17,6 +17,7 @@ pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
     "figure.export",
     "resource.rename",
     "dataset.delete",
+    "xas.merge",
     "figure.apply_theme",
     "properties.set",
     "properties.set_many",
@@ -34,7 +35,7 @@ pub(crate) const EDIT_OPERATIONS: [&str; 25] = [
 
 /// One line per editable operation, so a caller can map a task to an operation
 /// before fetching its schema.
-const PURPOSES: [(&str, &str); 28] = [
+const PURPOSES: [(&str, &str); 29] = [
     (
         "analysis.diffusion.plot",
         "Plot a diffusion fit with residuals on a new canvas",
@@ -80,6 +81,10 @@ const PURPOSES: [(&str, &str); 28] = [
         "Rename a dataset, canvas or canvas object",
     ),
     ("dataset.delete", "Delete unused datasets"),
+    (
+        "xas.merge",
+        "Merge XAS scans of one edge into a new dataset",
+    ),
     (
         "figure.apply_theme",
         "Apply a built-in theme or saved style to canvases",
@@ -236,6 +241,9 @@ fn operation_constraints() -> serde_json::Map<String, Value> {
     }
     constraints["dataset.delete"]["result_contract"] = json!(
         "Refused at preflight, naming the users, while a plot, projection, derived dataset or report uses a dataset; delete a derived dataset in its own request first. One Undo restores the datasets and their IDs."
+    );
+    constraints["xas.merge"]["result_contract"] = json!(
+        "Refused at preflight for fewer than two scans, other dataset kinds, different signals or different edges. value.alignment is aligned, or unaligned with reason, which preflight also lists. One Undo removes the merge and its canvas."
     );
     crate::session::short_refs::widen(&mut constraints);
     constraints

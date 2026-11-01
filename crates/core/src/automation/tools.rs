@@ -157,6 +157,10 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
     if plan.request.tool_id == DATASET_DELETE {
         super::dataset_delete::actions(app, &plan)?;
     }
+    if plan.request.tool_id == XAS_MERGE {
+        let notes = super::xas_merge::preflight(app, &plan)?;
+        plan.estimated_changes.extend(notes);
+    }
     if plan.request.tool_id == DIFFUSION_SET_INPUT {
         super::science::validate_input_update(app, &plan)?;
     }
@@ -504,6 +508,7 @@ pub(super) fn execute_planned_tool(
         "results.compare" => execute_compare(app, &plan)?,
         "resource.rename" => execute_rename(app, &plan)?,
         DATASET_DELETE => super::dataset_delete::execute(app, &plan)?,
+        XAS_MERGE => super::xas_merge::execute(app, &plan)?,
         "figure.apply_theme" => execute_theme(app, &plan)?,
         FIELD_PLOT_CREATE | DIFFUSION_PLOT_CREATE => super::scientific_plot::execute(app, &plan)?,
         PLOT_CREATE => super::plot_creation::execute(app, &plan)?,

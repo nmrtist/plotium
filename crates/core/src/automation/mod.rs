@@ -17,6 +17,8 @@ pub use table_update::*;
 mod curve_bindings;
 mod dataset_delete;
 pub use dataset_delete::DATASET_DELETE;
+mod xas_merge;
+pub use xas_merge::XAS_MERGE;
 mod figure_edit;
 mod plot_creation;
 pub use figure_edit::*;

@@ -209,17 +209,28 @@ impl PlotiumApp {
 
     fn try_merge_selected_xas(&mut self) -> Result<(usize, XasMergeAlignment), String> {
         let selection = self.session.ui.data_selection.clone();
-        let sources: Vec<&XasDataset> = selection
+        let (action, alignment) = self.xas_merge_action(&selection)?;
+        self.execute_action(action);
+        Ok((selection.len(), alignment))
+    }
+
+    /// One undoable step that adds the merge of `scans`, in this order, with its
+    /// canvas. The first scan sets the energy grid.
+    pub(crate) fn xas_merge_action(
+        &self,
+        scans: &[usize],
+    ) -> Result<(Action, XasMergeAlignment), String> {
+        let sources: Vec<&XasDataset> = scans
             .iter()
             .filter_map(|index| self.doc.datasets.get(*index)?.as_xas())
             .collect();
-        if sources.len() != selection.len() || sources.is_empty() {
+        if sources.len() != scans.len() || sources.is_empty() {
             return Err("Select only XAS scans to merge.".into());
         }
         let name = format!(
             "Merge of {} (+{})",
-            crate::workflow::dataset_title(&self.doc.datasets[selection[0]]),
-            selection.len().saturating_sub(1)
+            crate::workflow::dataset_title(&self.doc.datasets[scans[0]]),
+            scans.len().saturating_sub(1)
         );
         let (scan, alignment) = merge_scans(&sources, &name)?;
         let lineage = sources.iter().map(|scan| scan.resource_id);
@@ -238,8 +249,7 @@ impl PlotiumApp {
             format!("Canvas {} — {name}", self.doc.canvases.len() + 1),
             DEFAULT_CANVAS_SIZE_MM,
         );
-        self.execute_action(action);
-        Ok((selection.len(), alignment))
+        Ok((action, alignment))
     }
 }
 
