@@ -1,4 +1,5 @@
 use super::*;
+use crate::state::StackLabels;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct StackDto {
@@ -15,6 +16,8 @@ pub struct StackDto {
     pub gradient: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub sequence_scale: bool,
+    #[serde(default, skip_serializing_if = "StackLabels::is_beside")]
+    pub labels: StackLabels,
 }
 
 impl StackDto {
@@ -33,6 +36,7 @@ impl StackDto {
             occlude: s.occlude,
             gradient: s.gradient.map(|map| map.id().to_owned()),
             sequence_scale: s.sequence_scale,
+            labels: s.labels,
         }
     }
 
@@ -53,6 +57,7 @@ impl StackDto {
                 .as_deref()
                 .and_then(plotium_figure::ColormapId::from_id),
             sequence_scale: self.sequence_scale,
+            labels: self.labels,
         }
     }
 }

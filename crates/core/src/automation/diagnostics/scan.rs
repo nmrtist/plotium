@@ -377,6 +377,10 @@ impl FigureDiagnosticScan {
                         &facts,
                     );
                 }
+                if self.checks(DiagnosticCheck::LayoutAesthetics) {
+                    let omitted = geometry::omitted_trace_labels(&figure, size, stack.as_ref());
+                    self.trace_label_hints(&target, omitted);
+                }
                 if figure.y2.is_some() && !geometry::shows_right_axis_title(&figure) {
                     let curves = figure
                         .series

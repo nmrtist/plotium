@@ -101,6 +101,7 @@ break hides.
 | Colormap | `object.chart.colormap` |
 | Transpose heatmap | `object.chart.transpose` |
 | Stack fill, gradient, side scale | `object.stack.occlude`, `object.stack.gradient`, `object.stack.sequence_scale` |
+| Stack trace labels | `object.stack.labels` |
 | Purpose, claim | `object.intent.purpose`, `object.intent.claim` |
 | Heatmap colour range, range centre | `series.heatmap.range_span`, `series.heatmap.range_center` |
 

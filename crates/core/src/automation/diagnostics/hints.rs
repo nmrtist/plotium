@@ -58,6 +58,9 @@ fn message(code: &str) -> &'static str {
         }
         "labels_overlap" => "Two text boxes overlap.",
         "text_over_data" => "Text is drawn over data marks.",
+        "trace_labels_omitted" => {
+            "Some names do not fit beside this Offset stack, and no legend stands in for them."
+        }
         "intent_mismatch" => "The chart form does not suit the purpose stated for this plot.",
         "panels_misaligned" => {
             "Plot areas of neighbouring panels are not aligned or evenly spaced."
@@ -447,6 +450,31 @@ impl FigureDiagnosticScan {
     fn overlaps(&self, a: Rect, b: Rect) -> Option<Rect> {
         geometry::intersection(a, b)
             .filter(|r| self.mm(r.width) > OVERLAP_MM && self.mm(r.height) > OVERLAP_MM)
+    }
+
+    /// Traces of an Offset stack left without a name.
+    pub(super) fn trace_label_hints(&mut self, target: &TargetRef, omitted: Vec<String>) {
+        if omitted.is_empty() {
+            return;
+        }
+        self.hint(
+            target,
+            "trace_labels",
+            "trace_labels_omitted",
+            json!({ "omitted_traces": omitted }),
+            vec![
+                suggest(
+                    "Raise the vertical stack spacing.",
+                    Some(("object.stack.spacing_y", target)),
+                    "Every name needs a line of text between its trace and the next.",
+                ),
+                suggest(
+                    "Set the stack labels to legend.",
+                    Some(("object.stack.labels", target)),
+                    "A legend names every trace.",
+                ),
+            ],
+        );
     }
 
     fn text_over_data(

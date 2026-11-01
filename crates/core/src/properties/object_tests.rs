@@ -157,6 +157,10 @@ fn every_stack_and_series_property_supports_reset() {
         (object::STACK_OCCLUDE, PropertyValue::Bool(true)),
         (object::STACK_GRADIENT, PropertyValue::Enum("plasma")),
         (object::STACK_SEQUENCE_SCALE, PropertyValue::Bool(true)),
+        (
+            object::STACK_LABELS,
+            PropertyValue::Enum(object::LABELS_LEGEND),
+        ),
     ] {
         set(&mut app, &target, property, changed);
         reset(&mut app, &target, property);

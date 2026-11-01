@@ -235,3 +235,56 @@ fn stack_options_apply_to_any_trace_list() {
     assert_eq!(figure.series[0].color, ColormapId::Viridis.sample(0.0));
     assert!(figure.sequence_scale.is_some());
 }
+
+fn offset() -> StackSpec {
+    StackSpec {
+        mode: StackMode::Offset,
+        spacing_y: 0.5,
+        ..StackSpec::default()
+    }
+}
+
+#[test]
+fn an_offset_stack_names_its_traces_beside_them() {
+    let mut app = table_app(&["0 min", "1 min", "4 min"]);
+    let figure = stacked(&mut app, offset());
+    let labels = figure.trace_labels.as_ref().unwrap();
+    assert_eq!(labels.side, plotium_figure::TraceLabelSide::Auto);
+    let names: Vec<_> = labels.traces.iter().map(|t| t.text.as_str()).collect();
+    assert_eq!(names, ["0 min", "1 min", "4 min"]);
+    assert!(
+        labels
+            .traces
+            .iter()
+            .zip(&figure.series)
+            .all(|(trace, series)| figure.series[trace.series].name == series.name)
+    );
+    assert!(!plotium_render::renders_legend(&figure));
+}
+
+#[test]
+fn a_legend_stack_and_a_side_scale_take_the_names_back() {
+    let mut app = table_app(&["0 min", "1 min", "4 min"]);
+    let legend = stacked(
+        &mut app,
+        StackSpec {
+            labels: super::super::StackLabels::Legend,
+            ..offset()
+        },
+    );
+    assert!(legend.trace_labels.is_none());
+    assert!(plotium_render::renders_legend(&legend));
+
+    let scale = stacked(
+        &mut app,
+        StackSpec {
+            sequence_scale: true,
+            ..offset()
+        },
+    );
+    assert!(scale.trace_labels.is_none());
+    assert!(!plotium_render::renders_legend(&scale));
+
+    let superimposed = stacked(&mut app, StackSpec::default());
+    assert!(superimposed.trace_labels.is_none());
+}

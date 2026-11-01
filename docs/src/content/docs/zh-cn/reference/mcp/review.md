@@ -181,6 +181,7 @@ target 调用 `plotium_preview_plan`：
 | `bar_baseline_not_zero` | 数值轴范围不包含柱的基线 |
 | `labels_overlap` | 画布上两个文字框在两个方向上都重叠超过 0.2 mm；证据给出两者和第二个的移动方向。同一图例的条目之间、同一坐标轴的刻度标签之间不互相比较 |
 | `text_over_data` | 标注或数值标签压在柱、箱线、小提琴、折线或标记上 |
+| `trace_labels_omitted` | 偏移叠图放不下部分谱的名称；证据列出这些名称 |
 | `intent_mismatch` | 图型不适合这张图的 `object.intent.purpose`（见下文） |
 | `panels_misaligned` | 同一列（左边缘相差 1 mm 以内）或同一行（下边缘相差 1 mm 以内）的两个框，绘图区左边缘或下边缘相差超过 0.5 mm；或同一行／列三个及以上框之间的间距相差超过 0.5 mm |
 

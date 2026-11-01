@@ -139,6 +139,11 @@ spacing** and **3D shear**. The same options apply to a stack of several
 datasets.
 
 - **Gradient** colours the traces along the sequence through a colormap.
+- **Labels**, under **Advanced**, sets how traces are named. By default each name
+  sits beside its trace in the trace colour, in place of the legend, at the
+  clearest spot. **Left end** and **Right end** fix the side, and **Legend** brings
+  the legend back, as does setting the legend's **Visibility** to **Show**. Names
+  shrink or skip traces when the stack is too tight.
 - **Fill under traces**, under **Advanced**, hides the parts of each trace that
   sit behind the one in front.
 - **Side scale**, under **Advanced**, labels the trace baselines on the right,

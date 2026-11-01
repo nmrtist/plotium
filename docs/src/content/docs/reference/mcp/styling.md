@@ -302,7 +302,7 @@ Guide inspection adds `guide_geometry` to applicable readings. It returns
 `coordinate_space:"object_local_pt"`, `scale:1`, `plot_rect`, nullable
 `legend_rect`/`color_scale_rect` (x/y/width/height), `entry_count`, nullable
 `available_travel_pt`, `effective_position`, `fits_plot` (two size-fit booleans),
-and `not_rendered_reason` (`hidden`, `no_entries`, `auto_single_entry`, or null).
+and `not_rendered_reason` (`hidden`, `no_entries`, `auto_single_entry`, `trace_labels`, or null).
 `measurement_basis:"renderer_layout_text_width_estimate"` names the same layout
 boxes used by rendering, not exact glyph bounds. Object/parent visibility and
 clipping are not evaluated here. Effective position is the

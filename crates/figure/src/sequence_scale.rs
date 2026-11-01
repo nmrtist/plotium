@@ -12,6 +12,32 @@ pub struct SequenceScale {
     pub ticks: Vec<(f64, String)>,
 }
 
+/// Which end of the plot the names of an Offset stack stand at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TraceLabelSide {
+    /// Wherever the names cross the least data, preferring the plot ends.
+    Auto,
+    Left,
+    Right,
+}
+
+/// One trace's name, drawn in the colour of its data curve.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraceLabel {
+    pub text: String,
+    /// Index of the trace's data curve in `Figure::series`.
+    pub series: usize,
+}
+
+/// Names written beside the traces of an Offset stack. They stand in for the
+/// legend while the guide is on Auto.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraceLabels {
+    pub side: TraceLabelSide,
+    pub traces: Vec<TraceLabel>,
+}
+
 impl Figure {
     /// Series with their indices in paint order. Among occluding traces the
     /// highest baseline is the rearmost and paints first; curves of one trace

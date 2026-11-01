@@ -1,8 +1,7 @@
 //! The presentation table: interface label, aliases and home route of every
 //! property the panel shows.
 
-use super::routes::*;
-use super::types::*;
+use super::{routes::*, types::*};
 use plotium_core::properties::*;
 
 pub const PRESENTATIONS: &[PropertyPresentation] = &[
@@ -75,6 +74,7 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
     object_entry(object::STACK_SPACING_Y, "Vertical spacing", STACK_HOME),
     object_entry(object::STACK_SHEAR_X, "3D shear", STACK_HOME),
     object_entry(object::STACK_NORMALIZE, "Normalize", STACK_HOME),
+    object_entry(object::STACK_LABELS, "Labels", STACK_HOME),
     object_entry(object::STACK_OCCLUDE, "Fill under traces", STACK_HOME),
     object_entry(object::STACK_GRADIENT, "Gradient", STACK_HOME),
     object_entry(object::STACK_SEQUENCE_SCALE, "Side scale", STACK_HOME),

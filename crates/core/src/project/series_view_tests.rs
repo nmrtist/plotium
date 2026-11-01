@@ -96,6 +96,7 @@ fn project_roundtrip_preserves_stack_spec_and_series_fields() {
             occlude: true,
             gradient: Some(plotium_figure::ColormapId::Plasma),
             sequence_scale: true,
+            labels: crate::state::StackLabels::Left,
         };
     }
     canvas.objects.push(object);
@@ -114,6 +115,7 @@ fn project_roundtrip_preserves_stack_spec_and_series_fields() {
     assert_eq!(plot.stack.spacing_y, 0.3);
     assert_eq!(plot.stack.shear_x, 0.1);
     assert!(plot.stack.occlude && plot.stack.sequence_scale);
+    assert_eq!(plot.stack.labels, crate::state::StackLabels::Left);
     assert_eq!(
         plot.stack.gradient,
         Some(plotium_figure::ColormapId::Plasma)

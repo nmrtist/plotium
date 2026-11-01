@@ -159,6 +159,35 @@ pub enum StackMode {
     ColorOverlay,
 }
 
+/// How the traces of an Offset stack are named.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StackLabels {
+    /// Beside each trace, at the clearest spot.
+    #[default]
+    Beside,
+    Left,
+    Right,
+    Legend,
+}
+
+impl StackLabels {
+    /// The plot end the names stand at; `None` leaves them to the legend.
+    pub fn side(self) -> Option<plotium_figure::TraceLabelSide> {
+        use plotium_figure::TraceLabelSide;
+        match self {
+            Self::Beside => Some(TraceLabelSide::Auto),
+            Self::Left => Some(TraceLabelSide::Left),
+            Self::Right => Some(TraceLabelSide::Right),
+            Self::Legend => None,
+        }
+    }
+
+    pub(crate) fn is_beside(&self) -> bool {
+        *self == Self::Beside
+    }
+}
+
 /// The stacking layout of a multi-series plot. Defaults reproduce the prior
 /// superimposed-overlay behaviour, so existing single/overlay plots are unchanged.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -178,6 +207,8 @@ pub struct StackSpec {
     pub gradient: Option<plotium_figure::ColormapId>,
     /// Draw a side scale of the sequence variable at the trace baselines.
     pub sequence_scale: bool,
+    /// How Offset traces are named.
+    pub labels: StackLabels,
 }
 
 impl Default for StackSpec {
@@ -191,6 +222,7 @@ impl Default for StackSpec {
             occlude: false,
             gradient: None,
             sequence_scale: false,
+            labels: StackLabels::Beside,
         }
     }
 }

@@ -647,3 +647,35 @@ fn rebinding_a_curve_forgets_its_stated_replicates() {
         .series[0];
     assert_eq!(series.replicates, None);
 }
+
+#[test]
+fn names_a_tight_stack_leaves_out_are_listed() {
+    let rows = [("a", 1.0), ("b", 2.0), ("c", 3.0), ("d", 2.5)];
+    let (mut app, summary) = plot(&rows, 2, &[CurveKind::Line; 12]);
+    let target = summary.plot.clone();
+    set(&mut app, &target, "object.stack.mode", json!("offset"));
+    assert!(!codes(&hints(&app)).contains(&"trace_labels_omitted"));
+
+    set(&mut app, &target, "object.stack.spacing_y", json!(0.01));
+    let rows = hints(&app);
+    let hint = rows
+        .iter()
+        .find(|r| r["code"] == "trace_labels_omitted")
+        .expect("a tight stack reports the names it leaves out");
+    assert!(
+        !hint["evidence"]["omitted_traces"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let properties: Vec<_> = hint["suggestions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["property"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        properties,
+        ["object.stack.spacing_y", "object.stack.labels"]
+    );
+}

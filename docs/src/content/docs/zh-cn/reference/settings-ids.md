@@ -95,6 +95,7 @@ description: 自动化窗口、工作流、命令行和 AI 客户端使用的稳
 | 色图 | `object.chart.colormap` |
 | 转置热图 | `object.chart.transpose` |
 | 堆叠填充、渐变、侧边刻度 | `object.stack.occlude`、`object.stack.gradient`、`object.stack.sequence_scale` |
+| 堆叠谱线标签 | `object.stack.labels` |
 | 用途、结论 | `object.intent.purpose`、`object.intent.claim` |
 | 热图颜色范围、范围中心 | `series.heatmap.range_span`、`series.heatmap.range_center` |
 

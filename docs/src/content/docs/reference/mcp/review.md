@@ -225,6 +225,7 @@ Series reports Series hints for those Series only.
 | `bar_baseline_not_zero` | The value-axis range leaves out the bars' baseline |
 | `labels_overlap` | Two text boxes on the canvas overlap by more than 0.2 mm in both directions; evidence names both and a direction to move the second. Entries of one legend and tick labels of one axis are not compared with each other |
 | `text_over_data` | An annotation or value label overlaps a bar, box, violin, line or marker |
+| `trace_labels_omitted` | An Offset stack has no room for some trace names; evidence lists them |
 | `intent_mismatch` | The chart form does not suit the plot's `object.intent.purpose` (see below) |
 | `panels_misaligned` | Two frames in one column (left edges within 1 mm) or row (bottom edges within 1 mm) have plot areas whose left or bottom edges differ by more than 0.5 mm, or the gaps between three or more frames in a row or column differ by more than 0.5 mm |
 
