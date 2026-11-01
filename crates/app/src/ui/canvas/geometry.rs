@@ -1,7 +1,7 @@
 use super::*;
 #[path = "geometry_aspect.rs"]
 mod aspect;
-pub(crate) use aspect::{enforce_min_size, plot_min_size, preserve_aspect_frame};
+pub(crate) use aspect::{drag_frame, enforce_min_size, plot_min_size, preserve_aspect_frame};
 #[path = "geometry_panels.rs"]
 mod panels;
 pub(crate) use panels::{
@@ -50,49 +50,6 @@ pub(crate) fn panel_at_screen(
         let page = transform.screen_to_page(&app.doc.canvases[canvas], point);
         hit_panel(&app.doc.canvases[canvas], page, app.session.board.zoom).map(|hit| (canvas, hit))
     })
-}
-
-pub(crate) fn drag_frame(
-    frame: ObjectFrame,
-    kind: ObjectDragKind,
-    dx: f32,
-    dy: f32,
-) -> ObjectFrame {
-    match kind {
-        ObjectDragKind::Move => {
-            ObjectFrame::new(frame.x + dx, frame.y + dy, frame.width, frame.height)
-        }
-        ObjectDragKind::Resize(ResizeHandle::TopLeft) => resize_from_edges(
-            frame.x + dx,
-            frame.y + dy,
-            frame.x + frame.width,
-            frame.y + frame.height,
-        ),
-        ObjectDragKind::Resize(ResizeHandle::TopRight) => resize_from_edges(
-            frame.x,
-            frame.y + dy,
-            frame.x + frame.width + dx,
-            frame.y + frame.height,
-        ),
-        ObjectDragKind::Resize(ResizeHandle::BottomLeft) => resize_from_edges(
-            frame.x + dx,
-            frame.y,
-            frame.x + frame.width,
-            frame.y + frame.height + dy,
-        ),
-        ObjectDragKind::Resize(ResizeHandle::BottomRight) => resize_from_edges(
-            frame.x,
-            frame.y,
-            frame.x + frame.width + dx,
-            frame.y + frame.height + dy,
-        ),
-    }
-}
-
-pub(crate) fn resize_from_edges(left: f32, top: f32, right: f32, bottom: f32) -> ObjectFrame {
-    let width = (right - left).max(MIN_OBJECT_SIZE_PT);
-    let height = (bottom - top).max(MIN_OBJECT_SIZE_PT);
-    ObjectFrame::new(left, top, width, height)
 }
 
 pub(crate) fn data_edit_target(app: &PlotiumApp, ci: usize) -> Option<ObjectId> {

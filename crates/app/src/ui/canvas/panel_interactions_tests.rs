@@ -69,11 +69,12 @@ fn clipped_group_preserves_spacing_when_it_fits_and_keeps_oversized_members_reac
         let (mut app, panel, ids) = panel_page();
         let page = &mut app.doc.canvases[0];
         page.panel_mut(panel).unwrap().clip_children = true;
+        let before = page.object(ids[0]).unwrap().frame;
         page.object_mut(ids[0]).unwrap().frame = ObjectFrame::new(400.0, -100.0, 30.0, 30.0);
         page.object_mut(ids[1]).unwrap().frame =
             ObjectFrame::new(if oversized { 600.0 } else { 440.0 }, -100.0, 30.0, 30.0);
         let mut state = PanelState::of(page);
-        contain_clipped_contents(&mut state, &ids, ObjectDragKind::Move);
+        contain_clipped_contents(&mut state, &ids, ObjectDragKind::Move, before);
         assert_eq!(
             state.objects[0].frame,
             ObjectFrame::new(if oversized { 0.0 } else { 30.0 }, 0.0, 30.0, 30.0)
@@ -96,11 +97,68 @@ fn clipped_resize_trims_at_the_panel_edge() {
         &mut state,
         &[ids[0]],
         ObjectDragKind::Resize(ResizeHandle::TopLeft),
+        ObjectFrame::new(0.0, 0.0, 60.0, 50.0),
     );
     assert_eq!(
         state.objects[0].frame,
         ObjectFrame::new(0.0, 0.0, 60.0, 50.0)
     );
+}
+
+#[test]
+fn clipped_resize_holds_each_edge_to_the_minimum_only_if_it_started_there() {
+    let cases = [
+        // A thin object trims, and keeps its short edge.
+        (
+            ObjectFrame::new(40.0, 10.0, 45.0, 9.0),
+            ObjectFrame::new(40.0, 10.0, 90.0, 18.0),
+            ObjectFrame::new(40.0, 10.0, 60.0, 18.0),
+        ),
+        // A thin object's remainder below the minimum moves back instead.
+        (
+            ObjectFrame::new(95.0, 10.0, 20.0, 4.0),
+            ObjectFrame::new(95.0, 10.0, 40.0, 8.0),
+            ObjectFrame::new(60.0, 10.0, 40.0, 8.0),
+        ),
+        // A normal object never collapses to a sliver at the edge.
+        (
+            ObjectFrame::new(0.0, 58.5, 80.0, 40.0),
+            ObjectFrame::new(-1.0, 58.0, 81.0, 40.5),
+            ObjectFrame::new(0.0, 19.5, 81.0, 40.5),
+        ),
+    ];
+    for (before, resized, expected) in cases {
+        let (mut app, panel, ids) = panel_page();
+        let page = &mut app.doc.canvases[0];
+        page.panel_mut(panel).unwrap().clip_children = true;
+        page.object_mut(ids[0]).unwrap().frame = resized;
+        let mut state = PanelState::of(page);
+        contain_clipped_contents(
+            &mut state,
+            &[ids[0]],
+            ObjectDragKind::Resize(ResizeHandle::BottomRight),
+            before,
+        );
+        assert_eq!(state.objects[0].frame, expected);
+    }
+}
+
+#[test]
+fn clipped_resize_trims_a_flush_edge_despite_rounding() {
+    let (mut app, panel, ids) = panel_page();
+    let page = &mut app.doc.canvases[0];
+    let target = page.panel_mut(panel).unwrap();
+    target.clip_children = true;
+    target.frame.width = 200.0;
+    let before = ObjectFrame::new(100.0, 0.0, 75.0, 15.3);
+    let kind = ObjectDragKind::Resize(ResizeHandle::TopLeft);
+    let resized = preserve_aspect_frame(before, drag_frame(before, kind, -90.0, 0.0, true), kind);
+    page.object_mut(ids[0]).unwrap().frame = resized;
+    let mut state = PanelState::of(page);
+    contain_clipped_contents(&mut state, &[ids[0]], kind, before);
+    let frame = state.objects[0].frame;
+    assert_eq!(frame.y, 0.0);
+    assert!((frame.height - 15.3).abs() < 1e-3, "{frame:?}");
 }
 
 #[test]

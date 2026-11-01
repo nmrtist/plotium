@@ -1,4 +1,44 @@
 use super::*;
+use plotium_core::state::MIN_CONTENT_FRAME_PT;
+
+/// The frame a drag asks for. A resize holds the edges opposite the handle. An
+/// edge already below the object minimum is not forced up to it. An
+/// aspect-locked drag leaves the minimum to `aspect_locked_size`, which needs
+/// the request free of it to scale from either edge.
+pub(crate) fn drag_frame(
+    frame: ObjectFrame,
+    kind: ObjectDragKind,
+    dx: f32,
+    dy: f32,
+    keep_aspect: bool,
+) -> ObjectFrame {
+    let ObjectDragKind::Resize(handle) = kind else {
+        return ObjectFrame::new(frame.x + dx, frame.y + dy, frame.width, frame.height);
+    };
+    let min = if keep_aspect {
+        [MIN_CONTENT_FRAME_PT; 2]
+    } else {
+        [
+            MIN_OBJECT_SIZE_PT.min(frame.width),
+            MIN_OBJECT_SIZE_PT.min(frame.height),
+        ]
+    };
+    let moves_left = matches!(handle, ResizeHandle::TopLeft | ResizeHandle::BottomLeft);
+    let moves_top = matches!(handle, ResizeHandle::TopLeft | ResizeHandle::TopRight);
+    let width = (frame.width + if moves_left { -dx } else { dx }).max(min[0]);
+    let height = (frame.height + if moves_top { -dy } else { dy }).max(min[1]);
+    let x = if moves_left {
+        frame.x + frame.width - width
+    } else {
+        frame.x
+    };
+    let y = if moves_top {
+        frame.y + frame.height - height
+    } else {
+        frame.y
+    };
+    ObjectFrame::new(x, y, width, height)
+}
 
 pub(crate) fn preserve_aspect_frame(
     before: ObjectFrame,
@@ -37,9 +77,8 @@ pub(crate) fn plot_min_size(figure: &plotium_figure::Figure, frame: ObjectFrame)
 }
 
 /// Grow a resized `candidate` to at least `min`, keeping the edges opposite the
-/// handle where they were in `before`; the candidate's own anchored edges drift
-/// once the drag clamps to the minimum object size. `keep_aspect` grows both
-/// axes by one factor so an aspect-preserving resize stays proportional.
+/// handle where they were in `before`. `keep_aspect` grows both axes by one
+/// factor so an aspect-preserving resize stays proportional.
 pub(crate) fn enforce_min_size(
     before: ObjectFrame,
     candidate: ObjectFrame,
@@ -84,7 +123,7 @@ mod tests {
     #[test]
     fn min_size_keeps_the_anchored_edges() {
         let before = ObjectFrame::new(0.0, 0.0, 100.0, 15.0);
-        // A drag past the opposite edge, already clamped to the object minimum.
+        // A snapped candidate below `min`, with edges away from `before`.
         let candidate = ObjectFrame::new(200.0, 10.0, 24.0, 24.0);
         let frame = enforce_min_size(
             before,
