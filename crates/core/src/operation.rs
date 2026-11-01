@@ -64,6 +64,7 @@ pub enum DiagnosticCode {
     XasMergeSucceeded,
     XasMergeUnaligned,
     XasMergeFailed,
+    XrdStackAxesDiffer,
 }
 
 impl DiagnosticCode {
@@ -104,6 +105,7 @@ impl DiagnosticCode {
             Self::XasMergeSucceeded => "xas.merge.succeeded",
             Self::XasMergeUnaligned => "xas.merge.unaligned",
             Self::XasMergeFailed => "xas.merge.failed",
+            Self::XrdStackAxesDiffer => "xrd.stack.axes_differ",
         }
     }
 }
@@ -197,6 +199,7 @@ pub enum OperationKind {
     ProcessingSchemeLoadAndApply,
     ProcessingSchemeSave,
     XasMerge,
+    XrdAxisChange,
 }
 
 impl OperationKind {
@@ -214,6 +217,7 @@ impl OperationKind {
             Self::ProcessingSchemeLoadAndApply => "processing.scheme.load_and_apply",
             Self::ProcessingSchemeSave => "processing.scheme.save",
             Self::XasMerge => "xas.merge",
+            Self::XrdAxisChange => "xrd.axis.change",
         }
     }
 }

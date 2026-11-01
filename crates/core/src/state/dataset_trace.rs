@@ -137,7 +137,7 @@ impl Dataset {
             Self::Electrophysiology(_) => "s".into(),
             Self::Afm(_) => String::new(),
             Self::MassSpec(_) => "min".into(),
-            Self::Xrd(_) => "deg".into(),
+            Self::Xrd(data) => data.params.axis.unit().into(),
             Self::Xps(_) | Self::Xas(_) => "eV".into(),
         }
     }
@@ -214,11 +214,14 @@ impl Dataset {
                 ys: ys.to_vec(),
                 x_reversed: false,
             }),
-            Self::Xrd(data) => Some(Trace1d {
-                xs: data.data.two_theta_deg.clone(),
-                ys: data.processed.intensity.clone(),
-                x_reversed: false,
-            }),
+            Self::Xrd(data) => {
+                let (xs, ys) = data.displayed();
+                Some(Trace1d {
+                    xs,
+                    ys,
+                    x_reversed: false,
+                })
+            }
             Self::Xps(data) => {
                 let processed = data.displayed_region(data.active_region)?;
                 Some(Trace1d {

@@ -282,10 +282,15 @@ pub fn apply_scheme(
                 processing: Box::new(xas.adopt_scheme(settings)),
             })
         }
-        Dataset::Xrd(_) => {
-            let processing = scheme
+        Dataset::Xrd(xrd) => {
+            let mut processing = scheme
                 .xrd
                 .ok_or_else(|| incompatible("this scheme has no XRD settings"))?;
+            // The wavelength belongs to each measurement.
+            processing.wavelength_angstrom = xrd.params.wavelength_angstrom;
+            if processing.axis.needs_wavelength() && xrd.wavelength(&processing).is_none() {
+                processing.axis = plotium_processing::xrd::XrdAxis::TwoTheta;
+            }
             plotium_processing::xrd::validate(processing)
                 .map_err(|error| incompatible(&error.to_string()))?;
             Ok(DatasetProcessingState::Xrd(processing))
@@ -450,7 +455,10 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
             pipelines: Vec::new(),
             layout: None,
             group_delay_correct: scheme_gd_default(),
-            xrd: Some(xrd.params),
+            xrd: Some(XrdProcessing {
+                wavelength_angstrom: None,
+                ..xrd.params
+            }),
             xps: None,
             xas: None,
         }),

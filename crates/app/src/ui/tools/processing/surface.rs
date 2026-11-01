@@ -9,8 +9,8 @@ use egui::{Key, RichText};
 use plotium_core::state::TaskDockTab;
 use plotium_io::Domain;
 use plotium_processing::xrd::{
-    MAX_SAVGOL_ORDER, MAX_SAVGOL_WINDOW, MAX_SNIP_ITERATIONS, SavitzkyGolay, SnipBackground,
-    XrdNormalization,
+    MAX_SAVGOL_ORDER, MAX_SAVGOL_WINDOW, MAX_SNIP_ITERATIONS, MAX_WAVELENGTH_ANGSTROM,
+    MIN_WAVELENGTH_ANGSTROM, SavitzkyGolay, SnipBackground, XrdAxis, XrdNormalization,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -210,6 +210,7 @@ fn render_xrd(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
     };
     let before = DatasetProcessingState::from_dataset(&app.doc.datasets[di]);
     let mut params = dataset.params;
+    let dataset_wavelength = dataset.data.wavelength_angstrom;
     let name = app.doc.datasets[di].display_name();
     let TaskCardGeometry {
         pos,
@@ -219,7 +220,7 @@ fn render_xrd(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
         app,
         host,
         TaskDockTab::Processing,
-        300.0,
+        380.0,
         app.session.ui.processing_task_collapsed,
     );
     let collapsed = app.session.ui.processing_task_collapsed;
@@ -342,6 +343,51 @@ fn render_xrd(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
                                 )
                                 .changed();
                         });
+                    ui.separator();
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label("Wavelength (Å)");
+                        let declared = dataset_wavelength;
+                        let mut wavelength = params
+                            .wavelength_angstrom
+                            .or(declared)
+                            .unwrap_or(MIN_WAVELENGTH_ANGSTROM);
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut wavelength)
+                                    .speed(0.001)
+                                    .max_decimals(5)
+                                    .range(MIN_WAVELENGTH_ANGSTROM..=MAX_WAVELENGTH_ANGSTROM),
+                            )
+                            .changed()
+                        {
+                            params.wavelength_angstrom = Some(wavelength);
+                            changed = true;
+                        }
+                    });
+                    let has_wavelength =
+                        params.wavelength_angstrom.or(dataset_wavelength).is_some();
+                    egui::ComboBox::from_label("Axis")
+                        .selected_text(params.axis.menu_label())
+                        .show_ui(ui, |ui| {
+                            for axis in XrdAxis::ALL {
+                                let enabled = has_wavelength || !axis.needs_wavelength();
+                                let response = ui
+                                    .add_enabled(
+                                        enabled,
+                                        egui::Button::selectable(
+                                            params.axis == axis,
+                                            axis.menu_label(),
+                                        ),
+                                    )
+                                    .on_disabled_hover_text(
+                                        "Enter the wavelength above to use this axis.",
+                                    );
+                                if response.clicked() && params.axis != axis {
+                                    params.axis = axis;
+                                    changed = true;
+                                }
+                            }
+                        });
                     action_bar(app, ui);
                 });
             }
@@ -361,8 +407,16 @@ fn render_xrd(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
         params = XrdProcessing::default();
         changed = true;
     }
+    // A drag edits on every frame; the session makes it a single Undo step.
+    let dragging = host.ctx().dragged_id().is_some();
     if changed {
+        if dragging {
+            app.begin_processing_session(di);
+        }
         app.commit_processing_edit(di, before, DatasetProcessingState::Xrd(params));
+    }
+    if !dragging {
+        app.finish_processing_session();
     }
     if toggle {
         app.session.ui.processing_task_collapsed = !collapsed;

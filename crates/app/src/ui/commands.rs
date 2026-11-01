@@ -460,7 +460,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         ),
         CommandId::StackData => requires(
             app.stackable_selection().is_some(),
-            "Select at least two compatible datasets. Trace collections such as electrophysiology require compatible axes and units.",
+            "Select at least two compatible datasets. Traces and XRD patterns must share their axes and units.",
         ),
         CommandId::DeleteDataset => requires(
             !app.session.ui.data_selection.is_empty(),
