@@ -4,7 +4,11 @@ use super::*;
 pub const MIN_CONTENT_FRAME_PT: f32 = 1.0;
 
 /// Share the native dominant-relative-change aspect rule without importing a
-/// mouse handle or its minimum drag size into numeric geometry.
+/// mouse handle or its minimum drag size into numeric geometry. `minimum`
+/// bounds the long edge only, since a thin image's short edge may start far
+/// below it, and an object already under `minimum` is not forced up to it.
+/// `MIN_CONTENT_FRAME_PT` is the hard floor for the short edge, so an edge
+/// thinner than that rises to it.
 pub fn aspect_locked_size(before: ObjectFrame, candidate: ObjectFrame, minimum: f32) -> [f32; 2] {
     let width_scale = candidate.width / before.width;
     let height_scale = candidate.height / before.height;
@@ -12,9 +16,11 @@ pub fn aspect_locked_size(before: ObjectFrame, candidate: ObjectFrame, minimum: 
         width_scale
     } else {
         height_scale
-    }
-    .max(minimum / before.width)
-    .max(minimum / before.height);
+    };
+    let floor = (minimum / before.width.max(before.height))
+        .min(1.0)
+        .max(MIN_CONTENT_FRAME_PT / before.width.min(before.height));
+    let scale = scale.max(floor);
     [before.width * scale, before.height * scale]
 }
 
@@ -100,4 +106,62 @@ fn validate_numeric_frame(frame: ObjectFrame) -> Result<(), String> {
         return Err("Content frame edges must be finite in local and page coordinates.".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DRAG_MINIMUM: f32 = 24.0;
+
+    fn resized(before: [f32; 2], candidate: [f32; 2]) -> [f32; 2] {
+        aspect_locked_size(
+            ObjectFrame::new(0.0, 0.0, before[0], before[1]),
+            ObjectFrame::new(0.0, 0.0, candidate[0], candidate[1]),
+            DRAG_MINIMUM,
+        )
+    }
+
+    #[test]
+    fn a_short_edge_below_the_minimum_does_not_force_growth() {
+        assert_eq!(resized([75.0, 15.0], [90.0, 18.0]), [90.0, 18.0]);
+        assert_eq!(resized([75.0, 15.0], [60.0, 12.0]), [60.0, 12.0]);
+    }
+
+    #[test]
+    fn the_long_edge_stops_at_the_minimum() {
+        let [width, height] = resized([75.0, 15.0], [6.0, 1.2]);
+        assert_eq!(width, 24.0);
+        assert!((height - 4.8).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_long_edge_already_below_the_minimum_stays_put() {
+        assert_eq!(resized([20.0, 10.0], [10.0, 5.0]), [20.0, 10.0]);
+    }
+
+    #[test]
+    fn a_thin_object_stops_at_the_one_point_edge() {
+        assert_eq!(resized([600.0, 2.0], [601.0, 2.0])[1], 2.0 * 601.0 / 600.0);
+        assert_eq!(resized([600.0, 2.0], [100.0, 0.5]), [300.0, 1.0]);
+    }
+
+    #[test]
+    fn an_edge_under_one_point_rises_to_it() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 40.0);
+        let thin = ObjectFrame {
+            height: 0.75,
+            ..before
+        };
+        let requested = ObjectFrame::new(0.0, 0.0, 10.0, 1.0);
+        let [width, height] = aspect_locked_size(thin, requested, MIN_CONTENT_FRAME_PT);
+        assert!((width - 400.0 / 3.0).abs() < 1e-3);
+        assert!((height - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn large_objects_stop_when_the_long_edge_reaches_the_minimum() {
+        assert_eq!(resized([100.0, 100.0], [10.0, 10.0]), [24.0, 24.0]);
+        assert_eq!(resized([200.0, 100.0], [100.0, 50.0]), [100.0, 50.0]);
+    }
 }

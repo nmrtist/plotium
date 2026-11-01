@@ -34,7 +34,7 @@ pub(crate) fn handle_panel_drag(
             current.active = active;
         }
         if active {
-            let candidate = drag_frame(drag.before, drag.kind, dpx, dpy);
+            let candidate = drag_frame(drag.before, drag.kind, dpx, dpy, false);
             let bypass = ctx.input(|input| input.modifiers.alt);
             let (snapped, mut guides) = snap_panel_frame(app, ci, &drag, candidate, bypass);
             let frame = enforce_min_size(
@@ -271,7 +271,12 @@ fn finish_panel_drag(app: &mut PlotiumApp, ci: usize, drag: PanelDrag) {
     app.rebuild_canvas(ci);
 }
 
-fn contain_clipped_contents(state: &mut PanelState, contents: &[ObjectId], kind: ObjectDragKind) {
+fn contain_clipped_contents(
+    state: &mut PanelState,
+    contents: &[ObjectId],
+    kind: ObjectDragKind,
+    before: ObjectFrame,
+) {
     for panel in state.panels.iter().filter(|panel| panel.clip_children) {
         let ids: Vec<_> = contents
             .iter()
@@ -287,7 +292,12 @@ fn contain_clipped_contents(state: &mut PanelState, contents: &[ObjectId], kind:
             let y = frame.y.max(0.0);
             let width = (frame.x + frame.width).min(panel.frame.width) - x;
             let height = (frame.y + frame.height).min(panel.frame.height) - y;
-            if width >= MIN_OBJECT_SIZE_PT && height >= MIN_OBJECT_SIZE_PT {
+            // An edge that started below the minimum is not held to it. A held
+            // edge flush with the panel lands on that limit, give or take rounding.
+            const ROUNDING_PT: f32 = 1e-3;
+            if width + ROUNDING_PT >= MIN_OBJECT_SIZE_PT.min(before.width)
+                && height + ROUNDING_PT >= MIN_OBJECT_SIZE_PT.min(before.height)
+            {
                 object.frame = ObjectFrame::new(x, y, width, height);
                 continue;
             }
@@ -376,7 +386,7 @@ pub(crate) fn finish_content_drag(
             PanelState::of(&app.doc.canvases[ci])
         }
     };
-    contain_clipped_contents(&mut after, &contents, drag.kind);
+    contain_clipped_contents(&mut after, &contents, drag.kind, drag.before);
     app.execute_action(Action::ReplacePanelState {
         canvas: ci,
         before,

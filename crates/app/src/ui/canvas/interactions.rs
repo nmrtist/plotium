@@ -583,13 +583,6 @@ pub(crate) fn handle_object_interactions(
                 {
                     app.session.ui.snap_guides.clear();
                 } else {
-                    let candidate = drag_frame(drag.before, drag.kind, dpx, dpy);
-                    let (mut snapped, mut guides) =
-                        if let ObjectDragSpace::Panel(panel) = drag.space {
-                            snap_panel_content_frame(app, ci, panel, &drag, candidate, ui)
-                        } else {
-                            snap_object_frame(app, ci, &drag, candidate, ui)
-                        };
                     let preserve_aspect = app.doc.canvases[ci].parent_panel(drag.object).is_some()
                         || app.doc.canvases[ci]
                             .object(drag.object)
@@ -598,6 +591,13 @@ pub(crate) fn handle_object_interactions(
                                 _ => None,
                             })
                             .unwrap_or(false);
+                    let candidate = drag_frame(drag.before, drag.kind, dpx, dpy, preserve_aspect);
+                    let (mut snapped, mut guides) =
+                        if let ObjectDragSpace::Panel(panel) = drag.space {
+                            snap_panel_content_frame(app, ci, panel, &drag, candidate, ui)
+                        } else {
+                            snap_object_frame(app, ci, &drag, candidate, ui)
+                        };
                     if preserve_aspect {
                         snapped = preserve_aspect_frame(drag.before, snapped, drag.kind);
                     }
