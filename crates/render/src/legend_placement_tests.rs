@@ -190,3 +190,118 @@ fn oversize_legend_falls_back_to_the_upper_right_position() {
     assert_eq!(r.left, PLOT.left + 2.0);
     assert_eq!(r.top, PLOT.top + 8.0);
 }
+
+/// Ten long-named flat curves filling the lower 60% of the plot. A single
+/// column is too tall for the free band above them.
+fn ten_curves() -> Figure {
+    figure(
+        (0..10)
+            .map(|i| {
+                let y = f64::from(i) * 0.6;
+                Series::line(
+                    format!("HL01_op2_back.{:03}.xy", i * 4 + 2),
+                    vec![[0.0, y], [10.0, y]],
+                )
+            })
+            .collect(),
+    )
+}
+
+fn columns(f: &Figure) -> usize {
+    crate::placed_legend(f, PLOT, 1.0, None).unwrap().0.columns
+}
+
+#[test]
+fn a_tall_legend_adds_columns_until_it_clears_the_data() {
+    let f = ten_curves();
+    assert_eq!(columns(&f), 2);
+    let r = legend_rect(&f, PLOT, 1.0).unwrap();
+    assert_eq!(r.top, PLOT.top + 8.0);
+    assert_eq!(coverage(&f, PLOT, &[r]), [0]);
+}
+
+#[test]
+fn a_legend_that_already_fits_keeps_one_column() {
+    let f = figure(vec![
+        Series::points("A", vec![[5.0, 5.0]]),
+        Series::points("B", vec![[5.0, 5.0]]),
+    ]);
+    assert_eq!(columns(&f), 1);
+}
+
+#[test]
+fn extra_columns_must_fit_inside_the_plot() {
+    let f = ten_curves();
+    let narrow = Rect::new(40.0, 10.0, 150.0, 200.0);
+    let (layout, _) = crate::placed_legend(&f, narrow, 1.0, None).unwrap();
+    assert_eq!(layout.columns, 1);
+}
+
+#[test]
+fn authored_settings_fix_the_column_count() {
+    let mut f = ten_curves();
+    f.guide_columns = Some(3);
+    assert_eq!(columns(&f), 3);
+    f.guide_columns = Some(40);
+    assert_eq!(columns(&f), 10);
+    f.guide_columns = None;
+    f.guide_layout = plotium_figure::GuideLayout::Vertical;
+    assert_eq!(columns(&f), 1);
+    f.guide_layout = plotium_figure::GuideLayout::Horizontal;
+    assert_eq!(columns(&f), 10);
+    f.guide_columns = Some(5);
+    assert_eq!(columns(&f), 5);
+}
+
+#[test]
+fn only_automatic_placement_searches_columns() {
+    let mut f = ten_curves();
+    f.guide_placement = GuidePlacement::OutsideRight;
+    assert_eq!(columns(&f), 1);
+    f.guide_placement = GuidePlacement::Inside;
+    assert_eq!(columns(&f), 1);
+}
+
+#[test]
+fn a_pinned_legend_keeps_its_size_when_placed_by_hand() {
+    let mut f = ten_curves();
+    let before = legend_rect(&f, PLOT, 1.0).unwrap();
+    let pinned = crate::legend_columns_to_pin(&f, PLOT, 1.0);
+    assert_eq!(pinned, Some(2));
+    f.guide_columns = pinned;
+    f.guide_placement = GuidePlacement::Inside;
+    f.legend_position = Some([0.2, 0.3]);
+    let after = legend_rect(&f, PLOT, 1.0).unwrap();
+    assert_eq!((after.width, after.height), (before.width, before.height));
+    assert_eq!(crate::legend_columns_to_pin(&f, PLOT, 1.0), None);
+}
+
+#[test]
+fn a_hand_placed_legend_never_searches_columns() {
+    let mut f = ten_curves();
+    f.legend_position = Some([0.2, 0.3]);
+    assert_eq!(columns(&f), 1);
+    f.guide_placement = GuidePlacement::Inside;
+    assert_eq!(columns(&f), 1);
+}
+
+#[test]
+fn a_single_column_needs_no_pin() {
+    let f = figure(vec![
+        Series::points("A", vec![[5.0, 5.0]]),
+        Series::points("B", vec![[5.0, 5.0]]),
+    ]);
+    assert_eq!(crate::legend_columns_to_pin(&f, PLOT, 1.0), None);
+}
+
+#[test]
+fn legend_sizes_follow_the_text_size() {
+    let mut f = ten_curves();
+    let (normal, _) = crate::placed_legend(&f, PLOT, 1.0, None).unwrap();
+    f.typography.legend_pt *= 0.5;
+    let (small, _) = crate::placed_legend(&f, PLOT, 1.0, None).unwrap();
+    assert_eq!(small.row, normal.row * 0.5);
+    assert_eq!(small.swatch, normal.swatch * 0.5);
+    assert_eq!(small.padding, normal.padding * 0.5);
+    assert!(normal.row < f.typography.legend_pt * 2.0 * 1.3);
+}

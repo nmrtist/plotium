@@ -30,9 +30,7 @@ fn crowded() -> Figure {
 }
 
 fn legend_is_clear(f: &Figure) -> bool {
-    let layout = axis_layout(f, SIZE[0], SIZE[1]);
-    let outer = Rect::new(0.0, 0.0, SIZE[0], SIZE[1]);
-    let plot = Projector::new(f, outer, &layout.margins).plot;
+    let plot = plot_rect(f, SIZE);
     let r = legend_rect(f, plot, 1.0).unwrap();
     coverage(f, plot, &[grow(r, LEGEND_INSET * 0.25)]) == [0]
 }
@@ -114,4 +112,65 @@ fn fixed_axes_manual_legends_and_explicit_placement_are_left_alone() {
     f.y.categories = Some(vec!["a".into(); 11]);
     assert!(make_legend_room(&mut f, SIZE, true, true, false));
     assert_eq!(window(&f.y), [0.0, 10.0]);
+}
+
+#[test]
+fn columns_are_tried_before_axes_grow() {
+    // Flat curves up to y = 6 leave a free band too short for one column.
+    let mut f = figure(
+        (0..10)
+            .map(|i| {
+                let y = f64::from(i) * 0.6;
+                Series::line(format!("Sample {i:02}"), vec![[0.0, y], [10.0, y]])
+            })
+            .collect(),
+    );
+    assert!(!make_legend_room(&mut f, SIZE, true, true, false));
+    assert!(legend_is_clear(&f));
+    assert_eq!(window(&f.y), [0.0, 10.0]);
+}
+
+#[test]
+fn axes_grow_for_the_column_count_that_can_clear() {
+    // Twenty named curves fill the plot. Half a span of extra y range cannot
+    // hold one tall column, only a short multi-column block.
+    let mut f = figure(
+        (0..=19)
+            .map(|i| {
+                let y = f64::from(i) * 10.0 / 19.0;
+                Series::line(format!("Sample {i:02}"), vec![[0.0, y], [10.0, y]])
+            })
+            .collect(),
+    );
+    assert!(make_legend_room(&mut f, SIZE, false, true, false));
+    assert!(legend_is_clear(&f));
+    let plot = plot_rect(&f, SIZE);
+    assert!(crate::placed_legend(&f, plot, 1.0, None).unwrap().0.columns > 1);
+}
+
+#[test]
+fn the_column_count_needing_the_least_growth_wins() {
+    // Four named curves among dense lines: one column would need about 40%
+    // more y range, while a single row of four needs far less.
+    let mut f = figure(
+        (0..=20)
+            .map(|i| {
+                let y = f64::from(i) * 0.5;
+                let name = if i < 4 {
+                    format!("S{i}")
+                } else {
+                    String::new()
+                };
+                Series::line(name, vec![[0.0, y], [10.0, y]])
+            })
+            .collect(),
+    );
+    assert!(make_legend_room(&mut f, SIZE, false, true, false));
+    assert!(window(&f.y)[1] < 11.5);
+    assert!(legend_is_clear(&f));
+    let plot = plot_rect(&f, SIZE);
+    assert_eq!(
+        crate::placed_legend(&f, plot, 1.0, None).unwrap().0.columns,
+        4
+    );
 }

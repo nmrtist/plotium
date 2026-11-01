@@ -60,6 +60,8 @@ pub struct AxisOverridesDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     guide_layout: Option<GuideLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    guide_columns: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     guide_title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     legend_position: Option<[f32; 2]>,
@@ -292,6 +294,7 @@ impl AxisOverridesDto {
             guide_visibility: overrides.guide_visibility,
             guide_placement: overrides.guide_placement,
             guide_layout: overrides.guide_layout,
+            guide_columns: overrides.guide_columns,
             guide_title: overrides.guide_title.clone(),
             legend_position: overrides.legend_position,
             annotations: PlotAnnotationsDto::from_annotations(&overrides.annotations),
@@ -331,6 +334,7 @@ impl AxisOverridesDto {
             guide_visibility: self.guide_visibility,
             guide_placement: self.guide_placement,
             guide_layout: self.guide_layout,
+            guide_columns: self.guide_columns,
             guide_title: self.guide_title.clone(),
             legend_position: self.legend_position,
             annotations: self

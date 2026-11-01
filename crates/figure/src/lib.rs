@@ -605,10 +605,15 @@ pub struct Figure {
     /// categorical legends inside, continuous colour scales outside right.
     #[serde(default)]
     pub guide_placement: GuidePlacement,
-    /// Direction used by categorical legend entries. Auto chooses a compact
-    /// vertical list; continuous colour scales follow their placement.
+    /// Direction used by categorical legend entries. Auto starts from a
+    /// compact vertical list and adds columns when automatic placement needs
+    /// them; continuous colour scales follow their placement.
     #[serde(default)]
     pub guide_layout: GuideLayout,
+    /// Authored number of legend entry columns. Takes priority over
+    /// `guide_layout`.
+    #[serde(default)]
+    pub guide_columns: Option<u32>,
     /// Optional explanatory title above a categorical legend.
     #[serde(default)]
     pub guide_title: String,
@@ -659,6 +664,7 @@ impl Figure {
             guide_visibility: GuideVisibility::Auto,
             guide_placement: GuidePlacement::Auto,
             guide_layout: GuideLayout::Auto,
+            guide_columns: None,
             guide_title: String::new(),
             legend_position: None,
             series_colors_are_semantic: false,

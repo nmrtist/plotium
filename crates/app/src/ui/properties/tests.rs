@@ -373,7 +373,12 @@ fn equal_scale_is_directly_visible_and_title_visibility_is_advanced() {
             .iter()
             .map(|entry| entry.id)
             .collect::<Vec<_>>(),
-        [guide::VISIBILITY, guide::PLACEMENT, guide::LAYOUT]
+        [
+            guide::VISIBILITY,
+            guide::PLACEMENT,
+            guide::LAYOUT,
+            guide::COLUMNS
+        ]
     );
     assert_eq!(
         presentation(axis::X_SHOW_LABEL)

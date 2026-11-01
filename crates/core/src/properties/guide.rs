@@ -14,6 +14,7 @@ use plotium_figure::{GuideLayout, GuidePlacement, GuideVisibility};
 pub const VISIBILITY: PropertyId = PropertyId("object.guides.visibility");
 pub const PLACEMENT: PropertyId = PropertyId("object.guides.placement");
 pub const LAYOUT: PropertyId = PropertyId("object.guides.layout");
+pub const COLUMNS: PropertyId = PropertyId("object.guides.columns");
 pub const POSITION: PropertyId = PropertyId("object.guides.position");
 pub const TITLE: PropertyId = PropertyId("object.guides.title");
 
@@ -24,6 +25,9 @@ pub const INSIDE: &str = "inside";
 pub const OUTSIDE_RIGHT: &str = "outside_right";
 pub const OUTSIDE_BOTTOM: &str = "outside_bottom";
 pub const CUSTOM: &str = "custom";
+/// `COLUMNS` value that leaves the count to the layout.
+const AUTO_COLUMNS: i64 = 0;
+const MAX_COLUMNS: i64 = 12;
 
 const VISIBILITY_MODES: &[EnumVariant] = &[
     EnumVariant::new(AUTO, "Auto"),
@@ -68,6 +72,21 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         "Legend layout",
         &["legend direction", "horizontal legend", "vertical legend"],
     ),
+    PropertyDefinition {
+        id: COLUMNS,
+        scope_kind: ScopeKind::Object,
+        value_schema: ValueSchema::Int {
+            min: AUTO_COLUMNS,
+            max: MAX_COLUMNS,
+        },
+        access: PropertyAccess::ReadWrite,
+        applicability: OBJECT,
+        default_policy: DefaultPolicy::Fixed(PropertyValue::Int(AUTO_COLUMNS)),
+        tier: Tier::Essential,
+        copies: ValueCopies::PerTarget,
+        canonical_label: "Legend columns",
+        canonical_aliases: &["legend column count", "multi-column legend", "ncol"],
+    },
     PropertyDefinition {
         id: POSITION,
         scope_kind: ScopeKind::Object,
@@ -159,6 +178,7 @@ impl PropertyProvider for GuideProvider {
             );
             require_legend(plot, clearing)?;
         }
+        let pinned_columns = columns_to_pin(app, address, definition)?;
         let overrides = transaction.axis_overrides(app, canvas, object)?;
         match (definition.id, operation) {
             (POSITION, EditOp::Set(PropertyValue::NormalizedPosition(position))) => {
@@ -172,7 +192,7 @@ impl PropertyProvider for GuideProvider {
                             message: "origin requires two finite numbers in 0..=1".into(),
                         });
                     }
-                    overrides.set_legend_position([*x as f32, *y as f32]);
+                    overrides.set_legend_position([*x as f32, *y as f32], pinned_columns);
                 } else {
                     overrides.reset_guide_placement();
                 }
@@ -203,7 +223,7 @@ impl PropertyProvider for GuideProvider {
                 }
                 CUSTOM => {
                     let position = overrides.legend_position.unwrap_or([1.0, 0.0]);
-                    overrides.set_legend_position(position);
+                    overrides.set_legend_position(position, pinned_columns);
                 }
                 _ => return Err(invalid_enum(definition, value)),
             },
@@ -215,12 +235,25 @@ impl PropertyProvider for GuideProvider {
                     _ => return Err(invalid_enum(definition, value)),
                 };
             }
+            (COLUMNS, EditOp::Set(PropertyValue::Int(count))) => {
+                if !(AUTO_COLUMNS..=MAX_COLUMNS).contains(count) {
+                    return Err(PropertyError::InvalidValue {
+                        property: COLUMNS,
+                        message: format!(
+                            "legend columns {count} is out of range: it must be between \
+                             {AUTO_COLUMNS} (automatic) and {MAX_COLUMNS}"
+                        ),
+                    });
+                }
+                overrides.guide_columns = (*count != AUTO_COLUMNS).then_some(*count as u32);
+            }
             (TITLE, EditOp::Set(PropertyValue::Text(value))) => {
                 overrides.guide_title = Some(value.clone());
             }
             (VISIBILITY, EditOp::Reset) => overrides.guide_visibility = None,
             (PLACEMENT | POSITION, EditOp::Reset) => overrides.reset_guide_placement(),
             (LAYOUT, EditOp::Reset) => overrides.guide_layout = None,
+            (COLUMNS, EditOp::Reset) => overrides.guide_columns = None,
             (TITLE, EditOp::Reset) => overrides.guide_title = None,
             (_, EditOp::Step(_)) => {
                 return Err(PropertyError::InvalidValue {
@@ -261,6 +294,24 @@ fn plot_for<'a>(
     Ok((canvas, plot))
 }
 
+/// Columns of the legend as drawn now, for edits that may place it by hand.
+fn columns_to_pin(
+    app: &PlotiumApp,
+    address: &PropertyAddress,
+    definition: &'static PropertyDefinition,
+) -> Result<Option<u32>, PropertyError> {
+    if !matches!(definition.id, POSITION | PLACEMENT) {
+        return Ok(None);
+    }
+    let (_, plot) = plot_for(app, address, definition)?;
+    let area = geometry(app, address)?.plot;
+    Ok(plotium_render::legend_columns_to_pin(
+        plot.figure(),
+        area,
+        1.0,
+    ))
+}
+
 fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, PropertyError> {
     match id {
         VISIBILITY => Ok(PropertyValue::Enum(match plot.figure().guide_visibility {
@@ -280,6 +331,9 @@ fn value_of(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Property
             GuideLayout::Vertical => "vertical",
             GuideLayout::Horizontal => "horizontal",
         })),
+        COLUMNS => Ok(PropertyValue::Int(
+            plot.figure().guide_columns.map_or(AUTO_COLUMNS, i64::from),
+        )),
         TITLE => Ok(PropertyValue::Text(plot.figure().guide_title.clone())),
         POSITION => Ok(PropertyValue::NormalizedPosition(
             plot.figure().legend_position.map(|p| p.map(f64::from)),
@@ -294,6 +348,7 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
         PLACEMENT => Ok(plot.axis_overrides.guide_placement.is_some()
             || plot.axis_overrides.legend_position.is_some()),
         LAYOUT => Ok(plot.axis_overrides.guide_layout.is_some()),
+        COLUMNS => Ok(plot.axis_overrides.guide_columns.is_some()),
         TITLE => Ok(plot.axis_overrides.guide_title.is_some()),
         POSITION => Ok(plot.axis_overrides.legend_position.is_some()
             || plot.axis_overrides.guide_placement.is_some()),
@@ -304,6 +359,7 @@ fn has_override(id: PropertyId, plot: &PlotObject) -> Result<bool, PropertyError
 fn default_value(id: PropertyId) -> Result<PropertyValue, PropertyError> {
     match id {
         VISIBILITY | PLACEMENT | LAYOUT => Ok(PropertyValue::Enum(AUTO)),
+        COLUMNS => Ok(PropertyValue::Int(AUTO_COLUMNS)),
         TITLE => Ok(PropertyValue::Text(String::new())),
         POSITION => Ok(PropertyValue::NormalizedPosition(None)),
         _ => Err(PropertyError::UnknownProperty(id.as_str().to_owned())),
@@ -335,7 +391,10 @@ fn require_legend(plot: &PlotObject, allow_retained: bool) -> Result<(), Propert
 }
 
 pub fn is_guide_property(id: PropertyId) -> bool {
-    matches!(id, VISIBILITY | PLACEMENT | LAYOUT | TITLE | POSITION)
+    matches!(
+        id,
+        VISIBILITY | PLACEMENT | LAYOUT | COLUMNS | TITLE | POSITION
+    )
 }
 
 /// Read-only native geometry, also usable by non-MCP presentation consumers.

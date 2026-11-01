@@ -13,14 +13,19 @@ Use **Legend & scales** in the Object inspector for any plot.
   or colour scale from that plot.
 - **Position** on **Auto** places a legend inside the plot in whichever corner
   or edge midpoint covers the fewest data points and lines, preferring the
-  roomier spot and then the upper right. When every such spot covers data,
-  Plotium extends **Auto** axis ranges on the legend's side, by up to half their
-  span, just far enough to clear one; manual ranges, zoomed views and
-  aspect-locked plots are never changed.
+  roomier spot and then the upper right. When every such spot covers data at
+  every column count, Plotium extends **Auto** axis ranges on the legend's side,
+  by up to half their span, just far enough to clear one; manual ranges, zoomed
+  views and aspect-locked plots are never changed.
 - **Inside** keeps the legend in the upper right, and **Outside right** or
   **Outside bottom** reserve space beside the plot.
-- **Layout** switches a categorical legend between a vertical list and a
-  horizontal row; **Title** is available under the section's advanced controls.
+- **Layout** on **Auto** keeps a categorical legend in one column while
+  **Position** **Auto** finds a clear spot for it, and otherwise uses up to four
+  columns. **Vertical** always keeps one column and **Horizontal** one row.
+- **Columns** sets an exact number of columns and takes priority over
+  **Layout**; 0 leaves the choice to **Layout**. Placing a multi-column legend by
+  hand stores its current count here, so it keeps its shape.
+- **Title** is available under the section's advanced controls.
 
 Legends draw no border and no background, on screen and in every export
 format; only their entries and title are drawn. Legend text size and colour are
