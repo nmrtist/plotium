@@ -23,6 +23,9 @@ pub struct ObjectDrag {
     /// click with a few px of jitter selects without nudging the frame. Resize
     /// grabs are deliberate and start `true`.
     pub active: bool,
+    /// Whether the pointer has left the dead-zone along x and y. A resize snaps
+    /// only along these axes, and an axis stays on once it has moved.
+    pub snap_axes: [bool; 2],
     /// Coordinate space in which the live gesture edits the content frame.
     pub space: ObjectDragSpace,
 }
@@ -50,6 +53,8 @@ pub struct PanelDrag {
     pub start_pointer: [f32; 2],
     pub start_pointer_screen: [f32; 2],
     pub active: bool,
+    /// See [`ObjectDrag::snap_axes`].
+    pub snap_axes: [bool; 2],
     /// Start of continuous full separation from every canvas, in UI clock seconds.
     pub detached_since: Option<f64>,
 }

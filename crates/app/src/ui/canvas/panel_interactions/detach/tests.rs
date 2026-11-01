@@ -22,6 +22,7 @@ fn fixture() -> (PlotiumApp, egui::Context, EguiRect, Pos2) {
         children: vec![],
         start_pointer: [20.0, 20.0],
         start_pointer_screen: [origin.x + 20.0, origin.y + 20.0],
+        snap_axes: [false; 2],
         active: false,
         detached_since: None,
     });

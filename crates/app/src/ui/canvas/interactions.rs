@@ -514,6 +514,7 @@ pub(crate) fn handle_object_interactions(
                         before,
                         start_pointer: start,
                         start_pointer_screen: [screen_pos.x, screen_pos.y],
+                        snap_axes: [false; 2],
                         others,
                         active: matches!(hit.kind, ObjectDragKind::Resize(_)),
                         space,
@@ -558,7 +559,7 @@ pub(crate) fn handle_object_interactions(
         Interaction::Object(d) if d.canvas == ci => Some(d.clone()),
         _ => None,
     };
-    if let Some(drag) = object_drag {
+    if let Some(mut drag) = object_drag {
         let mut active = drag.active;
         if primary_down
             && let Some(screen_now) = hover
@@ -574,8 +575,10 @@ pub(crate) fn handle_object_interactions(
             let dsx = screen_now.x - drag.start_pointer_screen[0];
             let dsy = screen_now.y - drag.start_pointer_screen[1];
             active |= dsx.hypot(dsy) > DRAG_START_PX;
+            latch_snap_axes(&mut drag.snap_axes, [dsx, dsy]);
             if let Interaction::Object(d) = &mut app.session.ui.interaction {
                 d.active = active;
+                d.snap_axes = drag.snap_axes;
             }
             if active {
                 if let Some(source) = tile_source_for_object(app, &drag)
@@ -596,10 +599,12 @@ pub(crate) fn handle_object_interactions(
                         if let ObjectDragSpace::Panel(panel) = drag.space {
                             snap_panel_content_frame(app, ci, panel, &drag, candidate, ui)
                         } else {
-                            snap_object_frame(app, ci, &drag, candidate, ui)
+                            snap_object_frame(app, ci, &drag, candidate, preserve_aspect, ui)
                         };
                     if preserve_aspect {
-                        snapped = preserve_aspect_frame(drag.before, snapped, drag.kind);
+                        let requested = snapped;
+                        snapped = preserve_aspect_frame(drag.before, requested, drag.kind);
+                        retain_landed_guides(&mut guides, requested, snapped);
                     }
                     if let Some(plot) = app.doc.canvases[ci]
                         .object(drag.object)

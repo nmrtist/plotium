@@ -1,10 +1,22 @@
 use super::*;
 use plotium_core::state::MIN_CONTENT_FRAME_PT;
 
-/// The frame a drag asks for. A resize holds the edges opposite the handle. An
-/// edge already below the object minimum is not forced up to it. An
-/// aspect-locked drag leaves the minimum to `aspect_locked_size`, which needs
-/// the request free of it to scale from either edge.
+/// The smallest size a resize of `frame` may ask for on each axis. An edge
+/// already below the object minimum is not forced up to it. An aspect-locked
+/// resize leaves the minimum to `aspect_locked_size`, which needs the request
+/// free of it to scale from either edge.
+pub(crate) fn resize_min_size(frame: ObjectFrame, keep_aspect: bool) -> [f32; 2] {
+    if keep_aspect {
+        [MIN_CONTENT_FRAME_PT; 2]
+    } else {
+        [
+            MIN_OBJECT_SIZE_PT.min(frame.width),
+            MIN_OBJECT_SIZE_PT.min(frame.height),
+        ]
+    }
+}
+
+/// The frame a drag asks for. A resize holds the edges opposite the handle.
 pub(crate) fn drag_frame(
     frame: ObjectFrame,
     kind: ObjectDragKind,
@@ -15,14 +27,7 @@ pub(crate) fn drag_frame(
     let ObjectDragKind::Resize(handle) = kind else {
         return ObjectFrame::new(frame.x + dx, frame.y + dy, frame.width, frame.height);
     };
-    let min = if keep_aspect {
-        [MIN_CONTENT_FRAME_PT; 2]
-    } else {
-        [
-            MIN_OBJECT_SIZE_PT.min(frame.width),
-            MIN_OBJECT_SIZE_PT.min(frame.height),
-        ]
-    };
+    let min = resize_min_size(frame, keep_aspect);
     let moves_left = matches!(handle, ResizeHandle::TopLeft | ResizeHandle::BottomLeft);
     let moves_top = matches!(handle, ResizeHandle::TopLeft | ResizeHandle::TopRight);
     let width = (frame.width + if moves_left { -dx } else { dx }).max(min[0]);

@@ -30,8 +30,10 @@ pub(crate) fn handle_panel_drag(
         let dsy = screen_now.y - drag.start_pointer_screen[1];
         active |= dsx.hypot(dsy) > DRAG_START_PX;
         drag.active = active;
+        latch_snap_axes(&mut drag.snap_axes, [dsx, dsy]);
         if let Interaction::Panel(current) = &mut app.session.ui.interaction {
             current.active = active;
+            current.snap_axes = drag.snap_axes;
         }
         if active {
             let candidate = drag_frame(drag.before, drag.kind, dpx, dpy, false);
@@ -187,6 +189,7 @@ pub(crate) fn begin_panel_drag(
         children,
         start_pointer: start,
         start_pointer_screen: [screen_pos.x, screen_pos.y],
+        snap_axes: [false; 2],
         active: matches!(kind, ObjectDragKind::Resize(_)),
         detached_since: None,
     }));

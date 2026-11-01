@@ -17,11 +17,20 @@ pub fn aspect_locked_size(before: ObjectFrame, candidate: ObjectFrame, minimum: 
     } else {
         height_scale
     };
-    let floor = (minimum / before.width.max(before.height))
-        .min(1.0)
-        .max(MIN_CONTENT_FRAME_PT / before.width.min(before.height));
-    let scale = scale.max(floor);
+    let scale = scale.max(aspect_scale_floor(before, minimum));
     [before.width * scale, before.height * scale]
+}
+
+/// The smallest size `aspect_locked_size` can reach from `before`.
+pub fn aspect_locked_min_size(before: ObjectFrame, minimum: f32) -> [f32; 2] {
+    let floor = aspect_scale_floor(before, minimum);
+    [before.width * floor, before.height * floor]
+}
+
+fn aspect_scale_floor(before: ObjectFrame, minimum: f32) -> f32 {
+    (minimum / before.width.max(before.height))
+        .min(1.0)
+        .max(MIN_CONTENT_FRAME_PT / before.width.min(before.height))
 }
 
 impl CanvasDocument {
@@ -144,6 +153,16 @@ mod tests {
     fn a_thin_object_stops_at_the_one_point_edge() {
         assert_eq!(resized([600.0, 2.0], [601.0, 2.0])[1], 2.0 * 601.0 / 600.0);
         assert_eq!(resized([600.0, 2.0], [100.0, 0.5]), [300.0, 1.0]);
+    }
+
+    #[test]
+    fn the_reachable_minimum_matches_the_resize_floor() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 60.0);
+        let tiny = ObjectFrame::new(0.0, 0.0, 2.0, 2.0);
+        assert_eq!(
+            aspect_locked_min_size(before, DRAG_MINIMUM),
+            aspect_locked_size(before, tiny, DRAG_MINIMUM)
+        );
     }
 
     #[test]

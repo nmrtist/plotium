@@ -90,6 +90,7 @@ pub(crate) fn snap_object_frame(
     ci: usize,
     drag: &ObjectDrag,
     candidate: ObjectFrame,
+    keep_aspect: bool,
     ui: &Ui,
 ) -> (ObjectFrame, Vec<SnapGuide>) {
     let alt = ui.input(|i| i.modifiers.alt);
@@ -97,8 +98,6 @@ pub(crate) fn snap_object_frame(
         return (candidate, Vec::new());
     }
     let canvas = &app.doc.canvases[ci];
-    let zoom = app.session.board.zoom.max(0.01);
-    let threshold = SNAP_PX / zoom;
     let mut targets = SnapTargets::from_page(canvas.size_pt(), &canvas.layout);
     let moving =
         |id: ObjectId| id == drag.object || drag.others.iter().any(|(other, _)| *other == id);
@@ -115,12 +114,18 @@ pub(crate) fn snap_object_frame(
         .plot_area(drag.object)
         .zip(canvas.content_page_frame(drag.object))
         .map(|(plot, frame)| PlotInsets::of(frame, plot));
+    let gesture = SnapGesture {
+        kind: drag.kind,
+        before: drag.before,
+        keep_aspect,
+        axes: drag.snap_axes,
+        zoom: app.session.board.zoom.max(0.01),
+    };
     snap_layout_frame(
-        drag.kind,
+        gesture,
         candidate,
         &targets,
         insets.map(|insets| (insets, &plots)),
-        threshold,
     )
 }
 
@@ -161,8 +166,6 @@ pub(crate) fn snap_panel_content_frame(
     let Some(panel) = canvas.panel(panel_id) else {
         return (candidate, Vec::new());
     };
-    let zoom = app.session.board.zoom.max(0.01);
-    let threshold = SNAP_PX / zoom;
     let mut targets = SnapTargets::from_page(
         [panel.frame.width, panel.frame.height],
         &plotium_core::layout::PageLayout::default(),
@@ -176,7 +179,15 @@ pub(crate) fn snap_panel_content_frame(
             targets.push_object(frame);
         }
     }
-    let (frame, guides) = snap_layout_frame(drag.kind, candidate, &targets, None, threshold);
+    // Panel content always resizes aspect-locked.
+    let gesture = SnapGesture {
+        kind: drag.kind,
+        before: drag.before,
+        keep_aspect: true,
+        axes: drag.snap_axes,
+        zoom: app.session.board.zoom.max(0.01),
+    };
+    let (frame, guides) = snap_layout_frame(gesture, candidate, &targets, None);
     let guides = guides
         .into_iter()
         .map(|mut guide| {
@@ -208,7 +219,6 @@ pub(crate) fn snap_panel_frame(
     let Some(canvas) = app.doc.canvases.get(ci) else {
         return (candidate, Vec::new());
     };
-    let threshold = SNAP_PX / app.session.board.zoom.max(0.01);
     let mut targets = SnapTargets::from_page(canvas.size_pt(), &canvas.layout);
     let moving_panel =
         |id: PanelId| id == drag.panel || drag.others.iter().any(|(other, _)| *other == id);
@@ -224,33 +234,87 @@ pub(crate) fn snap_panel_frame(
         .panel_plot_area(drag.panel)
         .zip(canvas.panel(drag.panel))
         .map(|(plot, panel)| PlotInsets::of(panel.frame, plot));
+    let gesture = SnapGesture {
+        kind: drag.kind,
+        before: drag.before,
+        keep_aspect: false,
+        axes: drag.snap_axes,
+        zoom: app.session.board.zoom.max(0.01),
+    };
     snap_layout_frame(
-        drag.kind,
+        gesture,
         candidate,
         &targets,
         insets.map(|insets| (insets, &plots)),
-        threshold,
     )
 }
 
-fn snap_layout_frame(
+#[derive(Clone, Copy)]
+struct SnapGesture {
     kind: ObjectDragKind,
+    before: ObjectFrame,
+    keep_aspect: bool,
+    axes: [bool; 2],
+    zoom: f32,
+}
+
+fn snap_layout_frame(
+    gesture: SnapGesture,
     candidate: ObjectFrame,
     targets: &SnapTargets,
     plot: layout::PlotSnap,
-    threshold: f32,
 ) -> (ObjectFrame, Vec<SnapGuide>) {
-    match kind {
+    let threshold = SNAP_PX / gesture.zoom;
+    // A target below the drag floor would pull the frame to it. Plot and Panel
+    // minimums apply after snapping, and clear the guides when they do.
+    let min_size = if gesture.keep_aspect {
+        plotium_core::state::aspect_locked_min_size(gesture.before, MIN_OBJECT_SIZE_PT)
+    } else {
+        resize_min_size(gesture.before, false)
+    };
+    match gesture.kind {
         ObjectDragKind::Move => layout::snap_move_with_plot(candidate, targets, plot, threshold),
         ObjectDragKind::Resize(handle) => layout::snap_resize_with_plot(
             candidate,
-            movable_edges(handle),
+            dragged_edges(handle, gesture.axes),
             targets,
             plot,
             threshold,
-            MIN_OBJECT_SIZE_PT,
+            min_size,
         ),
     }
+}
+
+/// Records the axes along which the pointer has left the dead-zone, in screen px.
+pub(crate) fn latch_snap_axes(axes: &mut [bool; 2], travel: [f32; 2]) {
+    axes[0] |= travel[0].abs() > DRAG_START_PX;
+    axes[1] |= travel[1].abs() > DRAG_START_PX;
+}
+
+/// The handle's edges along `axes`. A resize is live from the press, so an edge
+/// near a target would otherwise snap, and with a locked aspect rescale the
+/// object, without the pointer travelling that way.
+fn dragged_edges(handle: ResizeHandle, axes: [bool; 2]) -> MovableEdges {
+    let edges = movable_edges(handle);
+    MovableEdges {
+        left: edges.left && axes[0],
+        right: edges.right && axes[0],
+        top: edges.top && axes[1],
+        bottom: edges.bottom && axes[1],
+    }
+}
+
+/// Drops the guides of an axis whose edges a later rescale moved off the snap.
+pub(crate) fn retain_landed_guides(
+    guides: &mut Vec<SnapGuide>,
+    snapped: ObjectFrame,
+    frame: ObjectFrame,
+) {
+    const ROUNDING_PT: f32 = 1e-3;
+    let same = |a: f32, b: f32| (a - b).abs() <= ROUNDING_PT;
+    let held_x = same(snapped.x, frame.x) && same(snapped.width, frame.width);
+    let held_y = same(snapped.y, frame.y) && same(snapped.height, frame.height);
+    guides.retain(|guide| if guide.vertical { held_x } else { held_y });
 }
 
 pub(crate) fn movable_edges(handle: ResizeHandle) -> MovableEdges {
@@ -273,6 +337,126 @@ pub(crate) fn movable_edges(handle: ResizeHandle) -> MovableEdges {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const ZOOM: f32 = 1.0;
+
+    fn resize(
+        before: ObjectFrame,
+        candidate: ObjectFrame,
+        keep_aspect: bool,
+        ys: &[f32],
+    ) -> (ObjectFrame, Vec<SnapGuide>) {
+        let mut axes = [false; 2];
+        latch_snap_axes(
+            &mut axes,
+            [
+                candidate.width - before.width,
+                candidate.height - before.height,
+            ],
+        );
+        let gesture = SnapGesture {
+            kind: ObjectDragKind::Resize(ResizeHandle::BottomRight),
+            before,
+            keep_aspect,
+            axes,
+            zoom: ZOOM,
+        };
+        let mut targets = SnapTargets::default();
+        targets.ys.extend_from_slice(ys);
+        snap_layout_frame(gesture, candidate, &targets, None)
+    }
+
+    #[test]
+    fn pressing_a_handle_snaps_nothing() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 20.0);
+        for keep_aspect in [false, true] {
+            let (frame, guides) = resize(before, before, keep_aspect, &[24.0]);
+            assert_eq!(frame, before);
+            assert!(guides.is_empty());
+        }
+    }
+
+    #[test]
+    fn an_axis_the_drag_has_not_moved_does_not_snap() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 20.0);
+        let along_x = ObjectFrame::new(0.0, 0.0, 130.0, 20.0);
+        assert_eq!(resize(before, along_x, false, &[24.0]).0, along_x);
+    }
+
+    #[test]
+    fn the_moved_axis_snaps_as_before() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 80.0);
+        let candidate = ObjectFrame::new(0.0, 0.0, 100.0, 96.0);
+        let (frame, guides) = resize(before, candidate, false, &[100.0]);
+        assert_eq!(frame, ObjectFrame::new(0.0, 0.0, 100.0, 100.0));
+        assert_eq!(guides.len(), 1);
+    }
+
+    #[test]
+    fn a_large_object_skips_a_snap_below_the_minimum() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 80.0);
+        let candidate = ObjectFrame::new(0.0, 0.0, 100.0, 26.0);
+        assert_eq!(resize(before, candidate, false, &[20.0]).0, candidate);
+    }
+
+    #[test]
+    fn a_thin_edge_snaps_below_the_object_minimum() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 15.0);
+        let candidate = ObjectFrame::new(0.0, 0.0, 100.0, 21.0);
+        let (frame, guides) = resize(before, candidate, false, &[18.0]);
+        assert_eq!(frame.height, 18.0);
+        assert_eq!(guides.len(), 1);
+    }
+
+    #[test]
+    fn an_aspect_locked_shrink_snaps_below_the_object_minimum() {
+        let kind = ObjectDragKind::Resize(ResizeHandle::BottomRight);
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 60.0);
+        let vertical = ObjectFrame::new(0.0, 0.0, 100.0, 18.0);
+        let (snapped, mut guides) = resize(before, vertical, true, &[20.0]);
+        let frame = preserve_aspect_frame(before, snapped, kind);
+        retain_landed_guides(&mut guides, snapped, frame);
+        assert_eq!(frame.height, 20.0);
+        assert_eq!(guides.len(), 1);
+        assert_eq!(resize(before, vertical, false, &[20.0]).0, vertical);
+    }
+
+    #[test]
+    fn an_aspect_locked_resize_skips_a_target_below_its_floor() {
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 60.0);
+        let vertical = ObjectFrame::new(0.0, 0.0, 100.0, 18.0);
+        let (snapped, guides) = resize(before, vertical, true, &[12.0]);
+        assert_eq!(snapped, vertical);
+        assert!(guides.is_empty());
+    }
+
+    #[test]
+    fn a_guide_the_aspect_rescale_leaves_is_dropped() {
+        let kind = ObjectDragKind::Resize(ResizeHandle::BottomRight);
+        let before = ObjectFrame::new(0.0, 0.0, 100.0, 60.0);
+        let diagonal = ObjectFrame::new(0.0, 0.0, 30.0, 18.0);
+        let (snapped, mut guides) = resize(before, diagonal, true, &[20.0]);
+        assert_eq!(guides.len(), 1);
+        let frame = preserve_aspect_frame(before, snapped, kind);
+        retain_landed_guides(&mut guides, snapped, frame);
+        assert!((frame.height - 18.0).abs() < 1e-3);
+        assert!(guides.is_empty());
+    }
+
+    #[test]
+    fn an_axis_stays_on_after_the_pointer_returns() {
+        let mut axes = [false; 2];
+        latch_snap_axes(&mut axes, [4.0, 5.0]);
+        assert_eq!(axes, [false, false]);
+        latch_snap_axes(&mut axes, [-30.0, 0.0]);
+        latch_snap_axes(&mut axes, [3.0, 0.0]);
+        assert_eq!(axes, [true, false]);
+
+        let edges = dragged_edges(ResizeHandle::TopRight, axes);
+        assert!(edges.right && !edges.top);
+        let edges = dragged_edges(ResizeHandle::BottomLeft, [false, true]);
+        assert!(edges.bottom && !edges.left);
+    }
 
     #[test]
     fn free_placement_keeps_the_candidate_without_a_magnetic_target() {
@@ -372,6 +556,7 @@ mod tests {
             children: Vec::new(),
             start_pointer: [before.x, before.y],
             start_pointer_screen: [0.0, 0.0],
+            snap_axes: [true; 2],
             active: true,
             detached_since: None,
         }
@@ -422,6 +607,22 @@ mod tests {
                 pos: page_width
             }]
         );
+    }
+
+    #[test]
+    fn pressing_a_panel_handle_snaps_nothing() {
+        let frame = ObjectFrame::new(40.0, 30.0, 100.0, 20.0);
+        let (mut app, ids) = app_with_panels(&[frame]);
+        app.settings.general.snap_enabled = true;
+        let [width, height] = app.doc.canvases[0].size_pt();
+        let close = ObjectFrame::new(width - 103.0, height - 23.0, frame.width, frame.height);
+        app.doc.canvases[0].panel_mut(ids[0]).unwrap().frame = close;
+        let kind = ObjectDragKind::Resize(ResizeHandle::BottomRight);
+        let mut drag = panel_drag(&app, ids[0], kind);
+        drag.snap_axes = [false; 2];
+        let (snapped, guides) = snap_panel_frame(&app, 0, &drag, close, false);
+        assert_eq!(snapped, close);
+        assert!(guides.is_empty());
     }
 
     #[test]
