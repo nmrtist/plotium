@@ -203,6 +203,15 @@ normalization by maximum intensity or integrated area; these settings and the
 original observations are saved in the Plotium project. The NMR pipeline steps in
 [Processing pipeline](/guides/processing/) do not apply to XRD.
 
+The **Axis** menu on the card shows the pattern against 2theta, Q, d spacing, or
+the 2theta it would have at Cu K-alpha (1.540593 Å), to compare synchrotron data
+with laboratory patterns. All but 2theta need a wavelength: enter one on the card
+if the file has none. The data stays in 2theta, so processing is unaffected, and
+reflections Cu K-alpha cannot reach are left out. Data export writes the displayed
+axis. Spectrum arithmetic needs the pattern on 2theta, and patterns stack only on
+the same axis: a manual x range or zoom follows the change, and a pattern switched inside
+an existing stack raises a warning.
+
 Rigaku `FI`-layout `.raw` files and profile `.txt` exports whose header identifies
 `RAS_RAW` also open as XRD. The binary reader retains the scan ruler, intensity,
 X-ray target, Kalpha1 wavelength, tube voltage/current, and scan speed. Other

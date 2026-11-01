@@ -116,3 +116,20 @@ fn schemes_do_not_cross_dataset_kinds() {
     assert!(apply_scheme(&round_trip(&xrd), &xps).is_err());
     assert!(apply_scheme(&round_trip(&xps), &xrd).is_err());
 }
+
+#[test]
+fn an_xrd_scheme_leaves_the_wavelength_with_each_pattern() {
+    let mut source = xrd_dataset();
+    let Dataset::Xrd(pattern) = &mut source else {
+        unreachable!();
+    };
+    pattern.params.axis = xrd::XrdAxis::Q;
+    pattern.params.wavelength_angstrom = Some(0.7);
+    let scheme = round_trip(&source);
+    assert_eq!(scheme.xrd.unwrap().wavelength_angstrom, None);
+    let DatasetProcessingState::Xrd(state) = apply_scheme(&scheme, &xrd_dataset()).unwrap() else {
+        panic!("expected XRD settings");
+    };
+    assert_eq!(state.wavelength_angstrom, None);
+    assert_eq!(state.axis, xrd::XrdAxis::TwoTheta);
+}

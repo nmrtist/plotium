@@ -51,6 +51,7 @@ fn xrd_pipeline_output_is_stable() {
                 polynomial_order: 2,
             }),
             normalization: XrdNormalization::Area,
+            ..XrdProcessing::default()
         },
     )
     .unwrap();

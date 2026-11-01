@@ -31,9 +31,11 @@ pub(super) fn step_kind() -> Value {
 pub(super) fn xrd_processing() -> Value {
     let background = json!({"oneOf":[{"type":"null"},object(json!({"iterations":{"type":"integer","minimum":1,"maximum":200}}))]});
     let smoothing = json!({"oneOf":[{"type":"null"},object(json!({"window":{"type":"integer","minimum":3,"maximum":101},"polynomial_order":{"type":"integer","minimum":0,"maximum":6}}))]});
-    object(
-        json!({"background":background,"smoothing":smoothing,"normalization":{"enum":["None","Maximum","Area"]}}),
-    )
+    json!({"type":"object","additionalProperties":false,"required":["background","smoothing","normalization"],"properties":{
+        "background":background,"smoothing":smoothing,"normalization":{"enum":["None","Maximum","Area"]},
+        "axis":{"enum":["TwoTheta","Q","D","CuKAlpha"],"description":"Display axis; left out keeps the current one. All but TwoTheta need a wavelength."},
+        "wavelength_angstrom":{"type":"number","exclusiveMinimum":0,"description":"Overrides the file's wavelength; left out keeps the current one."}
+    }})
 }
 pub(super) fn xas_signal() -> Value {
     let column =

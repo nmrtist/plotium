@@ -23,6 +23,7 @@ fn data_and_processing_round_trip() {
         background: Some(SnipBackground { iterations: 1 }),
         smoothing: None,
         normalization: XrdNormalization::Maximum,
+        ..XrdProcessing::default()
     };
     dataset.rebuild().unwrap();
     app.doc.datasets.push(Dataset::Xrd(Box::new(dataset)));
@@ -45,6 +46,7 @@ fn data_and_processing_round_trip() {
             background: Some(SnipBackground { iterations: 1 }),
             smoothing: None,
             normalization: XrdNormalization::Maximum,
+            ..XrdProcessing::default()
         }
     );
     assert_eq!(restored.processed.intensity.len(), 3);

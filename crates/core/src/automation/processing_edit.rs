@@ -8,7 +8,9 @@ use crate::project::{
 use crate::state::{Dataset, PlotiumApp, XasSignal};
 use plotium_processing::StepId;
 use plotium_processing::xas::{AutobkParams, PreEdgeParams, XasProcessing, XftfParams};
-use plotium_processing::xrd::{SavitzkyGolay, SnipBackground, XrdNormalization, XrdProcessing};
+use plotium_processing::xrd::{
+    SavitzkyGolay, SnipBackground, XrdAxis, XrdNormalization, XrdProcessing,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -81,13 +83,21 @@ pub struct XrdSettings {
     #[serde(deserialize_with = "Option::deserialize")]
     smoothing: Option<SavitzkyGolay>,
     normalization: XrdNormalization,
+    /// Left out, the pattern keeps its display axis.
+    #[serde(default)]
+    axis: Option<XrdAxis>,
+    /// Left out, the pattern keeps its wavelength.
+    #[serde(default)]
+    wavelength_angstrom: Option<f64>,
 }
-impl From<XrdSettings> for XrdProcessing {
-    fn from(settings: XrdSettings) -> Self {
-        Self {
-            background: settings.background,
-            smoothing: settings.smoothing,
-            normalization: settings.normalization,
+impl XrdSettings {
+    pub(super) fn onto(self, current: XrdProcessing) -> XrdProcessing {
+        XrdProcessing {
+            background: self.background,
+            smoothing: self.smoothing,
+            normalization: self.normalization,
+            axis: self.axis.unwrap_or(current.axis),
+            wavelength_angstrom: self.wavelength_angstrom.or(current.wavelength_angstrom),
         }
     }
 }
@@ -185,7 +195,7 @@ pub(super) fn prepare(app: &PlotiumApp, plan: &ToolPlan) -> Result<Value, Automa
     }
     super::processing_edit_spectra::reject_pending(app, dataset)?;
     match dataset {
-        Dataset::Xrd(_) => return super::processing_edit_spectra::prepare_xrd(params.edits),
+        Dataset::Xrd(xrd) => return super::processing_edit_spectra::prepare_xrd(xrd, params.edits),
         Dataset::Xas(xas) => return super::processing_edit_spectra::prepare_xas(xas, params.edits),
         Dataset::Xps(xps) => {
             return super::processing_edit_spectra::prepare_xps(dataset, xps, params.edits);
