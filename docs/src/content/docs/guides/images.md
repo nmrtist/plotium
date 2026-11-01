@@ -60,6 +60,10 @@ file is added. Export to SVG, PDF, PNG, JPEG, and TIFF keeps the drawing sharp
 at any size; EMF output and **Copy Figure** to Office currently use pixels for
 it. Line widths scale with the image and do not follow the figure's theme.
 
+An SVG added to an existing page or Panel keeps the physical size set by its
+`width` and `height`, so its text and lines stay at their authored sizes. It
+shrinks only when it would not otherwise fit the page or Panel.
+
 ## Missing or damaged images
 
 Plotium checks every embedded image when a project opens. If one is missing,

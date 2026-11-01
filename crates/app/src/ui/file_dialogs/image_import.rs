@@ -16,7 +16,9 @@ pub(crate) use consent::large_image_consent_window;
 mod clipboard;
 pub(crate) use clipboard::paste_clipboard_image;
 mod geometry;
-use geometry::{initial_image_size, physical_image_size_mm};
+use geometry::{image_frame, physical_image_size_mm};
+#[cfg(test)]
+use geometry::{initial_image_size, natural_vector_size};
 mod jobs;
 pub(crate) use jobs::poll;
 mod new_pages;
@@ -590,15 +592,10 @@ fn commit(app: &mut PlotiumApp, job: &mut ImportJob, results: Vec<Result<Candida
             continue;
         }
         let id = page.allocate_object_id();
-        let aspect = candidate.pixel_size[0] as f32 / candidate.pixel_size[1].max(1) as f32;
-        let [width, height] = initial_image_size(page.size_pt(), aspect);
         let base = drop_position.unwrap_or([12.0, 12.0]);
         let offset = imported as f32 * 6.0;
-        let mut frame = ObjectFrame::new(base[0] + offset, base[1] + offset, width, height);
-        if let Some(panel) = target_panel.and_then(|panel| page.panel(panel).cloned()) {
-            frame.x -= panel.frame.x;
-            frame.y -= panel.frame.y;
-        }
+        let position = [base[0] + offset, base[1] + offset];
+        let frame = image_frame(&page, target_panel, &candidate, position);
         page.objects.push(CanvasObject {
             id,
             name: Path::new(&candidate.basename)
