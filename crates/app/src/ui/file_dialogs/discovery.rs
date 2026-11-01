@@ -25,7 +25,9 @@ pub(super) fn collect_data_files(folder: &Path, output: &mut Vec<PathBuf>) -> st
                 extension.eq_ignore_ascii_case("raw") && plotium_io::xrd::is_rigaku_raw(&path);
             let recognized_casaxps =
                 extension.eq_ignore_ascii_case("txt") && plotium_io::xps::is_casaxps_text(&path);
+            let recognized_pattern = plotium_io::xrd_integrated::is_integrated_pattern(&path);
             if supported_extension
+                || recognized_pattern
                 || recognized_raw
                 || recognized_casaxps
                 || plotium_io::nmr_bridge::is_candidate(&path)

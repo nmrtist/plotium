@@ -19,6 +19,7 @@ Plotium 直接读取厂商 NMR、LC–MS、XRD、XPS、XAS、AFM 与电生理格
 | mzML | `.mzML` | 使用 32 位或 64 位数组的质心/轮廓谱图及 TIC、BPC、SIM 或 SRM 色谱图 |
 | Rigaku 粉末 XRD | `.rasx`、FI `.raw`、RAS_RAW `.txt` | 衍射图样、采集元数据，以及文件提供的衰减系数 |
 | XAS 扫描 | XDI、NSLS XDAC、带列名的线站列式文本（扩展名不限） | 能量、探测器通道、样品和吸收边元数据 |
+| 积分 XRD | `.xy`、`.xye`、`.chi`、带 XRD 文件头的 `.dat` | pyFAI、Dioptas、GSAS、Fit2D 图样，波长和单位取自文件头 |
 | VAMAS XPS | `.vms` | ISO 14976 `NORM` / `REGULAR` XPS 区块，支持多个测量位置与谱区 |
 | CasaXPS 文本 | `.txt` | 含原始谱、背景、包络、组件和拟合参数的结构化八行头导出 |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | 图像、力曲线、Force Volume 与 PeakForce Capture 数据立方体 |
@@ -169,6 +170,15 @@ Savitzky-Golay 平滑，以及按最大强度或积分面积归一化；这些�
 也会作为 XRD 打开。二进制读取器会保留扫描坐标、强度、X 射线靶材、Kalpha1
 波长、管电压/电流和扫描速度。由于不同厂商会使用互不兼容的 `.raw` 格式，
 Plotium 会明确拒绝其他文件签名。普通 `.txt` 仍进入表格导入预览，不会被静默改判。
+
+## 积分 XRD 图样
+
+pyFAI、Dioptas、GSAS 和 Fit2D 的文本图样按 XRD 打开。Plotium 从文件头读取横轴
+（`2th_deg`、`2th_rad`、`q_nm^-1`、`q_A^-1`）和波长；没有文件头时按 2theta 读取并给出警告。
+Q 轴图样用该波长换算成 2theta 保存，所以没有波长的 Q 文件会被拒绝并提示需要补什么，`r_mm`、
+`d_A` 轴的文件也一样。文件头写了其他量（如 `k chi`、`Energy I0 It`）时不按 XRD 打开，`.dat`
+文件必须写明横轴。遮罩行会被跳过，负强度会被设为零，两者都会报告。可以一次打开多个文件或文件夹，
+再用 **Stack** 叠图。
 
 ## XPS
 

@@ -192,3 +192,21 @@ fn an_unzoomed_plot_shows_the_whole_pattern_on_the_new_axis() {
         figure.x.max
     );
 }
+
+#[test]
+fn stacked_patterns_are_labeled_by_dataset() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(pattern("a.xy"));
+    app.doc.datasets.push(pattern("b.xy"));
+    app.session.ui.data_selection = vec![0, 1];
+    app.stack_selected_data();
+    let canvas = app.doc.canvases.last().unwrap();
+    let plot = canvas.objects.iter().find_map(|o| o.plot()).unwrap();
+    let names: Vec<_> = plot
+        .figure()
+        .series
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(names, ["a.xy", "b.xy"]);
+}

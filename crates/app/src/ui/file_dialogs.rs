@@ -439,10 +439,14 @@ pub(crate) fn open_file(app: &mut PlotiumApp) {
             &["png", "jpg", "jpeg", "tif", "tiff", "webp", "bmp", "svg"],
         )
         .add_filter(
-            "All supported data (*.mzML, *.wiff, *.rasx, *.raw, *.vms, *.xdi, *.000, *.txt, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
+            "All supported data (*.mzML, *.wiff, *.rasx, *.raw, *.vms, *.xdi, *.000, *.xy, *.xye, *.chi, *.txt, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
             origin::OPEN_FILE_FILTER_EXTENSIONS,
         )
         .add_filter("Rigaku XRD (*.rasx, *.raw, *.txt)", &["rasx", "raw", "txt"])
+        .add_filter(
+            "Integrated XRD (*.xy, *.xye, *.chi, *.dat)",
+            &["xy", "xye", "chi", "dat"],
+        )
         .add_filter(
             origin::ORIGIN_PROJECT_FILTER_LABEL,
             origin::ORIGIN_PROJECT_FILTER_EXTENSIONS,

@@ -22,6 +22,7 @@ pub mod xas;
 pub mod xlsx;
 pub mod xps;
 pub mod xrd;
+pub mod xrd_integrated;
 
 pub use format::*;
 pub use mass_spec::*;
@@ -666,6 +667,9 @@ pub fn detect_format(path: impl AsRef<Path>) -> Result<DataFormat, IoError> {
         "rasx" => Ok(DataFormat::Xrd(XrdFormat::RigakuRasx)),
         "raw" if xrd::is_rigaku_raw(path) => Ok(DataFormat::Xrd(XrdFormat::RigakuRaw)),
         "txt" if xrd::is_rigaku_profile(path) => Ok(DataFormat::Xrd(XrdFormat::RigakuProfile)),
+        "xy" | "xye" | "chi" | "dat" if xrd_integrated::is_integrated_pattern(path) => {
+            Ok(DataFormat::Xrd(XrdFormat::IntegratedPattern))
+        }
         "raw" if path.is_file() => Err(IoError::Unsupported(format!(
             "unsupported XRD .raw variant; this build recognizes the Rigaku FI layout, .rasx, and exported profile .txt ({})",
             path.display()
@@ -725,6 +729,7 @@ pub fn load_path(path: impl AsRef<Path>) -> Result<LoadResult, IoError> {
         DataFormat::Xrd(XrdFormat::RigakuRasx) => xrd::load_rasx(path),
         DataFormat::Xrd(XrdFormat::RigakuRaw) => xrd::load_raw(path),
         DataFormat::Xrd(XrdFormat::RigakuProfile) => xrd::load_profile(path),
+        DataFormat::Xrd(XrdFormat::IntegratedPattern) => xrd_integrated::load(path),
         DataFormat::Xps(XpsFormat::VamasXps) => xps::load_vamas(path),
         DataFormat::Xps(XpsFormat::CasaXpsText) => xps::load_casaxps(path),
         DataFormat::Xas(_) => xas::load_result(path),
