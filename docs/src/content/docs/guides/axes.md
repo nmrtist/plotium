@@ -120,7 +120,7 @@ advanced controls of the **Figure typography** section (see
 
 - **Axis line width** — axis lines and tick marks, 0.05 to 10 pt, default
   1 pt.
-- **Tick length** — 0 to 20 pt, default 3 pt.
+- **Tick length** — 0 to 20 pt, default 2.5 pt.
 - **Tick direction** — *Outward*, the default, or *Inward*. Inward ticks point
   into the plot, so the tick labels move up to the axis line.
 - **Minor ticks** — that many unlabelled ticks between neighbouring major ticks
