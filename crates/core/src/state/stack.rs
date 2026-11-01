@@ -156,7 +156,9 @@ impl PlotiumApp {
             } else {
                 let mut label = self.series_label(sb);
                 // A field names its curve by quantity, which every scan shares.
-                if encoded_curve && let [series] = part.series.as_mut_slice() {
+                let named_by_quantity =
+                    encoded_curve || self.doc.datasets[dataset].as_xrd().is_some();
+                if named_by_quantity && let [series] = part.series.as_mut_slice() {
                     let first_resource = binding.series.first().map(|s| s.source.resource);
                     let across_datasets = binding
                         .series

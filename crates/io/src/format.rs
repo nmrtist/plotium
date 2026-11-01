@@ -44,6 +44,7 @@ pub enum XrdFormat {
     RigakuRasx,
     RigakuRaw,
     RigakuProfile,
+    IntegratedPattern,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +106,7 @@ impl DataFormat {
             Self::Xrd(XrdFormat::RigakuRasx) => "rigaku-rasx",
             Self::Xrd(XrdFormat::RigakuRaw) => "rigaku-raw-fi",
             Self::Xrd(XrdFormat::RigakuProfile) => "rigaku-profile",
+            Self::Xrd(XrdFormat::IntegratedPattern) => "xrd-integrated-pattern",
             Self::Xps(XpsFormat::VamasXps) => "vamas-xps",
             Self::Xps(XpsFormat::CasaXpsText) => "casaxps-text",
         }

@@ -20,6 +20,7 @@ see [Importing data](/guides/importing-data/).
 | mzML | `.mzML` | Centroided/profile spectra and TIC, BPC, SIM, or SRM chromatograms with 32-bit or 64-bit arrays |
 | Rigaku powder XRD | `.rasx`, FI `.raw`, RAS_RAW `.txt` | Diffraction pattern, acquisition metadata, and attenuation when available |
 | XAS scans | XDI, NSLS XDAC, labeled beamline columns (any extension) | Energy, detector channels, sample and edge metadata |
+| Integrated XRD | `.xy`, `.xye`, `.chi`, `.dat` with an XRD header | pyFAI, Dioptas, GSAS and Fit2D patterns, with the wavelength and units from the header |
 | VAMAS XPS | `.vms` | ISO 14976 `NORM` / `REGULAR` XPS blocks, including multiple measurement positions and regions |
 | CasaXPS text | `.txt` | Structured eight-line export with raw spectrum, background, envelope, components, and fitted parameters |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | Images, force curves, force-volume and PeakForce Capture cubes |
@@ -218,6 +219,18 @@ X-ray target, Kalpha1 wavelength, tube voltage/current, and scan speed. Other
 `.raw` signatures are rejected explicitly because the extension is shared by
 incompatible vendor formats. Other `.txt` files keep the normal table-import
 preview, so a generic numeric table is not silently reclassified.
+
+## Integrated XRD patterns
+
+Text patterns from pyFAI, Dioptas, GSAS and Fit2D open as XRD. Plotium reads the
+axis (`2th_deg`, `2th_rad`, `q_nm^-1`, `q_A^-1`) and wavelength from the column
+line and header; a file with no header is read as 2theta with a warning. A pattern
+on Q is stored in 2theta using that wavelength, so a Q file with no wavelength is
+refused with a message saying what to add, and so is one on `r_mm` or `d_A`. A
+header that names another quantity, such as `k chi` or `Energy I0 It`, keeps the
+file out of XRD, and a `.dat` file must state its axis. Masked rows are skipped,
+negative intensities are set to zero, and both are reported. Open
+several files or a folder at once, then use **Stack** to overlay them.
 
 ## XPS
 
