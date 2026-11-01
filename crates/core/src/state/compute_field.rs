@@ -4,12 +4,11 @@ use super::*;
 use crate::state::{
     ContourSegment, Dataset, EstimateKind, EstimateProvenance, EstimatedScale, FieldPayload,
     FieldProvenance, FieldRef, FieldSnapshot, FieldSummary, FieldVersion, FiniteF64,
-    LocationScaleEstimate, OmittedContourLevels, ResolvedContourLevels, ScaleEstimate,
-    VersionedFieldRef,
+    LocationScaleEstimate, OmittedContourLevels, ResolvedContourLevels, VersionedFieldRef,
 };
 use plotium_analysis::robust::{
-    DEPLANED_LOCATION_SCALE_ID, DEPLANED_LOCATION_SCALE_VERSION, ROBUST_DIFFERENCE_MAD_ID,
-    ROBUST_DIFFERENCE_MAD_VERSION, deplaned_location_scale, robust_difference_mad,
+    DEPLANED_LOCATION_SCALE_ID, DEPLANED_LOCATION_SCALE_VERSION, NMR_BACKGROUND_ID,
+    NMR_BACKGROUND_VERSION, deplaned_location_scale,
 };
 
 /// Failure to queue field-derived work. Unlike a contour miss, this reaches the
@@ -33,6 +32,13 @@ impl ComputeService {
         let plotium_figure::SeriesEncoding::Contour(spec) = &series.encoding else {
             return Ok(());
         };
+        let descriptor = dataset
+            .field_descriptor(series.source.field)
+            .ok_or("Contour field descriptor is unavailable")?;
+        if let Some(message) = crate::state::contour_estimator_error(spec, &descriptor.capabilities)
+        {
+            return Err(message.into());
+        }
         let field = FieldRef {
             resource: series.source.resource,
             field: series.source.field,
@@ -324,14 +330,7 @@ pub(super) fn run_estimate_field(
     let provenance = resolved_estimator(&key)?;
     match key.kind {
         EstimateKind::Noise => {
-            let scale = robust_difference_mad(&grid.values, grid.rows, grid.cols);
-            // A zero scale measures a flat field; it is an answer, not a
-            // failure. Caching it is what stops an identically failing job from
-            // being re-queued on every canvas rebuild. Only a non-finite or
-            // negative scale means the estimator itself misbehaved.
-            let scale = EstimatedScale::new(scale)
-                .ok_or_else(|| "noise estimator returned a non-finite scale".to_owned())?;
-            Ok(EstimateResult::Scale(ScaleEstimate { scale, provenance }))
+            crate::state::diagnose_noise(&grid.values, grid.rows, grid.cols, provenance)
         }
         EstimateKind::Background => {
             let (location, scale) = deplaned_location_scale(&grid.values, grid.rows, grid.cols);
@@ -350,7 +349,7 @@ pub(super) fn run_estimate_field(
 
 fn resolved_estimator(key: &EstimateKey) -> Result<EstimateProvenance, String> {
     let (latest_id, latest_version) = match key.kind {
-        EstimateKind::Noise => (ROBUST_DIFFERENCE_MAD_ID, ROBUST_DIFFERENCE_MAD_VERSION),
+        EstimateKind::Noise => (NMR_BACKGROUND_ID, NMR_BACKGROUND_VERSION),
         EstimateKind::Background => (DEPLANED_LOCATION_SCALE_ID, DEPLANED_LOCATION_SCALE_VERSION),
     };
     match &key.estimator {

@@ -1,9 +1,7 @@
 //! Degenerate estimate results versus genuinely unavailable estimators.
 //!
-//! A flat field has no noise to measure, and saying so is a *result*: it is
-//! cached, keeps its provenance, and still draws contours. An estimator that
-//! cannot run at all is an error: it reaches the status line and is never
-//! cached, so the two can never be confused for one another.
+//! Small and constant fields are measured results; runtime failures are cached.
+//! Neither may trigger repeated jobs on every frame.
 
 use super::tests::{grid_dataset, wait_for_app_compute};
 use crate::contour_probe;
@@ -44,45 +42,45 @@ fn rebuild(app: &mut PlotiumApp, binding: &DataBinding) -> plotium_figure::Figur
 }
 
 #[test]
-fn a_degenerate_scale_estimate_draws_contours_and_is_never_requeued() {
+fn a_small_plane_with_a_peak_draws_and_does_not_repeat_measurement() {
+    let mut app = PlotiumApp::new_with_settings(crate::settings::Settings::default());
+    let mut values = planar_values();
+    values[5] = 100.0;
+    app.doc.datasets.push(grid_dataset("small", &values));
+    let binding = contour_binding(&app);
+    contour_probe::reset();
+    assert!(rebuild(&mut app, &binding).contours.is_empty());
+    wait_for_app_compute(&mut app);
+    rebuild(&mut app, &binding);
+    wait_for_app_compute(&mut app);
+    for _ in 0..3 {
+        let figure = rebuild(&mut app, &binding);
+        assert!(figure.contours.iter().any(|c| !c.segments.is_empty()));
+    }
+    assert_eq!(contour_probe::queued_estimates(), 1);
+    assert!(!app.session.status.contains("absolute"));
+}
+
+#[test]
+fn a_constant_field_has_no_crossings_and_does_not_repeat_measurement() {
     let mut app = PlotiumApp::new_with_settings(crate::settings::Settings::default());
     app.doc
         .datasets
-        .push(grid_dataset("flat", &planar_values()));
+        .push(grid_dataset("constant", &vec![7.0; 128 * 128]));
     let binding = contour_binding(&app);
-
     contour_probe::reset();
-    let pending = rebuild(&mut app, &binding);
-    assert!(pending.contours.is_empty(), "the estimate is still pending");
+    rebuild(&mut app, &binding);
+    wait_for_app_compute(&mut app);
+    rebuild(&mut app, &binding);
+    wait_for_app_compute(&mut app);
+    assert!(
+        rebuild(&mut app, &binding)
+            .contours
+            .iter()
+            .all(|c| c.segments.is_empty())
+    );
     assert_eq!(contour_probe::queued_estimates(), 1);
-
-    // The estimate settles, then the geometry it unblocked.
-    wait_for_app_compute(&mut app);
-    let resolved = rebuild(&mut app, &binding);
-    assert_eq!(
-        contour_probe::queued_estimates(),
-        1,
-        "a zero scale is a cached result, so the resolver never re-queues it"
-    );
-    assert!(resolved.contours.is_empty(), "geometry is still pending");
-    wait_for_app_compute(&mut app);
-
-    let drawn = rebuild(&mut app, &binding);
-    assert!(
-        !drawn.contours.is_empty(),
-        "a field with no measurable noise still gets a visible ladder \
-         instead of a permanently blank plot"
-    );
-    assert_eq!(
-        contour_probe::queued_estimates(),
-        1,
-        "repeated rebuilds must not re-queue an estimate that already answered"
-    );
-    assert!(
-        !app.session.status.contains("Field estimate could not"),
-        "a degenerate measurement is not an error: {}",
-        app.session.status
-    );
+    assert!(!app.session.status.contains("could not"));
 }
 
 #[test]
@@ -131,7 +129,7 @@ fn an_unavailable_estimator_reports_an_error_and_is_not_cached_as_degenerate() {
     assert!(still_blank.contours.is_empty());
     assert_eq!(
         contour_probe::queued_estimates(),
-        2,
-        "an unavailable estimator produced no cacheable result, degenerate or otherwise"
+        1,
+        "an unavailable estimator is cached to prevent per-frame retries"
     );
 }

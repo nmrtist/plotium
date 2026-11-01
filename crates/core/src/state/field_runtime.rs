@@ -407,7 +407,9 @@ impl EstimatedScale {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ScaleEstimate {
+pub struct NoiseEstimate {
+    /// Absolute median of the finite displayed amplitudes.
+    pub baseline: f64,
     pub scale: EstimatedScale,
     pub provenance: EstimateProvenance,
 }
@@ -421,7 +423,8 @@ pub struct LocationScaleEstimate {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EstimateResult {
-    Scale(ScaleEstimate),
+    Noise(NoiseEstimate),
+    Unavailable(String),
     LocationScale(LocationScaleEstimate),
 }
 
@@ -576,6 +579,24 @@ pub fn resolved_noise_scale(
     }
 }
 
+/// Explicit peak protection is applied only when requested by the stored policy.
+pub fn resolved_noise_anchor(
+    noise: &NoiseEstimate,
+    peak_fraction: UnitInterval,
+    summary: FieldSummary,
+) -> (f64, NoiseScaleTerm) {
+    resolved_noise_scale(noise.scale, peak_fraction, summary)
+}
+
+pub fn noise_contour_base(
+    noise: &NoiseEstimate,
+    multiplier: f64,
+    peak_fraction: UnitInterval,
+    summary: FieldSummary,
+) -> f64 {
+    noise.baseline + multiplier * resolved_noise_anchor(noise, peak_fraction, summary).0
+}
+
 pub fn resolve_contour_levels(
     source: VersionedFieldRef,
     spec: &ContourSpec,
@@ -653,3 +674,15 @@ mod floor_tests;
 #[cfg(test)]
 #[path = "field_progress_tests.rs"]
 mod progress_tests;
+
+#[path = "noise_diagnostics.rs"]
+mod noise_diagnostics;
+pub(crate) use noise_diagnostics::diagnose_noise;
+
+#[cfg(test)]
+#[path = "noise_diagnostics_tests.rs"]
+mod noise_diagnostics_tests;
+
+#[cfg(test)]
+#[path = "noise_validation_tests.rs"]
+mod noise_validation_tests;

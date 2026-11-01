@@ -21,38 +21,43 @@ follows the page's active plot.
 **Advanced**. Lowest level decides what you see: everything below it is not
 drawn at all. Raise it to suppress noise, lower it to reveal weak cross-peaks.
 
-What the number means depends on the anchor (below). Under the default anchor
-for a phase-sensitive NMR plane it is a multiple of the noise floor, so `5`
-means "start at five times the noise". Because a multiple on its own does not
-tell you where the level actually falls, the row names its unit and resolves the
-level beside it: `5` `× noise floor` `= 1.2e4`.
+What the number means depends on the anchor (below). The default for a
+phase-sensitive NMR plane is a background-adjusted noise floor, with a multiplier
+of `5`. The row shows the unit and the resolved intensity beside the multiplier:
+`5` `× noise floor` `= 1.2e4`. The resolved intensity includes baseline protection
+and can exceed five times the estimated noise standard deviation, σ.
 
-Noise and background are estimated away from the interface, so until the
-estimate arrives the resolved level reads `measuring…`. Data with no measurable
-spread — a perfectly flat or perfectly regular grid — reads `no spread
-measured`: the multiple anchors nothing, and the levels fall back to a ladder
-derived from the data's own peak so the plot is not left blank.
+The noise scale is measured away from the interface. Until it arrives, the
+resolved level reads `measuring…`. Spatial background checks do not prevent
+Plotium from drawing the spectrum.
 
 ### The noise floor
 
-An estimator measures thermal noise. Data with a large dynamic range also
-carries the sampling artefacts of its own strongest feature — in a 2D spectrum,
-the t₁ noise ridges and residual solvent ridges that run through the tallest
-peaks — and those are far above the thermal floor. A level set below them draws
-the artefacts rather than the peaks: hundreds of thousands of contour crossings
-that hide the spectrum and can exceed what one plot is able to draw at all.
+Plotium measures the amplitudes of all finite samples in the final
+phase-sensitive real spectrum. The noise scale is the median absolute deviation
+from the spectrum's median, divided by `0.67449`. Measuring amplitudes avoids
+assuming that adjacent points are independent: zero filling and windowing can
+correlate noise and make point-to-point differences misleadingly small.
 
-So the σ anchor never resolves below **0.01 % of the data's peak**. Whichever is
-larger, the estimated σ or that floor, is what the multiple is measured against.
-On ordinary data σ is much larger and nothing changes. On data whose peak is
-more than 10,000 times its noise the floor takes over, and the readout names it
-rather than continuing to name σ: the row resolves to
-`= 1.652e5 (0.01% of peak)`, and the plot corner spells out the whole sentence,
-`5 × 0.01% of peak = 1.652e5 — σ is below this floor`.
+The threshold is `|median| + k × max(σ, f × P)`, where `k` is the multiplier,
+`P` the largest absolute intensity, and `f` an explicit peak-fraction floor
+(zero by default). The absolute median protects against an offset baseline;
+it does not subtract a baseline or modify the spectrum. Both signs use the
+same threshold magnitude.
 
-Hover the resolved level for the longer explanation. The floor is a floor, not a
-ceiling on what you can ask for: choose the **Absolute level** anchor to set any
-level you like, including one inside the noise.
+An isolated strong peak does not automatically raise the default threshold
+elsewhere. An explicitly stored nonzero peak-fraction floor is still honoured.
+There is no additional background-tail threshold.
+
+This is an initial display level, not a separation of signal from noise or a
+false-peak probability. Dense or broad signals can raise the measured scale;
+local solvent ridges, t₁ stripes and varying baselines can still be visible.
+Adjust **Lowest level**, or choose **Absolute level** to set an intensity
+directly, when the initial display does not suit the spectrum.
+
+The amplitude noise anchor applies to phase-sensitive real spectra, not
+magnitude spectra. A constant plane has no contour crossings; finite small
+planes can still be measured.
 
 If you set an **Absolute level** the data never reaches, that half draws nothing
 and the Operation history reports both numbers — for example, *The positive contour
@@ -64,13 +69,15 @@ visible at a glance that way.
 
 Press `+` and `-` to raise and lower the lowest level of the selected plot — or
 of the page's active plot when nothing is selected — without leaving the canvas.
-On keyboards where `+` needs Shift, `=` raises as well. Each press moves the
-level by one rung of that plot's own **Level ratio**, so one press adds or
-removes roughly one contour ring whatever the intensity scale: the same gesture
-works on a spectrum whose peak is 100 and one whose peak is a billion.
+On keyboards where `+` needs Shift, `=` raises as well. Each press multiplies or
+divides the anchor setting by that plot's **Level ratio**. For an absolute level
+this moves the lowest level by one ladder rung. For a noise or background
+multiple it changes the multiplier; the baseline allowance stays fixed, so the
+resolved intensity need not move by exactly one rung. The adjustment follows
+the data's intensity scale without requiring a different step size per spectrum.
 
 Hovering the plot body and holding `Alt` while you roll the mouse wheel does the
-same thing without the keyboard. One wheel notch moves one rung. The contours
+same thing without the keyboard. One wheel notch makes one adjustment. The contours
 already on screen stay there while the new ones are computed, so sweeping
 through several rungs never leaves you reading a half-drawn ladder.
 
@@ -82,7 +89,7 @@ does nothing rather than guessing which layer you meant; change the layer you
 want from the Object inspector.
 
 Whenever the keys apply, the current lowest level is shown in the top-right
-corner of the plot, resolved the same way as in the panel — `5 × σ = 1.2e4`. A
+corner of the plot, resolved the same way as in the panel. A
 plot whose contour series do not all sit at the same level says so instead of
 showing one of them. Stepping is an
 ordinary edit: it can be undone, and a step past the highest value the current
@@ -121,6 +128,13 @@ Open **Advanced** for the rest of the ladder.
 - **Level ratio** — the factor between one level and the next. It must be
   greater than 1, and at most 10.
 
+The default ladder has **14 levels** and a **1.35 ratio**. Geometric spacing
+keeps weak-peak detail near the lowest level while covering stronger peaks
+without equally spaced rings crowding the bottom. Fourteen levels span about
+50 times the lowest intensity; increase **Levels** when you also need to show
+higher parts of a spectrum with a larger dynamic range. Changing the ratio
+does not repair an unreliable noise estimate.
+
 **Negative contours**, **Positive colour** and **Negative colour** are in the
 same section.
 
@@ -143,7 +157,9 @@ than one plot can render. Raise the lowest level to 6.820e4 or above to see
 every level the panel lists.*
 
 Changing the anchor, the lowest level, the count or the ratio applies to both
-signs — the negative half mirrors the positive ladder and applies its own sign.
+signs — the negative half mirrors the positive ladder and applies its own sign. Both halves remain centred on zero, with the same
+conservative threshold magnitude. A baseline allowance can therefore suppress
+more of the cleaner half; Plotium does not silently recenter the data.
 
 ## While it is being drawn
 

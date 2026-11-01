@@ -13,6 +13,7 @@ pub mod lineshape;
 pub mod mass_spec;
 pub mod models;
 pub mod multiplet;
+pub mod nmr_background;
 pub mod peaks;
 mod pseudo2d_impl;
 pub mod relaxation;

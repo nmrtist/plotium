@@ -116,14 +116,23 @@ fn contour_slice_places_peak_and_exports_svg() {
         .push(Dataset::Nmr2D(Box::new(Nmr2DDataset::load(data).unwrap())));
     let mut canvas = CanvasDocument::new("contour".to_owned(), [120.0, 80.0]);
     let [width, height] = canvas.size_pt();
+    let id = canvas.allocate_object_id();
     let object = app.build_plot_object(
         0,
         ObjectFrame::new(0.0, 0.0, width, height),
-        canvas.allocate_object_id(),
+        id,
         "Contour".to_owned(),
     );
     canvas.objects.push(object);
     app.doc.canvases.push(canvas);
+    // This ideal, noiseless FID has no independently identifiable Gaussian
+    // background. This test exercises rendering and export, not estimation.
+    write_typed(
+        &mut app,
+        id,
+        contour::BASE_POLICY,
+        PropertyValue::Enum("absolute"),
+    );
 
     let deadline = Instant::now() + Duration::from_secs(2);
     while app.compute_busy() && Instant::now() < deadline {
@@ -168,8 +177,8 @@ fn settle(app: &mut PlotiumApp) {
 /// A page holding one plot of a real processed 2D spectrum, settled.
 ///
 /// Built from the same synthetic FID as the slice above and run through the
-/// same `process_2d`, so the field the catalog sees is a genuine spectrum with
-/// a genuine noise estimate rather than a hand-written grid.
+/// same `process_2d`. The ideal FID has no thermal noise; use an explicit
+/// threshold to test property delivery independently of background inference.
 fn contour_page() -> (PlotiumApp, ObjectId) {
     let mut app = PlotiumApp::new();
     app.doc.datasets.push(Dataset::Nmr2D(Box::new(
@@ -187,6 +196,12 @@ fn contour_page() -> (PlotiumApp, ObjectId) {
     canvas.objects.push(object);
     app.doc.canvases.push(canvas);
     app.session.active_canvas = Some(0);
+    write_typed(
+        &mut app,
+        id,
+        contour::BASE_POLICY,
+        PropertyValue::Enum("absolute"),
+    );
     settle(&mut app);
     (app, id)
 }

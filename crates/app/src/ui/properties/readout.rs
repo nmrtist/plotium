@@ -21,7 +21,7 @@ use plotium_core::state::{
 /// than the bare number is that the sentence is true.
 pub(crate) fn anchor_expression(readout: &ContourBaseReadout) -> String {
     let magnitude = number(readout.magnitude);
-    match readout.kind {
+    let expression = match readout.kind {
         CONTOUR_BASE_NOISE_FLOOR if readout.anchor == ContourAnchor::Floored => {
             format!("{magnitude} × {}", peak_floor(readout))
         }
@@ -31,6 +31,11 @@ pub(crate) fn anchor_expression(readout: &ContourBaseReadout) -> String {
         // An absolute level, and anything a future policy adds: the number is
         // already in the field's own units.
         _ => magnitude,
+    };
+    if readout.kind == CONTOUR_BASE_NOISE_FLOOR && readout.baseline.is_some_and(|b| b > 0.0) {
+        format!("{} + {expression}", number(readout.baseline.unwrap_or(0.0)))
+    } else {
+        expression
     }
 }
 
@@ -62,6 +67,7 @@ pub(crate) fn summary(readout: &ContourBaseReadout) -> String {
         // back to one derived from the field's own peak. Say that instead.
         ContourAnchor::Degenerate => format!("{expression} — no spread measured"),
         ContourAnchor::Measuring => format!("{expression} — measuring…"),
+        ContourAnchor::Unavailable => "Contour level unavailable — set an absolute level".into(),
         // The expression already names the floor; this says why it, and not the
         // estimate, is what the level came from. Without the clause the reader
         // has no way to tell a floor that is merely configured from one that is
@@ -175,6 +181,7 @@ pub(crate) fn resolution_suffix(readout: &ContourBaseReadout) -> Option<String> 
         ContourAnchor::PhasePreview => Some("fixed while phasing".into()),
         ContourAnchor::Degenerate => Some("no spread measured".to_owned()),
         ContourAnchor::Measuring => Some("measuring…".to_owned()),
+        ContourAnchor::Unavailable => Some("set an absolute level".into()),
         // The row's own unit reads "× noise floor", which is true of both terms.
         // Naming the floor here is what makes the row say which one is in force.
         ContourAnchor::Floored => Some(match readout.lowest_level {
@@ -194,14 +201,29 @@ pub(crate) fn explanation(readout: &ContourBaseReadout) -> String {
         .lowest_level
         .map(|level| format!("The lowest level drawn is {}. ", number(level)))
         .unwrap_or_default();
-    if readout.anchor == ContourAnchor::Floored {
+    if readout.kind == CONTOUR_BASE_NOISE_FLOOR
+        && matches!(
+            readout.anchor,
+            ContourAnchor::Measured | ContourAnchor::Floored
+        )
+    {
+        let basis = match readout.anchor {
+            ContourAnchor::Floored => format!(
+                "The measured background scale is below the anchor's floor of {}, so the explicit peak floor is in force.",
+                peak_floor(readout)
+            ),
+            _ => "The amplitude noise scale is at or above the anchor's floor.".into(),
+        };
+        let diagnostics = match (readout.noise_sigma, readout.baseline) {
+            (Some(sigma), Some(baseline)) => format!(
+                " Noise σ: {}; baseline allowance: {}.",
+                number(sigma),
+                number(baseline)
+            ),
+            _ => String::new(),
+        };
         return format!(
-            "{level}This field's estimated noise σ is below the anchor's floor of {floor}, \
-             so the multiple is measured against the floor instead. A field with this much \
-             dynamic range carries the sampling artefacts of its own strongest feature well \
-             above its thermal noise, and a level under the floor traces those rather than \
-             peaks. Choose the absolute anchor to set a level below it anyway.",
-            floor = peak_floor(readout),
+            "{level}{basis}{diagnostics} The baseline allowance is added to the noise multiple. Both signs share this threshold. Dense signals and local artifacts can affect the display; the multiplier is not a false-peak probability. Choose the absolute anchor to set a level directly."
         );
     }
     let anchor = match readout.anchor {
@@ -209,26 +231,18 @@ pub(crate) fn explanation(readout: &ContourBaseReadout) -> String {
             "The contour threshold is fixed during this phase gesture. It is recalculated from the final data when the gesture ends."
         }
         ContourAnchor::Direct => "This level is set directly, so it needs no measurement.",
-        // Only an anchor that *has* a floor may mention one; a background anchor
-        // has none, and inventing one here would describe a rule it does not
-        // follow.
-        ContourAnchor::Measured if readout.peak_fraction.is_some() => {
-            return format!(
-                "{level}The multiple is measured against this field's own estimated noise σ, \
-                 so it follows the data. σ is at or above the anchor's floor of {floor}, so \
-                 the floor is not in force.",
-                floor = peak_floor(readout),
-            );
-        }
         ContourAnchor::Measured => {
             "The multiple is measured against this field's own estimated scale, \
              so it follows the data."
         }
         ContourAnchor::Floored => unreachable!("returned above"),
+        ContourAnchor::Unavailable => {
+            "Choose the absolute anchor to set the lowest level directly. See Operation history for details, or reprocess the data to measure a new level."
+        }
         ContourAnchor::Degenerate => {
-            "This field has no measurable spread — a flat or perfectly regular \
-             grid — so the multiple anchors nothing and the levels fall back to \
-             a ladder derived from the field's peak."
+            "This field has no measurable spread — a constant \
+             grid. A constant plane has no contour crossings. If no positive base \
+             can be derived, the ladder uses the field's peak."
         }
         ContourAnchor::Measuring => {
             "The scale this multiple is measured against is still being \
@@ -265,6 +279,8 @@ mod tests {
             lowest_level: level,
             peak_fraction: (kind == CONTOUR_BASE_NOISE_FLOOR).then_some(1.0e-4),
             anchor,
+            noise_sigma: None,
+            baseline: None,
         }
     }
 
@@ -297,6 +313,23 @@ mod tests {
             )),
             "background + 5 × spread = 3.5"
         );
+    }
+
+    #[test]
+    fn baseline_adjusted_noise_readout_matches_the_threshold() {
+        let mut value = readout(CONTOUR_BASE_NOISE_FLOOR, ContourAnchor::Measured, Some(8.0));
+        value.baseline = Some(3.0);
+        value.noise_sigma = Some(1.0);
+        assert_eq!(summary(&value), "3 + 5 × σ = 8");
+        assert!(explanation(&value).contains("baseline allowance: 3"));
+    }
+
+    #[test]
+    fn unavailable_background_offers_a_manual_level_without_measuring_forever() {
+        let value = readout(CONTOUR_BASE_NOISE_FLOOR, ContourAnchor::Unavailable, None);
+        assert!(summary(&value).contains("set an absolute level"));
+        assert!(!summary(&value).contains("measuring"));
+        assert!(explanation(&value).contains("Operation history"));
     }
 
     /// A degenerate estimate must never be presented as `5 × σ = 0`: that reads

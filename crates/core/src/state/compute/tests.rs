@@ -496,7 +496,8 @@ fn held_processing_respects_estimate_to_geometry_boundary_and_cancellation() {
         done_tx
             .send(Done::EstimateField {
                 key: estimate,
-                result: EstimateResult::Scale(crate::state::ScaleEstimate {
+                result: EstimateResult::Noise(crate::state::NoiseEstimate {
+                    baseline: 0.0,
                     scale: crate::state::EstimatedScale::Degenerate,
                     provenance: crate::state::EstimateProvenance {
                         estimator: "test".into(),

@@ -100,6 +100,16 @@ fn field_overlay_stacks_two_2d_contours_in_distinct_colors() {
     };
     for (index, series) in binding.series.iter_mut().enumerate() {
         series.set_primary_color(crate::state::OVERLAY_PALETTE[index]);
+        // This test exercises overlay color, independently of background identifiability.
+        if let plotium_figure::SeriesEncoding::Contour(spec) = &mut series.encoding {
+            let base = plotium_figure::ContourBasePolicy::Absolute(
+                plotium_figure::PositiveFiniteF64::new(1.0).unwrap(),
+            );
+            spec.positive.base = base.clone();
+            if let Some(negative) = &mut spec.negative {
+                negative.base = base;
+            }
+        }
     }
     let chart = ChartSpec::default_for(DataDomain::Nmr2d);
     let stack = StackSpec {
@@ -120,7 +130,7 @@ fn field_overlay_stacks_two_2d_contours_in_distinct_colors() {
     // The first completion supplies the estimate. Resolving the binding again
     // then queues its geometry, which is a separate worker stage.
     let geometry_pending = app.build_binding_figure(&binding, &chart, &stack, [120.0, 80.0]);
-    assert!(geometry_pending.contours.is_empty());
+    assert!(!geometry_pending.contours.is_empty());
     while app.compute_busy() && std::time::Instant::now() < deadline {
         app.poll_compute();
         std::thread::sleep(std::time::Duration::from_millis(5));

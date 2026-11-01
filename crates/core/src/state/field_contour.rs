@@ -13,34 +13,9 @@ pub const CONTOUR_BASE_FRACTION_OF_RANGE: &str = "fraction_of_range";
 const CONTOUR_BASE_FRACTION: f64 = 0.04;
 /// The conventional distance from the noise or background floor.
 const CONTOUR_BASE_MULTIPLIER: f64 = 5.0;
-/// The smallest noise scale a σ-anchored base accepts, as a fraction of the
-/// field's peak magnitude.
-///
-/// This is a calibration, not a convention, and it is the one number in this
-/// file that should be re-measured when new evidence arrives.
-///
-/// A noise estimator measures thermal noise. A 2D plane with large dynamic
-/// range also carries the sampling artefacts of its own strongest feature —
-/// indirect-dimension (t₁) noise ridges and residual solvent ridges — whose
-/// amplitude scales with that feature rather than with the thermal floor, and
-/// which are conventionally quoted at 10⁻³ to 10⁻⁴ of the parent peak. A level
-/// below that traces artefacts, not signal.
-///
-/// Measured on a 2048 × 8192 ¹H–¹H NOESY (peak 3.304e8, robust σ 1.669e3, so
-/// 197,900:1 dynamic range) by counting the grid crossings of a single level
-/// swept geometrically: 2.81e6 crossings at 0.001 % of peak, 8.99e5 at 0.004 %,
-/// then 7.56e4 at 0.008 % and a smooth halving per octave above that. The knee
-/// at ≈ 0.008 % of peak — 16 σ — is where contours stop following the artefact
-/// floor, and it agrees with the conventional t₁-noise magnitude. The floor is
-/// set at that knee, and the ladder's own 5× multiplier then places the lowest
-/// level five artefact-floor units above it, exactly as 5σ places it five
-/// thermal-noise units above thermal noise.
-///
-/// Re-calibrate if the noise estimator changes what it measures, if the
-/// renderer's segment budget changes, or if fields are seen whose artefact floor
-/// sits elsewhere. The floor binds only above a dynamic range of 1/this value;
-/// below it the estimated scale wins and nothing about resolution changes.
-const CONTOUR_NOISE_FLOOR_PEAK_FRACTION: f64 = 1.0e-4;
+/// Strong-peak scaling is an explicit option, not a measured background.
+/// Automatic thresholds use amplitude MAD and the absolute median instead.
+const CONTOUR_NOISE_FLOOR_PEAK_FRACTION: f64 = 0.0;
 
 pub fn contour_base_kind(policy: &ContourBasePolicy) -> &'static str {
     match policy {
@@ -65,8 +40,8 @@ pub fn contour_base_policy(kind: &str, peak: PeakMagnitude<'_>) -> Option<Contou
             peak_fraction: UnitInterval::new(CONTOUR_NOISE_FLOOR_PEAK_FRACTION)
                 .expect("literal fraction is valid"),
             estimator: EstimatorSelection::Frozen {
-                estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-                version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+                estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+                version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
             },
         },
         CONTOUR_BASE_BACKGROUND_SCALE => ContourBasePolicy::BackgroundScale {

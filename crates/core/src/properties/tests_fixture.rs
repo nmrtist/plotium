@@ -2,10 +2,21 @@
 
 use super::*;
 
-/// The default plane: values running -7..8, so its noise estimate is an
-/// ordinary fraction of its peak and no contour floor is ever reached.
+/// Distributed Gaussian background with signed peaks for scientific estimates.
 fn default_plane() -> Vec<f64> {
-    (0..16).map(|value| f64::from(value) - 7.0).collect()
+    let mut state = 123456789_u64;
+    let mut uniform = || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        (state as f64 / u64::MAX as f64).max(f64::MIN_POSITIVE)
+    };
+    let mut values = (0..128 * 128)
+        .map(|_| (-2.0 * uniform().ln()).sqrt() * (std::f64::consts::TAU * uniform()).cos())
+        .collect::<Vec<_>>();
+    values[3000] = 50.0;
+    values[9000] = -40.0;
+    values
 }
 
 fn nmr2d_with(source: &str, values: &[f64]) -> plotium_io::NmrData2D {
@@ -21,8 +32,8 @@ fn nmr2d_with(source: &str, values: &[f64]) -> plotium_io::NmrData2D {
             .iter()
             .map(|value| num_complex::Complex64::new(*value, 0.5))
             .collect(),
-        rows: 4,
-        cols: 4,
+        rows: (values.len() as f64).sqrt() as usize,
+        cols: (values.len() as f64).sqrt() as usize,
         domain: plotium_io::Domain::Frequency,
         direct: dimension("1H"),
         indirect: dimension("13C"),

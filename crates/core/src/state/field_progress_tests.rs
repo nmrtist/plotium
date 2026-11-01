@@ -16,11 +16,9 @@ use plotium_figure::{
     ContourLevelSpec, ContourSpec, ContourStyle, PositiveFiniteF64, SeriesEncoding,
 };
 
-/// A 4×4 signed field with enough structure for a robust noise estimate.
+/// Distributed measured noise with visible signed peaks.
 fn signed_values() -> Vec<f32> {
-    vec![
-        -4.0, -1.0, 3.0, 1.0, 2.0, -3.0, 4.0, -2.0, 1.0, 5.0, -5.0, 3.0, -2.0, 4.0, 0.0, 6.0,
-    ]
+    super::tests::noisy_grid().values.to_vec()
 }
 
 fn app_with_contour(encoding: Option<ContourSpec>) -> (PlotiumApp, DataBinding) {

@@ -40,13 +40,25 @@ pub(super) fn summary() -> FieldSummary {
     }
 }
 
-fn noisy_grid() -> Arc<ScalarGrid2D> {
+pub(super) fn noisy_grid() -> Arc<ScalarGrid2D> {
+    let mut seed = 123456789_u64;
+    let mut uniform = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed as f64 / u64::MAX as f64).max(f64::MIN_POSITIVE)
+    };
+    let mut values = (0..128 * 128)
+        .map(|_| {
+            ((-2.0 * uniform().ln()).sqrt() * (std::f64::consts::TAU * uniform()).cos()) as f32
+        })
+        .collect::<Vec<_>>();
+    values[0] = 10.0;
+    values[1] = -10.0;
     Arc::new(ScalarGrid2D {
-        values: Arc::from(vec![
-            -4.0, -1.0, 3.0, 1.0, 2.0, -3.0, 4.0, -2.0, 1.0, 5.0, -5.0, 3.0, -2.0, 4.0, 0.0, 6.0,
-        ]),
-        rows: 4,
-        cols: 4,
+        values: Arc::from(values),
+        rows: 128,
+        cols: 128,
         x: AxisSampling::Linear {
             start: 0.0,
             end: 3.0,
@@ -71,16 +83,17 @@ pub(super) fn grid_dataset(label: &str, values: &[f32]) -> Dataset {
         nucleus: nucleus.to_owned(),
         group_delay: 0.0,
     };
-    let values = values
+    let values: Vec<Complex64> = values
         .iter()
         .copied()
         .map(|value| Complex64::new(f64::from(value), 0.0))
         .collect();
+    let size = (values.len() as f64).sqrt() as usize;
     Dataset::Nmr2D(Box::new(
         crate::nmr_test_support::load_2d(NmrData2D {
             data: values,
-            rows: 4,
-            cols: 4,
+            rows: size,
+            cols: size,
             domain: Domain::Frequency,
             direct: dimension("1H"),
             indirect: dimension("13C"),
@@ -300,8 +313,8 @@ fn equivalent_absolute_levels_share_the_same_geometry_key() {
                 peak_fraction: plotium_figure::UnitInterval::new(0.0)
                     .expect("a zero floor is valid"),
                 estimator: EstimatorSelection::Frozen {
-                    estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-                    version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+                    estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+                    version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
                 },
             },
             count: 3,
@@ -322,11 +335,12 @@ fn equivalent_absolute_levels_share_the_same_geometry_key() {
             ..ContourStyle::default()
         },
     };
-    let estimate = EstimateResult::Scale(ScaleEstimate {
+    let estimate = EstimateResult::Noise(NoiseEstimate {
+        baseline: 0.0,
         scale: EstimatedScale::Positive(PositiveFiniteF64::new(1.0).unwrap()),
         provenance: EstimateProvenance {
-            estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-            version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+            estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+            version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
         },
     });
     let ContourResolution::Ready {
@@ -502,8 +516,8 @@ fn estimates_are_demand_driven_and_coexist_per_estimator_selection() {
         source,
         kind: EstimateKind::Noise,
         estimator: EstimatorSelection::Frozen {
-            estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-            version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+            estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+            version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
         },
     };
     let background = EstimateKey {
@@ -556,14 +570,14 @@ fn estimates_are_demand_driven_and_coexist_per_estimator_selection() {
             .unwrap()
     );
     settle_estimates(&mut service);
-    let Some(EstimateResult::Scale(noise)) = service.estimate_for(&frozen_noise) else {
+    let Some(EstimateResult::Noise(noise)) = service.estimate_for(&frozen_noise) else {
         panic!("expected the frozen noise estimate");
     };
     assert_eq!(
         noise.provenance,
         EstimateProvenance {
-            estimator: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_ID.to_owned(),
-            version: plotium_analysis::robust::ROBUST_DIFFERENCE_MAD_VERSION,
+            estimator: plotium_analysis::robust::NMR_BACKGROUND_ID.to_owned(),
+            version: plotium_analysis::robust::NMR_BACKGROUND_VERSION,
         }
     );
     assert!(

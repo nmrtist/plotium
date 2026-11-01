@@ -98,16 +98,18 @@ pub(crate) fn resolve_contour_base(
                 kind: EstimateKind::Noise,
                 estimator: estimator.clone(),
             };
-            let Some(EstimateResult::Scale(result)) = estimate(&key) else {
-                pending.push(key);
-                return None;
+            let result = match estimate(&key) {
+                Some(EstimateResult::Noise(result)) => result,
+                Some(_) => return None,
+                None => {
+                    pending.push(key);
+                    return None;
+                }
             };
-            // The floor is measured against the *field's* peak, not this half's.
-            // Sampling artefacts are driven by the strongest feature whatever
-            // its sign, and a per-half floor would also split the two halves
-            // onto different ladders, which the geometry budget relies on them
-            // not doing.
-            multiplier.get() * resolved_noise_scale(result.scale, *peak_fraction, summary).0
+            // Both signs share one conservative magnitude so geometry-budget
+            // trimming never changes the sign balance. Peak protection remains
+            // an explicit policy value rather than a universal artifact model.
+            noise_contour_base(&result, multiplier.get(), *peak_fraction, summary)
         }
         ContourBasePolicy::BackgroundScale {
             multiplier,
@@ -118,9 +120,13 @@ pub(crate) fn resolve_contour_base(
                 kind: EstimateKind::Background,
                 estimator: estimator.clone(),
             };
-            let Some(EstimateResult::LocationScale(result)) = estimate(&key) else {
-                pending.push(key);
-                return None;
+            let result = match estimate(&key) {
+                Some(EstimateResult::LocationScale(result)) => result,
+                Some(_) => return None,
+                None => {
+                    pending.push(key);
+                    return None;
+                }
             };
             // Background fields carry a location as well as a spread. The
             // contour policy expresses the physical level `location + k*scale`;

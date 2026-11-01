@@ -23,7 +23,7 @@ use crate::automation::TargetRef;
 use crate::state::{
     ContourResolution, EstimateKey, EstimateKind, EstimateResult, EstimatedScale, FieldRef,
     FieldSummary, NoiseScaleTerm, PlotiumApp, VersionedFieldRef, contour_base_kind,
-    resolve_contour_levels, resolved_noise_scale,
+    contour_estimator_error, resolve_contour_levels, resolved_noise_anchor,
 };
 use plotium_figure::{ContourBasePolicy, SeriesEncoding, UnitInterval};
 
@@ -91,6 +91,8 @@ pub enum ContourAnchor {
     /// plot is not drawn from — the exact substitution this readout exists to
     /// make impossible.
     Floored,
+    /// The estimate failed or the field does not support the selected anchor.
+    Unavailable,
     /// The estimator ran and measured no spread at all. The multiple anchors
     /// nothing — five times zero is zero — so the ladder falls back to one
     /// derived from the field's own peak, and saying "5σ = 0" would be a
@@ -122,6 +124,9 @@ pub struct ContourBaseReadout {
     /// caller can name the floor in both sentences.
     pub peak_fraction: Option<f64>,
     pub anchor: ContourAnchor,
+    /// Cached measurements in field amplitude units; absent before measurement.
+    pub noise_sigma: Option<f64>,
+    pub baseline: Option<f64>,
 }
 
 /// Read what one contour series' lowest level currently means.
@@ -152,7 +157,10 @@ pub(crate) fn contour_base_readout(
     };
     let summary = app.session.compute.peek_field_summary(source);
     let preview = summary.and_then(|summary| app.session.phase_preview.peek(source, spec, summary));
-    let anchor = if preview.is_some() {
+    let unsupported = contour_estimator_error(spec, &context.capabilities).is_some();
+    let anchor = if unsupported {
+        ContourAnchor::Unavailable
+    } else if preview.is_some() {
         ContourAnchor::PhasePreview
     } else {
         match &spec.positive.base {
@@ -186,7 +194,7 @@ pub(crate) fn contour_base_readout(
     // Resolution is pure arithmetic over a cached summary and cached
     // estimates; the payload is never touched. A miss simply yields
     // `Pending`, which is reported rather than acted on.
-    let lowest_level = summary.and_then(|summary| {
+    let lowest_level = summary.filter(|_| !unsupported).and_then(|summary| {
         match preview.unwrap_or_else(|| {
             resolve_contour_levels(source, spec, summary, |key| {
                 app.session.compute.peek_estimate(key).cloned()
@@ -198,12 +206,28 @@ pub(crate) fn contour_base_readout(
             ContourResolution::Pending(_) | ContourResolution::Unavailable => None,
         }
     });
+    let noise = match &spec.positive.base {
+        ContourBasePolicy::NoiseFloor { estimator, .. } => {
+            let key = EstimateKey {
+                source,
+                kind: EstimateKind::Noise,
+                estimator: estimator.clone(),
+            };
+            match app.session.compute.peek_estimate(&key) {
+                Some(EstimateResult::Noise(noise)) => Some(noise),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
     Some(ContourBaseReadout {
         kind: contour_base_kind(&spec.positive.base),
         magnitude: contour::base_magnitude(&spec.positive.base),
         lowest_level,
         peak_fraction: contour::base_peak_fraction(&spec.positive.base),
         anchor,
+        noise_sigma: noise.map(|n| n.scale.get()),
+        baseline: noise.map(|n| n.baseline),
     })
 }
 
@@ -221,12 +245,18 @@ fn floored_anchor_of(
     peak_fraction: UnitInterval,
     summary: Option<FieldSummary>,
 ) -> ContourAnchor {
-    let (Some(EstimateResult::Scale(estimate)), Some(summary)) =
+    if matches!(
+        app.session.compute.peek_estimate(key),
+        Some(EstimateResult::Unavailable(_))
+    ) {
+        return ContourAnchor::Unavailable;
+    }
+    let (Some(EstimateResult::Noise(estimate)), Some(summary)) =
         (app.session.compute.peek_estimate(key), summary)
     else {
         return ContourAnchor::Measuring;
     };
-    match resolved_noise_scale(estimate.scale, peak_fraction, summary) {
+    match resolved_noise_anchor(estimate, peak_fraction, summary) {
         // Neither term measured anything: a flat field with no peak either.
         (scale, _) if scale <= 0.0 => ContourAnchor::Degenerate,
         (_, NoiseScaleTerm::PeakFloor) => ContourAnchor::Floored,
@@ -237,7 +267,8 @@ fn floored_anchor_of(
 fn anchor_of(app: &PlotiumApp, key: &EstimateKey) -> ContourAnchor {
     let scale = match app.session.compute.peek_estimate(key) {
         None => return ContourAnchor::Measuring,
-        Some(EstimateResult::Scale(estimate)) => estimate.scale,
+        Some(EstimateResult::Noise(estimate)) => estimate.scale,
+        Some(EstimateResult::Unavailable(_)) => return ContourAnchor::Unavailable,
         Some(EstimateResult::LocationScale(estimate)) => estimate.scale,
     };
     match scale {

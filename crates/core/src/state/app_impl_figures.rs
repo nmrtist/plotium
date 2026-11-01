@@ -415,6 +415,11 @@ impl PlotiumApp {
             return dataset.encoded_field_figure(series.source.field, &series.encoding);
         };
 
+        let descriptor = dataset.field_descriptor(series.source.field)?;
+        if let Some(message) = contour_estimator_error(contour, &descriptor.capabilities) {
+            self.session.status = message.into();
+            return None;
+        }
         let field = FieldRef {
             resource: series.source.resource,
             field: series.source.field,
@@ -521,7 +526,29 @@ impl PlotiumApp {
                 self.session.status = pending_status;
             }
             ContourResolution::Unavailable => {
-                self.session.status = "Contour levels are unavailable for this field.".into();
+                let reason = std::iter::once(&contour.positive)
+                    .chain(contour.negative.iter())
+                    .find_map(|level| {
+                        let (kind, estimator) = match &level.base {
+                            plotium_figure::ContourBasePolicy::NoiseFloor { estimator, .. } => {
+                                (EstimateKind::Noise, estimator)
+                            }
+                            plotium_figure::ContourBasePolicy::BackgroundScale {
+                                estimator,
+                                ..
+                            } => (EstimateKind::Background, estimator),
+                            _ => return None,
+                        };
+                        match self.session.compute.peek_estimate(&EstimateKey {
+                            source,
+                            kind,
+                            estimator: estimator.clone(),
+                        }) {
+                            Some(EstimateResult::Unavailable(reason)) => Some(reason.clone()),
+                            _ => None,
+                        }
+                    });
+                self.session.status = reason.unwrap_or_else(|| "Contour levels are unavailable for this field. Choose an absolute contour level.".into());
             }
         }
         if prepare_only {
