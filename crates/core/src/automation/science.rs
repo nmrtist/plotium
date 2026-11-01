@@ -221,6 +221,7 @@ pub(super) fn execute(
                             "pending_apply":n.base_stale || n.params != n.base_params})
                     }).collect(),
                 Dataset::Xrd(x) => vec![json!({"axis":"2theta","settings":x.params,"valid":true,
+                    "wavelength_angstrom":x.wavelength(&x.params),
                     "pending_apply":super::processing_edit_spectra::has_pending_edit(app, dataset)})],
                 Dataset::Xas(x) => vec![json!({"axis":"energy","signal":x.signal,"settings":x.params,
                     "columns":x.column_summary(),"e0":x.edge_e0(),"edge_step":x.edge_step(),

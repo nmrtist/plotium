@@ -171,16 +171,10 @@ impl super::Dataset {
                 })
             }),
             Self::Xrd(dataset) => (dataset.field_id() == Some(id)).then(|| {
+                let (x, values) = dataset.displayed();
                 FieldPayload::Curve1D(Curve1D {
-                    x: Arc::from(dataset.data.two_theta_deg.clone()),
-                    values: Arc::from(
-                        dataset
-                            .processed
-                            .intensity
-                            .iter()
-                            .map(|value| *value as f32)
-                            .collect::<Vec<_>>(),
-                    ),
+                    x: Arc::from(x),
+                    values: Arc::from(values.iter().map(|v| *v as f32).collect::<Vec<_>>()),
                 })
             }),
         }

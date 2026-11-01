@@ -300,7 +300,8 @@ enum SnapshotData {
         traces: Vec<(usize, Vec<f64>)>,
     },
     Xrd {
-        two_theta_deg: Vec<f64>,
+        axis: &'static str,
+        position: Vec<f64>,
         intensity: Vec<f64>,
     },
     Xas(Vec<(&'static str, Vec<f64>)>),
@@ -465,9 +466,10 @@ impl DataExportSnapshot {
                 traces,
             } => write_electrophysiology(&mut writer, *sample_rate_hz, channel_label, traces)?,
             SnapshotData::Xrd {
-                two_theta_deg,
+                axis,
+                position,
                 intensity,
-            } => write_xrd(&mut writer, two_theta_deg, intensity)?,
+            } => write_xrd(&mut writer, axis, position, intensity)?,
             SnapshotData::Xas(columns) => write_columns(&mut writer, columns)?,
             SnapshotData::Xps(data) => write_xps(&mut writer, data)?,
             SnapshotData::XpsFits(rows) => write_xps_fits(&mut writer, rows)?,
@@ -527,10 +529,19 @@ fn capture_processed(dataset: &Dataset) -> Result<SnapshotData, DataExportError>
         Dataset::Afm(_) => Err(DataExportError::ContentUnavailable),
         Dataset::MassSpec(_) => Err(DataExportError::ContentUnavailable),
         Dataset::Xas(xas) => Ok(SnapshotData::Xas(xas.export_columns())),
-        Dataset::Xrd(xrd) => Ok(SnapshotData::Xrd {
-            two_theta_deg: xrd.data.two_theta_deg.clone(),
-            intensity: xrd.processed.intensity.clone(),
-        }),
+        Dataset::Xrd(xrd) => {
+            let (position, intensity) = xrd.displayed();
+            Ok(SnapshotData::Xrd {
+                axis: match xrd.params.axis {
+                    plotium_processing::xrd::XrdAxis::TwoTheta => "two_theta_deg",
+                    plotium_processing::xrd::XrdAxis::Q => "q_per_angstrom",
+                    plotium_processing::xrd::XrdAxis::D => "d_angstrom",
+                    plotium_processing::xrd::XrdAxis::CuKAlpha => "two_theta_cu_ka_deg",
+                },
+                position,
+                intensity,
+            })
+        }
         Dataset::Xps(xps) => {
             let region = xps.active_region();
             let processed = xps

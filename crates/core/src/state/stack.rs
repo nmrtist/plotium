@@ -406,9 +406,13 @@ impl PlotiumApp {
             .series
             .iter()
             .all(|series| series.source.item().is_some());
+        let primary = binding
+            .primary_dataset()
+            .and_then(|id| self.doc.dataset_index(id));
         (0..self.doc.datasets.len())
             .filter(|di| {
                 self.doc.datasets.get(*di).map(Dataset::domain) == Some(domain)
+                    && primary.is_none_or(|first| self.xrd_axes_agree(&[first, *di]))
                     && !bound.contains(&self.doc.datasets[*di].resource_id())
                     && (!item_addressed
                         || trace_collection_field(&self.doc.datasets[*di]).is_some())
@@ -581,6 +585,7 @@ impl PlotiumApp {
         } else {
             let domain = self.doc.datasets.get(*sel.first()?).map(Dataset::domain)?;
             (domain.stack_kind().is_some()
+                && self.xrd_axes_agree(sel)
                 && sel
                     .iter()
                     .all(|&d| self.doc.datasets.get(d).map(Dataset::domain) == Some(domain)))

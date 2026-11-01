@@ -2,7 +2,7 @@
 use super::processing_edit::{PipelineEdit, invalid};
 use super::*;
 use crate::actions::DatasetProcessingState;
-use crate::state::{Dataset, PlotiumApp, XasDataset, XpsDataset};
+use crate::state::{Dataset, PlotiumApp, XasDataset, XpsDataset, XrdDataset};
 use plotium_io::xps::XpsRegionId;
 use plotium_processing::xas::XasProcessing;
 use plotium_processing::xps::{XpsProcessingRecipe, XpsProcessingStep, XpsStepKind};
@@ -31,16 +31,24 @@ pub(super) fn reject_pending(app: &PlotiumApp, dataset: &Dataset) -> Result<(), 
     Ok(())
 }
 
-pub(super) fn prepare_xrd(edits: Vec<PipelineEdit>) -> Result<Value, AutomationError> {
+pub(super) fn prepare_xrd(
+    xrd: &XrdDataset,
+    edits: Vec<PipelineEdit>,
+) -> Result<Value, AutomationError> {
     let mut settings = None;
     for edit in edits {
         let PipelineEdit::SetXrd { processing } = edit else {
             return Err(invalid("XRD datasets are edited with set_xrd."));
         };
-        settings = Some(XrdProcessing::from(processing));
+        settings = Some(processing.onto(settings.unwrap_or(xrd.params)));
     }
     let settings = settings.ok_or_else(|| invalid("Supply an XRD edit."))?;
     plotium_processing::xrd::validate(settings).map_err(|e| invalid(e.to_string()))?;
+    if settings.axis.needs_wavelength() && xrd.wavelength(&settings).is_none() {
+        return Err(invalid(
+            "This pattern declares no wavelength; supply wavelength_angstrom.",
+        ));
+    }
     Ok(json!({"xrd":settings}))
 }
 

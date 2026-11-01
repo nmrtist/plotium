@@ -144,7 +144,7 @@ fn default_axis_line_pt() -> f32 {
 }
 
 fn default_tick_length_pt() -> f32 {
-    3.0
+    2.5
 }
 
 /// Whether explanatory guides follow the chart's semantic defaults or an
@@ -735,14 +735,14 @@ mod tests {
     }
 
     #[test]
-    fn typography_saved_before_axis_strokes_keeps_the_previous_look() {
+    fn typography_without_axis_stroke_fields_takes_the_defaults() {
         let typography: FigureTypography = serde_json::from_str(
             r#"{"tick_pt":7.0,"label_pt":8.0,"title_pt":8.0,"legend_pt":7.0,
                 "legend_color":{"r":26,"g":26,"b":26}}"#,
         )
         .unwrap();
         assert_eq!(typography.axis_line_pt, 1.0);
-        assert_eq!(typography.tick_length_pt, 3.0);
+        assert_eq!(typography.tick_length_pt, 2.5);
         assert_eq!(typography.tick_direction, TickDirection::Out);
         assert_eq!(typography.minor_ticks, 0);
         assert_eq!(typography.typeface, super::Typeface::Arial);

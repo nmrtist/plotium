@@ -486,3 +486,34 @@ fn default_channel_tracks_the_enabled_magnitude_display_step() {
         IntensityChannel::Magnitude
     );
 }
+
+#[test]
+fn xrd_export_names_the_displayed_axis() {
+    let mut xrd = crate::state::XrdDataset::load(plotium_io::XrdData {
+        two_theta_deg: vec![10.0, 20.0, 30.0],
+        intensity: vec![1.0, 2.0, 3.0],
+        attenuation: None,
+        source: "scan.xy".to_owned(),
+        instrument: None,
+        target: None,
+        wavelength_angstrom: Some(1.0),
+        voltage_kv: None,
+        current_ma: None,
+        scan_step_deg: None,
+        scan_speed_deg_min: None,
+    });
+    let mut params = xrd.params;
+    params.axis = plotium_processing::xrd::XrdAxis::D;
+    xrd.apply_processing(params).unwrap();
+    let SnapshotData::Xrd {
+        axis,
+        position,
+        intensity,
+    } = capture_processed(&Dataset::Xrd(Box::new(xrd))).unwrap()
+    else {
+        panic!("expected an XRD snapshot");
+    };
+    assert_eq!(axis, "d_angstrom");
+    assert!(position[0] < position[2]);
+    assert_eq!(intensity, vec![3.0, 2.0, 1.0]);
+}

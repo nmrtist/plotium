@@ -47,6 +47,9 @@ SVG 文件（例如从 ChemDraw、Ketcher 或 RDKit 保存的化学结构式）�
 添加文件时，电脑上需要装有文字标签所用的字体。导出 SVG、PDF、PNG、JPEG 和 TIFF 时，图形在任何尺寸下
 都保持清晰；EMF 输出和向 Office 的 **Copy Figure** 目前对它使用像素。线宽随图片缩放，不跟随图表主题。
 
+将 SVG 添加到现有页面或 Panel 时，它会保持 `width` 和 `height` 设定的实际尺寸，
+文字和线条因此保持原有大小。只有放不下时才会缩小以适应页面或 Panel。
+
 Plotium 在添加 SVG 时记录其中最小的文字尺寸和描边宽度，Export 对话框按图片放置后的大小
 检查。源文件已存为路径的文字（例如 Matplotlib 默认的 SVG 输出）无法测量；保存时设置
 `svg.fonttype: none` 才会纳入检查。填充形状没有描边，不参与检查。

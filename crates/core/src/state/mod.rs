@@ -194,6 +194,7 @@ mod xas_figure;
 mod xas_merge;
 mod xps;
 mod xrd;
+mod xrd_axis;
 
 pub use afm::*;
 pub use app_impl::*;

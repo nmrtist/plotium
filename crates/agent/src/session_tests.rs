@@ -124,7 +124,7 @@ fn axis_strokes_and_tick_marks_are_settable() {
     session.allow_modify = true;
     for (key, value) in [
         ("document.figure.typography.axis_line_pt", json!(0.6)),
-        ("document.figure.typography.tick_length_pt", json!(2.5)),
+        ("document.figure.typography.tick_length_pt", json!(2.25)),
         ("document.figure.typography.tick_direction", json!("in")),
         ("document.figure.typography.minor_ticks", json!(1)),
     ] {
@@ -140,9 +140,9 @@ fn axis_strokes_and_tick_marks_are_settable() {
     }
     let typography = app.doc.style_library.figure_typography;
     assert_eq!(typography.axis_line_pt, 0.6);
-    assert_eq!(typography.tick_length_pt, 2.5);
+    assert_eq!(typography.tick_length_pt, 2.25);
     assert_eq!(typography.tick_outset(), 0.0);
-    assert_eq!(typography.tick_reach(), -2.5);
+    assert_eq!(typography.tick_reach(), -2.25);
     assert_eq!(typography.minor_ticks, 1);
 }
 #[test]
@@ -494,7 +494,7 @@ fn apply_theme_lists_themes_restyles_canvas_and_undoes_in_one_step() {
     assert_eq!(app.doc.canvases[0].size_mm, [120.0, 80.0]);
     let typography = app.doc.style_library.figure_typography;
     assert_eq!(typography.axis_line_pt, 0.3);
-    assert_eq!(typography.tick_length_pt, 3.0);
+    assert_eq!(typography.tick_length_pt, 2.5);
     app.undo();
     assert_eq!(app.doc.style_library.figure_typography, before);
 

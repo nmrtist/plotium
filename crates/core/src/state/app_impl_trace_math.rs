@@ -16,6 +16,13 @@ impl PlotiumApp {
         if matches!(dataset, Dataset::Nmr(_)) {
             return Err("Pick datasets of the same kind.".into());
         }
+        // Derived patterns are stored in 2theta, whatever ruler this one shows.
+        if dataset
+            .as_xrd()
+            .is_some_and(|xrd| xrd.params.axis.needs_wavelength())
+        {
+            return Err("Switch the pattern's axis back to 2theta first.".into());
+        }
         let mut trace = dataset
             .displayed_trace(None)
             .ok_or("The dataset has no displayed trace.")?;

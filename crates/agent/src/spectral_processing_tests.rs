@@ -166,7 +166,10 @@ fn xrd_settings_are_inspected_edited_and_undone_through_the_connector() {
     );
 
     let dataset = app.doc.datasets[0].as_xrd().unwrap();
-    assert_eq!(serde_json::to_value(dataset.params).unwrap(), settings);
+    let stored = serde_json::to_value(dataset.params).unwrap();
+    for key in ["background", "smoothing", "normalization"] {
+        assert_eq!(stored[key], settings[key]);
+    }
     assert!(dataset.processed.background.is_some());
     assert_ne!(dataset.processed, original);
     let inspected = inspect(&mut session, &mut app, 0);
@@ -434,4 +437,40 @@ fn a_saved_xas_scheme_applies_without_moving_the_target_axis() {
     };
     assert_eq!(processing.transform.kweight, 3);
     assert_eq!(processing.energy_shift, 0.0);
+}
+
+#[test]
+fn xrd_axis_needs_a_wavelength_and_keeps_the_pattern() {
+    let (mut app, mut session) = app_with(vec![xrd_dataset()]);
+    let base = json!({"background":null,"smoothing":null,"normalization":"None"});
+    let mut q = base.clone();
+    q["axis"] = json!("Q");
+    assert!(
+        plan_edit(
+            &mut session,
+            &mut app,
+            0,
+            json!([{"op":"set_xrd","processing":q.clone()}])
+        )
+        .is_err()
+    );
+    q["wavelength_angstrom"] = json!(0.7);
+    edit(
+        &mut session,
+        &mut app,
+        0,
+        json!([{"op":"set_xrd","processing":q}]),
+    );
+    let xrd = app.doc.datasets[0].as_xrd().unwrap();
+    assert_eq!(xrd.data.two_theta_deg[0], 20.0);
+    assert!(xrd.figure().x.label.starts_with('Q'));
+    edit(
+        &mut session,
+        &mut app,
+        0,
+        json!([{"op":"set_xrd","processing":base}]),
+    );
+    let xrd = app.doc.datasets[0].as_xrd().unwrap();
+    assert_eq!(xrd.params.wavelength_angstrom, Some(0.7));
+    assert!(xrd.figure().x.label.starts_with('Q'));
 }

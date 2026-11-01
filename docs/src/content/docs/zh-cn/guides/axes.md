@@ -92,7 +92,7 @@ AFM 图像和 2D NMR 谱等。绘图区在框内缩成相应形状，坐标范�
 （见[字体、主题与样式](/zh-cn/guides/themes-and-styles/#图形排印)）：
 
 - **Axis line width**——坐标轴线与刻度线的线宽，0.05 到 10 pt，默认 1 pt。
-- **Tick length**——刻度长度，0 到 20 pt，默认 3 pt。
+- **Tick length**——刻度长度，0 到 20 pt，默认 2.5 pt。
 - **Tick direction**——刻度方向，默认 *Outward* 朝外，可选 *Inward* 朝内。刻度
   朝内时伸进绘图区，刻度标签随之贴近坐标轴线。
 - **Minor ticks**——在两条坐标轴相邻主刻度之间画出相应数量的无标签子刻度（0 到 9，
