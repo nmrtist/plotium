@@ -39,6 +39,72 @@ fn fixture() -> (PlotiumApp, FigureDiagnosticParams) {
     (a, p)
 }
 #[test]
+fn small_marks_inside_a_vector_image_are_issues_at_the_output_size() {
+    let (mut a, p) = fixture();
+    let source = br##"<svg xmlns="http://www.w3.org/2000/svg" width="80" height="20"><path d="M0 5H80" fill="none" stroke="#000" stroke-width="0.4"/><text x="5" y="15" font-family="sans-serif" font-size="6">N</text></svg>"##;
+    let bytes = crate::export::normalize_svg_asset(source).unwrap();
+    let id = AssetId::new();
+    a.doc.assets.insert(
+        id,
+        crate::state::AssetRecord {
+            id,
+            sha256: plotium_io::image::sha256(&bytes),
+            format: "svg".into(),
+            pixel_size: [80, 20],
+            bytes,
+        },
+    );
+    let image = a.doc.canvases[0]
+        .objects
+        .iter_mut()
+        .find_map(|o| match &mut o.kind {
+            ContentKind::RasterImage(image) => Some(image),
+            _ => None,
+        });
+    image.unwrap().asset = id;
+
+    let mut scan =
+        FigureDiagnosticScan::capture(&a, DocumentRevision(a.doc.automation_revision), p).unwrap();
+    let page = scan.next_page(|| false).unwrap();
+    let rows = page["items"].as_array().unwrap();
+    for code in ["image_text_too_small", "image_stroke_too_thin"] {
+        let issue = rows.iter().find(|r| r["code"] == code).unwrap();
+        assert!(issue["evidence"]["smallest_pt"].as_f64().unwrap() > 0.0);
+    }
+}
+#[test]
+fn an_unreadable_image_record_is_reported_as_unavailable_coverage() {
+    let (mut a, p) = fixture();
+    let bytes = br##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><path d="M0 0H8V8Z"/><metadata data-plotium-min-text-size="tiny"/></svg>"##.to_vec();
+    let id = AssetId::new();
+    a.doc.assets.insert(
+        id,
+        crate::state::AssetRecord {
+            id,
+            sha256: plotium_io::image::sha256(&bytes),
+            format: "svg".into(),
+            pixel_size: [8, 8],
+            bytes,
+        },
+    );
+    for o in &mut a.doc.canvases[0].objects {
+        if let ContentKind::RasterImage(image) = &mut o.kind {
+            image.asset = id;
+        }
+    }
+
+    let mut scan =
+        FigureDiagnosticScan::capture(&a, DocumentRevision(a.doc.automation_revision), p).unwrap();
+    let page = scan.next_page(|| false).unwrap();
+    let rows = page["items"].as_array().unwrap();
+    assert!(rows.iter().any(|r| {
+        r["status"] == "unavailable"
+            && r["reason"]
+                .as_str()
+                .is_some_and(|reason| reason.starts_with("image_marks_unavailable"))
+    }));
+}
+#[test]
 fn native_parent_clip_is_not_applied_to_text_and_missing_asset_is_explicit() {
     let (a, p) = fixture();
     let mut scan =

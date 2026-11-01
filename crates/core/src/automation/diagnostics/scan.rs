@@ -268,7 +268,13 @@ impl FigureDiagnosticScan {
                     self.coverage(&target, "text", "not_applicable", "empty_text");
                 }
             }
-            SnapshotKind::Raster { status, bounds, .. } => {
+            SnapshotKind::Raster {
+                status,
+                bounds,
+                marks,
+                ..
+            } => {
+                self.image_marks(&target, marks);
                 self.coverage(
                     &target,
                     "raster",
@@ -523,6 +529,41 @@ impl FigureDiagnosticScan {
                         current: None,
                     });
                 }
+            }
+        }
+    }
+    fn image_marks(
+        &mut self,
+        target: &TargetRef,
+        marks: Result<plotium_io::image::SvgMarks, String>,
+    ) {
+        let marks = match marks {
+            Ok(marks) => marks,
+            Err(reason) => {
+                self.coverage(target, "raster.marks", "unavailable", &reason);
+                return;
+            }
+        };
+        for (size, required, part, code) in [
+            (
+                marks.min_text_size,
+                self.required_font_pt,
+                "raster.text",
+                "image_text_too_small",
+            ),
+            (
+                marks.min_stroke_width,
+                self.required_line_pt,
+                "raster.stroke",
+                "image_stroke_too_thin",
+            ),
+        ] {
+            if let Some(pt) = size.map(|size| size * self.scale)
+                && pt < required
+                && self.checks(DiagnosticCheck::TextOverflow)
+            {
+                let evidence = json!({"smallest_pt":pt,"required_pt":required});
+                self.issue(target, part, code, "svg_marks_at_import", evidence);
             }
         }
     }

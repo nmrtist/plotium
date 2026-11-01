@@ -70,7 +70,14 @@ fn plain(figure: Figure) -> CanvasDocument {
 
 /// The "Thinnest line" item for one page exported at its own size.
 fn line_item(canvas: &CanvasDocument) -> ComplianceItem {
-    precheck_report(&[page_metrics(canvas)], None, ExportFormat::Svg, 300).items[1].clone()
+    precheck_report(
+        &[page_metrics(canvas, &BTreeMap::new())],
+        None,
+        ExportFormat::Svg,
+        300,
+    )
+    .items[1]
+        .clone()
 }
 
 #[test]
@@ -78,7 +85,10 @@ fn nature_pages_accept_lines_down_to_a_quarter_point() {
     let item = line_item(&nature(figure(0.3)));
     assert_eq!(item.status, ComplianceStatus::Pass, "{}", item.detail);
     assert!(item.detail.contains("min 0.25 pt"), "{}", item.detail);
-    assert_eq!(page_metrics(&nature(figure(0.3))).required_line_pt, 0.25);
+    assert_eq!(
+        page_metrics(&nature(figure(0.3)), &BTreeMap::new()).required_line_pt,
+        0.25
+    );
 }
 
 #[test]
@@ -88,7 +98,10 @@ fn pages_without_a_journal_preset_keep_the_half_point_minimum() {
     assert!(item.detail.contains("min 0.5 pt"), "{}", item.detail);
     // A page resized away from its Nature preset no longer follows it.
     let resized = page(figure(0.3), [100.0, 60.0], Some("nature-1col"));
-    assert_eq!(page_metrics(&resized).required_line_pt, 0.5);
+    assert_eq!(
+        page_metrics(&resized, &BTreeMap::new()).required_line_pt,
+        0.5
+    );
 }
 
 #[test]
@@ -98,13 +111,13 @@ fn the_axis_frame_and_ticks_count_as_lines() {
         .series
         .push(Series::line("trace", vec![[0.0, 0.0], [1.0, 1.0]]));
     assert_eq!(
-        page_metrics(&plain(thin_axis.clone())).min_line_pt,
+        page_metrics(&plain(thin_axis.clone()), &BTreeMap::new()).min_line_pt,
         Some(0.3)
     );
     // Hidden axes draw no frame.
     thin_axis.axis_frame = AxisFrame::Hidden;
     assert_eq!(
-        page_metrics(&plain(thin_axis)).min_line_pt,
+        page_metrics(&plain(thin_axis), &BTreeMap::new()).min_line_pt,
         Some(plotium_figure::DEFAULT_DATA_LINE_WIDTH_PT)
     );
 }
@@ -114,7 +127,7 @@ fn bar_outlines_are_checked_against_the_page_minimum() {
     let mut outlined = figure(1.0);
     outlined.polygons.push(bar(Some((Color::BLACK, 0.4))));
     assert_eq!(
-        page_metrics(&plain(outlined.clone())).min_line_pt,
+        page_metrics(&plain(outlined.clone()), &BTreeMap::new()).min_line_pt,
         Some(0.4)
     );
     assert_eq!(
@@ -132,7 +145,10 @@ fn zero_width_and_background_strokes_are_not_lines() {
     figure.polygons.push(bar(Some((Color::BLACK, 0.0))));
     // Stacked segments are separated in the background color.
     figure.polygons.push(bar(Some((background, 0.2))));
-    assert_eq!(page_metrics(&plain(figure)).min_line_pt, Some(1.0));
+    assert_eq!(
+        page_metrics(&plain(figure), &BTreeMap::new()).min_line_pt,
+        Some(1.0)
+    );
 }
 
 #[test]
@@ -140,7 +156,10 @@ fn chart_builder_shape_edges_are_not_authored_lines() {
     let mut facets = figure(1.0);
     facets.polygons.push(bar(Some((Color::BLACK, 0.3))));
     let chart = page_with(facets, [89.0, 60.0], None, false);
-    assert_eq!(page_metrics(&chart).min_line_pt, Some(1.0));
+    assert_eq!(
+        page_metrics(&chart, &BTreeMap::new()).min_line_pt,
+        Some(1.0)
+    );
 }
 
 #[test]
@@ -149,14 +168,20 @@ fn error_bars_and_marker_edges_count_as_lines() {
     let mut error = ErrorBar::symmetric([1.0, 1.0], 0.2);
     error.width = 0.35;
     whiskers.error_bars.push(error);
-    assert_eq!(page_metrics(&plain(whiskers)).min_line_pt, Some(0.35));
+    assert_eq!(
+        page_metrics(&plain(whiskers), &BTreeMap::new()).min_line_pt,
+        Some(0.35)
+    );
 
     let mut markers = figure(1.0);
     let mut points = Series::points("points", vec![[1.0, 1.0]]);
     points.width = 3.0;
     points.appearance.marker_edge_width = plotium_figure::PositiveFiniteF32::new(0.3);
     markers.series.push(points);
-    assert_eq!(page_metrics(&plain(markers)).min_line_pt, Some(0.3));
+    assert_eq!(
+        page_metrics(&plain(markers), &BTreeMap::new()).min_line_pt,
+        Some(0.3)
+    );
 }
 
 #[test]
@@ -166,12 +191,18 @@ fn marker_radii_and_undrawn_edges_are_not_lines() {
     let mut points = Series::points("dots", vec![[1.0, 1.0]]);
     points.width = 0.4;
     dots.series.push(points.clone());
-    assert_eq!(page_metrics(&plain(dots)).min_line_pt, Some(1.0));
+    assert_eq!(
+        page_metrics(&plain(dots), &BTreeMap::new()).min_line_pt,
+        Some(1.0)
+    );
 
     // Plus and cross markers are strokes of that width, with no edge drawn.
     let mut crosses = figure(1.0);
     points.appearance.marker = Some(plotium_figure::Marker::Cross);
     points.appearance.marker_edge_width = plotium_figure::PositiveFiniteF32::new(0.2);
     crosses.series.push(points);
-    assert_eq!(page_metrics(&plain(crosses)).min_line_pt, Some(0.4));
+    assert_eq!(
+        page_metrics(&plain(crosses), &BTreeMap::new()).min_line_pt,
+        Some(0.4)
+    );
 }

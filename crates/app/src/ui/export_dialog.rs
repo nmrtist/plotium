@@ -207,7 +207,7 @@ fn build_report(
         let metrics: Vec<_> = pages
             .iter()
             .filter_map(|&page| app.doc.canvases.get(page))
-            .map(page_metrics)
+            .map(|page| page_metrics(page, &app.doc.assets))
             .collect();
         precheck_report(&metrics, preset.target_width_mm(), preset.format(), dpi)
     } else {

@@ -220,7 +220,7 @@ fn a_column_theme_adopts_the_matching_preset_undoably() {
     assert_eq!(canvas.size_preset_id.as_deref(), Some("nature-1col"));
     // The theme's 0.3 pt strokes then meet the page's own 0.25 pt minimum.
     let report = crate::export::precheck_report(
-        &[crate::export::page_metrics(canvas)],
+        &[crate::export::page_metrics(canvas, &app.doc.assets)],
         None,
         crate::export::ExportFormat::Svg,
         300,

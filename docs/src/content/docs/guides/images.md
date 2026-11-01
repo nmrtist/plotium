@@ -64,6 +64,12 @@ An SVG added to an existing page or Panel keeps the physical size set by its
 `width` and `height`, so its text and lines stay at their authored sizes. It
 shrinks only when it would not otherwise fit the page or Panel.
 
+Plotium records the smallest text size and stroke width when you add an SVG, and
+the Export dialog checks them at the image's placed size. Text the source file
+already stored as paths, such as Matplotlib's default SVG output, cannot be
+measured; save with `svg.fonttype: none` to include it. Filled shapes have no
+stroke and are not checked.
+
 ## Missing or damaged images
 
 Plotium checks every embedded image when a project opens. If one is missing,

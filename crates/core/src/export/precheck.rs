@@ -1,6 +1,7 @@
 use super::ExportFormat;
 use crate::state::{AssetId, AssetRecord, CanvasDocument, CanvasObjectKind, ImageFit, QuarterTurn};
 use plotium_figure::{AxisFrame, Marker, SeriesKind};
+use plotium_io::image::SvgMarks;
 use std::collections::BTreeMap;
 
 /// Minimum text size for pages without a publisher-stated minimum, in points
@@ -63,8 +64,12 @@ pub struct PageMetrics {
 
 /// Scan a page for the smallest authored (user-controlled) font and line width.
 /// Since figure typography became a document style, tick, axis-title, and
-/// visible legend sizes count too; only fixed renderer chrome stays out.
-pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
+/// visible legend sizes count too, as does text inside vector images; only
+/// fixed renderer chrome stays out.
+pub fn page_metrics(
+    canvas: &CanvasDocument,
+    assets: &BTreeMap<AssetId, AssetRecord>,
+) -> PageMetrics {
     let mut fonts: Vec<f32> = Vec::new();
     let mut lines: Vec<f32> = Vec::new();
     for object in &canvas.objects {
@@ -72,7 +77,17 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
             continue;
         }
         match &object.kind {
-            CanvasObjectKind::RasterImage(_) => {}
+            CanvasObjectKind::RasterImage(image) => {
+                if image.opacity > 0.0
+                    && !in_hidden_panel(canvas, object.id)
+                    && let Some(asset) = assets.get(&image.asset)
+                    // `image_precheck_items` reports an unreadable record.
+                    && let Ok(Some(marks)) = vector_image_marks(canvas, object.id, image, asset)
+                {
+                    fonts.extend(marks.min_text_size);
+                    lines.extend(marks.min_stroke_width);
+                }
+            }
             CanvasObjectKind::Text(t) => {
                 if !t.text.trim().is_empty() {
                     fonts.push(t.font_size);
@@ -162,13 +177,50 @@ pub fn page_metrics(canvas: &CanvasDocument) -> PageMetrics {
             .into_iter()
             .filter(|width| width.is_finite() && *width > 0.0)
             .reduce(f32::min),
-        required_font_pt: page_preset(canvas)
-            .and_then(|preset| preset.min_font_pt)
-            .unwrap_or(DEFAULT_MIN_FONT_PT),
-        required_line_pt: page_preset(canvas)
-            .and_then(|preset| preset.min_line_pt)
-            .unwrap_or(DEFAULT_MIN_LINE_PT),
+        required_font_pt: required_font_pt(canvas),
+        required_line_pt: required_line_pt(canvas),
     }
+}
+
+pub(crate) fn required_font_pt(canvas: &CanvasDocument) -> f32 {
+    page_preset(canvas)
+        .and_then(|preset| preset.min_font_pt)
+        .unwrap_or(DEFAULT_MIN_FONT_PT)
+}
+
+pub(crate) fn required_line_pt(canvas: &CanvasDocument) -> f32 {
+    page_preset(canvas)
+        .and_then(|preset| preset.min_line_pt)
+        .unwrap_or(DEFAULT_MIN_LINE_PT)
+}
+
+fn in_hidden_panel(canvas: &CanvasDocument, item: crate::state::ContentId) -> bool {
+    canvas
+        .parent_panel(item)
+        .and_then(|panel| canvas.panel(panel))
+        .is_some_and(|panel| !panel.visible)
+}
+
+/// The finest marks inside a placed vector image, in page points.
+pub(crate) fn vector_image_marks(
+    canvas: &CanvasDocument,
+    item: crate::state::ContentId,
+    image: &crate::state::RasterImageContent,
+    asset: &AssetRecord,
+) -> Result<Option<SvgMarks>, plotium_io::image::ImageError> {
+    if !asset.is_vector() {
+        return Ok(None);
+    }
+    let marks = plotium_io::image::svg_marks(&asset.bytes)?;
+    let Some(frame) = canvas.content_page_frame(item) else {
+        return Ok(None);
+    };
+    let [x, y] = points_per_pixel(asset.pixel_size, image, frame, 1.0);
+    let scale = x.min(y);
+    Ok(Some(SvgMarks {
+        min_text_size: marks.min_text_size.map(|size| size * scale),
+        min_stroke_width: marks.min_stroke_width.map(|width| width * scale),
+    }))
 }
 
 /// The journal size preset whose stated minimums apply to a page: the one the
@@ -243,12 +295,7 @@ pub fn image_precheck_items(
             let CanvasObjectKind::RasterImage(image) = &item.kind else {
                 continue;
             };
-            if !item.visible
-                || canvas
-                    .parent_panel(item.id)
-                    .and_then(|panel| canvas.panel(panel))
-                    .is_some_and(|panel| !panel.visible)
-            {
+            if !item.visible || in_hidden_panel(canvas, item.id) {
                 continue;
             }
             images += 1;
@@ -261,6 +308,7 @@ pub fn image_precheck_items(
                 continue;
             };
             if asset.is_vector() {
+                missing += usize::from(plotium_io::image::svg_marks(&asset.bytes).is_err());
                 continue;
             }
             if probe.high_precision || probe.has_icc {
@@ -334,6 +382,17 @@ fn effective_ppi(
     frame: crate::state::ObjectFrame,
     output_scale: f32,
 ) -> f32 {
+    let [x, y] = points_per_pixel(source, image, frame, output_scale);
+    72.0 / x.max(y).max(f32::MIN_POSITIVE)
+}
+
+/// Printed points per source pixel along each frame axis.
+fn points_per_pixel(
+    source: [u32; 2],
+    image: &crate::state::RasterImageContent,
+    frame: crate::state::ObjectFrame,
+    output_scale: f32,
+) -> [f32; 2] {
     let mut pixels = [
         source[0] as f32 * (image.crop[2] - image.crop[0]),
         source[1] as f32 * (image.crop[3] - image.crop[1]),
@@ -344,20 +403,12 @@ fn effective_ppi(
     ) {
         pixels.swap(0, 1);
     }
-    let frame = [frame.width * output_scale, frame.height * output_scale];
+    let x = frame.width * output_scale / pixels[0].max(f32::MIN_POSITIVE);
+    let y = frame.height * output_scale / pixels[1].max(f32::MIN_POSITIVE);
     match image.fit {
-        ImageFit::Stretch => (pixels[0] * 72.0 / frame[0].max(f32::MIN_POSITIVE))
-            .min(pixels[1] * 72.0 / frame[1].max(f32::MIN_POSITIVE)),
-        ImageFit::Contain => {
-            let points_per_pixel = (frame[0] / pixels[0].max(f32::MIN_POSITIVE))
-                .min(frame[1] / pixels[1].max(f32::MIN_POSITIVE));
-            72.0 / points_per_pixel.max(f32::MIN_POSITIVE)
-        }
-        ImageFit::Cover => {
-            let points_per_pixel = (frame[0] / pixels[0].max(f32::MIN_POSITIVE))
-                .max(frame[1] / pixels[1].max(f32::MIN_POSITIVE));
-            72.0 / points_per_pixel.max(f32::MIN_POSITIVE)
-        }
+        ImageFit::Stretch => [x, y],
+        ImageFit::Contain => [x.min(y); 2],
+        ImageFit::Cover => [x.max(y); 2],
     }
 }
 
@@ -437,6 +488,10 @@ fn threshold_status(value: f32, min: f32) -> ComplianceStatus {
 mod line_tests;
 
 #[cfg(test)]
+#[path = "precheck_image_marks_tests.rs"]
+mod image_marks_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::state::{
@@ -502,7 +557,7 @@ mod tests {
         let required = |size_mm: [f32; 2], preset: Option<&str>| {
             let mut canvas = CanvasDocument::new("Page".to_owned(), size_mm);
             canvas.size_preset_id = preset.map(str::to_owned);
-            page_metrics(&canvas).required_font_pt
+            page_metrics(&canvas, &BTreeMap::new()).required_font_pt
         };
         assert_eq!(required([89.0, 60.0], Some("nature-1col")), 5.0);
         assert_eq!(required([183.0, 120.0], Some("nature-2col")), 5.0);
@@ -605,36 +660,6 @@ mod tests {
     }
 
     #[test]
-    fn vector_images_have_no_effective_ppi() {
-        let bytes = br#"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>"#.to_vec();
-        let id = AssetId::new();
-        let asset = AssetRecord {
-            id,
-            sha256: Sha256::digest(&bytes).into(),
-            format: "svg".to_owned(),
-            pixel_size: [8, 8],
-            bytes,
-        };
-        let mut canvas = CanvasDocument::new("precheck".to_owned(), [100.0, 100.0]);
-        canvas.objects.push(CanvasObject {
-            id: ObjectId::new(1),
-            name: "image".to_owned(),
-            frame: ObjectFrame::new(0.0, 0.0, 144.0, 144.0),
-            locked: false,
-            visible: true,
-            kind: CanvasObjectKind::RasterImage(RasterImageContent::new(id)),
-        });
-
-        let items = image_precheck_items(&[&canvas], &BTreeMap::from([(id, asset)]), None);
-        assert!(
-            items
-                .iter()
-                .all(|item| item.status == ComplianceStatus::Pass)
-        );
-        assert!(!items.iter().any(|item| item.label.contains("PPI")));
-    }
-
-    #[test]
     fn hidden_axes_do_not_contribute_unrendered_typography() {
         let mut figure = Figure::new("", Axis::new("x", 0.0, 1.0), Axis::new("y", 0.0, 1.0));
         figure.axis_frame = AxisFrame::Hidden;
@@ -664,12 +689,15 @@ mod tests {
             ))),
         });
 
-        assert_eq!(page_metrics(&canvas).min_font_pt, None);
+        assert_eq!(page_metrics(&canvas, &BTreeMap::new()).min_font_pt, None);
         canvas.objects[0]
             .plot_mut()
             .unwrap()
             .set_axis_frame(AxisFrame::Open);
-        assert_eq!(page_metrics(&canvas).min_font_pt, Some(3.0));
+        assert_eq!(
+            page_metrics(&canvas, &BTreeMap::new()).min_font_pt,
+            Some(3.0)
+        );
     }
 
     #[test]
@@ -706,7 +734,10 @@ mod tests {
             ))),
         });
 
-        assert_eq!(page_metrics(&canvas).min_font_pt, Some(5.5));
+        assert_eq!(
+            page_metrics(&canvas, &BTreeMap::new()).min_font_pt,
+            Some(5.5)
+        );
     }
 
     #[test]
@@ -748,6 +779,9 @@ mod tests {
             ))),
         });
 
-        assert_eq!(page_metrics(&canvas).min_font_pt, Some(4.5));
+        assert_eq!(
+            page_metrics(&canvas, &BTreeMap::new()).min_font_pt,
+            Some(4.5)
+        );
     }
 }

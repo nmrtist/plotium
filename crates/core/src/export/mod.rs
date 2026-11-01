@@ -22,6 +22,7 @@ pub use asset_render::{MissingImagePolicy, prepare_render_document, rasterize_ve
 pub use precheck::{
     ComplianceStatus, PrecheckReport, image_precheck_items, page_metrics, precheck_report,
 };
+pub(crate) use precheck::{required_font_pt, required_line_pt, vector_image_marks};
 pub use preset::ExportPreset;
 pub use raster::{
     DEFAULT_MAX_RASTER_BYTES, DEFAULT_MAX_RASTER_HEIGHT, DEFAULT_MAX_RASTER_PIXELS,

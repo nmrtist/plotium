@@ -42,6 +42,8 @@ enum SnapshotKind {
         bounds: Option<Rect>,
         clip: Option<Rect>,
         status: String,
+        /// The finest marks inside a vector image, in page points.
+        marks: Result<plotium_io::image::SvgMarks, String>,
     },
     Shape {
         bounds: Rect,
@@ -64,6 +66,8 @@ pub struct FigureDiagnosticScan {
     params: FigureDiagnosticParams,
     page: Rect,
     scale: f32,
+    required_font_pt: f32,
+    required_line_pt: f32,
     items: VecDeque<SnapshotItem>,
     curves: VecDeque<CurveWork>,
     overlaps: VecDeque<(TargetRef, Rect, TargetRef, Rect)>,
@@ -176,6 +180,14 @@ impl FigureDiagnosticScan {
             "text_container_overflow" => (
                 "warning",
                 "Estimated text bounds exceed the authored container; the native text renderer does not wrap to fit.",
+            ),
+            "image_text_too_small" => (
+                "warning",
+                "Text inside this vector image prints below the page's minimum size. Enlarge the image or re-export it with larger text.",
+            ),
+            "image_stroke_too_thin" => (
+                "warning",
+                "A stroke inside this vector image prints thinner than the page's minimum. Enlarge the image or re-export it with heavier lines.",
             ),
             "points_hidden_by_axis_break" => (
                 "info",
