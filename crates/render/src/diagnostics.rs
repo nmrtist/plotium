@@ -9,7 +9,7 @@ pub use curves::{CurveScan, CurveScanResult, scan_curve};
 pub use raster::raster_bounds;
 pub use text::{
     TextBox, annotation_text_boxes, figure_text_boxes, figure_text_boxes_placed,
-    overlay_text_bounds,
+    omitted_trace_labels, overlay_text_bounds,
 };
 
 /// An axis that draws fewer than two tick labels at this size although its

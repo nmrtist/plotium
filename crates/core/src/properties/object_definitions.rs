@@ -1,4 +1,5 @@
 use super::*;
+use crate::state::StackLabels;
 use plotium_figure::Color;
 
 pub const STACK_MODE: PropertyId = PropertyId("object.stack.mode");
@@ -8,6 +9,7 @@ pub const STACK_NORMALIZE: PropertyId = PropertyId("object.stack.normalize");
 pub const STACK_OCCLUDE: PropertyId = PropertyId("object.stack.occlude");
 pub const STACK_GRADIENT: PropertyId = PropertyId("object.stack.gradient");
 pub const STACK_SEQUENCE_SCALE: PropertyId = PropertyId("object.stack.sequence_scale");
+pub const STACK_LABELS: PropertyId = PropertyId("object.stack.labels");
 pub const CHART_TYPE_ID: PropertyId = PropertyId("object.chart.type_id");
 pub const CHART_BINS_AUTO: PropertyId = PropertyId("object.chart.bins.auto");
 pub const CHART_BINS_COUNT: PropertyId = PropertyId("object.chart.bins.count");
@@ -68,6 +70,34 @@ const COLORMAPS: &[EnumVariant] = &[
     EnumVariant::new("coolwarm", "Coolwarm"),
     EnumVariant::new("grays", "Grays"),
 ];
+const LABELS_BESIDE: &str = "beside";
+const LABELS_LEFT: &str = "left";
+const LABELS_RIGHT: &str = "right";
+pub const LABELS_LEGEND: &str = "legend";
+const STACK_LABEL_MODES: &[EnumVariant] = &[
+    EnumVariant::new(LABELS_BESIDE, "Beside traces"),
+    EnumVariant::new(LABELS_LEFT, "Left end"),
+    EnumVariant::new(LABELS_RIGHT, "Right end"),
+    EnumVariant::new(LABELS_LEGEND, "Legend"),
+];
+pub(super) fn stack_labels_key(value: StackLabels) -> &'static str {
+    match value {
+        StackLabels::Beside => LABELS_BESIDE,
+        StackLabels::Left => LABELS_LEFT,
+        StackLabels::Right => LABELS_RIGHT,
+        StackLabels::Legend => LABELS_LEGEND,
+    }
+}
+
+pub(super) fn stack_labels(value: &str) -> StackLabels {
+    match value {
+        LABELS_LEFT => StackLabels::Left,
+        LABELS_RIGHT => StackLabels::Right,
+        LABELS_LEGEND => StackLabels::Legend,
+        _ => StackLabels::Beside,
+    }
+}
+
 pub const NO_GRADIENT: &str = "none";
 const STACK_GRADIENTS: &[EnumVariant] = &[
     EnumVariant::new(NO_GRADIENT, "Series colours"),
@@ -166,6 +196,7 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
     tiered(Tier::Advanced, STACK_OCCLUDE, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Fill under stack traces", &["waterfall fill", "hide traces behind", "occlusion"]),
     definition(STACK_GRADIENT, ValueSchema::Enum { variants: STACK_GRADIENTS }, DefaultPolicy::Fixed(PropertyValue::Enum(NO_GRADIENT)), "Stack gradient", &["waterfall colours", "colour by time", "colour by temperature", "sequence gradient"]),
     tiered(Tier::Advanced, STACK_SEQUENCE_SCALE, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(false)), "Stack sequence scale", &["waterfall scale", "time scale", "temperature scale", "side scale"]),
+    tiered(Tier::Advanced, STACK_LABELS, ValueSchema::Enum { variants: STACK_LABEL_MODES }, DefaultPolicy::Fixed(PropertyValue::Enum(LABELS_BESIDE)), "Stack trace labels", &["trace names", "direct labels", "curve labels", "label traces"]),
     definition(CHART_TYPE_ID, ValueSchema::Enum { variants: CHART_TYPES }, DefaultPolicy::Derived, "Chart type", &["plot type"]),
     definition(CHART_BINS_AUTO, ValueSchema::Bool, DefaultPolicy::Fixed(PropertyValue::Bool(true)), "Automatic histogram bins", &["auto bins"]),
     definition(CHART_BINS_COUNT, ValueSchema::IntWithDrag { min: 1, max: 512, drag_step: 1.0 }, DefaultPolicy::Fixed(PropertyValue::Int(20)), "Histogram bin count", &["bins", "bucket count"]),

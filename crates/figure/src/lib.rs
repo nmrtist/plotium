@@ -18,7 +18,7 @@ mod sequence_scale;
 mod text_anchor;
 pub use error_bar::ErrorBar;
 pub use heatmap::HeatmapGrid;
-pub use sequence_scale::SequenceScale;
+pub use sequence_scale::{SequenceScale, TraceLabel, TraceLabelSide, TraceLabels};
 pub use text_anchor::TextAnchor;
 mod polygon;
 pub use polygon::{HATCH_LINE_PT, HATCH_SPACING_PT, Hatch, HatchPattern, Polygon};
@@ -562,6 +562,8 @@ pub struct Figure {
     pub heatmap: Option<HeatmapGrid>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sequence_scale: Option<SequenceScale>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace_labels: Option<TraceLabels>,
     /// Vertical uncertainty whiskers, painted behind the corresponding series.
     #[serde(default)]
     pub error_bars: Vec<ErrorBar>,
@@ -640,6 +642,7 @@ impl Figure {
             polygons: Vec::new(),
             heatmap: None,
             sequence_scale: None,
+            trace_labels: None,
             error_bars: Vec::new(),
             annotations: Vec::new(),
             author_annotations: Vec::new(),

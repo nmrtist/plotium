@@ -62,6 +62,8 @@ pub fn guide_geometry_placed(
             Some("hidden")
         } else if entries == 0 {
             Some("no_entries")
+        } else if entries >= 2 {
+            Some("trace_labels")
         } else {
             Some("auto_single_entry")
         },

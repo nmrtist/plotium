@@ -16,14 +16,16 @@ mod definitions;
 pub use definitions::{
     ALIGN_CENTER, ALIGN_LEFT, ALIGN_RIGHT, CHART_BAR_HATCH, CHART_BINS_AUTO, CHART_BINS_COUNT,
     CHART_COLORMAP, CHART_STACKED, CHART_TRANSPOSE, CHART_TYPE_ID, CHART_VIEW_AZIMUTH,
-    CHART_VIEW_ELEVATION, COLOR_OVERLAY, LOCKED, OFFSET, PANEL_USER_NOTE, PANEL_VISIBLE,
-    SERIES_VISIBLE, SHAPE_ARROW, SHAPE_ELLIPSE, SHAPE_FILL_COLOR, SHAPE_FILL_ENABLED, SHAPE_KIND,
-    SHAPE_LINE, SHAPE_RECT, SHAPE_STROKE, SHAPE_STROKE_WIDTH, STACK_GRADIENT, STACK_MODE,
-    STACK_NORMALIZE, STACK_OCCLUDE, STACK_SEQUENCE_SCALE, STACK_SHEAR_X, STACK_SPACING_Y,
-    SUPERIMPOSED, TEXT, TEXT_ALIGN, TEXT_BOLD, TEXT_COLOR, TEXT_FONT_SIZE,
-    chart_property_applies_to_type,
+    CHART_VIEW_ELEVATION, COLOR_OVERLAY, LABELS_LEGEND, LOCKED, OFFSET, PANEL_USER_NOTE,
+    PANEL_VISIBLE, SERIES_VISIBLE, SHAPE_ARROW, SHAPE_ELLIPSE, SHAPE_FILL_COLOR,
+    SHAPE_FILL_ENABLED, SHAPE_KIND, SHAPE_LINE, SHAPE_RECT, SHAPE_STROKE, SHAPE_STROKE_WIDTH,
+    STACK_GRADIENT, STACK_LABELS, STACK_MODE, STACK_NORMALIZE, STACK_OCCLUDE, STACK_SEQUENCE_SCALE,
+    STACK_SHEAR_X, STACK_SPACING_Y, SUPERIMPOSED, TEXT, TEXT_ALIGN, TEXT_BOLD, TEXT_COLOR,
+    TEXT_FONT_SIZE, chart_property_applies_to_type,
 };
-use definitions::{DEFINITIONS, FILL_FALLBACK, NO_GRADIENT, STACK_MODES};
+use definitions::{
+    DEFINITIONS, FILL_FALLBACK, NO_GRADIENT, STACK_MODES, stack_labels, stack_labels_key,
+};
 
 type ResolvedObjectValue = (
     PropertyValue,
@@ -237,8 +239,8 @@ fn plot_value(
     let fixed = fixed_default(definition);
     let schema = resolved_schema(definition, &capabilities);
     match definition.id {
-        STACK_GRADIENT | STACK_MODE | STACK_NORMALIZE | STACK_OCCLUDE | STACK_SEQUENCE_SCALE
-        | STACK_SHEAR_X | STACK_SPACING_Y => {
+        STACK_GRADIENT | STACK_LABELS | STACK_MODE | STACK_NORMALIZE | STACK_OCCLUDE
+        | STACK_SEQUENCE_SCALE | STACK_SHEAR_X | STACK_SPACING_Y => {
             let binding = app.display_binding(plot.display_owner, &plot.binding);
             if (binding.series.len() <= 1 && !app.stacks_table_columns(&binding, &plot.chart))
                 || !app.series_stackable(&binding)
@@ -424,8 +426,8 @@ fn write_object(
     value: PropertyValue,
 ) -> Result<(), PropertyError> {
     match id {
-        STACK_GRADIENT | STACK_MODE | STACK_NORMALIZE | STACK_OCCLUDE | STACK_SEQUENCE_SCALE
-        | STACK_SHEAR_X | STACK_SPACING_Y => {
+        STACK_GRADIENT | STACK_LABELS | STACK_MODE | STACK_NORMALIZE | STACK_OCCLUDE
+        | STACK_SEQUENCE_SCALE | STACK_SHEAR_X | STACK_SPACING_Y => {
             let stack = transaction.stack_spec(app, canvas, object)?;
             match (id, value) {
                 (STACK_MODE, PropertyValue::Enum(value)) => {
@@ -439,6 +441,7 @@ fn write_object(
                     stack.gradient = ColormapId::from_id(value)
                 }
                 (STACK_SEQUENCE_SCALE, PropertyValue::Bool(value)) => stack.sequence_scale = value,
+                (STACK_LABELS, PropertyValue::Enum(value)) => stack.labels = stack_labels(value),
                 _ => unreachable!("validated stack value"),
             }
         }
@@ -637,6 +640,7 @@ fn stack_value(id: PropertyId, plot: &PlotObject) -> Result<PropertyValue, Prope
             plot.stack.gradient.map_or(NO_GRADIENT, |map| map.id()),
         )),
         STACK_SEQUENCE_SCALE => Ok(PropertyValue::Bool(plot.stack.sequence_scale)),
+        STACK_LABELS => Ok(PropertyValue::Enum(stack_labels_key(plot.stack.labels))),
         _ => Err(PropertyError::UnknownProperty(id.to_string())),
     }
 }

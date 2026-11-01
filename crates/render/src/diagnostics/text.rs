@@ -291,6 +291,20 @@ pub fn figure_text_boxes_placed(
     out
 }
 
+/// Trace names the renderers leave out for lack of room.
+pub fn omitted_trace_labels(
+    fig: &Figure,
+    size: [f32; 2],
+    stack: Option<&StackPlacement>,
+) -> Vec<String> {
+    if fig.trace_labels.is_none() {
+        return Vec::new();
+    }
+    let layout = axis_layout_placed(fig, size[0], size[1], stack);
+    let plot = Projector::new(fig, Rect::new(0., 0., size[0], size[1]), &layout.margins).plot;
+    crate::label_layout(fig, plot, 1.).omitted_traces
+}
+
 /// Text boxes of a plot's annotations, value labels included, placed as the
 /// renderers place them.
 pub fn annotation_text_boxes(

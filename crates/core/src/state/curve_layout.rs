@@ -434,6 +434,8 @@ pub(super) fn transpose(figure: &mut Figure) {
             TextAnchor::Point => TextAnchor::Point,
         };
     }
+    // Traces no longer run along the plot, so the legend names them.
+    figure.trace_labels = None;
     std::mem::swap(&mut figure.x, &mut figure.y);
     if figure.y.categories.is_some() {
         figure.y.reversed = !figure.y.reversed;

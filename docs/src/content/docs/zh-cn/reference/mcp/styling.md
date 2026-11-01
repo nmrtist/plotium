@@ -249,7 +249,7 @@ visibility/layout/title 各自只重置自己的 override。位置修改及重�
 `coordinate_space:"object_local_pt"`、`scale:1`、`plot_rect`、可空的
 `legend_rect`/`color_scale_rect`（x/y/width/height）、`entry_count`、可空的
 `available_travel_pt`、`effective_position`、`fits_plot`（两个尺寸容纳布尔值），
-以及 `not_rendered_reason`（`hidden`、`no_entries`、`auto_single_entry` 或 null）。
+以及 `not_rendered_reason`（`hidden`、`no_entries`、`auto_single_entry`、`trace_labels` 或 null）。
 `measurement_basis:"renderer_layout_text_width_estimate"` 表明这是渲染使用的布局框，
 文字宽度沿用原生估算，不是精确字形边界；这里不检测对象/父容器的可见性和裁切。
 实际位置按可移动距离解析，不钳制图外

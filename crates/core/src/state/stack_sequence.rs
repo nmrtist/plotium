@@ -3,7 +3,10 @@
 
 use super::StackSpec;
 use super::table_charts::sequence::sequence_axis;
-use plotium_figure::{Axis, ErrorBar, Figure, GuideVisibility, SequenceScale, Series, SeriesKind};
+use plotium_figure::{
+    Axis, ErrorBar, Figure, GuideVisibility, SequenceScale, Series, SeriesKind, TraceLabel,
+    TraceLabelSide, TraceLabels,
+};
 use std::ops::Range;
 
 /// One numeric position per visible trace: the sequence read from the trace
@@ -95,7 +98,28 @@ pub(super) fn apply_stack_options(fig: &mut Figure, stack: &StackSpec, traces: &
         fig.sequence_scale = Some(sequence.scale(&baselines, fig.y.min, fig.y.max));
         // The scale names the traces, so a legend would only repeat it.
         fig.guide_visibility = GuideVisibility::Hide;
+    } else if let Some(side) = stack.labels.side() {
+        fig.trace_labels = trace_labels(fig, traces, side);
     }
+}
+
+/// Names beside the traces of a stack of two or more named line traces.
+fn trace_labels(fig: &Figure, traces: &[StackTrace], side: TraceLabelSide) -> Option<TraceLabels> {
+    let nameable = traces.len() >= 2
+        && fig.polygons.is_empty()
+        && traces
+            .iter()
+            .all(|trace| !trace.series.is_empty() && !trace.name.trim().is_empty());
+    nameable.then(|| TraceLabels {
+        side,
+        traces: traces
+            .iter()
+            .map(|trace| TraceLabel {
+                text: trace.name.clone(),
+                series: trace.series.start,
+            })
+            .collect(),
+    })
 }
 
 /// One line trace per column of a table figure, which draws its columns as

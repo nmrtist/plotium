@@ -4,6 +4,7 @@
 //! Every backend, diagnostics and canvas hit testing read one [`LabelLayout`].
 use crate::legend_placement::{clip, for_each_data_segment, grow, project};
 use crate::text_place::{PlacedText, TextAlign};
+use crate::trace_labels::TraceText;
 use crate::{Rect, TextAnchor};
 use plotium_figure::{
     Annotation, Figure, ReferenceLabelPosition, ReferenceLabelSide, ReferenceLine,
@@ -28,6 +29,10 @@ pub struct LabelLayout {
     /// One entry per `Figure::author_annotations` item; `None` when its anchor
     /// has no finite position.
     pub texts: Vec<Option<TextLabelBox>>,
+    /// Names of Offset stack traces, which stand wherever they were placed.
+    pub(crate) traces: Vec<TraceText>,
+    /// Trace names there was no room to draw.
+    pub(crate) omitted_traces: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -110,6 +115,12 @@ pub fn label_layout(fig: &Figure, plot: Rect, scale: f32) -> LabelLayout {
                 })
             })
             .collect(),
+        traces: layout
+            .traces
+            .into_iter()
+            .map(|text| text.scaled(scale))
+            .collect(),
+        omitted_traces: layout.omitted_traces,
     }
 }
 
@@ -158,6 +169,10 @@ fn layout_pt(fig: &Figure, plot: Rect) -> LabelLayout {
         )
         .collect();
     let mut obstacles = Obstacles::collect(fig, plot, &regions);
+    let traces = crate::trace_labels::place(fig, plot);
+    obstacles
+        .boxes
+        .extend(traces.texts.iter().map(TraceText::bounds));
     let reference = references
         .into_iter()
         .map(|boxes| {
@@ -189,11 +204,16 @@ fn layout_pt(fig: &Figure, plot: Rect) -> LabelLayout {
             placed
         })
         .collect();
-    LabelLayout { reference, texts }
+    LabelLayout {
+        reference,
+        texts,
+        traces: traces.texts,
+        omitted_traces: traces.omitted,
+    }
 }
 
 /// Every text annotation with where it is drawn: builder labels at their
-/// anchor, author labels where `labels` placed them.
+/// anchor, author labels and trace names where `labels` placed them.
 pub(crate) fn drawn_texts<'a>(
     fig: &'a Figure,
     plot: Rect,
@@ -221,7 +241,8 @@ pub(crate) fn drawn_texts<'a>(
                 },
             ))
         });
-    builder.chain(author)
+    let traces = labels.traces.iter().map(|text| (&text.annotation, text.at));
+    builder.chain(author).chain(traces)
 }
 
 /// Estimated width and height of `text` at `size` output units.

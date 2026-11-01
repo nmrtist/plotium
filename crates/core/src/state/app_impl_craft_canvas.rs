@@ -70,12 +70,7 @@ impl PlotiumApp {
         let groups_stack = StackSpec {
             mode: StackMode::Offset,
             spacing_y: 0.18,
-            shear_x: 0.0,
-            normalize: false,
-            active: None,
-            occlude: false,
-            gradient: None,
-            sequence_scale: false,
+            ..StackSpec::default()
         };
         let residual_stack = StackSpec::default();
         let size_mm = [120.0, 150.0];

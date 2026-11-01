@@ -432,12 +432,13 @@ mod legend_placement;
 use legend_content::{LegendMark, legend_entries};
 mod legend_room;
 pub use legend_room::make_legend_room;
+mod trace_labels;
 
 /// Whether the renderer will emit a legend for this figure.
 pub fn renders_legend(fig: &Figure) -> bool {
     let entries = legend_entries(fig);
     match fig.guide_visibility {
-        plotium_figure::GuideVisibility::Auto => entries.len() >= 2,
+        plotium_figure::GuideVisibility::Auto => entries.len() >= 2 && fig.trace_labels.is_none(),
         plotium_figure::GuideVisibility::Show => !entries.is_empty(),
         plotium_figure::GuideVisibility::Hide => false,
     }
