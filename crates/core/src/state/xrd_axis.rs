@@ -104,8 +104,7 @@ impl PlotiumApp {
                 .and_then(|canvas| canvas.object_mut(id))
                 .and_then(|object| object.plot_mut());
             if let Some(plot) = plot {
-                plot.viewport.view_x = plot.viewport.full_x;
-                plot.apply_viewport();
+                plot.show_full_x();
             }
         }
     }

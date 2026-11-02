@@ -210,3 +210,71 @@ fn stacked_patterns_are_labeled_by_dataset() {
         .collect();
     assert_eq!(names, ["a.xy", "b.xy"]);
 }
+
+fn peaked(name: &str) -> Dataset {
+    let two_theta: Vec<f64> = (0..3500).map(|i| 5.0 + f64::from(i) * 0.01).collect();
+    let intensity = two_theta
+        .iter()
+        .map(|x: &f64| {
+            let peak = [10.0, 12.0, 20.0, 30.0]
+                .iter()
+                .map(|c| 1000.0 * (-((x - c) / 0.05).powi(2)).exp())
+                .sum::<f64>();
+            50.0 + peak
+        })
+        .collect();
+    Dataset::Xrd(Box::new(XrdDataset::load(plotium_io::XrdData {
+        two_theta_deg: two_theta,
+        intensity,
+        attenuation: None,
+        source: name.to_owned(),
+        instrument: None,
+        target: None,
+        wavelength_angstrom: Some(0.7),
+        voltage_kv: None,
+        current_ma: None,
+        scan_step_deg: None,
+        scan_speed_deg_min: None,
+    })))
+}
+
+fn peaks_stay_in_view(app: &mut PlotiumApp, step: &str) {
+    let plot = app.doc.canvases[0]
+        .objects
+        .iter_mut()
+        .find_map(|o| o.plot_mut())
+        .unwrap();
+    let (viewport, figure) = (&plot.viewport, plot.figure());
+    assert_eq!(viewport.view_x, viewport.full_x, "{step}");
+    assert!(viewport.view_y.max > 1000.0, "{step}: {viewport:?}");
+    assert!(figure.y.max > 1000.0, "{step}: {:?}", figure.y.max);
+}
+
+#[test]
+fn switching_axes_keeps_the_peaks_in_view() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(peaked("a.xy"));
+    assert!(app.insert_dataset_canvas(0));
+    for axis in [XrdAxis::Q, XrdAxis::D, XrdAxis::CuKAlpha, XrdAxis::TwoTheta] {
+        set_axis(&mut app, 0, axis);
+        peaks_stay_in_view(&mut app, &format!("{axis:?}"));
+    }
+}
+
+#[test]
+fn undoing_an_axis_change_under_a_manual_x_range_keeps_the_peaks_in_view() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(peaked("a.xy"));
+    assert!(app.insert_dataset_canvas(0));
+    let plot = app.doc.canvases[0]
+        .objects
+        .iter_mut()
+        .find_map(|o| o.plot_mut())
+        .unwrap();
+    plot.axis_overrides.x_range = Some(AxisRange::new(8.0, 16.0));
+    plot.viewport.view_x = AxisRange::new(8.0, 16.0);
+    set_axis(&mut app, 0, XrdAxis::Q);
+    peaks_stay_in_view(&mut app, "Q");
+    app.undo();
+    peaks_stay_in_view(&mut app, "undo");
+}
