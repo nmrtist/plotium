@@ -1,4 +1,5 @@
 use super::*;
+use crate::actions::Action;
 use crate::operation::OperationOutcome;
 use plotium_processing::xrd::XrdProcessing;
 
@@ -277,4 +278,82 @@ fn undoing_an_axis_change_under_a_manual_x_range_keeps_the_peaks_in_view() {
     peaks_stay_in_view(&mut app, "Q");
     app.undo();
     peaks_stay_in_view(&mut app, "undo");
+}
+
+fn install_axis(app: &mut PlotiumApp, axis: XrdAxis) {
+    let before = app.doc.datasets.to_vec();
+    let mut after = before.clone();
+    state_on(axis).apply_to(&mut after[0]).unwrap();
+    app.execute_action(Action::InstallScientificState { before, after });
+}
+
+#[test]
+fn installed_processing_follows_the_axis_like_a_panel_edit() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(peaked("a.xy"));
+    assert!(app.insert_dataset_canvas(0));
+    for axis in [XrdAxis::D, XrdAxis::CuKAlpha] {
+        install_axis(&mut app, axis);
+        peaks_stay_in_view(&mut app, &format!("{axis:?}"));
+    }
+    app.undo();
+    peaks_stay_in_view(&mut app, "undo");
+}
+
+#[test]
+fn installed_processing_carries_a_manual_range_onto_the_axis() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(peaked("a.xy"));
+    assert!(app.insert_dataset_canvas(0));
+    let plot = |app: &mut PlotiumApp| {
+        app.doc.canvases[0]
+            .objects
+            .iter_mut()
+            .find_map(|o| o.plot_mut())
+            .unwrap()
+            .axis_overrides
+            .x_range
+    };
+    app.doc.canvases[0]
+        .objects
+        .iter_mut()
+        .find_map(|o| o.plot_mut())
+        .unwrap()
+        .axis_overrides
+        .x_range = Some(AxisRange::new(8.0, 16.0));
+    install_axis(&mut app, XrdAxis::Q);
+    let range = plot(&mut app).unwrap();
+    let expected = XrdAxis::Q.position(8.0, 0.7).unwrap();
+    assert!((range.min - expected).abs() < 1e-9, "{range:?}");
+    app.undo();
+    let range = plot(&mut app).unwrap();
+    assert!((range.min - 8.0).abs() < 1e-9, "{range:?}");
+    assert!((range.max - 16.0).abs() < 1e-9, "{range:?}");
+}
+
+#[test]
+fn a_stack_installed_together_does_not_warn_about_mixed_axes() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    app.doc.datasets.push(pattern("a.xy"));
+    app.doc.datasets.push(pattern("b.xy"));
+    app.session.ui.data_selection = vec![0, 1];
+    app.stack_selected_data();
+    let warnings = |app: &PlotiumApp| {
+        app.session
+            .operation_history
+            .operations()
+            .filter(|report| report.outcome == OperationOutcome::Warning)
+            .count()
+    };
+    let before = app.doc.datasets.to_vec();
+    let mut after = before.clone();
+    for dataset in &mut after {
+        state_on(XrdAxis::Q).apply_to(dataset).unwrap();
+    }
+    app.execute_action(Action::InstallScientificState { before, after });
+    assert_eq!(warnings(&app), 0);
+    app.undo();
+    assert_eq!(warnings(&app), 0);
+    app.redo();
+    assert_eq!(warnings(&app), 0);
 }

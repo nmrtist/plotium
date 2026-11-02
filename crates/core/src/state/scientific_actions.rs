@@ -131,6 +131,7 @@ impl PlotiumApp {
             self.session.ui.data_selection.clone(),
             self.session.view,
         );
+        self.finish_axis_overrides_edit();
         let outcome = self.try_execute_action(action);
         self.session.active_canvas = focus.0;
         self.session.ui.data_selection = focus.1;
