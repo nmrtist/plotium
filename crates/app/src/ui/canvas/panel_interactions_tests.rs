@@ -36,6 +36,7 @@ fn clipped_content_cannot_be_committed_out_of_reach() {
                     before,
                     start_pointer: [30.0, 30.0],
                     start_pointer_screen: [30.0, 30.0],
+                    snap_axes: [false; 2],
                     others: vec![],
                     active: true,
                     space: ObjectDragSpace::Panel(panel),
@@ -190,6 +191,7 @@ fn content_move_group_move_and_resize_keep_off_panel_geometry_with_undo_redo() {
                     before,
                     start_pointer: [30.0, 30.0],
                     start_pointer_screen: [30.0, 30.0],
+                    snap_axes: [false; 2],
                     others: if group {
                         vec![(ids[1], before)]
                     } else {

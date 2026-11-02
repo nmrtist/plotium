@@ -163,14 +163,14 @@ pub fn snap_move(
 }
 
 /// Snap a resizing frame by pulling only the moving edges onto targets, keeping
-/// the anchored edges fixed. A snap that would shrink the frame below
-/// `min_size` in that axis is skipped.
+/// the anchored edges fixed. A snap that would leave the frame below that
+/// axis's `min_size` is skipped.
 pub fn snap_resize(
     frame: ObjectFrame,
     edges: MovableEdges,
     targets: &SnapTargets,
     threshold: f32,
-    min_size: f32,
+    min_size: [f32; 2],
 ) -> (ObjectFrame, Vec<SnapGuide>) {
     snap_resize_with_plot(frame, edges, targets, None, threshold, min_size)
 }
@@ -657,7 +657,7 @@ mod tests {
             right: true,
             ..MovableEdges::default()
         };
-        let (snapped, guides) = snap_resize(frame, edges, &targets, 6.0, 24.0);
+        let (snapped, guides) = snap_resize(frame, edges, &targets, 6.0, [24.0; 2]);
         assert!(approx(snapped.x, 10.0));
         assert!(approx(snapped.x + snapped.width, 100.0));
         assert_eq!(guides.len(), 1);
@@ -720,7 +720,7 @@ mod tests {
             right: true,
             ..MovableEdges::default()
         };
-        let (snapped, guides) = snap_resize(frame, edges, &targets, 6.0, 24.0);
+        let (snapped, guides) = snap_resize(frame, edges, &targets, 6.0, [24.0; 2]);
         assert!(approx(snapped.width, 25.0));
         assert!(guides.is_empty());
     }
