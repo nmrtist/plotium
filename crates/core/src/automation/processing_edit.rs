@@ -149,6 +149,9 @@ fn pipelines(dataset: &Dataset) -> Result<(PipelineAxes, u64), AutomationError> 
             vec![("direct", pipeline_to_dto(&n.pipeline))],
             n.next_step_id,
         )),
+        Dataset::Nmr2D(n) if n.volume.is_some() => Err(AutomationError::InvalidSelector(
+            "Use nmr.volume.edit to adjust a three-dimensional spectrum".into(),
+        )),
         Dataset::Nmr2D(n) => Ok((
             vec![
                 ("f2", pipeline_to_dto(&n.params.f2)),

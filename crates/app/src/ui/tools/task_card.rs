@@ -27,7 +27,7 @@ const CRAFT_MIN_WIDTH: f32 = 380.0;
 const STANDARD_MAX_WIDTH: f32 = 520.0;
 const CRAFT_MAX_WIDTH: f32 = 760.0;
 
-pub(super) struct TaskCardGeometry {
+pub(in crate::ui) struct TaskCardGeometry {
     pub pos: Pos2,
     pub width: f32,
     pub body_height: f32,
@@ -41,7 +41,7 @@ pub(super) struct TaskCardGeometry {
 /// the fitted max and force the card past the canvas. `Area` then constrains it
 /// to the screen and slides it up over the Ribbon, hiding the very buttons that
 /// opened it. Clamping the min keeps a short window shrinking instead.
-pub(super) fn geometry(
+pub(in crate::ui) fn geometry(
     app: &PlotiumApp,
     host: &Ui,
     tab: TaskDockTab,
@@ -230,7 +230,7 @@ struct DragOrigin {
     rect: egui::Rect,
 }
 
-pub(super) fn area(host: &Ui, id: Id, pos: Pos2) -> Area {
+pub(in crate::ui) fn area(host: &Ui, id: Id, pos: Pos2) -> Area {
     crate::ui::result_follow::register_editable_layer(
         host.ctx(),
         egui::LayerId::new(Order::Middle, id),
@@ -247,7 +247,7 @@ pub(super) fn area(host: &Ui, id: Id, pos: Pos2) -> Area {
 /// Renders the task-card title as one move surface with a dedicated action
 /// slot. Text responses participate in the same gesture while buttons remain
 /// ordinary controls, so the visual and interactive title bars are identical.
-pub(super) fn header<R>(
+pub(in crate::ui) fn header<R>(
     ui: &mut Ui,
     area_id: Id,
     title: &str,

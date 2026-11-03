@@ -164,6 +164,11 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
     if plan.request.tool_id == DIFFUSION_SET_INPUT {
         super::science::validate_input_update(app, &plan)?;
     }
+    if plan.request.tool_id == super::nmr_volume::NMR_VOLUME_EDIT
+        && !plan.request.parameters["phases"].is_null()
+    {
+        plan.task_id = Some(TaskId(uuid::Uuid::new_v4().to_string()));
+    }
     if plan.request.tool_id == PROCESSING_EDIT {
         plan.processing_edit = Some(super::processing_edit::prepare(app, &plan)?);
         plan.task_id = Some(TaskId(uuid::Uuid::new_v4().to_string()));
@@ -520,6 +525,7 @@ pub(super) fn execute_planned_tool(
         REGIONS_EXTRACT | DIFFUSION_FIT => super::region_fit::execute(app, &plan)?,
         DOSY_BUILD => super::dosy::execute(app, &plan)?,
         ANALYSIS_RESULTS_INSPECT => super::dosy::inspect(app, &plan)?,
+        NMR_VOLUME_INSPECT | NMR_VOLUME_EDIT => super::nmr_volume::execute(app, &plan)?,
         PROCESSING_EDIT => super::processing_edit::execute(app, &plan)?,
         DIFFUSION_INSPECT | DIFFUSION_SET_INPUT | PROCESSING_INSPECT => {
             super::science::execute(app, &plan)?

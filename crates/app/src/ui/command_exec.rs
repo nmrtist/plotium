@@ -60,6 +60,11 @@ fn execute_inner(
         }
         CommandId::OpenFile => super::file_dialogs::open_file(app),
         CommandId::OpenFolder => super::file_dialogs::open_folder(app),
+        CommandId::CancelNmrVolumePhase => super::nmr_volume::cancel_phase(ctx),
+        CommandId::ApplyNmrVolumePhase => super::nmr_volume::apply_phase(app, ctx),
+        CommandId::PreviousNmrPlane | CommandId::NextNmrPlane => {
+            super::nmr_volume::step(app, id == CommandId::NextNmrPlane);
+        }
         CommandId::ImportNmrSampling => super::file_dialogs::nmr_sampling::open(app),
         CommandId::AgentConnections => {
             app.open_settings();
@@ -99,6 +104,7 @@ fn execute_inner(
         }
         CommandId::ImportTiffPages => super::file_dialogs::image_import::import_tiff_pages(app),
         CommandId::PasteImage => super::file_dialogs::image_import::paste_clipboard_image(app),
+        CommandId::CancelDataImport => app.cancel_data_imports(),
         CommandId::CancelImageImport => super::file_dialogs::image_import::cancel_all(app),
         CommandId::ReplaceImage => super::file_dialogs::image_import::replace_selected_image(app),
         CommandId::PasteTable => {

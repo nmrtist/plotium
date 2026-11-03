@@ -41,6 +41,13 @@ pub use rename::{RenameState, RenameTarget};
 #[path = "ui_state_text.rs"]
 mod text_edit;
 pub use text_edit::{PanelNoteEditState, PlotMenuPoint, PlotTextEditState, TextEditState};
+/// A desktop phase draft belongs to one dataset and one committed phase baseline.
+#[derive(Clone)]
+pub struct NmrVolumePhaseDraft {
+    pub baseline: [plotium_processing::nmr_volume::VolumePhase; 3],
+    pub phases: [plotium_processing::nmr_volume::VolumePhase; 3],
+}
+
 /// In-progress rubber-band while a shape Author tool draws a new object. `start`
 /// and `current` are page-space (pt) pointer positions.
 #[derive(Clone, Copy, Debug)]
@@ -401,6 +408,8 @@ pub struct UiState {
     /// held in on-plot phase mode because a Phase step's editor is open. Edge-
     /// detected so a manual tool switch mid-phasing isn't fought each frame.
     pub phase_edit_active: bool,
+    pub nmr_volume_phase_busy: bool,
+    pub nmr_volume_phase_drafts: HashMap<DatasetId, NmrVolumePhaseDraft>,
     /// When set, processing edits mutate the recipe but defer the recompute until
     /// the user presses Apply, keeping heavy transforms out of a rapid edit run.
     pub proc_paused: bool,
@@ -570,6 +579,8 @@ impl Default for UiState {
             proc_expanded_step: None,
             reference_pick: None,
             phase_edit_active: false,
+            nmr_volume_phase_busy: false,
+            nmr_volume_phase_drafts: HashMap::new(),
             proc_paused: false,
             proc_pending: None,
         }

@@ -4,12 +4,13 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 26] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 27] = [
     "analysis.diffusion.plot",
     "plot.field.create",
     "analysis.dosy.build",
     "analysis.regions.extract",
     "analysis.diffusion.fit",
+    "nmr.volume.edit",
     "processing.edit",
     "processing.apply_scheme",
     "diffusion.set_input",
@@ -35,7 +36,11 @@ pub(crate) const EDIT_OPERATIONS: [&str; 26] = [
 
 /// One line per editable operation, so a caller can map a task to an operation
 /// before fetching its schema.
-const PURPOSES: [(&str, &str); 29] = [
+const PURPOSES: [(&str, &str); 30] = [
+    (
+        "nmr.volume.edit",
+        "Select a 3D spectrum plane and optionally adjust per-axis phase",
+    ),
     (
         "analysis.diffusion.plot",
         "Plot a diffusion fit with residuals on a new canvas",

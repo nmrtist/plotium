@@ -872,9 +872,9 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "calamine"
-version = "0.37.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9ca341b94bc4b29e08970b1a03914fad2dfe177e2ecb67fcd6de9046004aafb"
+checksum = "f431b67cba6122a1f7d26b7adafc71bbdf07026095fe811f5efc025d8748e1d8"
 dependencies = [
  "atoi_simd",
  "byteorder",
@@ -3650,9 +3650,9 @@ dependencies = [
 
 [[package]]
 name = "nmr"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c56d16859090090c0340732b2c51d22456c1cc703788ff5c7ec94ee4b89a56fc"
+checksum = "3eb47f26c348fe258e733430e086fd47f3cf5427039bb571b12d2090951088df"
 dependencies = [
  "num-complex",
  "rustfft",

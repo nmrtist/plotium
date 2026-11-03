@@ -3,6 +3,9 @@ use super::*;
 pub(super) fn snapshot_series(
     nmr: &crate::state::Nmr2DDataset,
 ) -> Result<SnapshotData, DataExportError> {
+    if nmr.volume.is_some() {
+        return Err(DataExportError::ContentUnavailable);
+    }
     match &nmr.processed {
         Processed2D::Ft(spectrum) => Ok(SnapshotData::True2D(Arc::clone(spectrum))),
         Processed2D::Stack(spectrum) => {
@@ -34,4 +37,16 @@ pub(super) fn snapshot_series(
             })
         }
     }
+}
+
+pub(super) fn volume_availability(dataset: &Dataset) -> Option<DataExportAvailability> {
+    dataset
+        .as_nmr2d()
+        .is_some_and(|n| n.volume.is_some())
+        .then(|| DataExportAvailability {
+            contents: Vec::new(),
+            has_channel_choice: false,
+            has_shape_choice: false,
+            default_channel: IntensityChannel::Real,
+        })
 }

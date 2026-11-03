@@ -256,6 +256,7 @@ impl NmrDataset {
 /// pre-phase cache; `processed` is the phased, display-ready result from it.
 #[derive(Clone)]
 pub struct Nmr2DDataset {
+    pub volume: Option<NmrVolumeState>,
     /// Stable automation and persistence identity.
     pub resource_id: DatasetId,
     /// Persisted child-field identity allocator and key mapping.
@@ -431,6 +432,7 @@ impl Nmr2DDataset {
         );
         attach_pseudo_trace_collection(&mut field_catalog, &data);
         let mut result = Self {
+            volume: None,
             resource_id: DatasetId::new(),
             field_catalog,
             data: Arc::new(data),
@@ -479,6 +481,11 @@ impl Nmr2DDataset {
     }
 
     pub fn rebuild(&mut self) -> Result<(), String> {
+        if self.volume.is_some() {
+            return Err(
+                "Use the three-dimensional processing controls to adjust this spectrum".into(),
+            );
+        }
         use plotium_processing::nmr_bridge::{DelayPolicy, RecipeRange};
         let output = plotium_processing::nmr_execution::execute_2d(
             &self.native_base,
@@ -498,6 +505,11 @@ impl Nmr2DDataset {
     }
 
     pub fn retransform(&mut self) -> Result<(), String> {
+        if self.volume.is_some() {
+            return Err(
+                "Use the three-dimensional processing controls to adjust this spectrum".into(),
+            );
+        }
         use plotium_processing::nmr_bridge::{DelayPolicy, RecipeRange};
         let mut work = plotium_processing::nmr_execution::processing_2d_work_ledger();
         let mut context = nmr::ExecutionContext::new(&mut work);

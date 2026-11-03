@@ -86,6 +86,11 @@ pub fn dataset_to_objects<'a>(
             DatasetObjects::primary(data, DatasetBlob::Nmr(n.data.dataset()), recipe)
         }
         Dataset::Nmr2D(n) => {
+            let original = n
+                .volume
+                .as_ref()
+                .map(|v| &v.source)
+                .unwrap_or_else(|| n.data.source_dataset());
             let data = DataObject {
                 id: data_id.to_owned(),
                 role: "data".to_owned(),
@@ -95,13 +100,7 @@ pub fn dataset_to_objects<'a>(
                 payload: Payload {
                     storage: super::nmr_snapshot::STORAGE.to_owned(),
                     blob: format!("objects/{data_id}/data.bin"),
-                    shape: n
-                        .data
-                        .source_dataset()
-                        .axes()
-                        .iter()
-                        .map(|axis| axis.points)
-                        .collect(),
+                    shape: original.axes().iter().map(|axis| axis.points).collect(),
                     domain: "nmr".to_owned(),
                 },
                 extensions: serde_json::json!({
@@ -158,17 +157,23 @@ pub fn dataset_to_objects<'a>(
                 classification: nmr_recipe_classification(),
                 input: data_id.to_owned(),
                 parameters: RecipeParameters {
-                    dimension_count: 2,
+                    dimension_count: if n.volume.is_some() { 3 } else { 2 },
                     pipelines: vec![pipeline_to_dto(&n.params.f2), pipeline_to_dto(&n.params.f1)],
                     group_delay_correct: n.group_delay_correct,
                     layout: Some(layout_to_str(n.params.layout).to_owned()),
                     preset: Some(preset_to_str(n.preset).to_owned()),
                 },
-                extensions: nmr2d_recipe_extensions(n, dosy_extension),
+                extensions: {
+                    let mut extensions = nmr2d_recipe_extensions(n, dosy_extension);
+                    if let Some(volume) = &n.volume {
+                        extensions["plotium.volume"] = serde_json::json!({"fixed_axis":volume.fixed_axis,"index":volume.index,"phases":volume.phases,"anchor":volume.anchor});
+                    }
+                    extensions
+                },
             };
             DatasetObjects {
                 data,
-                blob: DatasetBlob::Nmr(n.data.source_dataset().dataset()),
+                blob: DatasetBlob::Nmr(original.dataset()),
                 recipe,
                 extra_blobs,
             }
@@ -503,6 +508,39 @@ pub fn object_to_dataset(
     }
     let source = super::nmr_snapshot::read(zip, data)?;
     match source.axes().len() {
+        3 => {
+            #[derive(serde::Deserialize)]
+            struct VolumeView {
+                fixed_axis: usize,
+                index: usize,
+                anchor: [usize; 3],
+                phases: [plotium_processing::nmr_volume::VolumePhase; 3],
+            }
+            let view: VolumeView =
+                serde_json::from_value(recipe.extensions["plotium.volume"].clone())?;
+            let mut dataset = Nmr2DDataset::load_volume_state(
+                source,
+                view.phases,
+                view.fixed_axis,
+                Some(view.index),
+            )
+            .map_err(ProjectError::Invalid)?;
+            if view
+                .anchor
+                .iter()
+                .zip(dataset.volume.as_ref().unwrap().processed.shape())
+                .any(|(i, n)| *i >= n)
+            {
+                return Err(ProjectError::Invalid(
+                    "Volume anchor lies outside the acquisition".into(),
+                ));
+            }
+            dataset.volume.as_mut().unwrap().anchor = view.anchor;
+            dataset.acquisition_identity = read_acquisition_identity(data)?;
+            dataset.field_catalog = read_field_catalog(data)?;
+            dataset.name = data.label.clone();
+            Ok(Dataset::Nmr2D(Box::new(dataset)))
+        }
         2 => {
             let initial = Params2D {
                 layout: if source.axes()[0].domain == nmr::axis::AxisDomain::Parameter

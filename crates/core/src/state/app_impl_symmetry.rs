@@ -11,6 +11,11 @@ use super::*;
 
 impl Nmr2DDataset {
     pub fn symmetry_unavailable_reason(&self) -> Option<&'static str> {
+        if self.volume.is_some() {
+            return Some(
+                "Open a two-dimensional spectrum to review symmetry; three-dimensional peak evidence is not supported yet.",
+            );
+        }
         if !self.is_true_2d() {
             return Some("Symmetry review needs a true-2D contour spectrum.");
         }

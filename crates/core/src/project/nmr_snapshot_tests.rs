@@ -413,3 +413,116 @@ fn nus_reconstruction_changes_live_bindings_and_reopens_with_grid_identities() {
         );
     }
 }
+
+#[test]
+fn volume_planes_and_phases_roundtrip_without_original_files() {
+    let fixture =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../io/tests/fixtures/nmr/bruker-3d-qf");
+    let loaded = plotium_io::load_path(&fixture).unwrap();
+    let (mut dataset, _) = crate::workflow::dataset_from_acquisition(loaded.acquisition).unwrap();
+    let volume = dataset.as_nmr2d().unwrap().volume.as_ref().unwrap();
+    let shape = volume.processed.shape();
+    assert_eq!(shape, [5, 3, 4]);
+    assert!(crate::data_export::DataExportAvailability::for_dataset(&dataset).is_empty());
+    let n = match &mut dataset {
+        Dataset::Nmr2D(n) => n,
+        _ => unreachable!(),
+    };
+    for (axis, count) in shape.iter().enumerate() {
+        n.select_volume_plane(axis, count - 1).unwrap();
+    }
+    assert!(n.select_volume_plane(3, 0).is_err());
+    assert_eq!(n.volume.as_ref().unwrap().fixed_axis, 2);
+    let phases = [plotium_processing::nmr_volume::VolumePhase {
+        p0_degrees: 30.0,
+        p1_degrees: 0.0,
+        pivot_fraction: 0.5,
+    }; 3];
+    n.set_volume_phases(phases).unwrap();
+    let expected = n
+        .volume
+        .as_ref()
+        .unwrap()
+        .processed
+        .signed_value([1, 1, 1])
+        .unwrap();
+    let mut app = PlotiumApp::new();
+    app.doc.datasets.push(dataset);
+    let id = app.doc.datasets[0].resource_id();
+    app.select_nmr_volume_plane(id, 0, 0).unwrap();
+    assert_eq!(
+        app.doc.datasets[0]
+            .as_nmr2d()
+            .unwrap()
+            .volume
+            .as_ref()
+            .unwrap()
+            .fixed_axis,
+        0
+    );
+    app.undo();
+    assert_eq!(
+        app.doc.datasets[0]
+            .as_nmr2d()
+            .unwrap()
+            .volume
+            .as_ref()
+            .unwrap()
+            .fixed_axis,
+        2
+    );
+    let mut updated = phases;
+    updated[0].p0_degrees = 45.0;
+    app.set_nmr_volume_phases(id, updated).unwrap();
+    assert_eq!(
+        app.doc.datasets[0]
+            .as_nmr2d()
+            .unwrap()
+            .volume
+            .as_ref()
+            .unwrap()
+            .phases,
+        updated
+    );
+    app.undo();
+    assert_eq!(
+        app.doc.datasets[0]
+            .as_nmr2d()
+            .unwrap()
+            .volume
+            .as_ref()
+            .unwrap()
+            .phases,
+        phases
+    );
+    let file = path("volume.plotium");
+    save_project(&app, &file, false).unwrap();
+    let restored = load_project(&file).unwrap();
+    std::fs::remove_file(file).unwrap();
+    let volume = restored.doc.datasets[0]
+        .as_nmr2d()
+        .unwrap()
+        .volume
+        .as_ref()
+        .unwrap();
+    assert_eq!(volume.fixed_axis, 2);
+    assert_eq!(volume.index, 3);
+    assert_eq!(volume.phases, phases);
+    assert_eq!(volume.processed.signed_value([1, 1, 1]).unwrap(), expected);
+}
+
+#[test]
+fn cancelled_volume_import_stops_before_processing() {
+    let fixture =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../io/tests/fixtures/nmr/bruker-3d-qf");
+    let token = nmr::CancellationToken::new();
+    token.cancel();
+    let mut context = nmr::ExecutionContext::default().with_cancellation(token);
+    let error = crate::workflow::load_dataset_with_context(&fixture, &mut context)
+        .err()
+        .expect("cancelled FFT must not install a dataset");
+    assert!(
+        error.to_string().to_lowercase().contains("cancel"),
+        "{error}"
+    );
+}

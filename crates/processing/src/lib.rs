@@ -5,6 +5,7 @@ pub mod arithmetic;
 pub mod craft;
 pub mod nmr_bridge;
 pub mod nmr_execution;
+pub mod nmr_volume;
 mod output;
 pub mod signal;
 pub mod slice;

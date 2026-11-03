@@ -469,7 +469,9 @@ fn data_export_requires_exportable_current_data() {
     assert!(!command.enabled);
     assert_eq!(
         command.disabled_reason,
-        Some("Select a dataset with processed data or analysis results to export.")
+        Some(
+            "Select a supported dataset for numerical export; save 3D data as a project or export its figure."
+        )
     );
 
     let table = app_with_table(1);

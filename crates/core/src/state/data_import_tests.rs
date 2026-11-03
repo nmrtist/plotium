@@ -61,7 +61,11 @@ fn app_with_channel() -> (PlotiumApp, mpsc::Sender<Event>) {
         .session
         .data_imports
         .add_batch("batch".into(), ImportPhase::Scanning, true);
-    app.session.data_imports.active = Some(Job { receiver, id });
+    app.session.data_imports.active = Some(Job {
+        receiver,
+        id,
+        cancellation: nmr::CancellationToken::new(),
+    });
     (app, sender)
 }
 
@@ -396,4 +400,34 @@ fn background_append_preserves_dynamic_fit_to_all_intent() {
         app.session.viewport_mode,
         super::super::ViewportMode::Fit(super::super::BoardFitTarget::AllFrames)
     );
+}
+
+#[test]
+fn cancelling_import_signals_worker_and_marks_batch_cancelled() {
+    let mut app = PlotiumApp::new();
+    let id = app
+        .session
+        .data_imports
+        .add_batch("cancelled".into(), ImportPhase::Preparing, true);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../io/tests/fixtures/nmr/jcamp-ppm.dx");
+    let prepared = PreparedImport::new(plotium_io::load_path(&path).unwrap(), true).unwrap();
+    sender.send(Event::Item(path, Ok(prepared))).unwrap();
+    let cancellation = nmr::CancellationToken::new();
+    app.session.data_imports.active = Some(Job {
+        receiver,
+        id,
+        cancellation: cancellation.clone(),
+    });
+    app.cancel_data_imports();
+    assert!(cancellation.is_cancelled());
+    assert!(!app.session.data_imports.is_pending());
+    assert_eq!(
+        app.session.data_imports.batches().back().unwrap().phase,
+        ImportPhase::Cancelled
+    );
+    assert!(app.take_import_open_target().is_none());
+    assert!(!app.poll_data_import());
+    assert!(app.doc.datasets.is_empty());
 }

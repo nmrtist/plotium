@@ -17,7 +17,8 @@ use std::time::Duration;
 mod dataset;
 pub use dataset::{
     dataset_from_acquisition, dataset_from_acquisition_with_equal_scale_preference,
-    dataset_from_loaded_acquisition, dataset_title,
+    dataset_from_loaded_acquisition, dataset_from_loaded_acquisition_with_context, dataset_title,
+    load_dataset_with_context,
 };
 #[path = "workflow/mass_spec_layout.rs"]
 mod mass_spec_layout;
@@ -194,6 +195,13 @@ pub fn load_dataset_with_sampling(
 fn dataset_from_load_result(
     loaded: plotium_io::LoadResult,
 ) -> Result<LoadedDataset, WorkflowError> {
+    dataset_from_load_result_with_context(loaded, &mut nmr::ExecutionContext::default())
+}
+
+fn dataset_from_load_result_with_context(
+    loaded: plotium_io::LoadResult,
+    context: &mut nmr::ExecutionContext<'_>,
+) -> Result<LoadedDataset, WorkflowError> {
     let mut inspection = inspection_report(
         loaded.format,
         &loaded.provenance,
@@ -201,8 +209,12 @@ fn dataset_from_load_result(
         &loaded.acquisition,
     );
     let (acquisition, acquisition_identity, _, _, _) = loaded.into_parts();
-    let (dataset, source) =
-        dataset_from_loaded_acquisition(acquisition, acquisition_identity, true)?;
+    let (dataset, source) = dataset_from_loaded_acquisition_with_context(
+        acquisition,
+        acquisition_identity,
+        true,
+        context,
+    )?;
     if let Some(warning) = dataset
         .as_nmr2d()
         .and_then(|data| data.reconstruction_warning.as_ref())

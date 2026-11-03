@@ -75,6 +75,7 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
                 Separator,
                 Command(CommandId::ImportTable),
                 Command(CommandId::ImportResults),
+                Command(CommandId::CancelDataImport),
                 Command(CommandId::ImportImage),
                 Command(CommandId::ImportImageFirstFrame),
                 Command(CommandId::ImportImageWithoutMetadata),
