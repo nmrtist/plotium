@@ -36,7 +36,7 @@ pub(super) fn notice(app: &PlotiumApp, ctx: &Context) -> Option<ImportNotice> {
         let id = window_id(app).with(("notice", batch.id));
         let mut state = ctx.data_mut(|data| data.get_temp::<NoticeState>(id).unwrap_or_default());
         let failed = batch.failed() > 0;
-        let complete = batch.phase == ImportPhase::Complete;
+        let complete = matches!(batch.phase, ImportPhase::Complete | ImportPhase::Cancelled);
         if complete && state.completed_at.is_none() {
             state.completed_at = Some(now);
         }
@@ -119,6 +119,9 @@ pub(crate) fn cancel_on_input(app: &mut PlotiumApp, input: &egui::RawInput) {
 
 pub(crate) fn summary(batch: &ImportBatch) -> String {
     match batch.phase {
+        ImportPhase::Cancelled => {
+            "Data import cancelled; previously imported data is retained.".into()
+        }
         ImportPhase::Queued => "Data import queued".into(),
         ImportPhase::Scanning => "Scanning for data…".into(),
         ImportPhase::Preparing => match batch.total {
@@ -222,6 +225,14 @@ pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
         .default_size([560.0, 360.0])
         .default_pos(ctx.content_rect().center() - egui::vec2(280.0, 180.0))
         .show(ctx, |ui| {
+            let cancel = commands::describe(app, CommandId::CancelDataImport);
+            if ui
+                .add_enabled(cancel.enabled, egui::Button::new(&cancel.label))
+                .on_disabled_hover_text(cancel.disabled_reason.unwrap_or_default())
+                .clicked()
+            {
+                commands::execute_without_clipboard(CommandId::CancelDataImport, app, ctx);
+            }
             if batches.is_empty() {
                 ui.label("No imports yet. Open data to begin.");
                 return;

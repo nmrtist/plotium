@@ -53,6 +53,8 @@ pub(super) fn validate_parameters(
     value: serde_json::Value,
 ) -> Result<(), AutomationError> {
     match tool {
+        NMR_VOLUME_INSPECT => parse::<EmptyParams>(tool, value).map(drop),
+        NMR_VOLUME_EDIT => parse::<VolumeEditParams>(tool, value).map(drop),
         FIELD_PLOT_CREATE | DIFFUSION_PLOT_CREATE => {
             parse::<ScientificPlotParams>(tool, value).map(drop)
         }
@@ -612,6 +614,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
     .map(make_descriptor)
     .chain(super::scientific_plot::descriptors())
     .chain(super::science::descriptors())
+    .chain(super::nmr_volume::descriptors())
     .chain(super::dosy::descriptors())
     .chain(super::region_fit::descriptors())
     .chain(std::iter::once(super::processing_edit::descriptor()))

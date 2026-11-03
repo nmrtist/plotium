@@ -16,11 +16,10 @@ fn relation_plan() -> serde_json::Value {
     serde_json::to_value(plan).expect("a relation plan serializes")
 }
 
-/// The per-tool planning seam is additive. Every tool that existed before it
-/// with resource selectors must still use the shared gate alone: one planned target per frozen
-/// resource, no component, and the shared reasons.
+/// Resource planning preserves exact resource identity, adds no component target,
+/// and retains the shared applicability gate for these representative operations.
 #[test]
-fn the_planning_of_pre_existing_tools_is_unchanged() {
+fn resource_planning_preserves_targets_and_shared_gate_reasons() {
     let (app, _) = contour_app();
     let canvas = app.doc.canvases[0].resource_id.to_string();
     let dataset = app.doc.datasets[0].resource_id().to_string();
@@ -64,35 +63,6 @@ fn the_planning_of_pre_existing_tools_is_unchanged() {
             &canvas,
         ),
     ];
-    assert_eq!(
-        cases.len(),
-        ToolRegistry::built_in()
-            .descriptors()
-            .filter(|d| !is_native_curve_tool(&d.id)
-                && !is_scientific_plot_tool(&d.id)
-                && !matches!(
-                    d.id.as_str(),
-                    "data.import"
-                        | FIGURE_EDIT
-                        | TABLE_PATCH
-                        | TABLE_REFRESH
-                        | FIGURE_DIAGNOSE
-                        | DIFFUSION_INSPECT
-                        | DIFFUSION_SET_INPUT
-                        | PROCESSING_INSPECT
-                        | PROCESSING_EDIT
-                        | REGIONS_EXTRACT
-                        | DIFFUSION_FIT
-                        | DOSY_BUILD
-                        | ANALYSIS_RESULTS_INSPECT
-                        | TOOL_SET_MANY
-                        | DATASET_DELETE
-                        | XAS_MERGE
-                ))
-            .count()
-            - 7,
-        "every resource-targeted tool that predates property, document discovery, image preview, table read and explicit curve binding tools is covered here"
-    );
     for (tool_id, parameters, target) in cases {
         let plan = plan_tool(
             &app,

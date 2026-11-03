@@ -79,3 +79,43 @@ fn tool_run_without_input_requires_targets_for_dataset_tools() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("explicit stable targets"));
 }
+
+#[test]
+fn three_dimensional_plane_uses_shared_core_and_survives_project_save() {
+    let root = temp_dir("3d");
+    let request = root.join("plane.json");
+    std::fs::write(
+        &request,
+        r#"{"tool_id":"nmr.volume.edit","parameters":{"fixed_axis":2,"index":1}}"#,
+    )
+    .unwrap();
+    let fixture =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../io/tests/fixtures/nmr/bruker-3d-qf");
+    let project = root.join("volume.plotium");
+    let output = Command::new(env!("CARGO_BIN_EXE_plotium-cli"))
+        .args(["tool", "run"])
+        .arg(fixture)
+        .arg("--request")
+        .arg(&request)
+        .arg("--output")
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["value"]["fixed_axis"], 2);
+    assert_eq!(result["value"]["index"], 1);
+    let loaded = plotium_core::project::load_project(&project).unwrap();
+    let volume = loaded.doc.datasets[0]
+        .as_nmr2d()
+        .unwrap()
+        .volume
+        .as_ref()
+        .unwrap();
+    assert_eq!(volume.processed.shape(), [5, 3, 4]);
+    assert_eq!((volume.fixed_axis, volume.index), (2, 1));
+}

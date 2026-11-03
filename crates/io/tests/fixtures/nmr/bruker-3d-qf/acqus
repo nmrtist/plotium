@@ -1,0 +1,16 @@
+##TITLE=Plotium synthetic dense 3D QF acquisition
+##$TD= 8
+##$SFO1= 400
+##$BF1= 400
+##$O1= 2000
+##$SW_h= 4000
+##$NUC1= <1H>
+##$PARMODE= 2
+##$AQSEQ= 0
+##$FnTYPE= 0
+##$GO_block_size= <continuous>
+##$AQ_mod= 3
+##$BYTORDA= 0
+##$DTYPA= 0
+##$GRPDLY= 0
+##END=

@@ -684,3 +684,5 @@ mod feedback_tests {
         assert_eq!(earlier, 0);
     }
 }
+
+mod nmr_volume;

@@ -410,6 +410,11 @@ pub(super) fn validate_processing_state(
             .map(|_| ())
             .map_err(|error| format!("Cannot apply invalid direct processing pipeline: {error}")),
         (Dataset::Nmr2D(dataset), DatasetProcessingState::Nmr2D { params, .. }) => {
+            if dataset.volume.is_some() {
+                return Err(
+                    "Use the three-dimensional processing controls to adjust this spectrum".into(),
+                );
+            }
             plotium_processing::nmr_execution::validate_2d_domains(&dataset.data, params)?;
             Ok(())
         }

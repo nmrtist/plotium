@@ -40,7 +40,7 @@ publish = false
 repository = "https://github.com/nmrtist/plotium"
 
 [workspace.dependencies]
-nmr = "=0.1.2"
+nmr = "=0.1.3"
 colorous = "1"
 num-complex = "0.4"
 rustfft = "6"
@@ -65,7 +65,7 @@ substrait = { version = "0.63", default-features = false, features = ["serde"] }
 prost = "0.14"
 pbjson-types = "0.8"
 chrono-tz = "0.10"
-calamine = { version = "0.37", default-features = false, features = ["dates"] }
+calamine = { version = "0.38", default-features = false, features = ["dates"] }
 rust_xlsxwriter = { version = "0.100", default-features = false, features = ["constant_memory"] }
 tokio = { version = "1", features = ["rt"] }
 egui = "0.34"

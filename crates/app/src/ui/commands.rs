@@ -1,3 +1,4 @@
+pub use super::command_exec::{execute, execute_without_clipboard};
 use plotium_core::actions::ZOrder;
 use plotium_core::export::ExportFormat;
 use plotium_core::layout::{Align, Distribute, GutterPreset, SpacingMode};
@@ -5,8 +6,6 @@ use plotium_core::properties::PropertyStep;
 #[cfg(test)]
 use plotium_core::state::WorkflowTab;
 use plotium_core::state::{Dataset, PlotiumApp, Tool, ToolGroup};
-
-pub use super::command_exec::{execute, execute_without_clipboard};
 mod craft;
 mod identity;
 use identity::command_identity;
@@ -23,7 +22,6 @@ pub(crate) use ribbon::stack_row;
 pub use ribbon::{Applicability, RibbonPlacement};
 use roster::command_ids;
 pub(crate) const MANUAL_URL: &str = "https://plotium.nmrtist.space/";
-/// The public source repository, linked from About.
 pub(crate) const REPOSITORY_URL: &str = "https://github.com/nmrtist/plotium";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandId {
@@ -35,6 +33,10 @@ pub enum CommandId {
     OpenFile,
     OpenFolder,
     ImportNmrSampling,
+    ApplyNmrVolumePhase,
+    CancelNmrVolumePhase,
+    PreviousNmrPlane,
+    NextNmrPlane,
     RunBatchWorkflow,
     AgentConnections,
     RunScientificScript,
@@ -50,6 +52,7 @@ pub enum CommandId {
     ImportImageWithoutMetadata,
     ImportTiffPages,
     PasteImage,
+    CancelDataImport,
     CancelImageImport,
     ReplaceImage,
     PasteTable,
@@ -163,7 +166,6 @@ pub enum CommandId {
     CycleCursor,
     Tool(Tool),
 }
-
 /// Architectural ownership for commands that expose or consume results. New
 /// commands must choose a class instead of bypassing the automation registry
 /// with an arbitrary Action.
@@ -173,7 +175,6 @@ pub enum CommandExecutionClass {
     ToolEditor,
     ToolBacked,
 }
-
 pub struct CommandDescriptor {
     pub id: CommandId,
     pub execution_class: CommandExecutionClass,
@@ -188,7 +189,6 @@ pub struct CommandDescriptor {
     pub shortcut: Option<String>,
     pub ribbon: Option<RibbonPlacement>,
 }
-
 pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
     command_ids(app.session.recent_files.len())
         .into_iter()
@@ -206,7 +206,6 @@ pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
         })
         .collect()
 }
-
 pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let has_canvas = app.session.active_canvas.is_some();
     let selected = app.session.ui.selection.objects().len();
@@ -238,9 +237,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let has_selectable_analysis_trace = || has_trace() && !is_time_nmr();
     let has_generic_peak_fit_trace = || has_trace() && (is_frequency_nmr() || is_table());
     let range = || active_dataset.and_then(|di| app.analysis_range_for(di));
-
     let is_series = || dataset().is_some_and(Dataset::supports_region_analysis);
-
     let (label, icon, checked) = command_identity(app, id);
     // The gate decides the enabled state and the disabled tooltip together, so a
     // command can never be blocked by one requirement while explaining another.
@@ -296,6 +293,11 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             app.session.ui.table_import_preview.is_none(),
             "Finish or cancel the current table import preview before importing another table.",
         ),
+        CommandId::CancelNmrVolumePhase => requires(app.session.ui.nmr_volume_phase_busy, "Start phase processing before cancelling it."),
+        CommandId::ApplyNmrVolumePhase => super::nmr_volume::phase_gate(app),
+        CommandId::PreviousNmrPlane | CommandId::NextNmrPlane => {
+            super::nmr_volume::step_gate(app, id == CommandId::NextNmrPlane)
+        }
         CommandId::ImportNmrSampling => requires(
             app.session.ui.nmr_import.is_none(),
             "Finish or cancel the current NMR import before importing another acquisition.",
@@ -305,6 +307,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         | CommandId::ImportImageWithoutMetadata
         | CommandId::ImportTiffPages
         | CommandId::PasteImage => Ok(()),
+        CommandId::CancelDataImport => requires(app.session.data_imports.is_pending(), "Start a data import before cancelling it."),
         CommandId::CancelImageImport => requires(
             super::file_dialogs::image_import::has_active_jobs(),
             "Start an image import before cancelling it.",
@@ -330,7 +333,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             dataset().is_some_and(|dataset| {
                 !plotium_core::data_export::DataExportAvailability::for_dataset(dataset).is_empty()
             }),
-            "Select a dataset with processed data or analysis results to export.",
+            "Select a supported dataset for numerical export; save 3D data as a project or export its figure.",
         ),
         CommandId::Export(_) => requires(has_canvas, "Open a canvas before exporting a figure."),
         CommandId::CopyFigure => requires(
@@ -709,9 +712,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 .is_some_and(|dataset| dataset.supports_symmetry_review()),
             "Select a homonuclear COSY, TOCSY, or NOESY / ROESY contour spectrum.",
         ),
-        // On-plot phasing needs a spectrum with a phase step to act on. The
-        // gate is the Phase settings tile's, so the tool and the settings it
-        // drives never disagree about when phasing is possible.
+        // Share the Phase settings gate so its tool stays consistent.
         CommandId::Tool(Tool::ManualPhase) => requires(
             super::properties::discovery::group_applies(
                 app,
@@ -726,6 +727,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         CommandId::Tool(_) => requires(has_canvas, "Open a canvas before using this tool."),
         _ => Ok(()),
     };
+    let gate = super::nmr_volume::editing_gate(app, id).and(gate);
     // The palette cannot be opened over a modal or active gesture. Those states
     // hide every surface that could display its disabled tooltip, so this is the
     // one intentional disabled-without-reason path.
@@ -773,11 +775,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         ribbon,
     }
 }
-
 #[cfg(test)]
 #[path = "commands_alignment_tests.rs"]
 mod alignment_tests;
-
 #[cfg(test)]
 #[path = "commands_craft_tests.rs"]
 mod craft_tests;

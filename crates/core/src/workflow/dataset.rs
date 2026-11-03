@@ -43,6 +43,9 @@ fn convert_acquisition(
                     )
                     .map_err(WorkflowError::Nmr)?,
                 )),
+                3 => Dataset::Nmr2D(Box::new(
+                    Nmr2DDataset::load_volume(data).map_err(WorkflowError::Nmr)?,
+                )),
                 rank => {
                     return Err(WorkflowError::Nmr(format!(
                         "Plotium does not yet display rank-{rank} NMR data"
@@ -134,4 +137,39 @@ pub fn dataset_title(dataset: &Dataset) -> String {
             .clone()
             .unwrap_or_else(|| short_name(&data.experiment.source)),
     }
+}
+
+/// Shared importer seam for cancellable three-dimensional processing.
+pub fn dataset_from_loaded_acquisition_with_context(
+    acquisition: Acquisition,
+    identity: plotium_io::AcquisitionIdentity,
+    equal_scale: bool,
+    context: &mut nmr::ExecutionContext<'_>,
+) -> Result<(Dataset, String), WorkflowError> {
+    if let Acquisition::Nmr(data) = &acquisition
+        && data.axes().len() == 3
+    {
+        let source = data.source().to_owned();
+        let mut dataset = Dataset::Nmr2D(Box::new(
+            Nmr2DDataset::load_volume_state_with_context(
+                data.clone(),
+                [Default::default(); 3],
+                0,
+                None,
+                context,
+            )
+            .map_err(WorkflowError::Nmr)?,
+        ));
+        dataset.set_acquisition_identity(identity);
+        return Ok((dataset, source));
+    }
+    dataset_from_loaded_acquisition(acquisition, identity, equal_scale)
+}
+
+/// Load through the ordinary importer with cancellation during rank-three transforms.
+pub fn load_dataset_with_context(
+    path: &Path,
+    context: &mut nmr::ExecutionContext<'_>,
+) -> Result<LoadedDataset, WorkflowError> {
+    dataset_from_load_result_with_context(plotium_io::load_path(path)?, context)
 }

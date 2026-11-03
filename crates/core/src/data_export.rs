@@ -126,6 +126,9 @@ pub struct DataExportAvailability {
 
 impl DataExportAvailability {
     pub fn for_dataset(dataset: &Dataset) -> Self {
+        if let Some(unavailable) = nmr_export::volume_availability(dataset) {
+            return unavailable;
+        }
         let mut contents = Vec::new();
         if processed_data_available(dataset) {
             contents.push(DataExportContent::ProcessedData);

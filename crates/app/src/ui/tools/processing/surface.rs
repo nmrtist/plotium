@@ -97,6 +97,13 @@ pub(super) fn render(app: &mut PlotiumApp, host: &mut Ui) {
     if app.active_dataset() != Some(di) {
         return;
     }
+    if app.doc.datasets[di]
+        .as_nmr2d()
+        .is_some_and(|n| n.volume.is_some())
+    {
+        crate::ui::nmr_volume::processing(app, host, di);
+        return;
+    }
     if app.doc.datasets[di].as_xrd().is_some() {
         render_xrd(app, host, di);
         return;

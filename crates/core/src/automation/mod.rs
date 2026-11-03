@@ -2,6 +2,8 @@
 //! agents. The public boundary is deliberately semantic: callers can inspect,
 //! select and invoke registered tools, but cannot construct document actions.
 
+mod nmr_volume;
+pub use nmr_volume::{NMR_VOLUME_EDIT, NMR_VOLUME_INSPECT, VolumeEditParams};
 mod native_import;
 pub use native_import::*;
 mod table_import;

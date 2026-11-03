@@ -332,3 +332,26 @@ fn native_reservations_are_shared_and_released_on_every_plan_consumption() {
     );
     assert_eq!(s.remaining_import_bytes(), NATIVE_IMPORT_BYTES);
 }
+
+#[test]
+fn mcp_can_import_and_select_a_three_dimensional_plane() {
+    let mut app = PlotiumApp::new_with_settings(Default::default());
+    let mut s = session();
+    let p = plan(&mut s, &mut app, &[fixture("bruker-3d-qf")]);
+    execute(&mut s, &mut app, &p).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while app.compute_busy() && Instant::now() < deadline {
+        app.poll_compute();
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    app.poll_compute();
+    assert!(!app.compute_busy());
+    let id = app.doc.datasets[0].resource_id().to_string();
+    let args = json!({"tool_id":"nmr.volume.edit","parameters":{"fixed_axis":2,"index":1},"ids":[id],"expected_revision":app.doc.automation_revision,"expected_project_context":app.session.project_context});
+    let p = s.call(&mut app, "plotium_plan", args).unwrap();
+    let result = execute(&mut s, &mut app, &p).unwrap();
+    assert_eq!(result["value"]["fixed_axis"], 2);
+    assert_eq!(result["value"]["index"], 1);
+    let n = app.doc.datasets[0].as_nmr2d().unwrap();
+    assert_eq!(n.volume.as_ref().unwrap().processed.shape(), [5, 3, 4]);
+}

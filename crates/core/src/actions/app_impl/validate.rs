@@ -39,6 +39,15 @@ pub(super) fn validate_action(
     shape: &mut ValidationShape,
 ) -> Result<(), ActionApplyError> {
     match action {
+        Action::SetPeaks2D { dataset, .. } | Action::SetIntegrals2D { dataset, .. }
+            if app
+                .doc
+                .dataset_index(*dataset)
+                .and_then(|i| app.doc.datasets[i].as_nmr2d())
+                .is_some_and(|n| n.volume.is_some()) =>
+        {
+            return Err(ActionApplyError::InvalidValue("Open a two-dimensional spectrum to edit peaks or integrals; three-dimensional evidence requires a volume-aware workflow".into()));
+        }
         Action::SetAsset { id, before, after } => {
             for asset in before.iter().chain(after) {
                 if asset.id != *id || asset.pixel_size.contains(&0) {

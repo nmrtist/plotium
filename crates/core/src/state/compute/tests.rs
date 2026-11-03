@@ -544,3 +544,57 @@ fn held_processing_respects_estimate_to_geometry_boundary_and_cancellation() {
         assert!(!service.is_busy());
     }
 }
+
+#[test]
+fn volume_navigation_phase_and_history_leave_other_jobs_and_versions_untouched() {
+    use crate::state::{Dataset, PlotiumApp};
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../io/tests/fixtures/nmr/bruker-3d-qf");
+    let load = || {
+        let input = plotium_io::load_path(&fixture).unwrap();
+        crate::workflow::dataset_from_acquisition(input.acquisition)
+            .unwrap()
+            .0
+    };
+    let mut app = PlotiumApp::with_compute(Default::default(), ComputeService::inactive());
+    app.doc.datasets = vec![load(), load()];
+    let target = app.doc.datasets[1].resource_id();
+    let unrelated = app.doc.datasets[0].resource_id();
+    let field = FieldRef {
+        resource: unrelated,
+        field: app.doc.datasets[0].field_descriptors()[0].id,
+    };
+    let version = app.session.compute.field_version_for(field).unwrap();
+    let tokens: Vec<_> = [ComputeKind::Dosy, ComputeKind::Ilt]
+        .into_iter()
+        .map(|kind| {
+            let token = CancellationToken::new();
+            app.session.compute.active.insert(
+                (unrelated, kind),
+                ActiveJob {
+                    generation: 1,
+                    started_at: Instant::now(),
+                    token: token.clone(),
+                    processing_input: None,
+                },
+            );
+            token
+        })
+        .collect();
+    app.select_nmr_volume_plane(target, 2, 1).unwrap();
+    app.undo();
+    app.redo();
+    let phases = [plotium_processing::nmr_volume::VolumePhase {
+        p0_degrees: 30.0,
+        ..Default::default()
+    }; 3];
+    app.set_nmr_volume_phases(target, phases).unwrap();
+    app.undo();
+    app.redo();
+    assert!(tokens.iter().all(|token| !token.is_cancelled()));
+    assert_eq!(
+        app.session.compute.current_field_version(field),
+        Some(version)
+    );
+    assert!(matches!(&app.doc.datasets[0], Dataset::Nmr2D(_)));
+}

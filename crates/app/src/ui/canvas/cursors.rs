@@ -383,6 +383,36 @@ fn inspect_text(app: &PlotiumApp, dataset: usize, point: CursorPoint) -> String 
             )
         }
         Dataset::Nmr2D(n) => {
+            if let Some(volume) = &n.volume {
+                let remaining: Vec<_> = (0..3).filter(|axis| *axis != volume.fixed_axis).collect();
+                let mut indices = volume.anchor;
+                for (axis, coordinate) in [
+                    (remaining[0], point.y.unwrap_or_default()),
+                    (remaining[1], point.x),
+                ] {
+                    match volume.processed.nearest(axis, coordinate) {
+                        Ok(index) => indices[axis] = index,
+                        Err(error) => return format!("Coordinate unavailable: {error}"),
+                    }
+                }
+                let mut values = Vec::new();
+                for (axis, index) in indices.into_iter().enumerate() {
+                    let value = match volume.processed.axis_coordinate(axis, index) {
+                        Ok(value) => value,
+                        Err(error) => return format!("Coordinate unavailable: {error}"),
+                    };
+                    let nucleus = volume.source.axes()[axis]
+                        .nucleus
+                        .as_deref()
+                        .unwrap_or("unknown");
+                    values.push(format!("{nucleus}(F{}) {value:.4} ppm", axis + 1));
+                }
+                return format!(
+                    "{} · sampled I {}",
+                    values.join(" · "),
+                    fmt_number(point.intensity)
+                );
+            }
             let Processed2D::Ft(s) = &n.processed else {
                 return String::new();
             };

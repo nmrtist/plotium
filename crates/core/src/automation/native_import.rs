@@ -175,7 +175,18 @@ impl PreparedNativeImport {
                 .map_err(crate::workflow::WorkflowError::from)
                 .and_then(|input| {
                     prepared.params.sampling_declaration.clone().map_or_else(
-                        || crate::workflow::load_dataset(&input),
+                        || {
+                            let token = nmr::CancellationToken::new();
+                            let mut progress = |_| {
+                                if cancelled() {
+                                    token.cancel();
+                                }
+                            };
+                            let mut context = nmr::ExecutionContext::default()
+                                .with_cancellation(token.clone())
+                                .with_progress(&mut progress);
+                            crate::workflow::load_dataset_with_context(&input, &mut context)
+                        },
                         |declaration| {
                             crate::workflow::load_dataset_with_sampling(&input, declaration)
                         },
@@ -385,6 +396,13 @@ fn reservation(
             }
         }
         crate::state::Dataset::Nmr2D(data) => {
+            if let Some(volume) = &data.volume {
+                crate::project::write_dataset_payload(
+                    &mut counter,
+                    &crate::project::DatasetBlob::Nmr(volume.processed.source().dataset()),
+                )
+                .map_err(|e| AutomationError::Execution(e.to_string()))?;
+            }
             for source in [&data.native_base, &data.native_processed] {
                 crate::project::write_dataset_payload(
                     &mut counter,

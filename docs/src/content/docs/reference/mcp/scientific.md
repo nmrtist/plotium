@@ -4,7 +4,7 @@ description: Run processing, diffusion fitting and DOSY through MCP, and plot th
 ---
 
 These operations are the ones the desktop runs for
-[processing](/guides/processing/) and [DOSY](/guides/dosy/). The command line
+[processing](/guides/processing/), [3D NMR](/guides/nmr-3d/) and [DOSY](/guides/dosy/). The command line
 runs them too, with [`plotium-cli tool run`](/reference/cli/#single-step-scientific-operations).
 
 ## Scientific operations and tasks
@@ -21,8 +21,9 @@ Scientific edits use `plotium_plan` / `plotium_execute`:
 | Operation | Parameters and target |
 | --- | --- |
 | `xas.merge` | Two or more XAS datasets in `ids`, first one sets the energy grid; takes `{}`. Aligns on reference foils when each scan has a usable one, otherwise preflight and `value.reason` say why not. Adds a dataset and canvas in one Undo step |
-| `processing.edit` | One NMR, XRD, XPS or XAS dataset; `edits` uses `replace`, `enable`, `add`, `remove` or `move` on stable StepIds; XPS `add` names a region ID as `axis` and takes `Window`, `Smooth` or `Normalize`; XRD uses `set_xrd` with complete `processing` settings, plus optional `axis` and `wavelength_angstrom`; XAS uses `set_xas` with `signal` and complete `processing` settings copied from `processing.inspect`, or `apply_xas_preset` with `athena` or `larch` |
+| `processing.edit` | One 1D/2D NMR, XRD, XPS or XAS dataset; `edits` uses `replace`, `enable`, `add`, `remove` or `move` on stable StepIds; XPS `add` names a region ID as `axis` and takes `Window`, `Smooth` or `Normalize`; XRD uses `set_xrd` with complete `processing` settings, plus optional `axis` and `wavelength_angstrom`; XAS uses `set_xas` with `signal` and complete `processing` settings copied from `processing.inspect`, or `apply_xas_preset` with `athena` or `larch` |
 | `processing.apply_scheme` | `path`, optional `compatible_only`; preflight freezes scheme bytes, fingerprint and compatible target configurations; a scheme applies to datasets of its own kind, and an XPS scheme replaces the active region's recipe |
+| `nmr.volume.edit` | One 3D NMR dataset; zero-based `fixed_axis` and `index`; optional `phases` is three objects with `p0_degrees`, `p1_degrees` and `pivot_fraction` (0–1). Plane navigation reuses the processed volume; phase edits run as background tasks. Inspect original axes and phase settings with `plotium_processing_inspect` |
 | `diffusion.set_input` | One dataset; complete `input`; invalid input errors include a structured validation report |
 | `analysis.regions.extract` | One region-series field; `regions` references RegionIds or explicit bounds and metrics; optional explicit `input` |
 | `analysis.diffusion.fit` | One native table; stable `response_column` ColumnId, optional native `options`; the x column must use `s/m²` |
@@ -35,7 +36,8 @@ are `Area`, `Mean`, `Max` and `Min`. Extraction creates an independent native ta
 with source evidence, region-to-column correspondence and diffusion increment
 bindings. It does not create a plot.
 
-Except for input updates, these edits return `ToolResult.value.task`. Preflight
+Input updates, scan merges and plane-only volume edits are synchronous. Other
+edits return `ToolResult.value.task`. Preflight
 allocates `task_id`; `queued` means registered. Query with
 `plotium_tasks_get({task_id})` or `plotium_tasks_list({offset,limit})`; cancel with
 `plotium_tasks_cancel({task_id})` (modify permission required). States are

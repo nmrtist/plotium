@@ -420,6 +420,7 @@ impl Session {
             if matches!(
                 args.tool_id.as_str(),
                 PROCESSING_EDIT
+                    | "nmr.volume.edit"
                     | DIFFUSION_SET_INPUT
                     | DOSY_BUILD
                     | REGIONS_EXTRACT

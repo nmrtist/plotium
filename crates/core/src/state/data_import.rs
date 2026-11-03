@@ -16,10 +16,18 @@ mod tests;
 
 impl PreparedImport {
     pub(super) fn new(loaded: plotium_io::LoadResult, equal_scale: bool) -> Result<Self, String> {
-        let (dataset, source) = crate::workflow::dataset_from_loaded_acquisition(
+        Self::new_with_context(loaded, equal_scale, &mut nmr::ExecutionContext::default())
+    }
+    fn new_with_context(
+        loaded: plotium_io::LoadResult,
+        equal_scale: bool,
+        context: &mut nmr::ExecutionContext<'_>,
+    ) -> Result<Self, String> {
+        let (dataset, source) = crate::workflow::dataset_from_loaded_acquisition_with_context(
             loaded.acquisition,
             loaded.acquisition_identity,
             equal_scale,
+            context,
         )
         .map_err(|error| error.to_string())?;
         let mut warnings = loaded.warnings;
@@ -55,6 +63,7 @@ pub enum ImportPhase {
     Scanning,
     Preparing,
     Complete,
+    Cancelled,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,6 +131,13 @@ enum Event {
 struct Job {
     receiver: mpsc::Receiver<Event>,
     id: ImportBatchId,
+    cancellation: nmr::CancellationToken,
+}
+
+impl Drop for Job {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+    }
 }
 
 /// Dropping a session disconnects the bounded channel, preventing the worker
@@ -180,14 +196,16 @@ impl DataImports {
         while self
             .batches
             .iter()
-            .filter(|batch| batch.phase == ImportPhase::Complete)
+            .filter(|batch| matches!(batch.phase, ImportPhase::Complete | ImportPhase::Cancelled))
             .count()
             > 32
         {
             let index = self
                 .batches
                 .iter()
-                .position(|batch| batch.phase == ImportPhase::Complete)
+                .position(|batch| {
+                    matches!(batch.phase, ImportPhase::Complete | ImportPhase::Cancelled)
+                })
                 .expect("completed batch count exceeds the retention limit");
             self.batches.remove(index);
         }
@@ -219,6 +237,26 @@ impl DataImports {
 }
 
 impl PlotiumApp {
+    /// Stops active numerical work and discards queued imports; already imported data remains.
+    pub fn cancel_data_imports(&mut self) {
+        let mut imports = std::mem::take(&mut self.session.data_imports);
+        imports.open_intent = None;
+        imports.open_target = None;
+        let mut ids: Vec<_> = imports
+            .pending
+            .drain(..)
+            .map(|request| request.id)
+            .collect();
+        if let Some(job) = imports.active.take() {
+            ids.push(job.id);
+        }
+        for id in ids {
+            imports.batch_mut(id).phase = ImportPhase::Cancelled;
+        }
+        imports.prune();
+        self.session.data_imports = imports;
+        self.session.status = "Data import cancelled; previously imported data is retained.".into();
+    }
     pub fn cancel_import_open_intent(&mut self) {
         self.session.data_imports.open_intent = None;
         self.session.data_imports.open_target = None;
@@ -229,13 +267,9 @@ impl PlotiumApp {
 
     /// Continue an explicit synchronous import by showing its completed batch.
     pub fn request_import_results(&mut self, id: ImportBatchId) {
-        if self
-            .session
-            .data_imports
-            .batches
-            .iter()
-            .any(|batch| batch.id == id && batch.phase == ImportPhase::Complete)
-        {
+        if self.session.data_imports.batches.iter().any(|batch| {
+            batch.id == id && matches!(batch.phase, ImportPhase::Complete | ImportPhase::Cancelled)
+        }) {
             self.cancel_import_open_intent();
             self.session.data_imports.open_target = Some(ImportOpenTarget::Batch(id));
         }
@@ -244,13 +278,9 @@ impl PlotiumApp {
     /// Continue a completed synchronous import by displaying its successful
     /// results together, just like an asynchronous foreground import.
     pub fn request_completed_import_open(&mut self, id: ImportBatchId) {
-        if self
-            .session
-            .data_imports
-            .batches
-            .iter()
-            .any(|batch| batch.id == id && batch.phase == ImportPhase::Complete)
-        {
+        if self.session.data_imports.batches.iter().any(|batch| {
+            batch.id == id && matches!(batch.phase, ImportPhase::Complete | ImportPhase::Cancelled)
+        }) {
             self.cancel_import_open_intent();
             self.session.data_imports.open_intent = Some(id);
             self.session.data_imports.finish(id);
@@ -380,6 +410,8 @@ impl PlotiumApp {
             let id = request.id;
             imports.batch_mut(id).phase = ImportPhase::Scanning;
             self.session.status = format!("Scanning {}…", request.recent.display());
+            let cancellation = nmr::CancellationToken::new();
+            let worker_cancellation = cancellation.clone();
             match std::thread::Builder::new()
                 .name("data-import".into())
                 .spawn(move || {
@@ -411,9 +443,20 @@ impl PlotiumApp {
                         .map_or(1, usize::from)
                         .min(4);
                     if !prepare_paths(&discovered.paths, &sender, workers, total, &|path| {
+                        let mut context = nmr::ExecutionContext::default()
+                            .with_cancellation(worker_cancellation.clone());
+                        context
+                            .check_cancelled()
+                            .map_err(|error| error.to_string())?;
                         plotium_io::load_path(path)
                             .map_err(|error| error.to_string())
-                            .and_then(|loaded| PreparedImport::new(loaded, request.equal_scale))
+                            .and_then(|loaded| {
+                                PreparedImport::new_with_context(
+                                    loaded,
+                                    request.equal_scale,
+                                    &mut context,
+                                )
+                            })
                     }) {
                         return;
                     }
@@ -421,7 +464,13 @@ impl PlotiumApp {
                         // Document closure is normal cancellation, not an import failure.
                     }
                 }) {
-                Ok(_) => imports.active = Some(Job { receiver, id }),
+                Ok(_) => {
+                    imports.active = Some(Job {
+                        receiver,
+                        id,
+                        cancellation,
+                    })
+                }
                 Err(error) => {
                     let path = imports.batch_mut(id).recent.clone();
                     self.record_import_item(

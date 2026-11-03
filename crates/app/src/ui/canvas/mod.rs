@@ -135,6 +135,7 @@ pub(crate) enum CanvasInteractionClearScope {
 }
 
 pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
+    super::nmr_volume::poll_phase(app, ui.ctx());
     let Some(ci) = app.session.active_canvas else {
         if app.doc.canvases.is_empty() && !board_frames(app).is_empty() {
             board::render_sheets_only(app, ui);
@@ -144,6 +145,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         return;
     };
     canvas_breadcrumb(app, ci, ui);
+    super::nmr_volume::navigation(app, ui);
     let avail = ui.available_rect_before_wrap();
     let (resp, painter) = ui.allocate_painter(avail.size(), Sense::click_and_drag());
     let geometry = super::workspace_geometry(app, resp.rect, ui.ctx());

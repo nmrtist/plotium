@@ -3,7 +3,7 @@ title: MCP 科学运算
 description: 通过 MCP 运行处理、扩散拟合和 DOSY，并为结果建图。
 ---
 
-这些操作与桌面端的[处理](/zh-cn/guides/processing/)和 [DOSY](/zh-cn/guides/dosy/)
+这些操作与桌面端的[处理](/zh-cn/guides/processing/)、[三维 NMR](/zh-cn/guides/nmr-3d/) 和 [DOSY](/zh-cn/guides/dosy/)
 相同，命令行也可以通过 [`plotium-cli tool run`](/zh-cn/reference/cli/#单步科学操作)运行。
 
 ## 科学操作与任务
@@ -19,8 +19,9 @@ description: 通过 MCP 运行处理、扩散拟合和 DOSY，并为结果建图
 | 操作 | 参数与目标 |
 | --- | --- |
 | `xas.merge` | `ids` 中给出两个或更多 XAS 数据集，第一个决定能量网格；参数为 `{}`。每条扫描都有可用参考箔时按参考对齐，否则 preflight 和 `value.reason` 会说明原因。一步撤销可移除新增的数据集和画布 |
-| `processing.edit` | 一个 NMR、XRD、XPS 或 XAS 数据集；`edits` 中对稳定 StepId 使用 `replace`、`enable`、`add`、`remove` 或 `move`；XPS 的 `add` 以区域 ID 作为 `axis`，步骤为 `Window`、`Smooth` 或 `Normalize`；XRD 使用 `set_xrd`，给出完整的 `processing` 设置，可选 `axis` 和 `wavelength_angstrom`；XAS 使用 `set_xas`，给出 `signal` 和从 `processing.inspect` 复制的完整 `processing` 设置，或用 `apply_xas_preset` 选择 `athena` 或 `larch` |
+| `processing.edit` | 一个一维／二维 NMR、XRD、XPS 或 XAS 数据集；`edits` 中对稳定 StepId 使用 `replace`、`enable`、`add`、`remove` 或 `move`；XPS 的 `add` 以区域 ID 作为 `axis`，步骤为 `Window`、`Smooth` 或 `Normalize`；XRD 使用 `set_xrd`，给出完整的 `processing` 设置，可选 `axis` 和 `wavelength_angstrom`；XAS 使用 `set_xas`，给出 `signal` 和从 `processing.inspect` 复制的完整 `processing` 设置，或用 `apply_xas_preset` 选择 `athena` 或 `larch` |
 | `processing.apply_scheme` | `path`，可选 `compatible_only`；方案字节、指纹和兼容目标配置在预检时冻结；方案只应用于同类数据集，XPS 方案替换当前区域的配方 |
+| `nmr.volume.edit` | 一个三维 NMR 数据集；`fixed_axis` 和 `index` 从零开始；可选 `phases` 包含三个对象，各有 `p0_degrees`、`p1_degrees` 和 `pivot_fraction`（0–1）。切层复用体数据，相位调整作为后台任务执行。通过 `plotium_processing_inspect` 查看原始轴和相位设置 |
 | `diffusion.set_input` | 一个数据集；完整 `input`；非法输入错误带结构化校验报告 |
 | `analysis.regions.extract` | 一个支持区域序列的字段；`regions` 引用已有 RegionId 或给出边界和指标；可选显式 `input` |
 | `analysis.diffusion.fit` | 一个原生表格；`response_column` 为稳定 ColumnId；可选原生 `options`；x 列单位必须为 `s/m²` |
@@ -32,7 +33,8 @@ description: 通过 MCP 运行处理、扩散拟合和 DOSY，并为结果建图
 `Mean`、`Max` 和 `Min`。区域提取生成独立原生表格，保留来源、区域到列的
 对应及扩散增量证据，不自动创建绘图。
 
-除输入设置外，上述写操作返回 `ToolResult.value.task`。预检即分配
+输入设置、扫描合并和仅切层的三维操作同步执行；其他写操作返回
+`ToolResult.value.task`。预检即分配
 `task_id`；`queued` 只表示已登记。使用 `plotium_tasks_get({task_id})`、
 `plotium_tasks_list({offset,limit})` 查询，使用
 `plotium_tasks_cancel({task_id})` 取消（需要修改权限）。状态为

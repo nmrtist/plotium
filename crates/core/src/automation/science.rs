@@ -210,6 +210,10 @@ pub(super) fn execute(
                 Dataset::Nmr(n) => vec![
                     json!({"axis":"direct", "input_domain":format!("{:?}", n.input_domain()), "output_domain":format!("{:?}",n.output_domain()), "pipeline":crate::project::pipeline_to_dto(&n.pipeline), "valid":n.pipeline.output_domain(n.input_domain()).is_ok(), "pending_apply":false}),
                 ],
+                Dataset::Nmr2D(n) if n.volume.is_some() => {
+                    let volume=n.volume.as_ref().unwrap();
+                    volume.source.axes().iter().enumerate().map(|(axis,input)| json!({"axis":axis,"input_domain":format!("{:?}",input.domain),"output_domain":"Frequency","phase":volume.phases[axis],"valid":true,"pending_apply":false,"edit_tool":"nmr.volume.phase"})).collect()
+                },
                 Dataset::Nmr2D(n) => [("f2", crate::state::PhaseAxis::F2, &n.params.f2), ("f1", crate::state::PhaseAxis::F1, &n.params.f1)]
                     .into_iter().map(|(axis, phase_axis, pipeline)| {
                         let input = n.input_domain(phase_axis);
