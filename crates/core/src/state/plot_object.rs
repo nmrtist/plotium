@@ -341,6 +341,12 @@ impl PlotObject {
         });
     }
 
+    /// Opens the x view to its whole range; automatic y follows it.
+    pub(crate) fn show_full_x(&mut self) {
+        self.viewport.reset_x(&self.figure);
+        self.apply_viewport();
+    }
+
     pub fn apply_viewport(&mut self) {
         let old_gain = self.figure.display_gain;
         self.viewport.reset_unsupported_gain(&self.figure);
