@@ -75,6 +75,7 @@ export default defineConfig({
 							label: 'NMR',
 							items: [
 								{ slug: 'guides/craft' },
+								{ slug: 'guides/protein-assignments' },
 								{ slug: 'guides/pseudo-2d' },
 								{ slug: 'guides/dosy' },
 								{ slug: 'guides/2d-integration' },

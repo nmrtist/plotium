@@ -9,7 +9,7 @@ use plotium_core::state::{Dataset, PlotiumApp, Tool, ToolGroup};
 mod craft;
 mod identity;
 use identity::command_identity;
-pub(crate) use identity::recent_entry_label;
+pub(crate) use identity::{MANUAL_URL, recent_entry_label};
 mod helpers;
 pub(super) use helpers::chart_plot_target;
 use helpers::{has_active_plot, requires, selected_paths_unlocked};
@@ -21,7 +21,6 @@ use ribbon::ribbon_placement;
 pub(crate) use ribbon::stack_row;
 pub use ribbon::{Applicability, RibbonPlacement};
 use roster::command_ids;
-pub(crate) const MANUAL_URL: &str = "https://plotium.nmrtist.space/";
 pub(crate) const REPOSITORY_URL: &str = "https://github.com/nmrtist/plotium";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandId {
@@ -39,6 +38,8 @@ pub enum CommandId {
     PreviousNmrPlane,
     NextNmrPlane,
     Peak3DExport,
+    ImportProtein,
+    ProteinAssignments,
     Peak3DDelete,
     Peak3DLocate,
     Peak3DPrevious,

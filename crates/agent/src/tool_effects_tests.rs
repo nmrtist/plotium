@@ -18,6 +18,8 @@ fn every_advertised_tool_has_explicit_conservative_annotations() {
         "plotium_analysis_results_inspect",
         "plotium_diffusion_inspect",
         "plotium_processing_inspect",
+        "plotium_protein_inspect",
+        "plotium_protein_assignments_export",
         "plotium_peaks3d_inspect",
         "plotium_tasks_get",
         "plotium_tasks_list",

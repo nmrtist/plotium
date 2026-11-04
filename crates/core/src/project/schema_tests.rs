@@ -71,6 +71,7 @@ fn pre_release_loader_rejects_non_v1_schema_without_a_migration_chain() {
         views: Vec::new(),
         assets: Vec::new(),
         runs: Vec::new(),
+        protein: None,
         workspace: "workspace.json".to_owned(),
     };
 

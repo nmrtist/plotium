@@ -24,6 +24,18 @@ pub fn plan_tool(app: &PlotiumApp, request: ToolRequest) -> Result<ToolPlan, Aut
         });
     }
     validate_parameters(&request.tool_id, request.parameters.clone())?;
+    if matches!(
+        request.tool_id.as_str(),
+        super::protein::EDIT
+            | super::protein::ASSIGN
+            | super::protein::INSPECT
+            | super::protein::EXPORT
+    ) && !matches!(&request.targets, TargetSelector::Explicit { ids } if ids.as_slice() == [DOCUMENT_RESOURCE_ID])
+    {
+        return Err(AutomationError::InvalidSelector(
+            "Protein operations require the explicit document target".into(),
+        ));
+    }
     if request.tool_id == "data.import"
         && request.targets != (TargetSelector::Explicit { ids: Vec::new() })
     {
@@ -525,6 +537,10 @@ pub(super) fn execute_planned_tool(
         REGIONS_EXTRACT | DIFFUSION_FIT => super::region_fit::execute(app, &plan)?,
         DOSY_BUILD => super::dosy::execute(app, &plan)?,
         ANALYSIS_RESULTS_INSPECT => super::dosy::inspect(app, &plan)?,
+        super::protein::EDIT
+        | super::protein::ASSIGN
+        | super::protein::INSPECT
+        | super::protein::EXPORT => super::protein::execute(app, &plan)?,
         super::peaks3d::PEAKS_3D_LIST | super::peaks3d::PEAKS_3D => {
             super::peaks3d::execute(app, &plan)?
         }

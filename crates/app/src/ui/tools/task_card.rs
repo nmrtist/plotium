@@ -4,10 +4,9 @@
 use egui::{
     Align, Area, CursorIcon, Id, Layout, Order, Pos2, RichText, Sense, Ui, UiBuilder, Vec2,
 };
-use egui_phosphor::regular as icon;
 use plotium_core::{
     settings::TaskCardSize,
-    state::{PlotiumApp, TaskDockTab, Tool},
+    state::{PlotiumApp, TaskDockTab},
 };
 
 use super::task_card_layout::{CardLayout, HorizontalAnchor, VerticalAnchor, fit_layout};
@@ -123,6 +122,7 @@ fn area_id(tab: TaskDockTab) -> Id {
         TaskDockTab::Regions => Id::new("region_task_card"),
         TaskDockTab::CurveFit => Id::new("curve_fit_task_card"),
         TaskDockTab::Statistics => Id::new("statistics_task_card"),
+        TaskDockTab::Protein => Id::new("protein_task_card"),
         TaskDockTab::Craft => Id::new("craft_task_card"),
     }
 }
@@ -149,6 +149,7 @@ fn preferred_size(app: &PlotiumApp, tab: TaskDockTab) -> TaskCardSize {
         TaskDockTab::CurveFit => cards.curve_fit,
         TaskDockTab::Statistics => cards.statistics,
         TaskDockTab::Craft => cards.craft,
+        TaskDockTab::Protein => cards.protein,
     }
 }
 
@@ -161,6 +162,7 @@ fn preferred_size_mut(app: &mut PlotiumApp, tab: TaskDockTab) -> &mut TaskCardSi
         TaskDockTab::CurveFit => &mut cards.curve_fit,
         TaskDockTab::Statistics => &mut cards.statistics,
         TaskDockTab::Craft => &mut cards.craft,
+        TaskDockTab::Protein => &mut cards.protein,
     }
 }
 
@@ -200,6 +202,7 @@ pub(crate) fn visible_area_id(app: &PlotiumApp) -> Option<Id> {
             .stat_task_dataset
             .filter(|dataset| Some(*dataset) == active)
             .map(|_| Id::new("statistics_task_card")),
+        TaskDockTab::Protein => Some(area_id(TaskDockTab::Protein)),
         TaskDockTab::Craft => app
             .session
             .ui
@@ -665,134 +668,9 @@ pub(super) fn is_active(app: &PlotiumApp, tab: TaskDockTab) -> bool {
     app.session.ui.task_dock_active == Some(tab)
 }
 
-/// Labelled switcher shared by every page in the one top-right task dock.
-/// Hidden task pages keep their state; selecting a tab also restores the
-/// dataset that owns it so controls never edit a dataset other than the canvas.
-pub(super) fn tab_bar(app: &mut PlotiumApp, current: TaskDockTab, ui: &mut Ui) -> bool {
-    let tabs = [
-        (
-            TaskDockTab::Dosy,
-            icon::CHART_LINE,
-            "DOSY",
-            app.session
-                .ui
-                .dosy_task_dataset
-                .and_then(|id| app.doc.dataset_index(id)),
-        ),
-        (
-            TaskDockTab::Processing,
-            icon::FLOW_ARROW,
-            "Process",
-            app.session
-                .ui
-                .processing_task_dataset
-                .and_then(|id| app.doc.dataset_index(id)),
-        ),
-        (
-            TaskDockTab::Craft,
-            icon::WAVEFORM,
-            "CRAFT",
-            app.session
-                .ui
-                .craft_task_dataset
-                .and_then(|id| app.doc.dataset_index(id)),
-        ),
-        (
-            TaskDockTab::Regions,
-            icon::SELECTION,
-            "Regions",
-            app.session
-                .ui
-                .region_task_dataset
-                .and_then(|id| app.doc.dataset_index(id)),
-        ),
-        (
-            TaskDockTab::CurveFit,
-            icon::CHART_LINE_UP,
-            "Fit",
-            app.session.ui.curve_fit_task_dataset,
-        ),
-        (
-            TaskDockTab::Statistics,
-            icon::FUNCTION,
-            "Stats",
-            app.session.ui.stat_task_dataset,
-        ),
-    ];
-    let open = tabs
-        .into_iter()
-        .filter(|(_, _, _, dataset)| dataset.is_some())
-        .collect::<Vec<_>>();
-    if open.len() < 2 {
-        return false;
-    }
-    let mut action = None;
-    ui.scope(|ui| {
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
-            for (tab, glyph, label, dataset) in &open {
-                let selected = *tab == current;
-                let (fill, stroke) = if selected {
-                    (
-                        ui.visuals().selection.bg_fill,
-                        ui.visuals().selection.stroke,
-                    )
-                } else {
-                    (
-                        ui.visuals().widgets.inactive.weak_bg_fill,
-                        ui.visuals().widgets.inactive.bg_stroke,
-                    )
-                };
-                egui::Frame::NONE
-                    .fill(fill)
-                    .stroke(stroke)
-                    .corner_radius(ui.visuals().widgets.inactive.corner_radius)
-                    .inner_margin(egui::Margin::symmetric(6, 2))
-                    .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing.x = 2.0;
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add(
-                                    egui::Button::selectable(
-                                        selected,
-                                        RichText::new(format!("{glyph} {label}")).small(),
-                                    )
-                                    .frame(false),
-                                )
-                                .clicked()
-                            {
-                                action = Some((false, *tab, *dataset));
-                            }
-                            if ui
-                                .add(egui::Button::new(RichText::new(icon::X).small()).frame(false))
-                                .on_hover_text(format!("Close {label}"))
-                                .clicked()
-                            {
-                                action = Some((true, *tab, *dataset));
-                            }
-                        });
-                    });
-            }
-        });
-    });
-    if let Some((close, tab, dataset)) = action {
-        if close {
-            app.session.ui.close_task_tab(tab);
-            return true;
-        }
-        if app.session.ui.task_dock_active == Some(TaskDockTab::Regions)
-            && tab != TaskDockTab::Regions
-            && app.session.tool == Tool::Regions
-        {
-            app.set_tool(Tool::BrowseZoom);
-        }
-        app.session.ui.open_task_tab(tab);
-        if let Some(dataset) = dataset {
-            app.set_active_dataset(Some(dataset));
-        }
-    }
-    true
-}
+#[path = "task_card_tabs.rs"]
+mod tabs;
+pub(super) use tabs::tab_bar;
 
 #[cfg(test)]
 #[path = "task_card_tests.rs"]

@@ -28,16 +28,23 @@ pub(super) fn actions(app: &PlotiumApp, plan: &ToolPlan) -> Result<Vec<Action>, 
     }
     indices.sort_unstable_by(|a, b| b.cmp(a));
     indices.dedup();
-    indices
+    let mut protein = app.doc.protein.clone();
+    let mut actions = indices
         .into_iter()
         .map(|index| {
-            app.delete_dataset_action(index)
-                .map_err(|message| AutomationError::InvalidParameters {
+            protein.remove_dataset(app.doc.datasets[index].resource_id());
+            app.delete_dataset_base_action(index).map_err(|message| {
+                AutomationError::InvalidParameters {
                     tool_id: DATASET_DELETE.into(),
                     message,
-                })
+                }
+            })
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    if protein != app.doc.protein {
+        actions.insert(0, app.protein_action(protein));
+    }
+    Ok(actions)
 }
 
 pub(super) fn execute(

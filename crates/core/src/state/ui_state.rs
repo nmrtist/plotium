@@ -181,6 +181,7 @@ impl Default for ArrangeGridDraft {
 }
 
 pub struct UiState {
+    pub protein_open: bool,
     pub selected_peak_3d: Option<(DatasetId, super::Peak3DId)>,
     /// The single in-flight direct-manipulation gesture; see [`Interaction`].
     pub interaction: Interaction,
@@ -444,6 +445,7 @@ impl UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
+            protein_open: false,
             selected_peak_3d: None,
             interaction: Interaction::Idle,
             phase_axis: PhaseAxis::F2,
@@ -592,6 +594,7 @@ impl Default for UiState {
 /// Scientific project content and on-disk identity, persisted across sessions.
 #[derive(Clone)]
 pub struct Document {
+    pub protein: crate::protein::ProteinState,
     pub datasets: Vec<Dataset>,
     pub canvases: Vec<CanvasDocument>,
     pub assets: std::collections::BTreeMap<AssetId, AssetRecord>,

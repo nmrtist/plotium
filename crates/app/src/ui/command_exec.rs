@@ -66,6 +66,8 @@ fn execute_inner(
         | CommandId::Peak3DLocate
         | CommandId::Peak3DPrevious
         | CommandId::Peak3DNext => super::peaks3d::command(app, ctx, id),
+        CommandId::ImportProtein => super::tools::protein::import(app, ctx),
+        CommandId::ProteinAssignments => super::tools::protein::open(app),
         CommandId::ApplyNmrVolumePhase => super::nmr_volume::apply_phase(app, ctx),
         CommandId::PreviousNmrPlane | CommandId::NextNmrPlane => {
             super::nmr_volume::step(app, id == CommandId::NextNmrPlane);

@@ -33,7 +33,11 @@ impl PlotiumApp {
                     next.next_step_id = next.next_step_id.max(current.next_step_id)
                 }
                 (Dataset::Nmr2D(current), Dataset::Nmr2D(next)) => {
-                    next.next_step_id = next.next_step_id.max(current.next_step_id)
+                    next.next_step_id = next.next_step_id.max(current.next_step_id);
+                    if let (Some(current), Some(next)) = (&current.volume, &mut next.volume) {
+                        // Undo restores observations without making their IDs available again.
+                        next.peaks.next_id = next.peaks.next_id.max(current.peaks.next_id);
+                    }
                 }
                 (Dataset::Xps(current), Dataset::Xps(next)) => {
                     next.next_step_id = next.next_step_id.max(current.next_step_id)

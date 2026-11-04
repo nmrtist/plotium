@@ -215,6 +215,7 @@ pub fn render(
                     tools::render_curve_fit_task(app, ui);
                     tools::render_statistics_task(app, ui);
                     tools::render_craft_task(app, ui);
+                    tools::protein::render(app, ui);
                 },
             );
         });

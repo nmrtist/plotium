@@ -66,6 +66,7 @@ impl PlotiumApp {
                     }
                 }
             }
+            Action::SetProtein { after, .. } => self.doc.protein = after.clone(),
             Action::InstallScientificState { after, .. } => {
                 self.install_processing_snapshots(after)?
             }

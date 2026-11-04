@@ -4,7 +4,7 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 28] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 30] = [
     "analysis.diffusion.plot",
     "plot.field.create",
     "analysis.dosy.build",
@@ -12,6 +12,8 @@ pub(crate) const EDIT_OPERATIONS: [&str; 28] = [
     "analysis.diffusion.fit",
     "nmr.volume.edit",
     "nmr.peaks3d",
+    "protein.edit",
+    "protein.assignments.edit",
     "processing.edit",
     "processing.apply_scheme",
     "diffusion.set_input",
@@ -37,7 +39,17 @@ pub(crate) const EDIT_OPERATIONS: [&str; 28] = [
 
 /// One line per editable operation, so a caller can map a task to an operation
 /// before fetching its schema.
-const PURPOSES: [(&str, &str); 32] = [
+const PURPOSES: [(&str, &str); 36] = [
+    ("protein.edit", "Import and bind protein sequences"),
+    (
+        "protein.assignments.edit",
+        "Edit and confirm 3D assignments",
+    ),
+    ("protein.inspect", "Read with plotium_protein_inspect"),
+    (
+        "protein.assignments.export",
+        "Read with plotium_protein_assignments_export",
+    ),
     ("nmr.peaks3d", "Add, edit, delete or locate manual 3D peaks"),
     ("nmr.peaks3d.list", "Read with plotium_peaks3d_inspect"),
     (
@@ -172,7 +184,9 @@ const KEYED: [&str; 5] = [
     "limits",
 ];
 /// Operations that name their targets inside parameters and omit ids/targets.
-pub(crate) const NO_SELECTOR: [&str; 11] = [
+pub(crate) const NO_SELECTOR: [&str; 13] = [
+    "protein.edit",
+    "protein.assignments.edit",
     "data.import",
     "project.save",
     "figure.export",
@@ -196,6 +210,8 @@ fn tool_index() -> Vec<Value> {
             "plotium_tasks_cancel"=>(vec!["tasks.cancel"],"{task:TaskReceipt}; task_not_found never authorizes replay","TaskId; callable while busy or after project change; requires reversible_modify"),
             "plotium_analysis_results_inspect"=>(vec!["analysis.results.inspect"],"ToolResult.value: paginated native DOSY/ILT columns, validity, counts and provenance","one result field ID"),
             "plotium_diffusion_inspect"=>(vec!["diffusion.inspect"],"ToolResult.value: {resolution_source,increment_count,input:DiffusionInputReport,field_requirement,executable,acquisition_evidence}","one dataset or field ID"),
+            "plotium_protein_inspect"=>(vec!["protein.inspect"],"Protein sequences, bindings and paginated assignments","document"),
+            "plotium_protein_assignments_export"=>(vec!["protein.assignments.export"],"One molecule's JSON assignment report","document"),
             "plotium_peaks3d_inspect"=>(vec!["nmr.peaks3d.list"],"ToolResult.value: {dataset,dataset_name,source,processing,axes,peaks,position,intensity}","one 3D dataset ID"),
             "plotium_processing_inspect"=>(vec!["processing.inspect"],"ToolResult.value: {dataset,axes:[{axis,pipeline|settings,pending_apply}]}","one dataset ID"),
             "plotium_get_state"=>(vec!["state.get"],"{project_context,revision,availability,project:{dataset_count,canvas_count},selection:{items,total,next_offset,canvas:{items:[{target,kind,name,visible}],total,part}},hand_edits:{items:[{target,key,label,value}],total,next_offset},permissions,capability_fingerprint,save_state}; latest state per call, not a frozen selection snapshot","application; project, selection and hand_edits are null while busy"),
@@ -246,7 +262,8 @@ fn operation_constraints() -> serde_json::Map<String, Value> {
         let scientific = id.starts_with("processing.")
             || id.starts_with("diffusion.")
             || id.starts_with("analysis.")
-            || id.starts_with("nmr.");
+            || id.starts_with("nmr.")
+            || id.starts_with("protein.");
         constraints.insert(id.into(), json!({"schema":schema,"preflight_permission":if scientific {"reversible_modify"} else {"read"},"execute_permission":"reversible_modify"}));
     }
     constraints["dataset.delete"]["result_contract"] = json!(
@@ -263,7 +280,7 @@ fn sections() -> serde_json::Map<String, Value> {
     let constraints = operation_constraints();
     let details = crate::operation_details::build(&constraints["figure.edit"]);
     let scientific = plotium_core::automation::ToolRegistry::built_in().descriptors()
-        .filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")||d.id.starts_with("nmr."))
+        .filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")||d.id.starts_with("nmr.")||d.id.starts_with("protein."))
         .map(|d| {
             let mut entry = json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}});
             if EDIT_OPERATIONS.contains(&d.id.as_str()) {
@@ -349,12 +366,12 @@ fn build_index(sections: &serde_json::Map<String, Value>) -> Value {
     }).collect::<serde_json::Map<_,_>>();
     json!({"tools":tools,"editable_operations":operations,"scientific_operations":scientific,
         "sections":listing,
-        "properties":"Property definitions and ids are listed by plotium_properties_list.",
-        "property_batch":{"operation":"properties.set_many","writes_min":1,"writes_max":200,"atomic":true,"undo_steps":1,"selectors":"exact target/key/value per write; omit top-level ids/targets","target_source":"plot.create ToolResult.value.bindings[].target and value.creation.plot; preserve full resource and component identity","unsupported_property":"error.details.write_index and key identify the rejected write"},
-        "recovery_contract":{"location":"error.recovery or receipt.recovery","unknown":"null plan_consumed/committed and unknown submission/completion are not evidence of non-execution","retryable":"false: follow next_action, never replay the failed request","authorization":"recovery actions and annotations grant no permissions; file requests require fresh exact-path desktop consent"},
-        "resource_capabilities":"Core resource capabilities describe data/rendering semantics, not operations exposed by this connection. Only the operations above can be called here.",
+        "properties":"See plotium_properties_list.",
+        "property_batch":{"operation":"properties.set_many","writes_min":1,"writes_max":200,"atomic":true,"undo_steps":1,"selectors":"exact target/key/value; omit ids/targets","target_source":"plot.create value.bindings[].target or value.creation.plot","unsupported_property":"see error.details.write_index and key"},
+        "recovery_contract":{"location":"error.recovery or receipt.recovery","unknown":"null plan_consumed/committed or unknown submission/completion do not rule out execution","retryable":"false: follow next_action; never replay","authorization":"no permission granted; file requests need exact-path desktop consent"},
+        "resource_capabilities":"Core resource capabilities describe data and rendering. Callable operations are listed above.",
         "document_root":document_root_target(),
-        "revision_contract":"Committed synchronous execute results include project_context and after_revision. Reuse them for known exact targets in that context; refresh state after Undo, desktop changes, uncertain outcomes or when current permissions/selection are needed. Submitted tasks are not committed; only matching succeeded terminal receipts with end_revision permit reuse. Revision-bound reads and plans reject stale revisions; execute rechecks permission and revision. Queries do not append project run records or change dirty state, edit generation or revision."})
+        "revision_contract":"Reuse project_context and after_revision from a committed result, or end_revision from a matching succeeded task. Refresh after Undo, desktop changes, uncertain outcomes, or to check permission or selection. Reads and plans reject stale revisions; execute rechecks revision and permission. Queries leave the document and audit unchanged."})
 }
 
 /// Built-in themes are fixed in the binary, so they belong to the static

@@ -222,11 +222,20 @@ impl PlotiumApp {
             .and_then(|n| n.volume.as_mut())
             .ok_or("Select a three-dimensional spectrum")?;
         edit(v)?;
-        self.try_execute_action(crate::actions::Action::InstallScientificState {
+        let mut protein = self.doc.protein.clone();
+        protein
+            .assignments
+            .retain(|a| a.dataset != dataset || v.peaks.marks.iter().any(|p| p.id == a.peak));
+        let install = crate::actions::Action::InstallScientificState {
             before: vec![before],
             after: vec![after],
-        })
-        .map_err(|e| e.to_string())?;
+        };
+        let action = if protein == self.doc.protein {
+            install
+        } else {
+            crate::actions::Action::Composite(vec![self.protein_action(protein), install])
+        };
+        self.try_execute_action(action).map_err(|e| e.to_string())?;
         Ok(())
     }
 }

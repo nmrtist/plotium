@@ -4,6 +4,7 @@ pub mod abf2;
 pub mod archive;
 pub mod delimited;
 mod explicit_input;
+pub mod fasta;
 pub use explicit_input::resolve_explicit_input;
 mod format;
 mod mass_spec;

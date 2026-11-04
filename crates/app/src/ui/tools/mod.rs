@@ -9,6 +9,7 @@ mod line_fit;
 mod mass_spec;
 mod mass_spec_browser;
 mod processing;
+pub(super) mod protein;
 mod pseudo;
 mod region_analysis;
 mod result_navigation;
