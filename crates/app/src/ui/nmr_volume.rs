@@ -4,6 +4,20 @@ use plotium_core::state::{Dataset, PlotiumApp};
 
 use super::commands::{self, CommandId};
 
+pub(super) fn active_volume(app: &PlotiumApp) -> bool {
+    app.active_dataset()
+        .and_then(|di| app.doc.datasets.get(di))
+        .and_then(Dataset::as_nmr2d)
+        .is_some_and(|n| n.volume.is_some())
+}
+
+pub(super) fn open_phase(app: &mut PlotiumApp) {
+    app.cancel_interaction();
+    app.set_tool(plotium_core::state::Tool::BrowseZoom);
+    super::tools::expand_processing_surface(app);
+    app.session.ui.processing_task_collapsed = false;
+}
+
 pub(super) fn step_gate(app: &PlotiumApp, forward: bool) -> Result<(), &'static str> {
     let volume = app
         .active_dataset()
@@ -340,15 +354,15 @@ pub(super) fn editing_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'stat
         .and_then(|di| app.doc.datasets.get(di))
         .and_then(Dataset::as_nmr2d)
         .is_some_and(|n| n.volume.is_some());
+    if volume && id == CommandId::Tool(Tool::ManualPhase) {
+        return Err("Open 3D Phase settings to adjust the full volume.");
+    }
     if volume
         && matches!(
             id,
             CommandId::DetectPeaks
-                | CommandId::PeakList
                 | CommandId::Integrate
-                | CommandId::Tool(
-                    Tool::Peaks | Tool::Integrate | Tool::Symmetry | Tool::ManualPhase
-                )
+                | CommandId::Tool(Tool::Integrate | Tool::Symmetry)
         )
     {
         return Err(
@@ -361,6 +375,38 @@ pub(super) fn editing_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'stat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn volume_phase_settings_end_peak_editing_and_open_processing() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../io/tests/fixtures/nmr/bruker-3d-qf");
+        let loaded = plotium_io::load_path(path).unwrap();
+        let (dataset, _) =
+            plotium_core::workflow::dataset_from_acquisition(loaded.acquisition).unwrap();
+        let mut app = PlotiumApp::new();
+        let owner = dataset.resource_id();
+        app.doc.datasets.push(dataset);
+        app.focus_single(0);
+        app.session.ui.processing_task_collapsed = true;
+        let id = CommandId::OpenNmrVolumePhase;
+        let description = commands::describe(&app, id);
+        assert!(description.enabled, "{:?}", description.disabled_reason);
+        assert!(description.ribbon.is_some());
+        assert_eq!(description.checked, None);
+        assert_eq!(description.label, "3D Phase settings");
+        app.set_tool(plotium_core::state::Tool::Peaks);
+        commands::execute_without_clipboard(id, &mut app, &egui::Context::default());
+        assert_eq!(app.session.tool, plotium_core::state::Tool::BrowseZoom);
+        assert!(
+            !commands::describe(
+                &app,
+                CommandId::Tool(plotium_core::state::Tool::ManualPhase)
+            )
+            .enabled
+        );
+        assert_eq!(app.session.ui.processing_task_dataset, Some(owner));
+        assert!(!app.session.ui.processing_task_collapsed);
+    }
 
     #[test]
     fn volume_navigation_renders_and_disables_endpoint_steps() {

@@ -181,6 +181,7 @@ impl Default for ArrangeGridDraft {
 }
 
 pub struct UiState {
+    pub selected_peak_3d: Option<(DatasetId, super::Peak3DId)>,
     /// The single in-flight direct-manipulation gesture; see [`Interaction`].
     pub interaction: Interaction,
     /// 2D axis targeted by the Phase panel and canvas drag; re-clamped when rendered.
@@ -443,6 +444,7 @@ impl UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
+            selected_peak_3d: None,
             interaction: Interaction::Idle,
             phase_axis: PhaseAxis::F2,
             analysis_selection: None,

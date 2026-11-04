@@ -61,6 +61,11 @@ fn execute_inner(
         CommandId::OpenFile => super::file_dialogs::open_file(app),
         CommandId::OpenFolder => super::file_dialogs::open_folder(app),
         CommandId::CancelNmrVolumePhase => super::nmr_volume::cancel_phase(ctx),
+        CommandId::Peak3DExport
+        | CommandId::Peak3DDelete
+        | CommandId::Peak3DLocate
+        | CommandId::Peak3DPrevious
+        | CommandId::Peak3DNext => super::peaks3d::command(app, ctx, id),
         CommandId::ApplyNmrVolumePhase => super::nmr_volume::apply_phase(app, ctx),
         CommandId::PreviousNmrPlane | CommandId::NextNmrPlane => {
             super::nmr_volume::step(app, id == CommandId::NextNmrPlane);
@@ -348,6 +353,9 @@ fn execute_inner(
         CommandId::CycleCursor => cycle_cursor(app),
         CommandId::Tool(Tool::Symmetry) => {
             reveal_tool_group(app, Tool::Symmetry, ToolGroup::Nmr2dExperiment);
+        }
+        CommandId::OpenNmrVolumePhase => {
+            super::nmr_volume::open_phase(app);
         }
         CommandId::Tool(tool) => app.toggle_tool(tool),
     }

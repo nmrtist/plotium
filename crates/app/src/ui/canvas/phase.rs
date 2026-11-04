@@ -19,6 +19,12 @@ pub(crate) fn displayed_phase_pivot_ppm(
     dataset: usize,
     axis: PhaseAxis,
 ) -> Option<f64> {
+    if app.doc.datasets[dataset]
+        .as_nmr2d()
+        .is_some_and(|n| n.volume.is_some())
+    {
+        return None;
+    }
     match app.interaction() {
         Interaction::Phase(drag)
             if drag.dataset == app.doc.datasets[dataset].resource_id()

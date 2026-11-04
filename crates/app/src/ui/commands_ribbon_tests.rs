@@ -50,3 +50,33 @@ fn manual_phase_needs_a_spectrum_with_a_phase_step() {
     }
     assert!(describe(&app_with_nmr(), CommandId::Tool(Tool::ManualPhase)).enabled);
 }
+
+#[test]
+fn phase_settings_and_interactive_tool_keep_distinct_ribbon_entries() {
+    let app = app_with_nmr();
+    let interactive = describe(&app, CommandId::Tool(Tool::ManualPhase));
+    let settings = describe(
+        &app,
+        CommandId::PropertyGroup(super::super::properties::panel::PHASE_SECTION),
+    );
+    assert_eq!(interactive.label, "Interactive phase");
+    assert_eq!(settings.label, "Phase settings");
+    assert!(interactive.enabled && settings.enabled);
+    assert!(interactive.ribbon.is_some() && settings.ribbon.is_some());
+    assert_eq!(interactive.checked, Some(false));
+    assert_eq!(settings.checked, None);
+    assert!(!describe(&app, CommandId::OpenNmrVolumePhase).enabled);
+}
+
+#[test]
+fn interactive_phase_remains_a_toggle_for_standalone_spectra() {
+    let mut app = app_with_nmr();
+    let ctx = egui::Context::default();
+    let tool = CommandId::Tool(Tool::ManualPhase);
+    execute_without_clipboard(tool, &mut app, &ctx);
+    assert_eq!(app.session.tool, Tool::ManualPhase);
+    assert_eq!(describe(&app, tool).checked, Some(true));
+    execute_without_clipboard(tool, &mut app, &ctx);
+    assert_ne!(app.session.tool, Tool::ManualPhase);
+    assert_eq!(describe(&app, tool).checked, Some(false));
+}

@@ -1,6 +1,20 @@
 //! Scientific calls use core descriptors and the existing plan/execute gate.
 use super::*;
 
+pub(super) fn is_scientific_edit(tool: &str) -> bool {
+    matches!(
+        tool,
+        PROCESSING_EDIT
+            | "nmr.volume.edit"
+            | "nmr.peaks3d"
+            | DIFFUSION_SET_INPUT
+            | DOSY_BUILD
+            | REGIONS_EXTRACT
+            | DIFFUSION_FIT
+            | "processing.apply_scheme"
+    )
+}
+
 impl Session {
     pub(super) fn scientific_tasks(
         &mut self,
@@ -114,6 +128,8 @@ impl Session {
         let query: Query = decode(args)?;
         let id = if name == "plotium_analysis_results_inspect" {
             ANALYSIS_RESULTS_INSPECT
+        } else if name == "plotium_peaks3d_inspect" {
+            "nmr.peaks3d.list"
         } else if name == "plotium_diffusion_inspect" {
             DIFFUSION_INSPECT
         } else {

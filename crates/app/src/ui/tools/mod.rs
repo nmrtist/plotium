@@ -220,6 +220,13 @@ fn analysis_group(app: &mut PlotiumApp, di: usize, ui: &mut Ui) -> bool {
 }
 
 fn peaks_group(app: &mut PlotiumApp, di: usize, ui: &mut Ui) -> bool {
+    if app.doc.datasets[di]
+        .as_nmr2d()
+        .is_some_and(|n| n.volume.is_some())
+    {
+        super::peaks3d::panel(app, di, ui);
+        return false;
+    }
     let column = app.session.ui.peak_column;
     if app
         .doc

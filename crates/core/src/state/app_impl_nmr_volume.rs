@@ -142,6 +142,8 @@ impl PlotiumApp {
         // Navigation may have advanced while this phase job was running.
         if let Some(incoming) = result.volume.as_mut() {
             incoming.anchor = volume.anchor;
+            incoming.peaks = volume.peaks.clone();
+            incoming.refresh_peaks()?;
         }
         // Preserve edits made while the numerical worker was running.
         let mut replacement = current.clone();

@@ -395,3 +395,6 @@ pub use external_save::{ExternalSaveStatus, ExternalSaves, SaveReceipt};
 
 mod scientific_actions;
 mod scientific_desktop;
+
+mod peaks3d;
+pub use peaks3d::*;

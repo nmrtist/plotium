@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use plotium_core::state::PlotiumApp;
+use plotium_core::state::{PlotiumApp, Tool};
 
 use super::{CommandId, command_ids, describe, ribbon_placement};
 
@@ -44,4 +44,17 @@ fn ribbon_group_icons_are_unique_within_the_group() {
             }
         }
     }
+}
+
+#[test]
+fn phase_label_retains_interactive_tool_toggle_identity() {
+    let mut app = PlotiumApp::new();
+    let id = CommandId::Tool(Tool::ManualPhase);
+    let description = describe(&app, id);
+    assert_eq!(description.label, "Interactive phase");
+    assert_eq!(description.checked, Some(false));
+    app.session.tool = Tool::ManualPhase;
+    let description = describe(&app, id);
+    assert_eq!(description.label, "Interactive phase");
+    assert_eq!(description.checked, Some(true));
 }

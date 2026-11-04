@@ -385,7 +385,14 @@ pub(super) fn groups_for_tab(
 pub(super) fn group_order(tab: WorkflowTab, group: &str) -> u8 {
     let order: &[&str] = match tab {
         WorkflowTab::Data => &["Import", "Build", "Export"],
-        WorkflowTab::Process => &["Processing", "Correct", "Transform", "XAS", "Recipes"],
+        WorkflowTab::Process => &[
+            "Processing",
+            "Correct",
+            "3D Phase",
+            "Transform",
+            "XAS",
+            "Recipes",
+        ],
         WorkflowTab::Analyze => &[
             "Range",
             "XPS",

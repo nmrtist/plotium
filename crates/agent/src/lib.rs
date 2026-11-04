@@ -448,3 +448,6 @@ mod spectral_processing_tests;
 
 #[cfg(test)]
 mod scientific_plot_tests;
+
+#[cfg(test)]
+mod peaks3d_tests;

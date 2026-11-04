@@ -4,13 +4,14 @@ use plotium_core::automation::{
 };
 use serde_json::{Value, json};
 
-pub(crate) const EDIT_OPERATIONS: [&str; 27] = [
+pub(crate) const EDIT_OPERATIONS: [&str; 28] = [
     "analysis.diffusion.plot",
     "plot.field.create",
     "analysis.dosy.build",
     "analysis.regions.extract",
     "analysis.diffusion.fit",
     "nmr.volume.edit",
+    "nmr.peaks3d",
     "processing.edit",
     "processing.apply_scheme",
     "diffusion.set_input",
@@ -36,7 +37,9 @@ pub(crate) const EDIT_OPERATIONS: [&str; 27] = [
 
 /// One line per editable operation, so a caller can map a task to an operation
 /// before fetching its schema.
-const PURPOSES: [(&str, &str); 30] = [
+const PURPOSES: [(&str, &str); 32] = [
+    ("nmr.peaks3d", "Add, edit, delete or locate manual 3D peaks"),
+    ("nmr.peaks3d.list", "Read with plotium_peaks3d_inspect"),
     (
         "nmr.volume.edit",
         "Select a 3D spectrum plane and optionally adjust per-axis phase",
@@ -193,6 +196,7 @@ fn tool_index() -> Vec<Value> {
             "plotium_tasks_cancel"=>(vec!["tasks.cancel"],"{task:TaskReceipt}; task_not_found never authorizes replay","TaskId; callable while busy or after project change; requires reversible_modify"),
             "plotium_analysis_results_inspect"=>(vec!["analysis.results.inspect"],"ToolResult.value: paginated native DOSY/ILT columns, validity, counts and provenance","one result field ID"),
             "plotium_diffusion_inspect"=>(vec!["diffusion.inspect"],"ToolResult.value: {resolution_source,increment_count,input:DiffusionInputReport,field_requirement,executable,acquisition_evidence}","one dataset or field ID"),
+            "plotium_peaks3d_inspect"=>(vec!["nmr.peaks3d.list"],"ToolResult.value: {dataset,dataset_name,source,processing,axes,peaks,position,intensity}","one 3D dataset ID"),
             "plotium_processing_inspect"=>(vec!["processing.inspect"],"ToolResult.value: {dataset,axes:[{axis,pipeline|settings,pending_apply}]}","one dataset ID"),
             "plotium_get_state"=>(vec!["state.get"],"{project_context,revision,availability,project:{dataset_count,canvas_count},selection:{items,total,next_offset,canvas:{items:[{target,kind,name,visible}],total,part}},hand_edits:{items:[{target,key,label,value}],total,next_offset},permissions,capability_fingerprint,save_state}; latest state per call, not a frozen selection snapshot","application; project, selection and hand_edits are null while busy"),
             "plotium_capabilities_get"=>(vec!["capabilities.get"],"{} returns {capability_fingerprint,connection_capabilities:index}; {section,key?} returns {capability_fingerprint,section,key?,contract}; immutable contracts, not current authorization","static; no project or revision required; callable while busy"),
@@ -238,10 +242,11 @@ fn operation_constraints() -> serde_json::Map<String, Value> {
             .get(id)
             .expect("editable operations are registered")
             .parameter_schema;
-        // Scientific edits start background work at preflight, so planning them needs modify.
+        // Keep discovery aligned with the scientific-plan permission gate.
         let scientific = id.starts_with("processing.")
             || id.starts_with("diffusion.")
-            || id.starts_with("analysis.");
+            || id.starts_with("analysis.")
+            || id.starts_with("nmr.");
         constraints.insert(id.into(), json!({"schema":schema,"preflight_permission":if scientific {"reversible_modify"} else {"read"},"execute_permission":"reversible_modify"}));
     }
     constraints["dataset.delete"]["result_contract"] = json!(
@@ -258,7 +263,7 @@ fn sections() -> serde_json::Map<String, Value> {
     let constraints = operation_constraints();
     let details = crate::operation_details::build(&constraints["figure.edit"]);
     let scientific = plotium_core::automation::ToolRegistry::built_in().descriptors()
-        .filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis."))
+        .filter(|d|d.id.starts_with("processing.")||d.id.starts_with("diffusion.")||d.id.starts_with("analysis.")||d.id.starts_with("nmr."))
         .map(|d| {
             let mut entry = json!({"descriptor":d,"required_permission":if d.effect==plotium_core::automation::EffectLevel::ReadOnly{"read"}else{"reversible_modify"}});
             if EDIT_OPERATIONS.contains(&d.id.as_str()) {

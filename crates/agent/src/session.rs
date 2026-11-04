@@ -411,22 +411,14 @@ impl Session {
             name,
             "plotium_diffusion_inspect"
                 | "plotium_processing_inspect"
+                | "plotium_peaks3d_inspect"
                 | "plotium_analysis_results_inspect"
         ) {
             return self.scientific_read(app, name, arguments);
         }
         if name == "plotium_plan" {
             let args = Plan::parse(arguments)?;
-            if matches!(
-                args.tool_id.as_str(),
-                PROCESSING_EDIT
-                    | "nmr.volume.edit"
-                    | DIFFUSION_SET_INPUT
-                    | DOSY_BUILD
-                    | REGIONS_EXTRACT
-                    | DIFFUSION_FIT
-                    | "processing.apply_scheme"
-            ) {
+            if science::is_scientific_edit(&args.tool_id) {
                 return self.scientific_plan(app, args);
             }
             if args.tool_id == "figure.export" {

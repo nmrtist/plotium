@@ -166,7 +166,7 @@ pub fn dataset_to_objects<'a>(
                 extensions: {
                     let mut extensions = nmr2d_recipe_extensions(n, dosy_extension);
                     if let Some(volume) = &n.volume {
-                        extensions["plotium.volume"] = serde_json::json!({"fixed_axis":volume.fixed_axis,"index":volume.index,"phases":volume.phases,"anchor":volume.anchor});
+                        extensions["plotium.volume"] = serde_json::json!({"fixed_axis":volume.fixed_axis,"index":volume.index,"phases":volume.phases,"anchor":volume.anchor,"peaks":volume.peaks});
                     }
                     extensions
                 },
@@ -536,6 +536,11 @@ pub fn object_to_dataset(
                 ));
             }
             dataset.volume.as_mut().unwrap().anchor = view.anchor;
+            if let Some(peaks) = recipe.extensions["plotium.volume"].get("peaks") {
+                let volume = dataset.volume.as_mut().unwrap();
+                volume.peaks = serde_json::from_value(peaks.clone())?;
+                volume.refresh_peaks().map_err(ProjectError::Invalid)?;
+            }
             dataset.acquisition_identity = read_acquisition_identity(data)?;
             dataset.field_catalog = read_field_catalog(data)?;
             dataset.name = data.label.clone();

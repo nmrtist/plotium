@@ -686,3 +686,4 @@ mod feedback_tests {
 }
 
 mod nmr_volume;
+mod peaks3d;

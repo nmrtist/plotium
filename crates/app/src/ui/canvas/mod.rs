@@ -57,6 +57,7 @@ mod panel_interactions;
 mod panel_notes;
 mod panel_selection;
 mod peaks;
+mod peaks3d;
 mod phase;
 mod plot_annotation_menu;
 mod plot_labels;
@@ -390,7 +391,16 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
                     handle_integral_drag(app, ci, object_id, di, plot, ui, &resp)
                 }
             }
-            Tool::Peaks => handle_peaks(app, ci, object_id, di, plot, ui, &resp),
+            Tool::Peaks => {
+                if app.doc.datasets[di]
+                    .as_nmr2d()
+                    .is_some_and(|n| n.volume.is_some())
+                {
+                    peaks3d::handle_volume_peaks(app, ci, object_id, di, plot, ui, &resp);
+                } else {
+                    handle_peaks(app, ci, object_id, di, plot, ui, &resp);
+                }
+            }
             Tool::InspectCursor | Tool::DeltaCursor => {
                 handle_cursor_tool(app, ci, object_id, di, plot, ui)
             }
@@ -411,6 +421,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     paint_integrals(app, ci, object_id, di, plot, &painter, chrome);
     paint_integrals_2d(app, ci, object_id, di, plot, &painter, chrome);
     paint_peaks(app, ci, object_id, di, plot, &painter, chrome);
+    peaks3d::paint_volume_peaks(app, ci, object_id, di, plot, &painter);
     if pointer_owned {
         paint_reference_pick(app, ci, object_id, di, plot, ui, &painter, chrome);
     }
