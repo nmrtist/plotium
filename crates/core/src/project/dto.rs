@@ -26,6 +26,8 @@ pub struct Manifest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runs: Vec<Entry>,
     pub workspace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protein: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -391,3 +391,24 @@ fn approved_replace_preserves_foreign_backup_copy_temporary() {
 fn approved_replace_preserves_foreign_backup_rotation_temporary() {
     approved_replace_preserves_foreign_backup_temporary(".tmp");
 }
+
+#[test]
+fn recovery_snapshot_keeps_protein_state_at_capture() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = RecoveryManager::new_in(root.path().join("slots")).unwrap();
+    let mut app = crate::state::PlotiumApp::new();
+    app.edit_protein(crate::protein::Edit::Import {
+        source: "two-chains.fasta".into(),
+        fasta: ">alpha\nAG\n>beta\nGV".into(),
+        name: None,
+        chains: None,
+    })
+    .unwrap();
+    let expected = app.doc.protein.clone();
+    let request = super::super::prepare_recovery_snapshot(&app).unwrap();
+    app.undo();
+    super::super::save_recovery_snapshot(request, manager.target()).unwrap();
+    let recovered = super::super::load_project(manager.target().path()).unwrap();
+    assert_eq!(recovered.doc.protein, expected);
+    manager.shutdown().unwrap();
+}

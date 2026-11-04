@@ -61,6 +61,18 @@ impl PlotiumApp {
     }
 
     pub fn delete_dataset_action(&self, index: usize) -> Result<Action, String> {
+        let delete = self.delete_dataset_base_action(index)?;
+        let dataset = &self.doc.datasets[index];
+        let mut protein = self.doc.protein.clone();
+        protein.remove_dataset(dataset.resource_id());
+        Ok(if protein == self.doc.protein {
+            delete
+        } else {
+            Action::Composite(vec![self.protein_action(protein), delete])
+        })
+    }
+
+    pub(crate) fn delete_dataset_base_action(&self, index: usize) -> Result<Action, String> {
         let dataset = self
             .doc
             .datasets

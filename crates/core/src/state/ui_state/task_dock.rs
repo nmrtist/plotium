@@ -8,6 +8,7 @@ pub enum TaskDockTab {
     CurveFit,
     Statistics,
     Craft,
+    Protein,
 }
 
 impl UiState {
@@ -17,6 +18,7 @@ impl UiState {
 
     pub fn close_task_tab(&mut self, tab: TaskDockTab) {
         match tab {
+            TaskDockTab::Protein => self.protein_open = false,
             TaskDockTab::Dosy => {
                 self.dosy_task_dataset = None;
             }
@@ -59,6 +61,7 @@ impl UiState {
                 (TaskDockTab::Regions, self.region_task_dataset.is_some()),
                 (TaskDockTab::CurveFit, self.curve_fit_task_dataset.is_some()),
                 (TaskDockTab::Statistics, self.stat_task_dataset.is_some()),
+                (TaskDockTab::Protein, self.protein_open),
                 (TaskDockTab::Craft, self.craft_task_dataset.is_some()),
             ]
             .into_iter()
@@ -68,6 +71,7 @@ impl UiState {
 
     /// Discard every transient page in the shared canvas task dock.
     pub fn close_task_cards(&mut self) {
+        self.protein_open = false;
         self.dosy_task_dataset = None;
         self.processing_task_dataset = None;
         self.processing_task_collapsed = false;

@@ -1,0 +1,24 @@
+---
+title: Manual protein assignments
+description: Bind protein sequences to 3D spectra and confirm manual peak assignments.
+---
+
+1. Choose **Data → Import protein sequence** and open a FASTA file. Each record becomes a chain in one molecule. Check the molecule name, chain names and starting numbers before importing. The project stores the sequence and no longer needs the source file.
+2. Select a 3D spectrum and open **Analyze → Protein assignments**. Select the molecule and bind the active spectrum. Repeat for each spectrum that uses the same molecule.
+3. Pick or select a peak in the 3D peak table. In **Assignments**, choose **New candidate**. For each acquisition axis (F1, F2, F3), choose a residue and one atom or a set of atoms of the same element. An axis can stay unassigned. Save each alternative interpretation as a separate candidate.
+4. Use **Confirm** to accept one candidate. A partial confirmation leaves its other axes unassigned. For a group, choose **One of these atoms (identity unresolved)** or **All members share this resonance** before confirming. **Unspecified (candidate only)** can be saved as a draft interpretation but cannot be confirmed. A shared resonance does not assert chemical equivalence or stereospecific assignment. Plotium checks atom names against the local [wwPDB Chemical Component Dictionary](https://www.wwpdb.org/data/ccd) catalog and needs a known nucleus on each assigned axis to confirm.
+5. Expand **Sequence and associated peaks**, select a residue and click a result to switch spectra and locate its peak. Both candidates and confirmed results appear here.
+
+The editor lists atoms compatible with the axis nucleus and their position in a standard linear peptide chain. `H2` is limited to the first residue, `OXT`/`HXT` to the last, and proline `H` to the first residue. These checks use sequence position, not displayed residue numbering. They apply to automation and project validation too. The catalog does not infer terminal protonation, capping, disulfides or other modifications. **Confirmed** means manually accepted, not automatic validation of chemistry or experiment connectivity.
+
+Editing the targets or group meaning of a confirmed candidate withdraws confirmation. Editing its note, moving a peak, changing planes or phase, and renumbering a chain preserve confirmation. Delete a peak to remove its assignments with it; Undo restores both. Clear a spectrum's assignments before changing its binding. Clearing opens a review with the spectrum name and the affected peak, candidate and confirmation counts; confirm or cancel it. The review keeps its original spectrum even if you select another spectrum. If the project changes, review the updated counts before confirming. Unbind all spectra before deleting a molecule.
+
+Save the project to keep the sequence, bindings and assignments. Under **Molecule details**, **Export JSON** includes the candidates and confirmation state alongside the measured coordinates, signed heights, nuclei and processing provenance. Select **Export only confirmed assignments** to omit other candidates. The report keeps each observation separate.
+
+The panel scrolls when its contents exceed the available height; scroll down to reach **Save candidate**. **Active spectrum** names the spectrum and **Bound molecule** identifies its binding. The sequence browser can show another molecule; the candidate editor separately names its own spectrum and molecule. An open draft keeps its original target when you select another peak or spectrum.
+
+Automation uses the document target. The CLI accepts FASTA text in a `protein.edit` import request via `plotium-cli tool run`. Use `protein.assignments.edit` with a dataset and peak ID, `protein.inspect` for lookup, and `protein.assignments.export` for a report. MCP clients use `plotium_plan` and `plotium_execute` for edits, or call `plotium_protein_inspect` and `plotium_protein_assignments_export` for reads.
+
+Inspection defaults to compact molecule summaries, bindings, and associated peaks. To read a sequence, request `view: "chains"` with a molecule ID, then `view: "residues"` with the molecule and chain IDs. Residue rows contain the stable ID, one-letter code, and displayed number. Use `limit` and follow `next_offset` until it is null. The JSON export includes the full sequence.
+
+Each atom target has `residue`, `members`, and `group_meaning`. The latter is `unspecified` by default; use `one_of` for one unidentified member or `shared` when all members share the observed resonance. Single atoms use `unspecified`. Changing this value withdraws confirmation just like changing the atoms. JSON exports include this value and an `assignment_semantics` explanation; observations are never automatically merged or averaged. For example, an alanine methyl resonance can use `members: ["HB1", "HB2", "HB3"]` with `group_meaning: "shared"`.

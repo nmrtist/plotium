@@ -50,7 +50,9 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         | CommandId::ToggleGrid
         | CommandId::Present
         | CommandId::Preferences => (View, "Display", 1, Always),
-        CommandId::OpenFile
+        CommandId::ProteinAssignments => (Analyze, "Protein", 1, Always),
+        CommandId::ImportProtein
+        | CommandId::OpenFile
         | CommandId::ImportTable
         | CommandId::ImportImage
         | CommandId::OpenFolder

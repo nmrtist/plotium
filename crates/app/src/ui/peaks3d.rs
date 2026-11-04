@@ -157,10 +157,38 @@ pub(super) fn panel(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
     ));
     for mark in &marks {
         let selected = app.session.ui.selected_peak_3d == Some((dataset, mark.id));
+        let summary = app
+            .doc
+            .protein
+            .assignment(dataset, mark.id)
+            .map_or_else(String::new, |a| {
+                let status = a
+                    .confirmed
+                    .and_then(|id| a.candidates.iter().find(|c| c.id == id))
+                    .map_or_else(
+                        || format!("{} candidate(s)", a.candidates.len()),
+                        |c| {
+                            format!(
+                                "Confirmed · {}{}",
+                                if c.targets.iter().all(Option::is_some) {
+                                    "complete"
+                                } else {
+                                    "partial"
+                                },
+                                if c.targets.iter().flatten().any(|t| t.members.len() > 1) {
+                                    " · group"
+                                } else {
+                                    ""
+                                }
+                            )
+                        },
+                    );
+                format!(" · {status}")
+            });
         let response = ui.selectable_label(
             selected,
             format!(
-                "{}  {:.3} / {:.3} / {:.3}  {:+.3e}",
+                "{}  {:.3} / {:.3} / {:.3}  {:+.3e}{summary}",
                 mark.id.0, mark.ppm[0], mark.ppm[1], mark.ppm[2], mark.intensity
             ),
         );
@@ -176,7 +204,13 @@ pub(super) fn panel(app: &mut PlotiumApp, di: usize, ui: &mut Ui) {
         edit_fields(app, dataset, mark, &axes, ui);
         ui.horizontal(|ui| {
             button(app, ui, CommandId::Peak3DLocate, "Locate");
-            button(app, ui, CommandId::Peak3DDelete, "Delete");
+            let label = if app.doc.protein.assignment(dataset, id).is_some() {
+                "Delete peak and assignments"
+            } else {
+                "Delete"
+            };
+            button(app, ui, CommandId::Peak3DDelete, label);
+            button(app, ui, CommandId::ProteinAssignments, "Assignments");
         });
     }
 }

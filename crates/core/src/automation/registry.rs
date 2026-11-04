@@ -53,6 +53,10 @@ pub(super) fn validate_parameters(
     value: serde_json::Value,
 ) -> Result<(), AutomationError> {
     match tool {
+        super::protein::EDIT
+        | super::protein::ASSIGN
+        | super::protein::INSPECT
+        | super::protein::EXPORT => super::protein::validate(tool, value),
         super::peaks3d::PEAKS_3D_LIST => parse::<EmptyParams>(tool, value).map(drop),
         super::peaks3d::PEAKS_3D => parse::<super::peaks3d::Params>(tool, value).map(drop),
         NMR_VOLUME_INSPECT => parse::<EmptyParams>(tool, value).map(drop),
@@ -618,6 +622,7 @@ fn descriptors() -> Vec<ToolDescriptor> {
     .chain(super::science::descriptors())
     .chain(super::nmr_volume::descriptors())
     .chain(super::peaks3d::descriptors())
+    .chain(super::protein::descriptors())
     .chain(super::dosy::descriptors())
     .chain(super::region_fit::descriptors())
     .chain(std::iter::once(super::processing_edit::descriptor()))

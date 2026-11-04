@@ -318,6 +318,7 @@ fn save_project_impl(
         assets: Vec::new(),
         runs: Vec::new(),
         workspace: "workspace.json".to_owned(),
+        protein: None,
     };
 
     let mut bindings = Vec::with_capacity(doc.datasets.len());
@@ -473,6 +474,12 @@ fn save_project_impl(
         hand_edits: doc.hand_edits.clone(),
     };
     write_json(&mut zip, options, "workspace.json", &workspace)?;
+    if !doc.protein.is_empty() {
+        doc.protein.validate(doc).map_err(ProjectError::Invalid)?;
+        let path = "protein/state.json";
+        write_json(&mut zip, options, path, &doc.protein)?;
+        manifest.protein = Some(path.into());
+    }
     write_json(&mut zip, options, "manifest.json", &manifest)?;
     let file = zip.finish()?;
     file.sync_all()?;
@@ -645,6 +652,11 @@ pub fn load_project(path: &Path) -> Result<PlotiumApp> {
         })
         .collect();
     app.doc.save_include_view_snapshots = manifest.save_profile.include_view_snapshots;
+    if let Some(path) = &manifest.protein {
+        let protein: crate::protein::ProteinState = read_json(&mut zip, path)?;
+        protein.validate(&app.doc).map_err(ProjectError::Invalid)?;
+        app.doc.protein = protein;
+    }
     app.doc.project_revision = manifest.revision;
     app.doc.edit_generation = 0;
     app.doc.dirty = false;

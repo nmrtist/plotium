@@ -29,6 +29,7 @@ impl PlotiumApp {
                     self.revert_action(action);
                 }
             }
+            Action::SetProtein { before, .. } => self.doc.protein = before.clone(),
             Action::InstallScientificState { before, .. } => {
                 if let Err(error) = self.install_processing_snapshots(before) {
                     self.session.status = error.to_string();

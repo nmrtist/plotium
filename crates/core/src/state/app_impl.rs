@@ -44,6 +44,7 @@ impl PlotiumApp {
     ) -> Self {
         Self {
             doc: SharedDocument::new(Document {
+                protein: Default::default(),
                 datasets: Vec::new(),
                 canvases: Vec::new(),
                 assets: std::collections::BTreeMap::new(),

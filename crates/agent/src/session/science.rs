@@ -7,6 +7,8 @@ pub(super) fn is_scientific_edit(tool: &str) -> bool {
         PROCESSING_EDIT
             | "nmr.volume.edit"
             | "nmr.peaks3d"
+            | "protein.edit"
+            | "protein.assignments.edit"
             | DIFFUSION_SET_INPUT
             | DOSY_BUILD
             | REGIONS_EXTRACT
@@ -79,7 +81,15 @@ impl Session {
                 "Execute a pending plan before preparing another.",
             ));
         }
-        let targets = selector(args.ids, args.targets)?;
+        let targets =
+            if args.tool_id.starts_with("protein.") && args.ids.is_none() && args.targets.is_none()
+            {
+                TargetSelector::Explicit {
+                    ids: vec![document_root_target().resource.id],
+                }
+            } else {
+                selector(args.ids, args.targets)?
+            };
         if !matches!(&targets,TargetSelector::Explicit {ids} if !ids.is_empty()) {
             return Err(Failure::new(
                 "invalid_parameters",
@@ -115,6 +125,44 @@ impl Session {
         name: &str,
         args: Value,
     ) -> Result<Value, Failure> {
+        if matches!(
+            name,
+            "plotium_protein_inspect" | "plotium_protein_assignments_export"
+        ) {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct ProteinRead {
+                expected_revision: DocumentRevision,
+                parameters: Value,
+            }
+            let query: ProteinRead = decode(args)?;
+            let id = if name == "plotium_protein_inspect" {
+                "protein.inspect"
+            } else {
+                "protein.assignments.export"
+            };
+            let plan = plan_tool(
+                app,
+                request(
+                    id,
+                    query.parameters,
+                    vec![document_root_target().resource.id],
+                    query.expected_revision,
+                ),
+            )?;
+            let result = json!(execute_tool(app, plan, ExecutionAuthority::Read)?);
+            if serde_json::to_vec(&result)
+                .map_err(|e| Failure::new("execution_failed", e.to_string()))?
+                .len()
+                > DOCUMENT_RESPONSE_BYTES
+            {
+                return Err(Failure::new(
+                    "response_too_large",
+                    "Protein report exceeds the response budget; use CLI export or paginate inspection.",
+                ));
+            }
+            return Ok(result);
+        }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Query {

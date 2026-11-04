@@ -209,6 +209,10 @@ impl PanelState {
 
 #[derive(Clone)]
 pub enum Action {
+    SetProtein {
+        before: crate::protein::ProteinState,
+        after: crate::protein::ProteinState,
+    },
     InstallScientificState {
         before: Vec<Dataset>,
         after: Vec<Dataset>,
@@ -653,6 +657,7 @@ mod build;
 impl Action {
     pub fn undo_label(&self) -> &'static str {
         match self {
+            Self::SetProtein { .. } => "edit protein assignments",
             Self::InstallScientificState { .. } => "apply scientific changes",
             Self::InsertTableData { .. } => "import table data",
             Self::CreateTableData { .. } => "add data table",
@@ -752,6 +757,7 @@ impl Action {
             Self::SetHandEdits { before, after } => before == after,
             Self::DeleteCanvas { .. }
             | Self::InsertCanvas { .. }
+            | Self::SetProtein { .. }
             | Self::InstallScientificState { .. }
             | Self::InsertTableData { .. }
             | Self::CreateTableData { .. }

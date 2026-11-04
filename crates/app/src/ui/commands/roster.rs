@@ -26,6 +26,8 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::PreviousNmrPlane,
         CommandId::NextNmrPlane,
         CommandId::Peak3DExport,
+        CommandId::ImportProtein,
+        CommandId::ProteinAssignments,
         CommandId::Peak3DDelete,
         CommandId::Peak3DLocate,
         CommandId::Peak3DPrevious,

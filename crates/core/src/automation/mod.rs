@@ -96,3 +96,4 @@ mod tests;
 mod table_tests;
 
 mod peaks3d;
+mod protein;

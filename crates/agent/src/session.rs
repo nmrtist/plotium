@@ -411,6 +411,8 @@ impl Session {
             name,
             "plotium_diffusion_inspect"
                 | "plotium_processing_inspect"
+                | "plotium_protein_inspect"
+                | "plotium_protein_assignments_export"
                 | "plotium_peaks3d_inspect"
                 | "plotium_analysis_results_inspect"
         ) {

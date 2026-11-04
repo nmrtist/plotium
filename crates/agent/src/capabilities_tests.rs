@@ -67,7 +67,8 @@ fn fingerprint_covers_nested_contracts_and_ignores_object_order() {
 #[test]
 fn index_is_compact_and_names_every_detail_section() {
     let index = respond(json!({})).unwrap();
-    assert!(serde_json::to_vec(&index).unwrap().len() <= 12 * 1024);
+    let bytes = serde_json::to_vec(&index).unwrap().len();
+    assert!(bytes <= 12 * 1024, "capability index is {bytes} bytes");
     let caps = &index["connection_capabilities"];
     for key in [
         "property_definitions",

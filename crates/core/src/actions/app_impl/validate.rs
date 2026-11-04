@@ -112,6 +112,14 @@ pub(super) fn validate_action(
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
             }
         }
+        Action::SetProtein { before, after } => {
+            if *before != app.doc.protein {
+                return Err(ActionApplyError::StaleTarget("protein assignments".into()));
+            }
+            after
+                .validate(&app.doc)
+                .map_err(ActionApplyError::InvalidValue)?;
+        }
         Action::InstallScientificState { before, after } => {
             if before.is_empty() || before.len() != after.len() {
                 return Err(ActionApplyError::InvalidValue(

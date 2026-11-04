@@ -394,6 +394,7 @@ pub(super) fn group_order(tab: WorkflowTab, group: &str) -> u8 {
             "Recipes",
         ],
         WorkflowTab::Analyze => &[
+            "Protein",
             "Range",
             "XPS",
             "Extract",

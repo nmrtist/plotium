@@ -208,6 +208,27 @@ pub(crate) fn definitions() -> Vec<Tool> {
             schema.as_object().expect("local scientific schema").clone(),
         ));
     }
+    for (name, id) in [
+        ("plotium_protein_inspect", "protein.inspect"),
+        (
+            "plotium_protein_assignments_export",
+            "protein.assignments.export",
+        ),
+    ] {
+        let descriptor = registry.get(id).expect("registered protein operation");
+        tools.push(Tool::new(
+            name,
+            descriptor.description.clone(),
+            json!({
+                "type":"object","additionalProperties":false,
+                "required":["expected_revision","parameters"],
+                "properties":{"expected_revision":revision,"parameters":descriptor.parameter_schema}
+            })
+            .as_object()
+            .expect("local schema")
+            .clone(),
+        ));
+    }
     for name in [
         "plotium_tasks_get",
         "plotium_tasks_list",

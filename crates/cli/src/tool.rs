@@ -175,6 +175,10 @@ fn run_operation(
     }
     let targets = if let Some(targets) = operation.targets {
         targets
+    } else if operation.tool_id.starts_with("protein.") {
+        TargetSelector::Explicit {
+            ids: vec![plotium_core::automation::document_root_target().resource.id],
+        }
     } else if native.is_some() {
         let dataset = &app.doc.datasets[0];
         let resource = if let Some(key) = operation.field_key {

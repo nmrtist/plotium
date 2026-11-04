@@ -2,6 +2,8 @@
 //! stable IDs the palette and shortcut map key on. Split from `commands.rs`
 //! to keep both halves within the repository source-size limit.
 
+pub(crate) const MANUAL_URL: &str = "https://plotium.nmrtist.space/";
+
 use egui_phosphor::regular as icon;
 use plotium_core::actions::ZOrder;
 use plotium_core::layout::{Align, Distribute, GutterPreset, SpacingMode};
@@ -59,6 +61,8 @@ pub(super) fn command_identity(
         CommandId::CancelNmrVolumePhase => plain("Cancel 3D NMR Phase", Some(icon::X)),
         CommandId::ApplyNmrVolumePhase => plain("Apply 3D NMR Phase", Some(icon::PLAY)),
         CommandId::PreviousNmrPlane => plain("Previous NMR Plane", Some(icon::CARET_LEFT)),
+        CommandId::ImportProtein => plain("Import protein sequence…", None),
+        CommandId::ProteinAssignments => plain("Protein assignments", None),
         CommandId::Peak3DExport => plain("Export 3D Peak Table…", None),
         CommandId::Peak3DDelete => plain("Delete 3D Peak", None),
         CommandId::Peak3DLocate => plain("Locate 3D Peak", None),
@@ -476,6 +480,8 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::ApplyNmrVolumePhase => "nmr.phase.apply",
         CommandId::PreviousNmrPlane => "nmr.plane.previous",
         CommandId::NextNmrPlane => "nmr.plane.next",
+        CommandId::ImportProtein => "protein.import",
+        CommandId::ProteinAssignments => "protein.assignments",
         CommandId::Peak3DExport => "nmr.peak3d.export",
         CommandId::Peak3DDelete => "nmr.peak3d.delete",
         CommandId::Peak3DLocate => "nmr.peak3d.locate",

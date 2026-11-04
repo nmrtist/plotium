@@ -286,6 +286,8 @@ pub struct TaskCardSettings {
     #[serde(default = "default_craft_card_size")]
     pub craft: TaskCardSize,
     #[serde(default = "default_standard_card_size")]
+    pub protein: TaskCardSize,
+    #[serde(default = "default_standard_card_size")]
     pub regions: TaskCardSize,
     #[serde(default = "default_standard_card_size")]
     pub curve_fit: TaskCardSize,
@@ -311,6 +313,7 @@ impl Default for TaskCardSettings {
             dosy: default_standard_card_size(),
             processing: default_processing_card_size(),
             craft: default_craft_card_size(),
+            protein: default_standard_card_size(),
             regions: default_standard_card_size(),
             curve_fit: default_standard_card_size(),
             statistics: default_standard_card_size(),
@@ -323,6 +326,7 @@ impl TaskCardSettings {
         sanitize_card_size(&mut self.dosy, default_standard_card_size());
         sanitize_card_size(&mut self.processing, default_processing_card_size());
         sanitize_card_size(&mut self.craft, default_craft_card_size());
+        sanitize_card_size(&mut self.protein, default_standard_card_size());
         sanitize_card_size(&mut self.regions, default_standard_card_size());
         sanitize_card_size(&mut self.curve_fit, default_standard_card_size());
         sanitize_card_size(&mut self.statistics, default_standard_card_size());
