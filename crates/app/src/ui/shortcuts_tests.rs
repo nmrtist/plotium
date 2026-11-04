@@ -750,3 +750,6 @@ fn tab_from_the_cell_editor_keeps_typing_in_the_sheet() {
     assert!(command.is_none());
     assert!(sheet.app.session.ui.table_cell_edit.is_some());
 }
+
+#[path = "shortcuts_delete_tests.rs"]
+mod delete;

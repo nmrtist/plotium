@@ -642,16 +642,31 @@ pub(super) fn handle_delete_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) 
         }
         return;
     }
-    if ctx.egui_wants_keyboard_input() {
+    // Clicking a sidebar row focuses it, which egui reports as wanting the
+    // keyboard; only a focused text editor should keep the key for itself.
+    if ctx.egui_wants_keyboard_input() && !super::primary_sidebar::selection::list_row_focused(ctx)
+    {
         return;
     }
     delete_selection(app, ctx);
 }
 
-/// What Delete/Backspace removes, most specific first: page-space authoring
-/// objects, a selected panel letter, then (outside analysis tools, which own the
-/// key for their own marks) the selected panel or the selected board pages.
+/// What Delete/Backspace removes. A page selection (board or sidebar) removes
+/// the pages, since object selections left on the page behind it are not what
+/// the user last picked. Otherwise most specific first: page-space authoring
+/// objects, a selected panel letter, then the selected panel. Analysis tools
+/// own the key for their own marks, so they never remove panels or pages.
 fn delete_selection(app: &mut PlotiumApp, ctx: &egui::Context) {
+    use plotium_core::state::SelectionScope;
+    if matches!(
+        app.session.ui.selection_scope,
+        SelectionScope::Board | SelectionScope::CanvasList
+    ) {
+        if app.session.tool.axis() != plotium_core::state::ToolAxis::Analyze {
+            delete_selected_panel_or_pages(app, ctx);
+        }
+        return;
+    }
     if super::plot_annotations::delete_selected(app) {
         return;
     }
