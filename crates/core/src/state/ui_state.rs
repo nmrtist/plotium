@@ -44,6 +44,7 @@ pub use text_edit::{PanelNoteEditState, PlotMenuPoint, PlotTextEditState, TextEd
 /// A desktop phase draft belongs to one dataset and one committed phase baseline.
 #[derive(Clone)]
 pub struct NmrVolumePhaseDraft {
+    pub source: std::sync::Weak<nmr::Dataset>,
     pub baseline: [plotium_processing::nmr_volume::VolumePhase; 3],
     pub phases: [plotium_processing::nmr_volume::VolumePhase; 3],
 }

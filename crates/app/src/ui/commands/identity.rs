@@ -57,9 +57,8 @@ pub(super) fn command_identity(
         CommandId::CloseWindow => plain("Close Window", Some(icon::X)),
         CommandId::OpenFile => plain("Open File…", Some(icon::FILE)),
         CommandId::OpenFolder => plain("Open Folder…", Some(icon::FOLDER)),
-        CommandId::OpenNmrVolumePhase => plain("3D Phase settings", Some(icon::ANGLE)),
-        CommandId::CancelNmrVolumePhase => plain("Cancel 3D NMR Phase", Some(icon::X)),
-        CommandId::ApplyNmrVolumePhase => plain("Apply 3D NMR Phase", Some(icon::PLAY)),
+        CommandId::CancelNmrVolumePhase => plain("Stop phase calculation", Some(icon::X)),
+        CommandId::ApplyNmrVolumePhase => plain("Apply volume phase", Some(icon::PLAY)),
         CommandId::PreviousNmrPlane => plain("Previous NMR Plane", Some(icon::CARET_LEFT)),
         CommandId::ImportProtein => plain("Import protein sequence…", None),
         CommandId::ProteinAssignments => plain("Protein assignments", None),
@@ -385,9 +384,10 @@ pub(super) fn command_identity(
         }
         CommandId::CycleCursor => plain("Next Cursor", Some(icon::CROSSHAIR)),
         CommandId::Tool(Tool::ManualPhase) => (
-            "Interactive phase".into(),
+            "Phase".into(),
             tool_icon(Tool::ManualPhase),
-            Some(app.session.tool == Tool::ManualPhase),
+            (!super::super::nmr_volume::active_volume(app))
+                .then_some(app.session.tool == Tool::ManualPhase),
         ),
         CommandId::Tool(tool) => (
             format!("Tool: {}", tool.label()),
@@ -475,7 +475,6 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::OpenFile => "file.open_file",
         CommandId::OpenFolder => "file.open_folder",
         CommandId::ImportNmrSampling => "file.import_nmr_sampling",
-        CommandId::OpenNmrVolumePhase => "nmr.phase.open",
         CommandId::CancelNmrVolumePhase => "nmr.phase.cancel",
         CommandId::ApplyNmrVolumePhase => "nmr.phase.apply",
         CommandId::PreviousNmrPlane => "nmr.plane.previous",

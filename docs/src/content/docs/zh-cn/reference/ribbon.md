@@ -16,8 +16,7 @@ Analyze → Figure → Arrange**，**View** 排在最后。它是快捷入口—
 - **Data**——**Import**（打开文件、文件夹、表格与图片）、**Build**（新建
   表格、堆叠）、**Export**（数据导出）。
 - **Process**——**Processing**（处理管线各步骤：切趾、补零、基线、
-  参考等）、**Correct**（**Interactive phase**：1D/2D 谱图交互调相）、
-  **3D Phase**（**3D Phase settings**：完整体数据的相位参数面板）、**Transform**（谱运算、谱
+  参考等）、**Correct**（相位校正）、**Transform**（谱运算、谱
   对齐、CRAFT）、**Recipes**（处理模板）。
 - **Analyze**——**Range**（所有拟合读取的分析范围），然后是当前数据集支持
   的分组：**XPS**（XPS 工作台各页）、**Extract**（质谱提取）、**Regions**、

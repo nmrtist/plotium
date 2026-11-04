@@ -60,7 +60,7 @@ fn execute_inner(
         }
         CommandId::OpenFile => super::file_dialogs::open_file(app),
         CommandId::OpenFolder => super::file_dialogs::open_folder(app),
-        CommandId::CancelNmrVolumePhase => super::nmr_volume::cancel_phase(ctx),
+        CommandId::CancelNmrVolumePhase => super::nmr_volume::cancel_phase(app, ctx),
         CommandId::Peak3DExport
         | CommandId::Peak3DDelete
         | CommandId::Peak3DLocate
@@ -356,7 +356,7 @@ fn execute_inner(
         CommandId::Tool(Tool::Symmetry) => {
             reveal_tool_group(app, Tool::Symmetry, ToolGroup::Nmr2dExperiment);
         }
-        CommandId::OpenNmrVolumePhase => {
+        CommandId::Tool(Tool::ManualPhase) if super::nmr_volume::active_volume(app) => {
             super::nmr_volume::open_phase(app);
         }
         CommandId::Tool(tool) => app.toggle_tool(tool),

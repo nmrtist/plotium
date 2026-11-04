@@ -3,7 +3,7 @@ use plotium_io::nmr_view::NmrSource;
 use std::sync::Arc;
 
 use nmr::ExecutionContext;
-use nmr::axis::{AxisDomain, AxisUnit};
+use nmr::axis::{AxisDomain, AxisRole, AxisUnit};
 use nmr::processed::{ProcessedAxis, ProcessedDataset};
 use nmr::processing::{
     DelaySource, DigitalFilterCorrection, FourierExponentSign, FourierTransform, FrequencyFrame,
@@ -63,8 +63,7 @@ impl NmrVolume {
             Vec::new()
         };
         for (axis, phase) in phases.iter().enumerate() {
-            PhaseCorrection::new(phase.p0_degrees, phase.p1_degrees, phase.pivot_fraction)
-                .map_err(|e| e.to_string())?;
+            phase.validate()?;
             if phase.p0_degrees != 0.0 || phase.p1_degrees != 0.0 {
                 operations.push(ProcessingOperation::PhaseCorrection {
                     axis,
@@ -185,6 +184,34 @@ impl NmrVolume {
             .ok_or("invalid axis")?
             .coordinate(index)
             .map_err(|e| e.to_string())
+    }
+
+    pub fn supports_phase(&self, axis: usize) -> bool {
+        use nmr::processed::ComponentBasis;
+        // Match nmr's PhaseCorrection contract for an already processed axis.
+        self.axes().get(axis).is_some_and(|axis| {
+            axis.domain() == AxisDomain::Frequency
+                && matches!(
+                    axis.role(),
+                    AxisRole::DirectAcquisition | AxisRole::IndirectAcquisition | AxisRole::Signal
+                )
+                && matches!(
+                    axis.component_basis(),
+                    ComponentBasis::Cartesian | ComponentBasis::SharedComplex { .. }
+                )
+        })
+    }
+
+    pub fn phase_pivot_scale(&self, axis: usize) -> Result<PhasePivotScale, String> {
+        let points = *self.shape.get(axis).ok_or("Invalid acquisition axis")?;
+        if points < 2 {
+            return Err("Pivot needs at least two ppm coordinates".into());
+        }
+        let nmr::axis::AxisCoordinates::Uniform { start, step } = self.axes()[axis].coordinates()
+        else {
+            return Err("Pivot editing requires a uniform ppm grid".into());
+        };
+        PhasePivotScale::new(points, *start, *step)
     }
 
     pub fn nearest(&self, axis: usize, ppm: f64) -> Result<usize, String> {
@@ -313,3 +340,71 @@ impl Default for VolumePhase {
         }
     }
 }
+
+// Frequency frames in a volume have a regular ppm grid. The phase endpoint
+// q=1 lies one sample beyond the last coordinate (whose position is (N-1)/N).
+#[derive(Clone, Copy)]
+pub struct PhasePivotScale {
+    first: f64,
+    end: f64,
+}
+
+impl PhasePivotScale {
+    fn new(points: usize, first: f64, step: f64) -> Result<Self, String> {
+        if points < 2 {
+            return Err("Pivot needs at least two ppm coordinates".into());
+        }
+        let end = step.mul_add(points as f64, first);
+        let last = step.mul_add((points - 1) as f64, first);
+        if !first.is_finite() || !(end - first).is_finite() || end == first || end == last {
+            return Err("This axis has no usable ppm mapping for the pivot".into());
+        }
+        Ok(Self { first, end })
+    }
+
+    pub fn ppm(self, fraction: f64) -> Result<f64, String> {
+        if !(0.0..=1.0).contains(&fraction) {
+            return Err("Pivot fraction must be between 0 and 1".into());
+        }
+        Ok(if fraction == 1.0 {
+            self.end
+        } else {
+            self.first + fraction * (self.end - self.first)
+        })
+    }
+
+    pub fn fraction(self, ppm: f64) -> Result<f64, String> {
+        if !(self.first.min(self.end)..=self.first.max(self.end)).contains(&ppm) {
+            return Err(format!(
+                "Enter a pivot between {} and {} ppm",
+                self.first.min(self.end),
+                self.first.max(self.end)
+            ));
+        }
+        Ok((ppm - self.first) / (self.end - self.first))
+    }
+}
+
+impl VolumePhase {
+    pub fn validate(self) -> Result<(), String> {
+        PhaseCorrection::new(self.p0_degrees, self.p1_degrees, self.pivot_fraction)
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn repivot(&mut self, fraction: f64) -> Result<(), String> {
+        self.validate()?;
+        let next = Self {
+            p0_degrees: self.p0_degrees + self.p1_degrees * (fraction - self.pivot_fraction),
+            pivot_fraction: fraction,
+            ..*self
+        };
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "nmr_volume_phase_tests.rs"]
+mod phase_tests;

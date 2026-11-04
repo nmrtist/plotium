@@ -12,6 +12,28 @@ pub(crate) struct PhaseDragCtx {
     pub map_rev: bool,
 }
 
+#[test]
+fn pivot_is_hidden_when_the_axis_phase_step_is_disabled_or_removed() {
+    let mut app = PlotiumApp::new();
+    app.doc
+        .datasets
+        .push(crate::ui::properties::fixture::homonuclear_frequency_2d());
+    let axis = PhaseAxis::F2;
+    assert!(displayed_phase_pivot_ppm(&app, 0, axis).is_some());
+    for step in &mut app.doc.datasets[0].axis_pipeline_mut(axis).unwrap().steps {
+        if matches!(step.kind, plotium_processing::StepKind::Phase(_)) {
+            step.enabled = false;
+        }
+    }
+    assert!(displayed_phase_pivot_ppm(&app, 0, axis).is_none());
+    app.doc.datasets[0]
+        .axis_pipeline_mut(axis)
+        .unwrap()
+        .steps
+        .retain(|step| !matches!(step.kind, plotium_processing::StepKind::Phase(_)));
+    assert!(displayed_phase_pivot_ppm(&app, 0, axis).is_none());
+}
+
 /// The committed pivot, overridden by the canvas-only position while its handle
 /// is being dragged.
 pub(crate) fn displayed_phase_pivot_ppm(
@@ -22,6 +44,7 @@ pub(crate) fn displayed_phase_pivot_ppm(
     if app.doc.datasets[dataset]
         .as_nmr2d()
         .is_some_and(|n| n.volume.is_some())
+        || !crate::ui::nmr_volume::canvas_axis_phaseable(&app.doc.datasets[dataset], axis)
     {
         return None;
     }
@@ -61,6 +84,9 @@ pub(crate) fn handle_phase_before_paint(
     else {
         return;
     };
+    if crate::ui::nmr_volume::phase_target(app) != Some(app.doc.datasets[di].resource_id()) {
+        return;
+    }
     let Some(outer) = content_screen_rect(
         app.session.board,
         &app.doc.canvases[ci],

@@ -33,7 +33,6 @@ pub enum CommandId {
     OpenFolder,
     ImportNmrSampling,
     ApplyNmrVolumePhase,
-    OpenNmrVolumePhase,
     CancelNmrVolumePhase,
     PreviousNmrPlane,
     NextNmrPlane,
@@ -300,7 +299,6 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             app.session.ui.table_import_preview.is_none(),
             "Finish or cancel the current table import preview before importing another table.",
         ),
-        CommandId::OpenNmrVolumePhase => requires(super::nmr_volume::active_volume(app), "Select a three-dimensional NMR spectrum before opening phase settings."),
         CommandId::CancelNmrVolumePhase => requires(app.session.ui.nmr_volume_phase_busy, "Start phase processing before cancelling it."),
         CommandId::Peak3DExport | CommandId::Peak3DDelete | CommandId::Peak3DLocate | CommandId::Peak3DPrevious | CommandId::Peak3DNext => super::peaks3d::gate(app, id),
         CommandId::ApplyNmrVolumePhase => super::nmr_volume::phase_gate(app),
@@ -721,14 +719,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 .is_some_and(|dataset| dataset.supports_symmetry_review()),
             "Select a homonuclear COSY, TOCSY, or NOESY / ROESY contour spectrum.",
         ),
-        // Share the Phase settings gate so its tool stays consistent.
-        CommandId::Tool(Tool::ManualPhase) => requires(
-            super::properties::discovery::group_applies(
-                app,
-                super::properties::panel::PHASE_SECTION,
-            ),
-            "Select an NMR spectrum with a phase processing step before phasing it by hand.",
-        ),
+        CommandId::Tool(Tool::ManualPhase) => super::nmr_volume::open_phase_gate(app),
         CommandId::Tool(tool) if tool.is_data_tool() => requires(
             dataset().is_some(),
             "Select a dataset before using this data tool.",
@@ -743,9 +734,10 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let palette_available = helpers::palette_available(app, id);
     // Activation requirements must not trap an already-active tool after the
     // dataset context changes: its command remains available for deactivation.
-    let active_tool = id
-        .tool_target()
-        .is_some_and(|tool| app.session.tool == tool);
+    let active_tool = id.tool_target().is_some_and(|tool| {
+        app.session.tool == tool
+            && !(tool == Tool::ManualPhase && super::nmr_volume::active_volume(app))
+    });
     let enabled = (gate.is_ok() || active_tool) && palette_available;
     let disabled_reason = if enabled { None } else { gate.err() };
     // A contextual group is dropped from the Ribbon entirely rather than shown
@@ -753,7 +745,6 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // `groups_for_tab`, pushing usable groups into the overflow menu.
     let ribbon = ribbon_placement(id).filter(|placement| match placement.applicability {
         Applicability::Always => true,
-        Applicability::NmrVolumeOnly => super::nmr_volume::active_volume(app),
         Applicability::LineAlignmentOnly => app.trace_alignment_target().is_some(),
         Applicability::TableOnly => is_table(),
         Applicability::XasOnly => dataset().and_then(Dataset::as_xas).is_some(),

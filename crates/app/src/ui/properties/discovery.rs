@@ -349,21 +349,42 @@ pub(crate) fn step_selection(app: &mut PlotiumApp, step: PropertyStep) {
 
 /// Channel 4: the context-menu entries for whatever the selection draws.
 ///
-/// Navigation only — every entry reveals a group at its canonical home.
+/// Parameter entries reveal their groups; Phase starts the shared task.
 pub(crate) fn context_menu(app: &mut PlotiumApp, ui: &mut Ui) {
     let now = ui.input(|input| input.time);
+    use crate::ui::commands::{self, CommandId};
+    use plotium_core::state::{Dataset, Tool};
+    let phase = app
+        .active_dataset()
+        .and_then(|di| app.doc.datasets.get(di))
+        .is_some_and(|dataset| matches!(dataset, Dataset::Nmr(_) | Dataset::Nmr2D(_)))
+        .then(|| commands::describe(app, CommandId::Tool(Tool::ManualPhase)));
     let reachable: Vec<(&'static str, PropertyId)> = groups()
         .iter()
-        .filter(|group| group_applies(app, group.section))
+        .filter(|group| {
+            group.section != super::panel::PHASE_SECTION && group_applies(app, group.section)
+        })
         .filter_map(|group| {
             entry_property(group.section, PRESENTATIONS)
                 .map(|property| (group.label.get(), property))
         })
         .collect();
-    if reachable.is_empty() {
+    if reachable.is_empty() && phase.is_none() {
         return;
     }
     ui.separator();
+    if let Some(phase) = phase
+        && ui
+            .add_enabled(
+                phase.enabled,
+                egui::Button::new(phase.label.as_str()).selected(phase.checked.unwrap_or(false)),
+            )
+            .on_disabled_hover_text(phase.disabled_reason.unwrap_or_default())
+            .clicked()
+    {
+        commands::execute_without_clipboard(phase.id, app, ui.ctx());
+        ui.close();
+    }
     for (label, property) in reachable {
         if ui.button(format!("{label} settings…")).clicked() {
             super::super::command_palette::reveal_property(app, property, now);

@@ -13,6 +13,7 @@ pub(crate) fn canvas_breadcrumb(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) {
             .object(id)
             .map(|object| (id, object.name.clone()))
     });
+    let phase = (app.session.tool == Tool::ManualPhase).then(|| phase_target(app, ci));
     let mut clicked = None;
     ui.horizontal(|ui| {
         ui.add_space(2.0);
@@ -30,9 +31,13 @@ pub(crate) fn canvas_breadcrumb(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) {
             if ui.small_button(name).clicked() {
                 clicked = Some(BreadcrumbTarget::Content(id));
             }
-        } else if lead.is_none() {
+        } else if lead.is_none() && phase.is_none() {
             ui.weak("›");
             ui.small(app.session.tool.label());
+        }
+        if let Some(phase) = phase {
+            ui.weak("›");
+            ui.small(phase);
         }
     });
     ui.add_space(2.0);
@@ -42,6 +47,53 @@ pub(crate) fn canvas_breadcrumb(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) {
         Some(BreadcrumbTarget::Content(content)) => app.select_content(ci, content),
         None => {}
     }
+}
+
+fn phase_target(app: &PlotiumApp, ci: usize) -> String {
+    use plotium_core::state::PhaseAxis;
+    let target = data_edit_target(app, ci)
+        .and_then(|id| app.doc.canvases[ci].object(id))
+        .and_then(|object| object.dataset())
+        .and_then(|id| app.doc.dataset_index(id))
+        .and_then(|di| app.doc.datasets.get(di));
+    let Some(dataset) = target else {
+        return "Phase · Select a spectrum plot".into();
+    };
+    if crate::ui::nmr_volume::phase_target(app) != Some(dataset.resource_id()) {
+        return "Phase · Select a plot of the chosen spectrum".into();
+    }
+    let axis = dataset.active_phase_axis(app.session.ui.phase_axis);
+    let (nucleus, scope) = match dataset {
+        Dataset::Nmr(nmr) => (nmr.data.axes().first(), "whole spectrum"),
+        Dataset::Nmr2D(nmr) if nmr.volume.is_none() => (
+            match axis {
+                PhaseAxis::F1 => nmr.native_base.axes().first(),
+                _ => nmr.native_base.axes().last(),
+            },
+            "all traces along this axis",
+        ),
+        _ => return "Phase · Select a phaseable spectrum plot".into(),
+    };
+    if !crate::ui::nmr_volume::canvas_axis_phaseable(dataset, axis) {
+        return format!(
+            "Phase · {} · No enabled frequency-domain phase step on {}",
+            dataset.display_name(),
+            axis.label()
+        );
+    }
+    let nucleus = nucleus
+        .and_then(|axis| axis.nucleus.as_deref())
+        .unwrap_or("unknown");
+    let direction = if axis == PhaseAxis::F1 {
+        "vertical axis"
+    } else {
+        "horizontal axis"
+    };
+    format!(
+        "Phase · {} · {} · {nucleus} · {direction} · {scope}",
+        dataset.display_name(),
+        axis.label()
+    )
 }
 
 enum BreadcrumbTarget {
