@@ -34,9 +34,15 @@ pub enum CommandId {
     OpenFolder,
     ImportNmrSampling,
     ApplyNmrVolumePhase,
+    OpenNmrVolumePhase,
     CancelNmrVolumePhase,
     PreviousNmrPlane,
     NextNmrPlane,
+    Peak3DExport,
+    Peak3DDelete,
+    Peak3DLocate,
+    Peak3DPrevious,
+    Peak3DNext,
     RunBatchWorkflow,
     AgentConnections,
     RunScientificScript,
@@ -293,7 +299,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             app.session.ui.table_import_preview.is_none(),
             "Finish or cancel the current table import preview before importing another table.",
         ),
+        CommandId::OpenNmrVolumePhase => requires(super::nmr_volume::active_volume(app), "Select a three-dimensional NMR spectrum before opening phase settings."),
         CommandId::CancelNmrVolumePhase => requires(app.session.ui.nmr_volume_phase_busy, "Start phase processing before cancelling it."),
+        CommandId::Peak3DExport | CommandId::Peak3DDelete | CommandId::Peak3DLocate | CommandId::Peak3DPrevious | CommandId::Peak3DNext => super::peaks3d::gate(app, id),
         CommandId::ApplyNmrVolumePhase => super::nmr_volume::phase_gate(app),
         CommandId::PreviousNmrPlane | CommandId::NextNmrPlane => {
             super::nmr_volume::step_gate(app, id == CommandId::NextNmrPlane)
@@ -573,8 +581,8 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             "Select a plotted 1D spectrum or table column before detecting peaks.",
         ),
         CommandId::PeakList => requires(
-            has_generic_peak_fit_trace(),
-            "Plot frequency-domain or tabular 1D data before opening the peak list.",
+            has_generic_peak_fit_trace() || dataset().and_then(Dataset::as_nmr2d).is_some_and(|n| n.volume.is_some()),
+            "Select a 3D spectrum or plot frequency-domain or tabular 1D data before opening the peak list.",
         ),
         CommandId::LineFit => requires(
             has_generic_peak_fit_trace(),
@@ -731,15 +739,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // The palette cannot be opened over a modal or active gesture. Those states
     // hide every surface that could display its disabled tooltip, so this is the
     // one intentional disabled-without-reason path.
-    let palette_available = id != CommandId::CommandPalette
-        || (app.session.ui.processing_scheme_dialog.is_none()
-            && app.session.ui.processing_template_dialog.is_none()
-            && app.session.ui.canvas_style_dialog.is_none()
-            && app.session.ui.spectrum_arithmetic_dialog.is_none()
-            && app.session.ui.align_spectra_dialog.is_none()
-            && app.session.ui.trace_alignment_dialog.is_none()
-            && app.session.ui.trace_composer.is_none()
-            && !app.session.ui.interaction.is_active());
+    let palette_available = helpers::palette_available(app, id);
     // Activation requirements must not trap an already-active tool after the
     // dataset context changes: its command remains available for deactivation.
     let active_tool = id
@@ -752,6 +752,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     // `groups_for_tab`, pushing usable groups into the overflow menu.
     let ribbon = ribbon_placement(id).filter(|placement| match placement.applicability {
         Applicability::Always => true,
+        Applicability::NmrVolumeOnly => super::nmr_volume::active_volume(app),
         Applicability::LineAlignmentOnly => app.trace_alignment_target().is_some(),
         Applicability::TableOnly => is_table(),
         Applicability::XasOnly => dataset().and_then(Dataset::as_xas).is_some(),

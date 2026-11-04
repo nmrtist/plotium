@@ -461,7 +461,7 @@ impl Dataset {
                 ToolGroup::LineFit,
             ],
             Dataset::Nmr(_) => &[ToolGroup::Processing],
-            Dataset::Nmr2D(n) if n.volume.is_some() => &[ToolGroup::Processing],
+            Dataset::Nmr2D(n) if n.volume.is_some() => &[ToolGroup::Processing, ToolGroup::Peaks],
             Dataset::Nmr2D(_) if self.supports_region_analysis() => &[
                 ToolGroup::Processing,
                 ToolGroup::Nmr2dExperiment,

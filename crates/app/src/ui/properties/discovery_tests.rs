@@ -129,10 +129,9 @@ fn overlaid_display_encodings_are_reported_as_ambiguous() {
     assert_eq!(labels, vec!["Lowest level", "Colour range"]);
 }
 
-/// Every declared group has a Ribbon button, a menu entry and a palette hit —
-/// derived from `GROUPS`, so declaring a group is the whole registration.
+/// Parameter groups retain their own discoverable Ribbon entries.
 #[test]
-fn every_declared_group_has_a_ribbon_entry() {
+fn every_declared_group_has_a_ribbon_home() {
     let app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
     let catalog = commands::catalog(&app);
     for group in GROUPS {

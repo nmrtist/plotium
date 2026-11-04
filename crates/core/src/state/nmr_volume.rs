@@ -6,6 +6,7 @@ use plotium_processing::nmr_volume::{NmrVolume, VolumePhase};
 #[derive(Clone)]
 pub struct NmrVolumeState {
     pub source: NmrSource,
+    pub peaks: Peak3DSet,
     pub processed: NmrVolume,
     pub fixed_axis: usize,
     pub index: usize,
@@ -63,6 +64,7 @@ impl Nmr2DDataset {
         anchor[fixed_axis] = index;
         dataset.volume = Some(NmrVolumeState {
             source,
+            peaks: Peak3DSet::default(),
             processed,
             fixed_axis,
             index,
@@ -111,6 +113,7 @@ impl Nmr2DDataset {
             .ok_or("Three-dimensional spectrum disappeared")?;
         volume.processed = processed;
         volume.phases = phases;
+        volume.refresh_peaks()?;
         Ok(())
     }
 

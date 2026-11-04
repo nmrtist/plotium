@@ -41,3 +41,39 @@ revisions. Subsequent data preview and rendering address the current plane.
 Generic numerical table export is unavailable for 3D volumes because the current
 2D table format cannot preserve the fixed coordinate and acquisition-axis
 identities. Save the project to retain the data, or export the figure for display.
+
+## 3D peak editing
+
+Choose **Analyze → Peaks** or **Pick peaks** in the peak panel, then click the
+spectrum to add a manual observation. Click a mark to select it, drag it to move
+its two displayed coordinates, and press Delete to remove it. The peak panel also
+provides a Delete button and editors for all three coordinates and a note.
+Each drag or completed text edit creates one undo step.
+
+Single-click a peak-table row to select it, locate its slice and centre the view
+while retaining the zoom scale. Previous and Next step through the same records.
+Column labels include acquisition dimension, nucleus and ppm, so two proton axes
+remain distinct. Each peak retains its ID and three acquisition-axis coordinates
+across orientation changes. Only marks on the current slice are shown.
+
+These positions are manual observations, not fitted peak centres. Intensities are
+signed nearest-grid sample heights, not integrated volumes. Peak edits support
+undo and redo and are saved in `.plotium` projects. Phase changes retain peak
+identities and positions and refresh their sampled signed intensities.
+
+**Export peak table…** writes JSON with the dataset ID and name, acquisition
+identity, source and processed-volume canonical SHA-256 digests, applied phase
+settings, axis identities, coordinates, notes and signed heights. These fields
+identify the source and processed state even outside the project.
+
+Automation uses `nmr.peaks3d.list` for read-only inspection and JSON export, and
+`nmr.peaks3d` for add/edit/delete/locate operations. Inspect the tool schemas for
+parameters, stable peak IDs and acquisition-axis ordering.
+
+For a 3D spectrum, **Process → 3D Phase → 3D Phase settings** opens the per-axis
+phase controls and ends peak picking. Apply phase explicitly after editing.
+**Interactive phase** is the on-plot tool for standalone 1D/2D spectra;
+**Phase settings** remains their separate parameter-panel entry.
+
+MCP exposes the read-only table through `plotium_peaks3d_inspect`. Use
+`plotium_plan` / `plotium_execute` with `nmr.peaks3d` for edits.

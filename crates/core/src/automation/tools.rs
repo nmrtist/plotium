@@ -525,6 +525,9 @@ pub(super) fn execute_planned_tool(
         REGIONS_EXTRACT | DIFFUSION_FIT => super::region_fit::execute(app, &plan)?,
         DOSY_BUILD => super::dosy::execute(app, &plan)?,
         ANALYSIS_RESULTS_INSPECT => super::dosy::inspect(app, &plan)?,
+        super::peaks3d::PEAKS_3D_LIST | super::peaks3d::PEAKS_3D => {
+            super::peaks3d::execute(app, &plan)?
+        }
         NMR_VOLUME_INSPECT | NMR_VOLUME_EDIT => super::nmr_volume::execute(app, &plan)?,
         PROCESSING_EDIT => super::processing_edit::execute(app, &plan)?,
         DIFFUSION_INSPECT | DIFFUSION_SET_INPUT | PROCESSING_INSPECT => {

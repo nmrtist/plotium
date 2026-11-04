@@ -179,6 +179,7 @@ pub(crate) fn definitions() -> Vec<Tool> {
         tools.push(Tool::new(name,"Read native table data at explicit document and table revisions; no selection fallback.",schema.as_object().expect("local schema").clone()));
     }
     for (name, id) in [
+        ("plotium_peaks3d_inspect", "nmr.peaks3d.list"),
         (
             "plotium_analysis_results_inspect",
             plotium_core::automation::ANALYSIS_RESULTS_INSPECT,

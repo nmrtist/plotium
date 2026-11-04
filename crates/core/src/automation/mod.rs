@@ -94,3 +94,5 @@ mod tests;
 
 #[cfg(test)]
 mod table_tests;
+
+mod peaks3d;

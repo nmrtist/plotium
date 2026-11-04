@@ -153,3 +153,16 @@ pub(super) fn xas_summary_gate(dataset: Option<&Dataset>) -> Result<(), &'static
         "Select an XAS scan with an EXAFS region before building the summary figure.",
     )
 }
+
+pub(super) fn palette_available(app: &PlotiumApp, id: super::CommandId) -> bool {
+    use super::CommandId;
+    id != CommandId::CommandPalette
+        || (app.session.ui.processing_scheme_dialog.is_none()
+            && app.session.ui.processing_template_dialog.is_none()
+            && app.session.ui.canvas_style_dialog.is_none()
+            && app.session.ui.spectrum_arithmetic_dialog.is_none()
+            && app.session.ui.align_spectra_dialog.is_none()
+            && app.session.ui.trace_alignment_dialog.is_none()
+            && app.session.ui.trace_composer.is_none()
+            && !app.session.ui.interaction.is_active())
+}

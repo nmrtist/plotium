@@ -18,8 +18,8 @@ available.
 - **Data** — **Import** (open files, folders, tables, and images),
   **Build** (new tables, stacking), **Export** (data export).
 - **Process** — **Processing** (the pipeline steps: apodization, zero fill,
-  phase, baseline, reference, and friends), **Correct** (the interactive
-  manual-phase tool), **Transform** (arithmetic, spectrum alignment, CRAFT),
+  baseline, reference, and friends), **Correct** (**Interactive phase**, the on-plot 1D/2D tool),
+  **3D Phase** (**3D Phase settings**, for the full volume), **Transform** (arithmetic, spectrum alignment, CRAFT),
   **Recipes** (processing templates).
 - **Analyze** — **Range** (the analysis range every fit reads), then the
   groups your active dataset supports: **XPS** (the XPS workbench pages),
