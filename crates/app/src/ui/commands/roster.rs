@@ -21,7 +21,6 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::OpenFolder,
         CommandId::ImportNmrSampling,
         CommandId::ApplyNmrVolumePhase,
-        CommandId::OpenNmrVolumePhase,
         CommandId::CancelNmrVolumePhase,
         CommandId::PreviousNmrPlane,
         CommandId::NextNmrPlane,
@@ -190,6 +189,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
     ids.extend(
         crate::ui::properties::GROUPS
             .iter()
+            .filter(|group| group.section != crate::ui::properties::panel::PHASE_SECTION)
             .map(|group| CommandId::PropertyGroup(group.section)),
     );
     ids.extend([PropertyStep::Lower, PropertyStep::Raise].map(CommandId::StepProperty));

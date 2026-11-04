@@ -51,10 +51,10 @@ fn phase_label_retains_interactive_tool_toggle_identity() {
     let mut app = PlotiumApp::new();
     let id = CommandId::Tool(Tool::ManualPhase);
     let description = describe(&app, id);
-    assert_eq!(description.label, "Interactive phase");
+    assert_eq!(description.label, "Phase");
     assert_eq!(description.checked, Some(false));
     app.session.tool = Tool::ManualPhase;
     let description = describe(&app, id);
-    assert_eq!(description.label, "Interactive phase");
+    assert_eq!(description.label, "Phase");
     assert_eq!(description.checked, Some(true));
 }

@@ -4,14 +4,38 @@ use plotium_core::state::{Dataset, PlotiumApp};
 
 use super::commands::{self, CommandId};
 
+fn canvas_phase_target(app: &PlotiumApp) -> Option<plotium_core::state::DatasetId> {
+    let canvas = app.doc.canvases.get(app.session.active_canvas?)?;
+    let plot = canvas
+        .selected_plot_object_id()
+        .or_else(|| canvas.active_plot_object_id())?;
+    canvas.object(plot)?.dataset()
+}
+
+pub(super) fn phase_target(app: &PlotiumApp) -> Option<plotium_core::state::DatasetId> {
+    use plotium_core::state::SelectionScope;
+    let listed = app
+        .active_dataset()
+        .and_then(|di| app.doc.datasets.get(di))
+        .map(Dataset::resource_id);
+    match app.session.ui.selection_scope {
+        SelectionScope::DataList => listed,
+        _ => canvas_phase_target(app).or(listed),
+    }
+}
+
 pub(super) fn active_volume(app: &PlotiumApp) -> bool {
-    app.active_dataset()
+    phase_target(app)
+        .and_then(|id| app.doc.dataset_index(id))
         .and_then(|di| app.doc.datasets.get(di))
         .and_then(Dataset::as_nmr2d)
         .is_some_and(|n| n.volume.is_some())
 }
 
 pub(super) fn open_phase(app: &mut PlotiumApp) {
+    if let Some(di) = phase_target(app).and_then(|id| app.doc.dataset_index(id)) {
+        app.focus_single(di);
+    }
     app.cancel_interaction();
     app.set_tool(plotium_core::state::Tool::BrowseZoom);
     super::tools::expand_processing_surface(app);
@@ -144,14 +168,13 @@ pub(super) fn navigation(app: &mut PlotiumApp, ui: &mut Ui) {
 }
 
 pub(super) fn apply_phase(app: &mut PlotiumApp, ctx: &egui::Context) {
-    let Some(di) = app.active_dataset() else {
-        return;
-    };
-    let id = app.doc.datasets[di].resource_id();
+    poll_phase(app, ctx);
     if let Err(reason) = phase_gate(app) {
-        app.session.status = reason.into();
+        app.session.status = reason.to_owned();
         return;
     }
+    let id = phase_target(app).expect("validated phase target");
+    let di = app.doc.dataset_index(id).expect("validated phase dataset");
     let draft = app.session.ui.nmr_volume_phase_drafts[&id].clone();
     let Some(mut dataset) = app.doc.datasets[di].as_nmr2d().cloned() else {
         return;
@@ -161,10 +184,9 @@ pub(super) fn apply_phase(app: &mut PlotiumApp, ctx: &egui::Context) {
         .as_ref()
         .expect("local volume invariant")
         .phases;
-    if phase_busy(ctx) {
-        return;
-    }
     app.session.ui.nmr_volume_phase_busy = true;
+    let name = app.doc.datasets[di].display_name();
+    app.session.status = format!("Calculating phase for {name}…");
     let cancellation = nmr::CancellationToken::new();
     let worker_cancellation = cancellation.clone();
     let output = std::sync::Arc::new(std::sync::Mutex::new(None));
@@ -172,7 +194,9 @@ pub(super) fn apply_phase(app: &mut PlotiumApp, ctx: &egui::Context) {
         data.insert_temp(
             egui::Id::new("volume_phase_job"),
             PhaseJob {
+                project: app.session.project_context,
                 id,
+                name,
                 expected,
                 cancellation,
                 output: output.clone(),
@@ -206,17 +230,29 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
         return;
     };
     let committed = volume.phases;
-    let mut draft = app
-        .session
-        .ui
-        .nmr_volume_phase_drafts
-        .get(&id)
-        .cloned()
-        .filter(|draft| draft.baseline == committed)
-        .unwrap_or(plotium_core::state::NmrVolumePhaseDraft {
-            baseline: committed,
-            phases: committed,
-        });
+    let (mut draft, stale) = phase_draft(app, id, volume);
+    let name = app.doc.datasets[di].display_name();
+    let fixed = volume.fixed_axis;
+    let axes = std::array::from_fn::<_, 3, _>(|axis| {
+        let nucleus = volume.source.axes()[axis]
+            .nucleus
+            .as_deref()
+            .unwrap_or("unknown");
+        (
+            format!("F{} · {nucleus} · {}", axis + 1, axis_role(axis, fixed)),
+            volume.processed.supports_phase(axis),
+            volume.processed.phase_pivot_scale(axis),
+        )
+    });
+    // Once reset to the current baseline, hidden edits must not return on Undo.
+    if stale {
+        discard_phase_draft(app, id);
+    }
+    let job = host
+        .ctx()
+        .data(|data| data.get_temp::<PhaseJob>(egui::Id::new("volume_phase_job")));
+    let busy = app.session.ui.nmr_volume_phase_busy;
+    let owns_target = phase_target(app) == Some(id);
     let geometry = task_card::geometry(
         app,
         host,
@@ -230,39 +266,80 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
     task_card::area(host, area_id, geometry.pos).show(host.ctx(), |ui| {
         ui.set_width(geometry.width);
         crate::ui::card_frame(ui.visuals().dark_mode, egui::Margin::ZERO).show(ui, |ui| {
-            task_card::header(ui, area_id, "3D Processing", Some("Phase adjustment"), |ui| {
-                if crate::ui::panel_chrome::close(ui, "Close Processing").clicked() { close = true; }
+            task_card::header(ui, area_id, "Phase", Some(name.as_str()), |ui| {
+                let response = crate::ui::panel_chrome::close(ui, "Close Phase")
+                    .on_hover_text("Hide Phase. Keeps the draft and lets any calculation continue.");
+                if response.clicked() { close = true; }
             });
             if collapsed { return; }
             egui::ScrollArea::vertical().max_height(geometry.body_height).show(ui, |ui| {
-            ui.small("Basic transform completed. Phase is user-adjustable; an absorptive spectrum has not been independently confirmed.");
-            for (axis, phase) in draft.phases.iter_mut().enumerate() {
-                ui.separator();
-                ui.strong(format!("Acquisition F{}", axis + 1));
-                ui.horizontal(|ui| {
-                    ui.label("Zero order");
-                    ui.add(DragValue::new(&mut phase.p0_degrees).speed(0.1).suffix("°"));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("First order");
-                    ui.add(DragValue::new(&mut phase.p1_degrees).speed(0.1).suffix("°"));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Pivot fraction");
-                    ui.add(DragValue::new(&mut phase.pivot_fraction).range(0.0..=1.0).speed(0.001));
-                });
-            }
-            app.session.ui.nmr_volume_phase_drafts.insert(id, draft.clone());
-            let cancel = commands::describe(app, CommandId::CancelNmrVolumePhase);
-            if ui.add_enabled(cancel.enabled, egui::Button::new("Cancel processing")).on_disabled_hover_text(cancel.disabled_reason.unwrap_or_default()).clicked() {
-                commands::execute_without_clipboard(CommandId::CancelNmrVolumePhase, app, ui.ctx());
-            }
-            if app.session.ui.nmr_volume_phase_busy { ui.spinner(); ui.label("Processing phase…"); }
-            let desc = commands::describe(app, CommandId::ApplyNmrVolumePhase);
-            if ui.add_enabled(desc.enabled, egui::Button::new("Apply phase"))
-                .on_disabled_hover_text(desc.disabled_reason.unwrap_or_default()).clicked() {
-                commands::execute_without_clipboard(CommandId::ApplyNmrVolumePhase, app, ui.ctx());
-            }
+                ui.label("Applies to the entire 3D spectrum. The current plane is for observation.");
+                ui.small("PH0 and PH1 set the correction on the source data. Apply replaces the previous settings. An absorptive spectrum has not been independently confirmed.");
+                if stale {
+                    ui.label("The source or committed phase changed. Editing starts from the current settings.");
+                }
+                if draft.phases != committed {
+                    ui.strong("Changes have not been applied. No live preview.");
+                }
+                if let Some(job) = &job {
+                    ui.spinner();
+                    let action = if job.cancellation.is_cancelled() { "Stopping" } else { "Calculating phase for" };
+                    ui.label(format!("{action} {}{}", job.name, if job.id == id { " (this spectrum)" } else { " (another spectrum)" }));
+                    ui.small("Closing Phase leaves the calculation running.");
+                    let stop = commands::describe(app, CommandId::CancelNmrVolumePhase);
+                    if ui.add_enabled(stop.enabled, egui::Button::new("Stop calculation")).clicked() {
+                        commands::execute_without_clipboard(CommandId::CancelNmrVolumePhase, app, ui.ctx());
+                    }
+                }
+                if !owns_target {
+                    ui.small("Select this spectrum to edit its phase, or open Phase for the current spectrum.");
+                }
+                ui.push_id(id, |ui| ui.add_enabled_ui(!busy && owns_target, |ui| {
+                    for (axis, (label, supported, scale)) in axes.iter().enumerate() {
+                        ui.separator();
+                        ui.strong(label);
+                        if !supported {
+                            ui.small("Phase unavailable: this axis needs a complex frequency-domain signal.");
+                            continue;
+                        }
+                        let phase = &mut draft.phases[axis];
+                        for (label, value) in [("PH0", &mut phase.p0_degrees), ("PH1", &mut phase.p1_degrees)] {
+                            ui.horizontal(|ui| {
+                                ui.label(label);
+                                let mut next = *value;
+                                if ui.add(DragValue::new(&mut next).speed(0.1).suffix("°")).changed() && next.is_finite() {
+                                    *value = next;
+                                }
+                            });
+                        }
+                        match scale.as_ref().map_err(Clone::clone).and_then(|scale| scale.ppm(phase.pivot_fraction).map(|ppm| (scale, ppm))) {
+                            Ok((scale, mut ppm)) => {
+                                ui.horizontal(|ui| {
+                                    ui.label("Pivot");
+                                    if ui.add(DragValue::new(&mut ppm).speed(0.001).max_decimals(8).suffix(" ppm")).changed()
+                                        && let Err(error) = scale.fraction(ppm).and_then(|q| phase.repivot(q))
+                                    {
+                                        app.session.status = format!("Cannot move pivot for {name}: {error}");
+                                    }
+                                });
+                            }
+                            Err(error) => { ui.small(format!("Pivot unavailable: {error}")); }
+                        }
+                    }
+                }));
+                let dirty = draft.phases != committed;
+                if ui.add_enabled(!busy && dirty, egui::Button::new("Discard changes")).clicked()
+                    || (!busy && !dirty && !stale)
+                {
+                    discard_phase_draft(app, id);
+                } else if dirty {
+                    app.session.ui.nmr_volume_phase_drafts.insert(id, draft);
+                }
+                let desc = commands::describe(app, CommandId::ApplyNmrVolumePhase);
+                if ui.add_enabled(desc.enabled && owns_target, egui::Button::new("Apply"))
+                    .on_disabled_hover_text(desc.disabled_reason.unwrap_or_default()).clicked() {
+                    commands::execute_without_clipboard(CommandId::ApplyNmrVolumePhase, app, ui.ctx());
+                }
             });
         });
     });
@@ -273,23 +350,25 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
 
 #[derive(Clone)]
 struct PhaseJob {
+    project: plotium_core::state::ProjectContextId,
     id: plotium_core::state::DatasetId,
+    name: String,
     expected: [plotium_processing::nmr_volume::VolumePhase; 3],
     cancellation: nmr::CancellationToken,
     output:
         std::sync::Arc<std::sync::Mutex<Option<Result<plotium_core::state::Nmr2DDataset, String>>>>,
-}
-fn phase_busy(ctx: &egui::Context) -> bool {
-    ctx.data(|data| {
-        data.get_temp::<PhaseJob>(egui::Id::new("volume_phase_job"))
-            .is_some()
-    })
 }
 pub(super) fn poll_phase(app: &mut PlotiumApp, ctx: &egui::Context) {
     let key = egui::Id::new("volume_phase_job");
     let Some(job) = ctx.data(|data| data.get_temp::<PhaseJob>(key)) else {
         return;
     };
+    if job.project != app.session.project_context {
+        job.cancellation.cancel();
+        ctx.data_mut(|data| data.remove::<PhaseJob>(key));
+        app.session.ui.nmr_volume_phase_busy = false;
+        return;
+    }
     let result = match job.output.lock() {
         Ok(mut output) => output.take(),
         Err(error) => Some(Err(format!("NMR phase worker failed: {error}"))),
@@ -298,20 +377,33 @@ pub(super) fn poll_phase(app: &mut PlotiumApp, ctx: &egui::Context) {
     ctx.data_mut(|data| data.remove::<PhaseJob>(key));
     app.session.ui.nmr_volume_phase_busy = false;
     if job.cancellation.is_cancelled() {
-        app.session.status = "NMR phase processing cancelled".into();
+        app.session.status = format!("Stopped phase calculation for {}. Draft kept.", job.name);
         return;
     }
     let result =
         result.and_then(|dataset| app.install_nmr_volume_result(job.id, job.expected, dataset));
-    if let Err(error) = result {
-        app.session.status = format!("Cannot apply NMR phase: {error}");
-    }
+    app.session.status = match result {
+        Ok(()) => {
+            app.session.ui.nmr_volume_phase_drafts.remove(&job.id);
+            format!("Applied phase to {}", job.name)
+        }
+        Err(error) => format!("Cannot apply phase to {}: {error}", job.name),
+    };
 }
 
-pub(super) fn cancel_phase(ctx: &egui::Context) {
+pub(super) fn cancel_phase(app: &mut PlotiumApp, ctx: &egui::Context) {
+    let key = egui::Id::new("volume_phase_job");
+    if ctx
+        .data(|data| data.get_temp::<PhaseJob>(key))
+        .is_some_and(|job| job.project != app.session.project_context)
+    {
+        poll_phase(app, ctx);
+        return;
+    }
     if let Some(job) = ctx.data(|data| data.get_temp::<PhaseJob>(egui::Id::new("volume_phase_job")))
     {
         job.cancellation.cancel();
+        app.session.status = format!("Stopping phase calculation for {}…", job.name);
     }
 }
 
@@ -321,30 +413,145 @@ pub(super) fn phase_gate(app: &PlotiumApp) -> Result<(), &'static str> {
             "Wait for phase processing to finish or cancel it before applying new settings.",
         );
     }
-    if !app
-        .active_dataset()
-        .and_then(|di| app.doc.datasets.get(di))
-        .and_then(Dataset::as_nmr2d)
-        .is_some_and(|n| n.volume.is_some())
-    {
-        return Err("Select a three-dimensional NMR spectrum before adjusting its phase.");
-    }
-    let data = &app.doc.datasets[app.active_dataset().expect("validated active dataset")];
-    let phases = data
+    volume_phase_gate(app)?;
+    let id = phase_target(app).expect("validated phase target");
+    let data = &app.doc.datasets[app.doc.dataset_index(id).expect("validated phase dataset")];
+    let volume = data
         .as_nmr2d()
         .and_then(|n| n.volume.as_ref())
-        .expect("validated volume")
-        .phases;
-    if !app
+        .expect("validated volume");
+    let draft = app
         .session
         .ui
         .nmr_volume_phase_drafts
         .get(&data.resource_id())
-        .is_some_and(|draft| draft.baseline == phases && draft.phases != phases)
-    {
-        return Err("Open 3D Processing and edit a phase setting before applying phase.");
+        .ok_or("Open Phase and edit a phase setting before applying.")?;
+    if !draft_matches(
+        draft,
+        &std::sync::Arc::downgrade(volume.source.dataset()),
+        volume.phases,
+    ) {
+        return Err(
+            "The source or committed phase changed. Edit the current settings in Phase before applying.",
+        );
+    }
+    if draft.phases == volume.phases {
+        return Err("Edit a phase setting before applying.");
+    }
+    if draft.phases.iter().any(|phase| phase.validate().is_err()) {
+        return Err("Enter finite phase angles and a valid pivot before applying.");
+    }
+    if draft.phases.iter().enumerate().any(|(axis, phase)| {
+        !volume.processed.supports_phase(axis)
+            && (phase.p0_degrees != 0.0 || phase.p1_degrees != 0.0)
+    }) {
+        return Err("Apply nonzero phase only to complex frequency-domain signal axes.");
     }
     Ok(())
+}
+
+fn phase_draft(
+    app: &PlotiumApp,
+    id: plotium_core::state::DatasetId,
+    volume: &plotium_core::state::NmrVolumeState,
+) -> (plotium_core::state::NmrVolumePhaseDraft, bool) {
+    let source = std::sync::Arc::downgrade(volume.source.dataset());
+    let saved = app.session.ui.nmr_volume_phase_drafts.get(&id);
+    if let Some(draft) = saved
+        && draft_matches(draft, &source, volume.phases)
+    {
+        return (draft.clone(), false);
+    }
+    (
+        plotium_core::state::NmrVolumePhaseDraft {
+            source,
+            baseline: volume.phases,
+            phases: volume.phases,
+        },
+        saved.is_some(),
+    )
+}
+
+fn discard_phase_draft(app: &mut PlotiumApp, id: plotium_core::state::DatasetId) {
+    app.session.ui.nmr_volume_phase_drafts.remove(&id);
+}
+
+fn draft_matches(
+    draft: &plotium_core::state::NmrVolumePhaseDraft,
+    source: &std::sync::Weak<nmr::Dataset>,
+    phases: [plotium_processing::nmr_volume::VolumePhase; 3],
+) -> bool {
+    draft.source.ptr_eq(source) && draft.baseline == phases
+}
+
+pub(super) fn open_phase_gate(app: &PlotiumApp) -> Result<(), &'static str> {
+    let id = phase_target(app).ok_or("Select an NMR spectrum before opening Phase.")?;
+    let dataset = app
+        .doc
+        .dataset_index(id)
+        .and_then(|di| app.doc.datasets.get(di))
+        .ok_or("Select an NMR spectrum before opening Phase.")?;
+    if !matches!(dataset, Dataset::Nmr(_) | Dataset::Nmr2D(_)) {
+        return Err("Select an NMR spectrum before opening Phase.");
+    }
+    if let Some(volume) = dataset.as_nmr2d().and_then(|n| n.volume.as_ref()) {
+        return require_volume_phase(volume);
+    }
+    let axis = dataset.active_phase_axis(app.session.ui.phase_axis);
+    if !canvas_axis_phaseable(dataset, axis) {
+        return Err(
+            "Enable a Phase step on the current frequency-domain axis, or choose another axis in Processing.",
+        );
+    }
+    if canvas_phase_target(app) != Some(id) {
+        return Err(
+            "Select a plot of the chosen spectrum on the active canvas before opening Phase.",
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn canvas_axis_phaseable(
+    dataset: &Dataset,
+    axis: plotium_core::state::PhaseAxis,
+) -> bool {
+    dataset.pivot_ppm(axis).is_some()
+        && dataset.axis_pipeline(axis).is_some_and(|pipeline| {
+            pipeline.steps.iter().any(|step| {
+                step.enabled && matches!(step.kind, plotium_processing::StepKind::Phase(_))
+            })
+        })
+}
+
+fn volume_phase_gate(app: &PlotiumApp) -> Result<(), &'static str> {
+    let volume = phase_target(app)
+        .and_then(|id| app.doc.dataset_index(id))
+        .and_then(|di| app.doc.datasets.get(di))
+        .and_then(Dataset::as_nmr2d)
+        .and_then(|n| n.volume.as_ref())
+        .ok_or("Select a three-dimensional NMR spectrum before applying phase.")?;
+    require_volume_phase(volume)
+}
+
+fn require_volume_phase(volume: &plotium_core::state::NmrVolumeState) -> Result<(), &'static str> {
+    if !(0..3).any(|axis| volume.processed.supports_phase(axis)) {
+        return Err(
+            "Select a spectrum with real and imaginary components; these axes cannot be phased.",
+        );
+    }
+    Ok(())
+}
+
+fn axis_role(axis: usize, fixed: usize) -> &'static str {
+    // The plane descriptor keeps the surviving acquisition axes in order:
+    // rows are vertical and the faster-varying columns are horizontal.
+    if axis == fixed {
+        "fixed axis"
+    } else if axis == usize::from(fixed == 0) {
+        "vertical axis"
+    } else {
+        "horizontal axis"
+    }
 }
 
 pub(super) fn editing_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'static str> {
@@ -354,9 +561,6 @@ pub(super) fn editing_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'stat
         .and_then(|di| app.doc.datasets.get(di))
         .and_then(Dataset::as_nmr2d)
         .is_some_and(|n| n.volume.is_some());
-    if volume && id == CommandId::Tool(Tool::ManualPhase) {
-        return Err("Open 3D Phase settings to adjust the full volume.");
-    }
     if volume
         && matches!(
             id,
@@ -366,136 +570,12 @@ pub(super) fn editing_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'stat
         )
     {
         return Err(
-            "Open a standalone spectrum for peak or integral editing; use 3D Processing to adjust volume phase.",
+            "Open a standalone spectrum for peak or integral editing; use Phase to adjust volume phase.",
         );
     }
     Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn volume_phase_settings_end_peak_editing_and_open_processing() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../io/tests/fixtures/nmr/bruker-3d-qf");
-        let loaded = plotium_io::load_path(path).unwrap();
-        let (dataset, _) =
-            plotium_core::workflow::dataset_from_acquisition(loaded.acquisition).unwrap();
-        let mut app = PlotiumApp::new();
-        let owner = dataset.resource_id();
-        app.doc.datasets.push(dataset);
-        app.focus_single(0);
-        app.session.ui.processing_task_collapsed = true;
-        let id = CommandId::OpenNmrVolumePhase;
-        let description = commands::describe(&app, id);
-        assert!(description.enabled, "{:?}", description.disabled_reason);
-        assert!(description.ribbon.is_some());
-        assert_eq!(description.checked, None);
-        assert_eq!(description.label, "3D Phase settings");
-        app.set_tool(plotium_core::state::Tool::Peaks);
-        commands::execute_without_clipboard(id, &mut app, &egui::Context::default());
-        assert_eq!(app.session.tool, plotium_core::state::Tool::BrowseZoom);
-        assert!(
-            !commands::describe(
-                &app,
-                CommandId::Tool(plotium_core::state::Tool::ManualPhase)
-            )
-            .enabled
-        );
-        assert_eq!(app.session.ui.processing_task_dataset, Some(owner));
-        assert!(!app.session.ui.processing_task_collapsed);
-    }
-
-    #[test]
-    fn volume_navigation_renders_and_disables_endpoint_steps() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../io/tests/fixtures/nmr/bruker-3d-qf");
-        let loaded = plotium_io::load_path(&path).unwrap();
-        let (dataset, _) =
-            plotium_core::workflow::dataset_from_acquisition(loaded.acquisition).unwrap();
-        let mut app = PlotiumApp::new();
-        app.doc.datasets.push(dataset);
-        app.focus_single(0);
-        let id = app.doc.datasets[0].resource_id();
-        app.select_nmr_volume_plane(id, 0, 0).unwrap();
-        assert!(!commands::describe(&app, CommandId::PreviousNmrPlane).enabled);
-        assert!(commands::describe(&app, CommandId::NextNmrPlane).enabled);
-        let description = commands::describe(&app, CommandId::ApplyNmrVolumePhase);
-        assert!(!description.enabled);
-        assert!(
-            description
-                .disabled_reason
-                .unwrap()
-                .contains("Open 3D Processing")
-        );
-        let committed = app.doc.datasets[0]
-            .as_nmr2d()
-            .unwrap()
-            .volume
-            .as_ref()
-            .unwrap()
-            .phases;
-        let mut draft = plotium_core::state::NmrVolumePhaseDraft {
-            baseline: committed,
-            phases: committed,
-        };
-        app.session
-            .ui
-            .nmr_volume_phase_drafts
-            .insert(id, draft.clone());
-        assert!(!commands::describe(&app, CommandId::ApplyNmrVolumePhase).enabled);
-        draft.phases[0].p0_degrees = 15.0;
-        app.session.ui.nmr_volume_phase_drafts.insert(id, draft);
-        assert!(commands::describe(&app, CommandId::ApplyNmrVolumePhase).enabled);
-        // Readiness belongs to the selected dataset, not the last opened card.
-        app.doc.datasets.push({
-            let loaded = plotium_io::load_path(&path).unwrap();
-            plotium_core::workflow::dataset_from_acquisition(loaded.acquisition)
-                .unwrap()
-                .0
-        });
-        app.focus_single(1);
-        assert!(!commands::describe(&app, CommandId::ApplyNmrVolumePhase).enabled);
-        app.focus_single(0);
-        app.session
-            .ui
-            .nmr_volume_phase_drafts
-            .get_mut(&id)
-            .unwrap()
-            .baseline[0]
-            .p0_degrees = 90.0;
-        assert!(!commands::describe(&app, CommandId::ApplyNmrVolumePhase).enabled);
-        let ctx = egui::Context::default();
-        let _ = ctx.run_ui(Default::default(), |ui| navigation(&mut app, ui));
-        step(&mut app, true);
-        assert_eq!(
-            app.doc.datasets[0]
-                .as_nmr2d()
-                .unwrap()
-                .volume
-                .as_ref()
-                .unwrap()
-                .index,
-            1
-        );
-    }
-
-    #[test]
-    fn plane_commands_explain_missing_volume_and_phase_cancel_tracks_worker() {
-        let mut app = PlotiumApp::new();
-        for id in [
-            CommandId::PreviousNmrPlane,
-            CommandId::NextNmrPlane,
-            CommandId::ApplyNmrVolumePhase,
-        ] {
-            let description = commands::describe(&app, id);
-            assert!(!description.enabled);
-            assert!(description.disabled_reason.unwrap().contains("Select"));
-        }
-        assert!(!commands::describe(&app, CommandId::CancelNmrVolumePhase).enabled);
-        app.session.ui.nmr_volume_phase_busy = true;
-        assert!(commands::describe(&app, CommandId::CancelNmrVolumePhase).enabled);
-    }
-}
+#[path = "nmr_volume_tests.rs"]
+mod tests;

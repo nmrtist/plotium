@@ -92,6 +92,12 @@ pub fn render(
     ribbon_chrome: RibbonChrome,
 ) {
     let ctx = ui.ctx().clone();
+    nmr_volume::poll_phase(app, &ctx);
+    if let plotium_core::state::Interaction::Phase(drag) = app.interaction()
+        && nmr_volume::phase_target(app) != Some(drag.dataset)
+    {
+        app.cancel_interaction();
+    }
     result_follow::begin_frame(&ctx);
     let title = project_window_title(app);
     if last_window_title.as_deref() != Some(title.as_str()) {

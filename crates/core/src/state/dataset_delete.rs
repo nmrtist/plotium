@@ -102,6 +102,7 @@ impl PlotiumApp {
 
     /// Repair index-addressed session state after `datasets.remove(index)`.
     pub(crate) fn forget_removed_dataset(&mut self, index: usize, id: DatasetId) {
+        self.session.ui.nmr_volume_phase_drafts.remove(&id);
         self.session.compute.invalidate_dataset(id);
         if matches!(
             self.session.ui.craft_feedback.get(&id),

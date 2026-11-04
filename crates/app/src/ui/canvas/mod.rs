@@ -136,7 +136,6 @@ pub(crate) enum CanvasInteractionClearScope {
 }
 
 pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
-    super::nmr_volume::poll_phase(app, ui.ctx());
     let Some(ci) = app.session.active_canvas else {
         if app.doc.canvases.is_empty() && !board_frames(app).is_empty() {
             board::render_sheets_only(app, ui);
@@ -339,7 +338,10 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         match app.session.tool {
             // Ahead of the `pointer_owned` guard: the pivot line is painted here,
             // and it stays on screen whatever the pointer is over.
-            Tool::ManualPhase => {
+            Tool::ManualPhase
+                if super::nmr_volume::phase_target(app)
+                    == Some(app.doc.datasets[di].resource_id()) =>
+            {
                 let axis = app.doc.datasets[di].active_phase_axis(app.session.ui.phase_axis);
                 if let Some(pivot_ppm) = displayed_phase_pivot_ppm(app, di, axis) {
                     let fig = &app.doc.canvases[ci]
@@ -411,6 +413,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
             | Tool::Rect
             | Tool::Ellipse
             | Tool::Line
+            | Tool::ManualPhase
             | Tool::Arrow => {}
         }
     }

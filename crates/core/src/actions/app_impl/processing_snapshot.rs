@@ -27,6 +27,23 @@ impl PlotiumApp {
                 .doc
                 .dataset_index(snapshot.resource_id())
                 .ok_or_else(|| ActionApplyError::StaleTarget(snapshot.resource_id().to_string()))?;
+            let phase_basis = |dataset: &Dataset| {
+                dataset
+                    .as_nmr2d()
+                    .and_then(|n| n.volume.as_ref())
+                    .map(|volume| {
+                        (
+                            std::sync::Arc::as_ptr(volume.source.dataset()),
+                            volume.phases,
+                        )
+                    })
+            };
+            if phase_basis(&self.doc.datasets[index]) != phase_basis(snapshot) {
+                self.session
+                    .ui
+                    .nmr_volume_phase_drafts
+                    .remove(&snapshot.resource_id());
+            }
             let mut next = snapshot.clone();
             match (&self.doc.datasets[index], &mut next) {
                 (Dataset::Nmr(current), Dataset::Nmr(next)) => {

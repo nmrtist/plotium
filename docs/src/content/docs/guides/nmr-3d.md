@@ -18,15 +18,41 @@ remain stable while browsing. Changing orientation retains the position on each
 acquisition axis.
 
 Positive and negative contours retain their sign. Adjust contour sensitivity with
-the existing controls. Basic processing does not establish that the spectrum has
-an experimentally verified absorptive phase. Use the per-axis phase controls to
-adjust zero-order phase, first-order phase and pivot; apply explicitly and cancel
-unwanted processing. Complex components remain available for phase adjustment.
+the existing controls. Complex components remain available for
+[phase correction](#phase-correction).
 
 Save a normal `.plotium` project to retain the acquisition snapshot, processing
 parameters and current plane. The project can reopen without the original
 experiment directory. The first implementation targets dense 3D acquisitions;
-it does not add 3D NUS reconstruction, 4D browsing or protein assignments.
+it does not add 3D NUS reconstruction or 4D browsing.
+
+## Phase correction
+
+Select the 3D spectrum and choose **Process → Correct → Phase** to open its
+phase panel. Check the target spectrum name before editing. Each acquisition
+axis (F1/F2/F3) shows its nucleus (or `unknown`) and its current display role:
+horizontal, vertical, or fixed. Changing planes updates these roles; phase
+settings remain attached to their acquisition axes.
+
+Adjust **PH0** and **PH1** for the required axis, then click **Apply** and inspect
+the result on the spectrum. Apply recalculates the whole volume from the source,
+replacing the previous phase settings. Browse other planes to check the result.
+The displayed 2D slice does not support dragging to adjust phase, and parameter
+changes have no live preview.
+
+**Pivot** sets the reference position for first-order phase in ppm. Moving it
+automatically compensates PH0 so the phase correction remains unchanged.
+The allowed range extends one sample interval beyond the last point; the control
+is unavailable when the axis has no usable uniform ppm grid.
+
+- **Discard changes** restores the applied settings without recalculating.
+- **Stop calculation** cancels the named calculation and retains your edits.
+- Closing the panel retains your edits and lets any calculation continue.
+
+You can browse planes or switch spectra during a calculation; the result applies
+to the spectrum named when it started. If the source data or applied phase
+settings change, unapplied edits are discarded; reopen the panel to edit the
+current settings.
 
 ## Automation
 
@@ -69,11 +95,6 @@ identify the source and processed state even outside the project.
 Automation uses `nmr.peaks3d.list` for read-only inspection and JSON export, and
 `nmr.peaks3d` for add/edit/delete/locate operations. Inspect the tool schemas for
 parameters, stable peak IDs and acquisition-axis ordering.
-
-For a 3D spectrum, **Process → 3D Phase → 3D Phase settings** opens the per-axis
-phase controls and ends peak picking. Apply phase explicitly after editing.
-**Interactive phase** is the on-plot tool for standalone 1D/2D spectra;
-**Phase settings** remains their separate parameter-panel entry.
 
 MCP exposes the read-only table through `plotium_peaks3d_inspect`. Use
 `plotium_plan` / `plotium_execute` with `nmr.peaks3d` for edits.

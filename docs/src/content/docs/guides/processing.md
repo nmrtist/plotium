@@ -249,6 +249,16 @@ until you press it.
 
 ## Phase correction
 
+For a 1D or 2D spectrum, select its plot on the active canvas and choose
+**Process → Correct → Phase** to adjust phase on the plot. The label above the
+plot identifies the target spectrum, acquisition axis, nucleus and display
+direction. To change the axis on a 2D spectrum, open the other axis’s **Phase**
+step in **Processing**.
+
+3D spectra use a parameter panel with explicit Apply and no live preview; see
+[3D phase correction](/guides/nmr-3d/#phase-correction).
+The controls and live preview described below apply to standalone 1D/2D spectra.
+
 Automatic phase correction is enabled by default; you can switch methods or
 adjust φ0 / φ1 manually with live preview.
 

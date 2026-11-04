@@ -21,7 +21,6 @@ pub enum Applicability {
     XasOnly,
     SeriesOnly,
     Homonuclear2dOnly,
-    NmrVolumeOnly,
     ToolGroup(ToolGroup),
 }
 
@@ -68,7 +67,6 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         CommandId::Tool(Tool::Symmetry) => (Analyze, "Review", 1, Homonuclear2dOnly),
         CommandId::AlignTraces => (Analyze, "Overlay", 1, LineAlignmentOnly),
         CommandId::XpsWorkbench(_) => (Analyze, "XPS", 0, Applicability::ToolGroup(ToolGroup::Xps)),
-        CommandId::OpenNmrVolumePhase => (Process, "3D Phase", 0, Applicability::NmrVolumeOnly),
         CommandId::Tool(Tool::ManualPhase) => (Process, "Correct", 0, Always),
         CommandId::SpectrumArithmetic | CommandId::AlignSpectra | CommandId::Craft => {
             (Process, "Transform", 1, Always)
@@ -139,7 +137,9 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         ) => (Arrange, "Annotate", 3, Always),
         // The group's own declaration decides where it lands, so a new group
         // needs no arm here.
-        CommandId::PropertyGroup(section) => {
+        CommandId::PropertyGroup(section)
+            if section != crate::ui::properties::panel::PHASE_SECTION =>
+        {
             let spot = crate::ui::properties::discovery::group(section)?.ribbon;
             (spot.tab, spot.group, spot.priority, Always)
         }

@@ -134,7 +134,10 @@ fn overlaid_display_encodings_are_reported_as_ambiguous() {
 fn every_declared_group_has_a_ribbon_home() {
     let app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
     let catalog = commands::catalog(&app);
-    for group in GROUPS {
+    for group in GROUPS
+        .iter()
+        .filter(|group| group.section != super::super::panel::PHASE_SECTION)
+    {
         let descriptor = catalog
             .iter()
             .find(|command| command.id == CommandId::PropertyGroup(group.section))
