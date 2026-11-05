@@ -2,6 +2,10 @@ use super::*;
 use plotium_core::actions::DatasetProcessingState;
 use plotium_core::state::{PhaseAxis, PhaseOrient};
 
+#[cfg(test)]
+#[path = "phase_tests.rs"]
+mod gesture_tests;
+
 pub(crate) struct PhaseDragCtx {
     pub axis: PhaseAxis,
     pub orient: PhaseOrient,
@@ -10,6 +14,75 @@ pub(crate) struct PhaseDragCtx {
     pub map_min: f64,
     pub map_span: f64,
     pub map_rev: bool,
+}
+
+pub(crate) fn selected_phase_axis(app: &PlotiumApp, di: usize) -> PhaseAxis {
+    let dataset = &app.doc.datasets[di];
+    if let Some(volume) = dataset.as_nmr2d().and_then(|n| n.volume.as_ref()) {
+        let selected = app
+            .session
+            .ui
+            .nmr_volume_phase_drafts
+            .get(&dataset.resource_id())
+            .map(|d| d.canvas_axis)
+            .unwrap_or(2);
+        let remaining: Vec<_> = (0..3).filter(|a| *a != volume.fixed_axis).collect();
+        return if selected == remaining[0] {
+            PhaseAxis::F1
+        } else {
+            PhaseAxis::F2
+        };
+    }
+    dataset.active_phase_axis(app.session.ui.phase_axis)
+}
+
+pub(crate) fn phase_axis_picker(app: &mut PlotiumApp, ui: &mut Ui) {
+    if app.session.tool != Tool::ManualPhase {
+        return;
+    }
+    let Some(di) =
+        crate::ui::nmr_volume::phase_target(app).and_then(|id| app.doc.dataset_index(id))
+    else {
+        return;
+    };
+    let dataset = &app.doc.datasets[di];
+    let Some(nmr) = dataset
+        .as_nmr2d()
+        .filter(|n| n.volume.is_none() && n.is_true_2d())
+    else {
+        return;
+    };
+    let labels: Vec<_> = [
+        (PhaseAxis::F2, "Horizontal", 1),
+        (PhaseAxis::F1, "Vertical", 0),
+    ]
+    .into_iter()
+    .map(|(axis, direction, index)| {
+        let nucleus = nmr
+            .native_base
+            .axes()
+            .get(index)
+            .and_then(|a| a.nucleus.as_deref())
+            .unwrap_or("unknown");
+        (
+            axis,
+            format!("{direction} · F{} · {nucleus}", index + 1),
+            crate::ui::nmr_volume::canvas_axis_phaseable(dataset, axis),
+        )
+    })
+    .collect();
+    ui.horizontal_wrapped(|ui| {
+        for (axis, label, enabled) in labels {
+            if ui.add_enabled(enabled, egui::Button::new(label).selected(app.session.ui.phase_axis == axis))
+                .on_disabled_hover_text("Enable a Phase step on this complex frequency-domain axis.").clicked() {
+                app.cancel_interaction(); app.session.ui.phase_axis = axis;
+                if let Some(step) = app.doc.datasets[di].axis_pipeline(axis).and_then(|p| p.steps.iter().find(|s| s.enabled && matches!(s.kind, plotium_processing::StepKind::Phase(_)))) {
+                    app.session.ui.proc_expanded_step = Some((app.doc.datasets[di].resource_id(), step.id));
+                }
+            }
+        }
+        ui.small("Drag vertically: left PH0 · right PH1 · pivot handle moves in ppm. Manual editing takes over automatic phase.");
+    });
 }
 
 #[test]
@@ -41,6 +114,27 @@ pub(crate) fn displayed_phase_pivot_ppm(
     dataset: usize,
     axis: PhaseAxis,
 ) -> Option<f64> {
+    let data = app.doc.datasets.get(dataset)?;
+    if let Some(volume) = data.as_nmr2d().and_then(|n| n.volume.as_ref()) {
+        let draft = app
+            .session
+            .ui
+            .nmr_volume_phase_drafts
+            .get(&data.resource_id())?;
+        if !volume.processed.supports_local_phase_preview()
+            || draft.canvas_axis == volume.fixed_axis
+            || !volume.processed.supports_phase(draft.canvas_axis)
+            || app.session.ui.nmr_volume_phase_busy
+        {
+            return None;
+        }
+        return volume
+            .processed
+            .phase_pivot_scale(draft.canvas_axis)
+            .ok()?
+            .ppm(draft.phases[draft.canvas_axis].pivot_fraction)
+            .ok();
+    }
     if app.doc.datasets[dataset]
         .as_nmr2d()
         .is_some_and(|n| n.volume.is_some())
@@ -105,7 +199,7 @@ pub(crate) fn handle_phase_before_paint(
     };
     let zoom = app.session.board.zoom;
     let plot = plot_screen_box(&app.doc.canvases[ci], object_id, figure, outer, zoom);
-    let axis = app.doc.datasets[di].active_phase_axis(app.session.ui.phase_axis);
+    let axis = selected_phase_axis(app, di);
     let Some(pivot_ppm) = displayed_phase_pivot_ppm(app, di, axis) else {
         return;
     };
@@ -150,6 +244,13 @@ pub(crate) fn handle_phase_drag(
     ctx: PhaseDragCtx,
     ui: &Ui,
 ) -> bool {
+    if app.doc.datasets[di]
+        .as_nmr2d()
+        .is_some_and(|n| n.volume.is_some())
+    {
+        volume_phase_drag(app, di, rect, plot, &ctx, ui);
+        return false;
+    }
     let (hover, p_down, s_down, p_pressed, s_pressed, delta) = ui.input(|i| {
         (
             i.pointer.hover_pos(),
@@ -271,4 +372,181 @@ pub(crate) fn finish_phase_drag(app: &mut PlotiumApp) {
     let Interaction::Phase(_) = app.take_interaction() else {
         return;
     };
+}
+
+#[derive(Clone)]
+struct VolumeDrag {
+    id: plotium_core::state::DatasetId,
+    project: plotium_core::state::ProjectContextId,
+    axis: usize,
+    fixed: usize,
+    index: usize,
+    kind: PhaseDragKind,
+    before: plotium_core::state::NmrVolumePhaseDraft,
+}
+pub(crate) fn cancel_volume_drag(app: &mut PlotiumApp, ctx: &egui::Context) -> bool {
+    let key = egui::Id::new("volume_phase_drag");
+    let Some(drag) = ctx.data(|data| data.get_temp::<VolumeDrag>(key)) else {
+        return false;
+    };
+    ctx.data_mut(|data| data.remove::<VolumeDrag>(key));
+    let valid = drag.project == app.session.project_context
+        && app
+            .doc
+            .dataset_by_id(drag.id)
+            .and_then(Dataset::as_nmr2d)
+            .and_then(|n| n.volume.as_ref())
+            .is_some_and(|volume| {
+                volume.phases == drag.before.baseline
+                    && drag
+                        .before
+                        .source
+                        .ptr_eq(&std::sync::Arc::downgrade(volume.source.dataset()))
+            });
+    if valid {
+        app.session
+            .ui
+            .nmr_volume_phase_drafts
+            .insert(drag.id, drag.before);
+    }
+    app.session.status = "Cancelled phase drag.".to_owned();
+    true
+}
+pub(crate) fn validate_volume_drag(app: &PlotiumApp, ctx: &egui::Context) {
+    let key = egui::Id::new("volume_phase_drag");
+    let Some(drag) = ctx.data(|data| data.get_temp::<VolumeDrag>(key)) else {
+        return;
+    };
+    let valid = app.session.tool == Tool::ManualPhase
+        && ctx.input(|i| {
+            i.pointer.primary_down() || i.pointer.secondary_down() || i.pointer.any_released()
+        })
+        && crate::ui::nmr_volume::phase_target(app) == Some(drag.id)
+        && app.session.project_context == drag.project
+        && !app.session.ui.nmr_volume_phase_busy
+        && app
+            .doc
+            .dataset_by_id(drag.id)
+            .and_then(Dataset::as_nmr2d)
+            .and_then(|n| n.volume.as_ref())
+            .is_some_and(|v| {
+                v.fixed_axis == drag.fixed
+                    && v.index == drag.index
+                    && v.phases == drag.before.baseline
+                    && drag
+                        .before
+                        .source
+                        .ptr_eq(&std::sync::Arc::downgrade(v.source.dataset()))
+            })
+        && app
+            .session
+            .ui
+            .nmr_volume_phase_drafts
+            .get(&drag.id)
+            .is_some_and(|d| d.canvas_axis == drag.axis);
+    if !valid {
+        ctx.data_mut(|data| data.remove::<VolumeDrag>(key));
+    }
+}
+fn volume_phase_drag(
+    app: &mut PlotiumApp,
+    di: usize,
+    rect: egui::Rect,
+    plot: PlotRect,
+    ctx: &PhaseDragCtx,
+    ui: &Ui,
+) {
+    let id = app.doc.datasets[di].resource_id();
+    let Some(draft) = app.session.ui.nmr_volume_phase_drafts.get(&id).cloned() else {
+        return;
+    };
+    let volume = app.doc.datasets[di]
+        .as_nmr2d()
+        .and_then(|n| n.volume.as_ref())
+        .expect("volume gesture target");
+    let key = egui::Id::new("volume_phase_drag");
+    let (hover, primary, secondary, pressed, right_pressed, delta, escape) = ui.input(|i| {
+        (
+            i.pointer.hover_pos(),
+            i.pointer.primary_down(),
+            i.pointer.secondary_down(),
+            i.pointer.primary_pressed(),
+            i.pointer.secondary_pressed(),
+            i.pointer.delta(),
+            i.key_pressed(egui::Key::Escape),
+        )
+    });
+    let mut drag = ui.ctx().data(|data| data.get_temp::<VolumeDrag>(key));
+    if drag.is_none() && (pressed || right_pressed) && hover.is_some_and(|p| rect.contains(p)) {
+        let p = hover.expect("checked pointer");
+        let position = if ctx.orient == PhaseOrient::Vertical {
+            p.x
+        } else {
+            p.y
+        };
+        let kind = if (position - ctx.piv_px).abs() <= PIVOT_GRAB_PX {
+            PhaseDragKind::Pivot
+        } else if right_pressed {
+            PhaseDragKind::Ph1
+        } else {
+            PhaseDragKind::Ph0
+        };
+        drag = Some(VolumeDrag {
+            id,
+            project: app.session.project_context,
+            axis: draft.canvas_axis,
+            fixed: volume.fixed_axis,
+            index: volume.index,
+            kind,
+            before: draft.clone(),
+        });
+    }
+    let Some(drag) = drag else {
+        return;
+    };
+    if drag.id != id
+        || drag.project != app.session.project_context
+        || drag.axis != draft.canvas_axis
+        || drag.fixed != volume.fixed_axis
+        || drag.index != volume.index
+        || !drag.before.source.ptr_eq(&draft.source)
+        || drag.before.baseline != draft.baseline
+        || app.session.ui.nmr_volume_phase_busy
+    {
+        ui.ctx().data_mut(|data| data.remove::<VolumeDrag>(key));
+        return;
+    }
+    let scale = volume.processed.phase_pivot_scale(drag.axis);
+    let mut next = draft;
+    if escape {
+        next = drag.before.clone();
+    } else {
+        let phase = &mut next.phases[drag.axis];
+        match drag.kind {
+            PhaseDragKind::Ph0 => phase.p0_degrees -= delta.y as f64 * PH0_PER_PX.to_degrees(),
+            PhaseDragKind::Ph1 => phase.p1_degrees -= delta.y as f64 * PH1_PER_PX.to_degrees(),
+            PhaseDragKind::Pivot => {
+                if let Some(p) = hover {
+                    let ppm = if ctx.orient == PhaseOrient::Vertical {
+                        screen_to_x(p.x, plot, ctx.map_min, ctx.map_span, ctx.map_rev)
+                    } else {
+                        screen_to_y(p.y, plot, ctx.map_min, ctx.map_span, ctx.map_rev)
+                    };
+                    if let Err(error) = scale
+                        .and_then(|scale| scale.fraction(ppm))
+                        .and_then(|q| phase.repivot(q))
+                    {
+                        app.session.status = format!("Cannot move phase pivot: {error}");
+                    }
+                }
+            }
+        }
+    }
+    app.session.ui.nmr_volume_phase_drafts.insert(id, next);
+    if escape || (!primary && !secondary) {
+        ui.ctx().data_mut(|data| data.remove::<VolumeDrag>(key));
+    } else {
+        ui.ctx().data_mut(|data| data.insert_temp(key, drag));
+    }
+    ui.ctx().request_repaint();
 }

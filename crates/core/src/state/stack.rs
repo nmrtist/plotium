@@ -516,12 +516,21 @@ impl PlotiumApp {
 
     /// Make `di` the sole selection (a plain Data-list click), so it also leads.
     pub fn focus_single(&mut self, di: usize) {
+        if self.active_dataset() != Some(di) && self.session.tool == Tool::ManualPhase {
+            self.cancel_interaction();
+            self.set_tool(Tool::BrowseZoom);
+        }
         self.session.ui.data_selection = vec![di];
     }
 
     /// Replace the selection with `items`; when `lead` is given it is moved to the
     /// end so it becomes the active dataset, otherwise `items`' last element leads.
     pub fn focus_datasets(&mut self, items: &[usize], lead: Option<usize>) {
+        let next = lead.or_else(|| items.last().copied());
+        if self.active_dataset() != next && self.session.tool == Tool::ManualPhase {
+            self.cancel_interaction();
+            self.set_tool(Tool::BrowseZoom);
+        }
         match lead {
             Some(lead) => {
                 let mut set: Vec<usize> = items.iter().copied().filter(|&d| d != lead).collect();

@@ -79,6 +79,7 @@ impl Theme {
 /// live in the variant so the scene list stays a plain data table.
 #[derive(Clone, Copy)]
 enum Op {
+    VolumePhase,
     Workspace(bool),
     ImportResults,
     TableDraftConflict,
@@ -306,6 +307,7 @@ fn themes_from_env() -> Vec<Theme> {
 
 fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), String> {
     match op {
+        Op::VolumePhase => volume_phase_shot(app, ctx)?,
         Op::Workspace(content) => workspace_shot::setup(app, content),
         Op::ImportResults => workspace_shot::imports(app),
         Op::TableDraftConflict => table_shot::conflict(app)?,
@@ -340,6 +342,47 @@ fn run_op(op: Op, app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), Strin
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w, h)));
         }
     }
+    Ok(())
+}
+
+fn volume_phase_shot(app: &mut PlotiumApp, ctx: &egui::Context) -> Result<(), String> {
+    use plotium_core::state::{NmrVolumePhaseDraft, TaskDockTab};
+    *app = PlotiumApp::new_with_settings(Settings::default());
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../io/tests/fixtures/nmr/bruker-3d-qf");
+    let loaded = plotium_io::load_path(fixture).map_err(|e| e.to_string())?;
+    let (dataset, _) = plotium_core::workflow::dataset_from_acquisition(loaded.acquisition)
+        .map_err(|e| e.to_string())?;
+    let id = dataset.resource_id();
+    let action = Action::insert_dataset_with_default_canvas(
+        app,
+        dataset,
+        "Phase fixture".into(),
+        DEFAULT_CANVAS_SIZE_MM,
+    );
+    app.execute_action(action);
+    app.focus_single(0);
+    let volume = app.doc.datasets[0]
+        .as_nmr2d()
+        .and_then(|n| n.volume.as_ref())
+        .ok_or("Expected a volume")?;
+    let mut phases = volume.phases;
+    phases[2].p0_degrees = 31.0;
+    phases[2].p1_degrees = -47.0;
+    app.session.ui.nmr_volume_phase_drafts.insert(
+        id,
+        NmrVolumePhaseDraft {
+            source: Arc::downgrade(volume.source.dataset()),
+            baseline: volume.phases,
+            phases,
+            canvas_axis: 2,
+        },
+    );
+    app.session.ui.processing_task_dataset = Some(id);
+    app.session.ui.open_task_tab(TaskDockTab::Processing);
+    app.set_tool(Tool::ManualPhase);
+    app.session.ui.ribbon_tab = WorkflowTab::Process;
+    crate::ui::canvas::request_board_fit(app, ctx, FrameRef::Page(0));
     Ok(())
 }
 

@@ -3,6 +3,8 @@ use plotium_io::nmr_view::NmrSource;
 use std::sync::Arc;
 
 use nmr::ExecutionContext;
+#[path = "nmr_volume_preview.rs"]
+mod preview;
 use nmr::axis::{AxisDomain, AxisRole, AxisUnit};
 use nmr::processed::{ProcessedAxis, ProcessedDataset};
 use nmr::processing::{
@@ -75,6 +77,9 @@ impl NmrVolume {
                     .map_err(|e| e.to_string())?,
                 });
             }
+        }
+        if operations.is_empty() {
+            return Self::from_processed(source.clone());
         }
         let output = ProcessingPlan::new(operations)
             .and_then(|plan| plan.apply_with_context(source.dataset(), options, context))

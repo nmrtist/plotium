@@ -58,7 +58,8 @@ mod panel_notes;
 mod panel_selection;
 mod peaks;
 mod peaks3d;
-mod phase;
+pub(super) mod phase;
+pub(super) use phase::cancel_volume_drag;
 mod plot_annotation_menu;
 mod plot_labels;
 mod plot_marks;
@@ -145,7 +146,10 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         return;
     };
     canvas_breadcrumb(app, ci, ui);
+    phase::phase_axis_picker(app, ui);
     super::nmr_volume::navigation(app, ui);
+    super::nmr_phase_preview::update(app, ui.ctx());
+    phase::validate_volume_drag(app, ui.ctx());
     let avail = ui.available_rect_before_wrap();
     let (resp, painter) = ui.allocate_painter(avail.size(), Sense::click_and_drag());
     let geometry = super::workspace_geometry(app, resp.rect, ui.ctx());
@@ -181,6 +185,8 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         };
     // `dispatch_frame_gesture` may have switched the active frame.
     let ci = app.session.active_canvas.unwrap_or(ci);
+
+    super::phase_context::reconcile(app, ui.ctx());
 
     // Processing direct manipulation must update the document before its plots
     // are painted, so the changed spectrum is visible in this same frame.
@@ -342,7 +348,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
                 if super::nmr_volume::phase_target(app)
                     == Some(app.doc.datasets[di].resource_id()) =>
             {
-                let axis = app.doc.datasets[di].active_phase_axis(app.session.ui.phase_axis);
+                let axis = phase::selected_phase_axis(app, di);
                 if let Some(pivot_ppm) = displayed_phase_pivot_ppm(app, di, axis) {
                     let fig = &app.doc.canvases[ci]
                         .object(object_id)

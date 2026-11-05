@@ -24,7 +24,7 @@ use super::{CraftRunId, DatasetId, DosyResultProvenance};
 use crate::{IltParams, build_dosy_figure_cancellable, build_ilt_figure_cancellable};
 
 #[path = "compute_field.rs"]
-mod compute_field;
+pub(super) mod compute_field;
 pub(crate) use compute_field::FieldEnqueueError;
 #[path = "compute_worker.rs"]
 mod compute_worker;

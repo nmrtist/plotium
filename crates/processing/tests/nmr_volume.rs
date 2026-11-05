@@ -15,6 +15,313 @@ fn fixture() -> PathBuf {
 }
 
 #[test]
+fn local_phase_preview_replaces_committed_phase_and_repivots_with_engine() {
+    let input = source(&fixture());
+    let mut baseline = [VolumePhase::default(); 3];
+    baseline[2] = VolumePhase {
+        p0_degrees: 37.0,
+        p1_degrees: -81.0,
+        pivot_fraction: 0.27,
+    };
+    let committed = NmrVolume::process(
+        &input,
+        baseline,
+        Default::default(),
+        &mut ExecutionContext::default(),
+    )
+    .unwrap();
+    let mut draft = baseline;
+    draft[2] = VolumePhase {
+        p0_degrees: -19.0,
+        p1_degrees: 131.0,
+        pivot_fraction: 0.73,
+    };
+    let applied = NmrVolume::process(
+        &input,
+        draft,
+        Default::default(),
+        &mut ExecutionContext::default(),
+    )
+    .unwrap();
+    for fixed in 0..3 {
+        for index in 0..committed.shape()[fixed] {
+            let started = std::time::Instant::now();
+            let preview = committed
+                .phase_preview_plane(
+                    fixed,
+                    index,
+                    baseline,
+                    draft,
+                    &mut ExecutionContext::default(),
+                )
+                .unwrap();
+            eprintln!(
+                "local preview debug numerical profile: {:?}, fixed={fixed}, elapsed={:?}",
+                committed.shape(),
+                started.elapsed()
+            );
+            let expected = applied.plane_source(fixed, index).unwrap();
+            let mut repivoted = draft;
+            repivoted[2].repivot(0.11).unwrap();
+            let invariant = committed
+                .phase_preview_plane(
+                    fixed,
+                    index,
+                    baseline,
+                    repivoted,
+                    &mut ExecutionContext::default(),
+                )
+                .unwrap();
+            // Compare every stored component, including imaginary lanes, against
+            // a fresh source-to-volume execution by the actual nmr engine.
+            for ((actual, expected), invariant) in preview
+                .dataset()
+                .as_processed()
+                .unwrap()
+                .data()
+                .samples()
+                .iter()
+                .zip(expected.dataset().as_processed().unwrap().data().samples())
+                .zip(invariant.dataset().as_processed().unwrap().data().samples())
+            {
+                assert!((actual - expected).abs() < 1e-8);
+                assert!((actual - invariant).abs() < 1e-8);
+            }
+        }
+    }
+}
+
+fn cartesian_volume(shape: [usize; 3], reverse: bool) -> plotium_io::nmr_view::NmrSource {
+    component_volume(
+        shape,
+        reverse,
+        [const { nmr::processed::ComponentBasis::Cartesian }; 3],
+    )
+}
+
+fn component_volume(
+    shape: [usize; 3],
+    reverse: bool,
+    bases: [nmr::processed::ComponentBasis; 3],
+) -> plotium_io::nmr_view::NmrSource {
+    use nmr::axis::{AxisCoordinates, AxisDomain, AxisRole, AxisUnit};
+    use nmr::processed::{ComponentBasis, ProcessedAxis, ProcessedDescriptor};
+    let parent_volume = NmrVolume::process_source(&source(&fixture())).unwrap();
+    let parent = parent_volume.source();
+    let axes = shape
+        .into_iter()
+        .enumerate()
+        .map(|(index, points)| {
+            ProcessedAxis::new(
+                AxisRole::Signal,
+                AxisDomain::Frequency,
+                Some(AxisUnit::Ppm),
+                points,
+                AxisCoordinates::Uniform {
+                    start: 12.0,
+                    step: if reverse { -0.031 } else { 0.031 },
+                },
+                bases[index].clone(),
+            )
+            .unwrap()
+        })
+        .collect();
+    let samples = (0..shape.iter().product::<usize>()
+        * bases
+            .iter()
+            .map(ComponentBasis::component_count)
+            .product::<usize>())
+        .map(|i| (i as f64 * 0.171).sin() + (i as f64 * 0.031).cos())
+        .collect();
+    let lineage = (0..3)
+        .map(|axis| {
+            nmr::external::ExternalAxisSource::Parent(nmr::provenance::InputAxisRef::new(
+                nmr::provenance::InputSlot::new(0),
+                axis,
+            ))
+        })
+        .collect();
+    let output = parent
+        .dataset()
+        .derive_external_processed(
+            ProcessedDescriptor::new(axes).unwrap(),
+            samples,
+            lineage,
+            nmr::external::ExternalAlgorithmDeclaration::new(
+                "plotium.test.cartesian-volume",
+                "1",
+                "Synthetic hypercomplex fixture",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    plotium_io::nmr_view::NmrSource::new(std::sync::Arc::new(output)).unwrap()
+}
+
+#[test]
+fn unsupported_bases_never_claim_local_phase_capability() {
+    use nmr::processed::ComponentBasis;
+    for conjugated in [false, true] {
+        let bases = [
+            ComponentBasis::SharedComplex {
+                axis: nmr::acquisition::AxisIndex::new(2),
+                conjugated,
+            },
+            ComponentBasis::Cartesian,
+            ComponentBasis::Cartesian,
+        ];
+        let input = component_volume([3, 5, 7], true, bases);
+        let volume = NmrVolume::process_source(&input).unwrap();
+        assert!(!volume.supports_local_phase_preview());
+        assert!(
+            volume
+                .phase_preview_plane(
+                    0,
+                    1,
+                    [VolumePhase::default(); 3],
+                    [VolumePhase::default(); 3],
+                    &mut ExecutionContext::default()
+                )
+                .unwrap_err()
+                .contains("independent Cartesian")
+        );
+    }
+    let input = component_volume([3, 5, 7], false, [const { ComponentBasis::Scalar }; 3]);
+    let volume = NmrVolume::process_source(&input).unwrap();
+    assert!((0..3).all(|axis| !volume.supports_phase(axis)));
+    let mut draft = [VolumePhase::default(); 3];
+    draft[0].p0_degrees = 31.0;
+    assert!(
+        volume
+            .phase_preview_plane(
+                0,
+                1,
+                [VolumePhase::default(); 3],
+                draft,
+                &mut ExecutionContext::default()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn hypercomplex_local_preview_matches_engine_on_all_axes_and_reversed_grids() {
+    for reverse in [false, true] {
+        let input = cartesian_volume([7, 5, 9], reverse);
+        let baseline = std::array::from_fn(|axis| VolumePhase {
+            p0_degrees: 13.0 + axis as f64 * 11.0,
+            p1_degrees: -57.0,
+            pivot_fraction: 0.19,
+        });
+        let committed = NmrVolume::process(
+            &input,
+            baseline,
+            Default::default(),
+            &mut ExecutionContext::default(),
+        )
+        .unwrap();
+        for changed in 0..3 {
+            let mut draft = baseline;
+            draft[changed] = VolumePhase {
+                p0_degrees: -41.0,
+                p1_degrees: 93.0,
+                pivot_fraction: 0.83,
+            };
+            let applied = NmrVolume::process(
+                &input,
+                draft,
+                Default::default(),
+                &mut ExecutionContext::default(),
+            )
+            .unwrap();
+            for fixed in 0..3 {
+                for index in [
+                    0,
+                    committed.shape()[fixed] / 2,
+                    committed.shape()[fixed] - 1,
+                ] {
+                    let preview = committed
+                        .phase_preview_plane(
+                            fixed,
+                            index,
+                            baseline,
+                            draft,
+                            &mut ExecutionContext::default(),
+                        )
+                        .unwrap();
+                    let expected = applied.plane_source(fixed, index).unwrap();
+                    let mut moved = draft;
+                    moved[changed].repivot(0.07).unwrap();
+                    let invariant = committed
+                        .phase_preview_plane(
+                            fixed,
+                            index,
+                            baseline,
+                            moved,
+                            &mut ExecutionContext::default(),
+                        )
+                        .unwrap();
+                    for ((a, b), c) in preview
+                        .dataset()
+                        .as_processed()
+                        .unwrap()
+                        .data()
+                        .samples()
+                        .iter()
+                        .zip(expected.dataset().as_processed().unwrap().data().samples())
+                        .zip(invariant.dataset().as_processed().unwrap().data().samples())
+                    {
+                        assert!(
+                            (a - b).abs() < 1e-10,
+                            "reverse={reverse} changed={changed} fixed={fixed} index={index}"
+                        );
+                        assert!((a - c).abs() < 1e-10);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "explicit local preview benchmark"]
+fn benchmark_local_phase_preview() {
+    let input = cartesian_volume([64, 128, 256], true);
+    let committed = NmrVolume::process_source(&input).unwrap();
+    let baseline = [VolumePhase::default(); 3];
+    let draft = [VolumePhase {
+        p0_degrees: 21.0,
+        p1_degrees: -137.0,
+        pivot_fraction: 0.37,
+    }; 3];
+    for fixed in 0..3 {
+        let mut times = Vec::new();
+        for _ in 0..10 {
+            let start = std::time::Instant::now();
+            std::hint::black_box(
+                committed
+                    .phase_preview_plane(
+                        fixed,
+                        0,
+                        baseline,
+                        draft,
+                        &mut ExecutionContext::default(),
+                    )
+                    .unwrap(),
+            );
+            times.push(start.elapsed());
+        }
+        times.sort();
+        eprintln!(
+            "shape={:?}, 8 components, fixed={fixed}, median={:?}, max={:?}",
+            committed.shape(),
+            times[5],
+            times[9]
+        );
+    }
+}
+
+#[test]
 fn processes_unequal_axes_and_preserves_indexed_signed_peaks() {
     let volume = NmrVolume::process(
         &source(&fixture()),

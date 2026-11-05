@@ -33,11 +33,15 @@ pub(super) fn active_volume(app: &PlotiumApp) -> bool {
 }
 
 pub(super) fn open_phase(app: &mut PlotiumApp) {
+    if app.session.tool == plotium_core::state::Tool::ManualPhase {
+        app.toggle_tool(plotium_core::state::Tool::ManualPhase);
+        return;
+    }
     if let Some(di) = phase_target(app).and_then(|id| app.doc.dataset_index(id)) {
         app.focus_single(di);
     }
     app.cancel_interaction();
-    app.set_tool(plotium_core::state::Tool::BrowseZoom);
+    app.toggle_tool(plotium_core::state::Tool::ManualPhase);
     super::tools::expand_processing_surface(app);
     app.session.ui.processing_task_collapsed = false;
 }
@@ -240,7 +244,8 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
             .unwrap_or("unknown");
         (
             format!("F{} · {nucleus} · {}", axis + 1, axis_role(axis, fixed)),
-            volume.processed.supports_phase(axis),
+            volume.processed.supports_phase(axis)
+                && volume.processed.supports_local_phase_preview(),
             volume.processed.phase_pivot_scale(axis),
         )
     });
@@ -266,20 +271,40 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
     task_card::area(host, area_id, geometry.pos).show(host.ctx(), |ui| {
         ui.set_width(geometry.width);
         crate::ui::card_frame(ui.visuals().dark_mode, egui::Margin::ZERO).show(ui, |ui| {
-            task_card::header(ui, area_id, "Phase", Some(name.as_str()), |ui| {
+            task_card::header(ui, area_id, "Phase correction", Some(name.as_str()), |ui| {
                 let response = crate::ui::panel_chrome::close(ui, "Close Phase")
-                    .on_hover_text("Hide Phase. Keeps the draft and lets any calculation continue.");
+                    .on_hover_text("Exit canvas phasing and hide Phase and its preview. Keep the draft and let any calculation continue.");
                 if response.clicked() { close = true; }
             });
             if collapsed { return; }
             egui::ScrollArea::vertical().max_height(geometry.body_height).show(ui, |ui| {
-                ui.label("Applies to the entire 3D spectrum. The current plane is for observation.");
+                ui.label("Apply changes the entire 3D spectrum. Preview changes only this displayed plane.");
+                let command = CommandId::Tool(plotium_core::state::Tool::ManualPhase);
+                let desc = commands::describe(app, command);
+                let active = app.session.tool == plotium_core::state::Tool::ManualPhase;
+                if ui.add_enabled(desc.enabled && owns_target, egui::Button::new("Canvas phasing").selected(active))
+                    .on_disabled_hover_text(if owns_target { desc.disabled_reason.unwrap_or_default() } else { "Select this spectrum before changing its canvas phasing mode." }).clicked() {
+                    commands::execute_without_clipboard(command, app, ui.ctx());
+                }
+                if active && busy {
+                    ui.small("Canvas phasing paused while the phase calculation runs.");
+                } else if active && !axes[draft.canvas_axis].1 {
+                    ui.small("Canvas phasing paused: this axis needs independent Cartesian frequency-domain components.");
+                } else if active && canvas_phase_target(app) != Some(id) {
+                    ui.small("Canvas phasing paused: select a plot of this spectrum on the active canvas. Numeric controls remain available.");
+                } else if active && draft.canvas_axis == fixed {
+                    ui.small("Canvas phasing paused: choose a plane containing the selected axis. Numeric controls remain available.");
+                } else if active {
+                    ui.small("Drag vertically: left PH0, right PH1; move the pivot handle in ppm. Esc exits canvas phasing and keeps the draft.");
+                } else {
+                    ui.small("Canvas phasing off. Numeric edits automatically preview the current plane.");
+                }
                 ui.small("PH0 and PH1 set the correction on the source data. Apply replaces the previous settings. An absorptive spectrum has not been independently confirmed.");
                 if stale {
                     ui.label("The source or committed phase changed. Editing starts from the current settings.");
                 }
                 if draft.phases != committed {
-                    ui.strong("Changes have not been applied. No live preview.");
+                    ui.strong(super::nmr_phase_preview::feedback(app, ui.ctx()));
                 }
                 if let Some(job) = &job {
                     ui.spinner();
@@ -295,11 +320,16 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
                     ui.small("Select this spectrum to edit its phase, or open Phase for the current spectrum.");
                 }
                 ui.push_id(id, |ui| ui.add_enabled_ui(!busy && owns_target, |ui| {
+                    for (axis, (label, supported, _)) in axes.iter().enumerate() {
+                        if ui.add_enabled(*supported, egui::Button::new(label).selected(draft.canvas_axis == axis))
+                            .on_disabled_hover_text("Choose an axis with independent Cartesian frequency-domain components.").clicked() { draft.canvas_axis = axis; }
+                    }
                     for (axis, (label, supported, scale)) in axes.iter().enumerate() {
+                        if draft.canvas_axis != axis { continue; }
                         ui.separator();
                         ui.strong(label);
                         if !supported {
-                            ui.small("Phase unavailable: this axis needs a complex frequency-domain signal.");
+                            ui.small("Phase unavailable: use independent Cartesian frequency-domain components.");
                             continue;
                         }
                         let phase = &mut draft.phases[axis];
@@ -329,14 +359,14 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
                 }));
                 let dirty = draft.phases != committed;
                 if ui.add_enabled(!busy && dirty, egui::Button::new("Discard changes")).clicked()
-                    || (!busy && !dirty && !stale)
+
                 {
                     discard_phase_draft(app, id);
-                } else if dirty {
+                } else {
                     app.session.ui.nmr_volume_phase_drafts.insert(id, draft);
                 }
                 let desc = commands::describe(app, CommandId::ApplyNmrVolumePhase);
-                if ui.add_enabled(desc.enabled && owns_target, egui::Button::new("Apply"))
+                if ui.add_enabled(desc.enabled && owns_target, egui::Button::new("Apply to 3D spectrum"))
                     .on_disabled_hover_text(desc.disabled_reason.unwrap_or_default()).clicked() {
                     commands::execute_without_clipboard(CommandId::ApplyNmrVolumePhase, app, ui.ctx());
                 }
@@ -344,6 +374,7 @@ pub(super) fn processing(app: &mut PlotiumApp, host: &mut Ui, di: usize) {
         });
     });
     if close {
+        app.set_tool(plotium_core::state::Tool::BrowseZoom);
         app.session.ui.close_task_tab(TaskDockTab::Processing);
     }
 }
@@ -464,6 +495,9 @@ fn phase_draft(
     }
     (
         plotium_core::state::NmrVolumePhaseDraft {
+            canvas_axis: (0..3)
+                .find(|axis| *axis != volume.fixed_axis && volume.processed.supports_phase(*axis))
+                .unwrap_or(2),
             source,
             baseline: volume.phases,
             phases: volume.phases,
@@ -498,7 +532,12 @@ pub(super) fn open_phase_gate(app: &PlotiumApp) -> Result<(), &'static str> {
         return require_volume_phase(volume);
     }
     let axis = dataset.active_phase_axis(app.session.ui.phase_axis);
-    if !canvas_axis_phaseable(dataset, axis) {
+    if !canvas_axis_phaseable(dataset, axis)
+        && !dataset
+            .phase_axes()
+            .iter()
+            .any(|axis| canvas_axis_phaseable(dataset, *axis))
+    {
         return Err(
             "Enable a Phase step on the current frequency-domain axis, or choose another axis in Processing.",
         );

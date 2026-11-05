@@ -22,6 +22,7 @@ mod export_dialog;
 mod feedback_banner;
 mod figure_typography;
 mod paused_results_notice;
+mod phase_context;
 pub(crate) mod plot_annotations;
 use feedback_banner::feedback_banner;
 pub(crate) mod file_dialogs;
@@ -92,6 +93,7 @@ pub fn render(
     ribbon_chrome: RibbonChrome,
 ) {
     let ctx = ui.ctx().clone();
+    phase_context::reconcile(app, &ctx);
     nmr_volume::poll_phase(app, &ctx);
     if let plotium_core::state::Interaction::Phase(drag) = app.interaction()
         && nmr_volume::phase_target(app) != Some(drag.dataset)
@@ -193,6 +195,7 @@ pub fn render(
 
     let workspace_width = ui.available_width();
     sidebars::render(app, ui, dark, workspace_width);
+    phase_context::reconcile(app, &ctx);
 
     // A sidebar may have changed an expanded Phase step before the canvas paints.
     app.sync_phase_interaction();
@@ -692,5 +695,6 @@ mod feedback_tests {
     }
 }
 
+mod nmr_phase_preview;
 mod nmr_volume;
 mod peaks3d;

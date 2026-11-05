@@ -15,6 +15,26 @@ pub struct NmrVolumeState {
 }
 
 impl Nmr2DDataset {
+    /// Build disposable display geometry without installing scientific state.
+    pub fn phase_preview_contours(
+        &self,
+        plane: NmrSource,
+        key: ContourGeometryCacheKey,
+        style: plotium_figure::ContourStyle,
+    ) -> Result<plotium_figure::Figure, String> {
+        let mut display = self.clone();
+        display.replace_volume_plane(plane)?;
+        let Processed2D::Ft(spectrum) = &display.processed else {
+            return Err("Phase preview requires a frequency plane".into());
+        };
+        let grid = std::sync::Arc::new(nmr_scalar_grid(spectrum, spectrum.real()));
+        let geometry = super::compute::compute_field::run_build_contour(key, grid)?;
+        Ok(super::datasets_2d_figure::apply_contour_geometry(
+            (*display.processed_figure).clone(),
+            &geometry,
+            &style,
+        ))
+    }
     pub fn load_volume(source: NmrSource) -> Result<Self, String> {
         let phases = [VolumePhase::default(); 3];
         Self::load_volume_state(source, phases, 0, None)

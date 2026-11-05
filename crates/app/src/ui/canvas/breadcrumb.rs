@@ -40,6 +40,11 @@ pub(crate) fn canvas_breadcrumb(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) {
             ui.small(phase);
         }
     });
+    if app.session.active_canvas == Some(ci)
+        && let Some(feedback) = crate::ui::nmr_phase_preview::canvas_feedback(app, ui.ctx())
+    {
+        ui.small(feedback);
+    }
     ui.add_space(2.0);
     match clicked {
         Some(BreadcrumbTarget::Canvas) => app.exit_panel_scope(),
@@ -63,6 +68,32 @@ fn phase_target(app: &PlotiumApp, ci: usize) -> String {
         return "Phase · Select a plot of the chosen spectrum".into();
     }
     let axis = dataset.active_phase_axis(app.session.ui.phase_axis);
+    if let Some(volume) = dataset.as_nmr2d().and_then(|n| n.volume.as_ref()) {
+        let id = dataset.resource_id();
+        if let Some(draft) = app.session.ui.nmr_volume_phase_drafts.get(&id) {
+            let a = draft.canvas_axis;
+            let nucleus = volume.source.axes()[a]
+                .nucleus
+                .as_deref()
+                .unwrap_or("unknown");
+            return format!(
+                "Phase · {} · F{} · {nucleus} · {} · Apply: entire volume",
+                dataset.display_name(),
+                a + 1,
+                if a == volume.fixed_axis {
+                    "fixed (numeric controls)"
+                } else if axis == PhaseAxis::F1 {
+                    "vertical"
+                } else {
+                    "horizontal"
+                }
+            );
+        }
+        return format!(
+            "Phase · {} · choose an acquisition axis",
+            dataset.display_name()
+        );
+    }
     let (nucleus, scope) = match dataset {
         Dataset::Nmr(nmr) => (nmr.data.axes().first(), "whole spectrum"),
         Dataset::Nmr2D(nmr) if nmr.volume.is_none() => (

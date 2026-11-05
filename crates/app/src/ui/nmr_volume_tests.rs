@@ -16,11 +16,11 @@ fn volume_phase_settings_end_peak_editing_and_open_processing() {
     let description = commands::describe(&app, id);
     assert!(description.enabled, "{:?}", description.disabled_reason);
     assert!(description.ribbon.is_some());
-    assert_eq!(description.checked, None);
+    assert_eq!(description.checked, Some(false));
     assert_eq!(description.label, "Phase");
     app.set_tool(plotium_core::state::Tool::Peaks);
     commands::execute_without_clipboard(id, &mut app, &egui::Context::default());
-    assert_eq!(app.session.tool, plotium_core::state::Tool::BrowseZoom);
+    assert_eq!(app.session.tool, plotium_core::state::Tool::ManualPhase);
     assert_eq!(app.session.ui.processing_task_dataset, Some(owner));
     assert!(!app.session.ui.processing_task_collapsed);
 }
@@ -50,6 +50,7 @@ fn volume_navigation_renders_and_disables_endpoint_steps() {
         .unwrap()
         .phases;
     let mut draft = plotium_core::state::NmrVolumePhaseDraft {
+        canvas_axis: 2,
         source: std::sync::Arc::downgrade(
             app.doc.datasets[0]
                 .as_nmr2d()
@@ -410,10 +411,36 @@ fn phase_routes_volume_selection_by_scope() {
 
     app.focus_single(di);
     app.session.ui.selection_scope = SelectionScope::DataList;
+    // The previously selected data-list dataset is already focused; leave the
+    // canvas tool explicitly before activating the new target.
+    app.set_tool(Tool::BrowseZoom);
     commands::execute_without_clipboard(command, &mut app, &ctx);
-    assert_eq!(app.session.tool, Tool::BrowseZoom);
+    assert_eq!(app.session.tool, Tool::ManualPhase);
     assert_eq!(
         app.session.ui.processing_task_dataset,
         Some(app.doc.datasets[di].resource_id())
     );
+}
+
+#[test]
+fn volume_phase_toggle_retains_card_and_draft() {
+    use plotium_core::state::Tool;
+    let mut app = PlotiumApp::new();
+    app.doc.datasets.push(volume_fixture());
+    app.focus_single(0);
+    let ctx = egui::Context::default();
+    let command = CommandId::Tool(Tool::ManualPhase);
+    commands::execute_without_clipboard(command, &mut app, &ctx);
+    let owner = app.session.ui.processing_task_dataset;
+    let id = owner.unwrap();
+    let mut draft = phase_draft(&app, id, volume(&app)).0;
+    draft.phases[2].p0_degrees = 17.0;
+    let phases = draft.phases;
+    app.session.ui.nmr_volume_phase_drafts.insert(id, draft);
+    assert_eq!(commands::describe(&app, command).checked, Some(true));
+    commands::execute_without_clipboard(command, &mut app, &ctx);
+    assert_ne!(app.session.tool, Tool::ManualPhase);
+    assert_eq!(app.session.ui.processing_task_dataset, owner);
+    assert_eq!(commands::describe(&app, command).checked, Some(false));
+    assert_eq!(app.session.ui.nmr_volume_phase_drafts[&id].phases, phases);
 }

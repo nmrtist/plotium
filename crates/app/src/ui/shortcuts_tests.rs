@@ -751,5 +751,32 @@ fn tab_from_the_cell_editor_keeps_typing_in_the_sheet() {
     assert!(sheet.app.session.ui.table_cell_edit.is_some());
 }
 
+#[test]
+fn escape_exits_phase_before_clearing_dataset_selection() {
+    let mut app = PlotiumApp::new();
+    app.session.ui.data_selection = vec![0];
+    app.set_tool(Tool::ManualPhase);
+    handle_escape(&mut app, 0.0);
+    assert_ne!(app.session.tool, Tool::ManualPhase);
+    assert_eq!(app.session.ui.data_selection, vec![0]);
+}
+
+#[test]
+fn escape_leaves_phase_active_when_a_popup_owns_input() {
+    let mut app = PlotiumApp::new();
+    app.set_tool(Tool::ManualPhase);
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(
+        egui::RawInput {
+            events: vec![pressed(egui::Key::Escape, egui::Modifiers::NONE)],
+            ..Default::default()
+        },
+        |ui| {
+            egui::Popup::open_id(ui.ctx(), egui::Id::new("phase_test_popup"));
+            handle_escape_shortcut(&mut app, ui.ctx());
+        },
+    );
+    assert_eq!(app.session.tool, Tool::ManualPhase);
+}
 #[path = "shortcuts_delete_tests.rs"]
 mod delete;

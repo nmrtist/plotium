@@ -249,15 +249,21 @@ until you press it.
 
 ## Phase correction
 
+Opening **Process** opens the workspace without enabling canvas phasing.
+**Phase** toggles canvas phasing; its selected state identifies the active tool.
+Press **Esc** to exit (during a drag, the first Esc cancels the drag). Switching
+spectra or canvases exits this mode.
+
 For a 1D or 2D spectrum, select its plot on the active canvas and choose
 **Process → Correct → Phase** to adjust phase on the plot. The label above the
 plot identifies the target spectrum, acquisition axis, nucleus and display
-direction. To change the axis on a 2D spectrum, open the other axis’s **Phase**
-step in **Processing**.
+direction. Select **Horizontal** or **Vertical** above the canvas to change the
+2D phase axis directly. Each choice includes its acquisition axis and nucleus.
 
-3D spectra use a parameter panel with explicit Apply and no live preview; see
+3D slices use the same canvas gestures, with a parameter panel and explicit Apply; see
 [3D phase correction](/guides/nmr-3d/#phase-correction).
-The controls and live preview described below apply to standalone 1D/2D spectra.
+Standalone 1D/2D edits retain their existing immediate processing and undo behavior;
+3D drafts preview the current plane until Apply recalculates the entire volume.
 
 Automatic phase correction is enabled by default; you can switch methods or
 adjust φ0 / φ1 manually with live preview.
