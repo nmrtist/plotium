@@ -124,7 +124,8 @@ impl Nmr2DDataset {
             .volume
             .as_ref()
             .ok_or("Open a three-dimensional spectrum first")?;
-        let processed = NmrVolume::process(&volume.source, phases, Default::default(), context)?;
+        let processed = NmrVolume::process(&volume.source, phases, Default::default(), context)?
+            .shifted(volume.peaks.reference.offsets_ppm)?;
         let plane = processed.plane_source(volume.fixed_axis, volume.index)?;
         self.replace_volume_plane(plane)?;
         let volume = self
@@ -135,6 +136,17 @@ impl Nmr2DDataset {
         volume.phases = phases;
         volume.refresh_peaks()?;
         Ok(())
+    }
+
+    pub(crate) fn restore_volume_reference(&mut self) -> Result<(), String> {
+        let volume = self.volume.as_mut().ok_or("Open a 3D spectrum first")?;
+        volume.peaks.reference.validate()?;
+        volume.processed = volume
+            .processed
+            .shifted(volume.peaks.reference.offsets_ppm)?;
+        volume.refresh_peaks()?;
+        let (axis, index) = (volume.fixed_axis, volume.index);
+        self.select_volume_plane(axis, index)
     }
 
     fn replace_volume_plane(&mut self, plane: NmrSource) -> Result<(), String> {

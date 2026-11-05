@@ -28,6 +28,34 @@ impl PlotiumApp {
                 .doc
                 .dataset_index(snapshot.resource_id())
                 .ok_or_else(|| ActionApplyError::StaleTarget(snapshot.resource_id().to_string()))?;
+            let reference = |d: &Dataset| {
+                d.as_nmr2d()
+                    .and_then(|n| n.volume.as_ref())
+                    .map(|v| v.peaks.reference.offsets_ppm)
+            };
+            if reference(&self.doc.datasets[index]) != reference(snapshot) {
+                // Pins contain sampled coordinates/readings and cannot survive a reference change,
+                // including when a snapshot is installed by undo or redo.
+                let ui = &mut self.session.ui;
+                let owner = snapshot.resource_id();
+                if ui.inspect_cursor_pin.is_some_and(|p| p.dataset == owner) {
+                    ui.inspect_cursor_pin = None;
+                }
+                if ui.delta_cursor_anchor.is_some_and(|p| p.dataset == owner) {
+                    ui.delta_cursor_anchor = None;
+                    ui.delta_cursor_pin = None;
+                }
+                if ui
+                    .delta_cursor_pin
+                    .is_some_and(|p| p.first.dataset == owner || p.second.dataset == owner)
+                {
+                    ui.delta_cursor_pin = None;
+                    ui.delta_cursor_anchor = None;
+                }
+                if ui.slice.is_some_and(|p| p.dataset == index) {
+                    ui.slice = None;
+                }
+            }
             let phase_basis = |dataset: &Dataset| {
                 dataset
                     .as_nmr2d()

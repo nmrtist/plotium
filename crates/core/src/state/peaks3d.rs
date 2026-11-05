@@ -15,6 +15,8 @@ pub struct Peak3DMark {
 pub struct Peak3DSet {
     pub marks: Vec<Peak3DMark>,
     pub next_id: u64,
+    #[serde(default)]
+    pub reference: crate::protein_reference::ShiftReference,
 }
 impl NmrVolumeState {
     pub fn peak_indices(&self, ppm: [f64; 3]) -> Result<[usize; 3], String> {
@@ -88,6 +90,7 @@ impl PlotiumApp {
                 "phases":volume.phases,
                 "canonical_dataset_sha256":digest(volume.processed.source())
             },
+            "reference":volume.peaks.reference,
             "axes":axes, "peaks":volume.peaks.marks,
             "position":"manual observation in acquisition-axis order; not a fitted centre",
             "intensity":"signed nearest-grid sample; not integrated volume"

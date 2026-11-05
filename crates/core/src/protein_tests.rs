@@ -658,3 +658,73 @@ fn deleting_spectrum_cleans_only_its_metadata_and_undo_restores_it() {
     app.redo();
     assert_eq!(app.doc.protein.context, after);
 }
+
+#[test]
+fn reference_comparison_preserves_individual_corrected_observations() {
+    use crate::protein_context::*;
+    use crate::protein_reference::ShiftReference;
+    let mut app = PlotiumApp::new();
+    let molecule = import(&mut app, "references");
+    let (left, lp, _) = add_spectrum(&mut app);
+    let (right, rp, _) = add_spectrum(&mut app);
+    let sample = SampleCondition::default();
+    let mut context = ScientificContext {
+        samples: vec![sample.clone()],
+        ..Default::default()
+    };
+    for (dataset, peak) in [(left, lp), (right, rp)] {
+        app.edit_protein(Edit::Bind {
+            dataset,
+            molecule: Some(molecule.id),
+        })
+        .unwrap();
+        app.edit_assignment(
+            dataset,
+            peak,
+            AssignmentEdit::Add {
+                targets: [atom(molecule.chains[0].residues[0].id, &["H"]), None, None],
+                note: String::new(),
+            },
+        )
+        .unwrap();
+        let candidate = app
+            .doc
+            .protein
+            .assignment(dataset, peak)
+            .unwrap()
+            .candidates[0]
+            .id;
+        app.edit_assignment(dataset, peak, AssignmentEdit::Confirm { candidate })
+            .unwrap();
+        context.experiments.insert(
+            dataset,
+            Experiment {
+                sample: sample.id,
+                kind: ExperimentKind::Unknown,
+                roles: Default::default(),
+                source: "test".into(),
+            },
+        );
+        app.set_shift_reference(
+            dataset,
+            ShiftReference {
+                source: "Standard".into(),
+                confirmed: true,
+                offsets_ppm: if dataset == left {
+                    [0.125, 0.0, 0.0]
+                } else {
+                    [0.0; 3]
+                },
+            },
+        )
+        .unwrap();
+    }
+    app.edit_scientific_context(context).unwrap();
+    let rows = app.reference_differences(left, right).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!((rows[0].left_peak, rows[0].right_peak), (lp, rp));
+    assert!((rows[0].delta_ppm - 0.125).abs() < 1e-10);
+}
+
+#[path = "protein_reference_index_tests.rs"]
+mod reference_index_tests;

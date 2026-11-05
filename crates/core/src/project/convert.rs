@@ -539,7 +539,9 @@ pub fn object_to_dataset(
             if let Some(peaks) = recipe.extensions["plotium.volume"].get("peaks") {
                 let volume = dataset.volume.as_mut().unwrap();
                 volume.peaks = serde_json::from_value(peaks.clone())?;
-                volume.refresh_peaks().map_err(ProjectError::Invalid)?;
+                dataset
+                    .restore_volume_reference()
+                    .map_err(ProjectError::Invalid)?;
             }
             dataset.acquisition_identity = read_acquisition_identity(data)?;
             dataset.field_catalog = read_field_catalog(data)?;
