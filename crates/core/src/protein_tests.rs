@@ -728,3 +728,6 @@ fn reference_comparison_preserves_individual_corrected_observations() {
 
 #[path = "protein_reference_index_tests.rs"]
 mod reference_index_tests;
+
+#[path = "protein_shifts_tests.rs"]
+mod shifts_tests;

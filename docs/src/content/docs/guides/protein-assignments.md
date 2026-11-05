@@ -42,3 +42,9 @@ The panel reports reference readiness against other spectra with experiment meta
 Confirmed single-atom observations with matching atom identities and nuclei are shown individually as left-minus-right corrected ppm differences. Ambiguous groups are excluded; no matches means not evaluated. No averaging, tolerance verdict or automatic correction is performed.
 
 The reference form names its draft target. When you switch spectra, a warning explains that Save still edits that target. Reference coordinate changes, including undo/redo, clear affected Inspect/Delta pins and slice cursors because their stored readings are no longer valid.
+
+## Chemical-shift list
+
+Open **Chemical-shift list** in the Protein assignments panel after recording sample conditions for every assigned spectrum. Rows identify each residue by molecule, chain, residue code and sequence number, and group the same atom target and nucleus within one sample-condition ID. Each acquisition-axis observation retains its peak and candidate identity, corrected ppm, reference source and confirmation; partial assignments and OneOf/Shared groups remain intact. Groups are never expanded into independent atoms.
+
+Compare all observations, enter a known uncertainty in ppm (otherwise leave it unknown), and add a review note. **Select** requires a confirmed assignment and reference; **Exclude** retains the original evidence. **Reset / save error** saves uncertainty and notes with a pending decision. Different values are never averaged, and multiple selections do not certify consistency. Editing sample conditions (including pH, temperature or solvent) under the same sample ID also invalidates decisions and unsaved review drafts. Missing or changed observation snapshots show Pending and require review again. Decisions support undo/redo and project save/reopen. This panel does not assess chemical correctness or experimental connectivity.

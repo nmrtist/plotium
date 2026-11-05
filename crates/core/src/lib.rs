@@ -21,6 +21,7 @@ pub mod properties;
 pub mod protein;
 pub mod protein_context;
 pub mod protein_reference;
+pub mod protein_shifts;
 pub mod settings;
 pub mod state;
 pub mod templates;
