@@ -96,7 +96,7 @@ impl PlotiumApp {
             return Err(format!("Dataset index {dataset} is no longer available."));
         };
         validate_processing_state(current, state)?;
-        let refit = self.follow_xrd_axis(dataset, state);
+        let refit = self.follow_xrd_axis(dataset, state, &[]);
         if let (
             Some(Dataset::Nmr2D(current)),
             DatasetProcessingState::Nmr2D {

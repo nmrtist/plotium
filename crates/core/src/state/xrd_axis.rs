@@ -8,12 +8,14 @@ impl PlotiumApp {
     /// Carries manual x ranges onto the new axis, so a zoomed plot keeps showing
     /// the same reflections, and warns when a stack ends up with mixed axes.
     ///
-    /// Returns the plots whose x view must show the whole new range once rebuilt:
-    /// those that showed the whole old one, and views the new axis cannot hold.
+    /// `pending` holds datasets installed in the same step, which count at their
+    /// new axes. Returns the plots whose x view must show the whole new range once
+    /// rebuilt: those that showed the whole old one, and views the new axis cannot hold.
     pub(crate) fn follow_xrd_axis(
         &mut self,
         dataset: usize,
         state: &DatasetProcessingState,
+        pending: &[Dataset],
     ) -> Vec<(usize, ObjectId)> {
         let mut refit = Vec::new();
         let (Some(Dataset::Xrd(xrd)), DatasetProcessingState::Xrd(next)) =
@@ -34,6 +36,13 @@ impl PlotiumApp {
             .datasets
             .iter()
             .filter_map(Dataset::as_xrd)
+            .map(|other| {
+                pending
+                    .iter()
+                    .filter_map(Dataset::as_xrd)
+                    .find(|next| next.resource_id == other.resource_id)
+                    .unwrap_or(other)
+            })
             .map(|other| (other.resource_id, other.params.axis))
             .collect();
         let other_axis = |series: &SeriesBinding| {

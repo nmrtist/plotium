@@ -22,6 +22,7 @@ impl PlotiumApp {
                 });
             }
         }
+        let mut refit = Vec::new();
         for snapshot in snapshots {
             let index = self
                 .doc
@@ -67,6 +68,11 @@ impl PlotiumApp {
             ] {
                 self.session.compute.cancel(snapshot.resource_id(), kind);
             }
+            refit.extend(self.follow_xrd_axis(
+                index,
+                &DatasetProcessingState::from_dataset(&next),
+                snapshots,
+            ));
             self.doc.datasets[index] = next;
         }
         for source in versions {
@@ -77,6 +83,7 @@ impl PlotiumApp {
                 self.rebuild_canvases_for(index);
             }
         }
+        self.refit_xrd_views(refit);
         Ok(())
     }
 }
