@@ -29,6 +29,7 @@ fn execute_inner(
     clipboard: Option<&mut ClipboardTablePaste>,
     ctx: &egui::Context,
 ) {
+    super::phase_context::reconcile(app, ctx);
     if matches!(id, CommandId::Undo | CommandId::Redo) {
         // Commit any debounced wheel zoom before the enabled gate, so the
         // pending zoom becomes the next undoable step and history is ordered
@@ -361,6 +362,7 @@ fn execute_inner(
         }
         CommandId::Tool(tool) => app.toggle_tool(tool),
     }
+    super::phase_context::reconcile(app, ctx);
 }
 
 fn execute_panel_command(id: CommandId, app: &mut PlotiumApp) {

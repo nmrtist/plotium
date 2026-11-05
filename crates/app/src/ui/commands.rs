@@ -734,10 +734,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
     let palette_available = helpers::palette_available(app, id);
     // Activation requirements must not trap an already-active tool after the
     // dataset context changes: its command remains available for deactivation.
-    let active_tool = id.tool_target().is_some_and(|tool| {
-        app.session.tool == tool
-            && !(tool == Tool::ManualPhase && super::nmr_volume::active_volume(app))
-    });
+    let active_tool = id
+        .tool_target()
+        .is_some_and(|tool| app.session.tool == tool);
     let enabled = (gate.is_ok() || active_tool) && palette_available;
     let disabled_reason = if enabled { None } else { gate.err() };
     // A contextual group is dropped from the Ribbon entirely rather than shown

@@ -413,6 +413,10 @@ impl PlotiumApp {
             return;
         };
         let lead = canvas.active_dataset();
+        if self.session.active_canvas != Some(ci) && self.session.tool == Tool::ManualPhase {
+            self.cancel_interaction();
+            self.set_tool(Tool::BrowseZoom);
+        }
         self.session.active_canvas = Some(ci);
         let lead = lead.and_then(|id| self.doc.dataset_index(id));
         let datasets = self.doc.page_dataset_indices(ci);
@@ -430,6 +434,10 @@ impl PlotiumApp {
             .is_none()
         {
             return;
+        }
+        if self.session.active_canvas != Some(ci) && self.session.tool == Tool::ManualPhase {
+            self.cancel_interaction();
+            self.set_tool(Tool::BrowseZoom);
         }
         self.session.active_canvas = Some(ci);
         self.reset_interaction();

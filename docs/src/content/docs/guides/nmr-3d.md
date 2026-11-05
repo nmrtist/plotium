@@ -28,17 +28,34 @@ it does not add 3D NUS reconstruction or 4D browsing.
 
 ## Phase correction
 
-Select the 3D spectrum and choose **Process → Correct → Phase** to open its
-phase panel. Check the target spectrum name before editing. Each acquisition
+Select the 3D spectrum and open **Process** to inspect and edit phase parameters
+without changing the canvas tool. Turn on **Canvas phasing** in the card, or
+choose **Process → Correct → Phase**, to show the pivot and enable canvas dragging.
+Both controls toggle the same mode. Numeric editing and plane preview work with
+canvas phasing off. Check the target spectrum name before editing. Each acquisition
 axis (F1/F2/F3) shows its nucleus (or `unknown`) and its current display role:
 horizontal, vertical, or fixed. Changing planes updates these roles; phase
 settings remain attached to their acquisition axes.
 
-Adjust **PH0** and **PH1** for the required axis, then click **Apply** and inspect
-the result on the spectrum. Apply recalculates the whole volume from the source,
-replacing the previous phase settings. Browse other planes to check the result.
-The displayed 2D slice does not support dragging to adjust phase, and parameter
-changes have no live preview.
+Choose a horizontal or vertical acquisition axis in Phase. Drag vertically with
+the left button for **PH0**, the right button for **PH1**, or drag the pivot line
+along that axis. Numeric controls edit the same draft. The fixed axis supports
+numeric editing only; canvas phasing pauses until the plane contains that
+acquisition axis. Plotium does not silently choose another axis or plane.
+Axes without complex frequency components are disabled.
+Local preview requires independent Cartesian components. Shared-complex and
+encoded volume bases are disabled rather than approximated. Show the real
+contour field on the selected plot to preview. The first visible real contour
+series previews the draft; all other contour series, including additional layers
+of the same spectrum, retain their committed values and drawing order. Numeric controls show the selected acquisition axis.
+
+The current plane shows an **Unapplied** preview. During updates the previous
+complete preview can remain visible; the panel says it is updating. Changing
+planes uses the same acquisition-axis draft. Preview preserves the committed
+contour thresholds for that plane and does not change peak intensities,
+assignments, persisted data or exports. Click **Apply to 3D spectrum** to recalculate the whole
+volume from the source, replacing previous settings in one undoable operation.
+Draft editing is locked during Apply. Browse other planes to check the result.
 
 **Pivot** sets the reference position for first-order phase in ppm. Moving it
 automatically compensates PH0 so the phase correction remains unchanged.
@@ -47,7 +64,15 @@ is unavailable when the axis has no usable uniform ppm grid.
 
 - **Discard changes** restores the applied settings without recalculating.
 - **Stop calculation** cancels the named calculation and retains your edits.
-- Closing the panel retains your edits and lets any calculation continue.
+- Turn off **Canvas phasing**, click **Phase** again, or press **Esc** to return
+  to browsing while retaining the card, draft and preview. During a drag, Esc
+  cancels that drag first; press it again to exit the mode.
+- Closing the panel exits canvas phasing, restores the committed display and
+  retains your edits. Any Apply calculation continues. Reopening Process resumes
+  a valid draft preview without enabling canvas phasing.
+- Switching spectra or canvases exits canvas phasing and keeps each spectrum's
+  draft in the current session. Browsing planes of the same spectrum keeps the
+  mode and draft. Drafts are not saved across restarts.
 
 You can browse planes or switch spectra during a calculation; the result applies
 to the spectrum named when it started. If the source data or applied phase

@@ -386,8 +386,7 @@ pub(super) fn command_identity(
         CommandId::Tool(Tool::ManualPhase) => (
             "Phase".into(),
             tool_icon(Tool::ManualPhase),
-            (!super::super::nmr_volume::active_volume(app))
-                .then_some(app.session.tool == Tool::ManualPhase),
+            Some(app.session.tool == Tool::ManualPhase),
         ),
         CommandId::Tool(tool) => (
             format!("Tool: {}", tool.label()),

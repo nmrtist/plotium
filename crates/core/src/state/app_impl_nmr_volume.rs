@@ -3,6 +3,88 @@ use super::*;
 use plotium_processing::nmr_volume::VolumePhase;
 
 impl PlotiumApp {
+    /// Preserve other spectra's contour layers in a disposable phase display.
+    pub fn volume_preview_companion_contours(
+        &mut self,
+        series: &[SeriesBinding],
+    ) -> Option<Vec<plotium_figure::Contour>> {
+        let mut contours = Vec::new();
+        for series in series.iter().filter(|s| {
+            s.visible && matches!(s.encoding, plotium_figure::SeriesEncoding::Contour(_))
+        }) {
+            self.prepare_contour_series(series);
+            let binding = DataBinding {
+                coordinates: None,
+                series: vec![series.clone()],
+            };
+            if self.binding_contours_pending(&binding) {
+                return None;
+            }
+            contours.extend(self.build_encoded_series_figure(series)?.contours);
+        }
+        Some(contours)
+    }
+    /// Resolve thresholds against committed data once, before preview rotation.
+    pub fn volume_preview_contour_key(
+        &mut self,
+        series: &SeriesBinding,
+    ) -> Result<ContourGeometryCacheKey, String> {
+        let plotium_figure::SeriesEncoding::Contour(spec) = &series.encoding else {
+            return Err("Choose a contour display for phase preview".into());
+        };
+        let dataset = self
+            .doc
+            .dataset_by_id(series.source.resource)
+            .ok_or("Spectrum was removed")?;
+        let field = FieldRef {
+            resource: series.source.resource,
+            field: series.source.field,
+        };
+        let version = self
+            .session
+            .compute
+            .field_version_for(field)
+            .map_err(|e| format!("{e:?}"))?;
+        let snapshot = dataset
+            .field_snapshot(field.field, version, None)
+            .ok_or("Preview field is unavailable")?;
+        let summary = snapshot.summary.ok_or("Preview summary is unavailable")?;
+        let grid = std::sync::Arc::new(
+            snapshot
+                .payload
+                .scalar_grid()
+                .ok_or("Preview needs a plane")?
+                .clone(),
+        );
+        if let ContourResolution::Pending(keys) =
+            resolve_contour_levels(snapshot.source, spec, summary, |key| {
+                self.session.compute.estimate_for(key).cloned()
+            })
+        {
+            for key in keys {
+                let estimate =
+                    super::compute::compute_field::run_estimate_field(key.clone(), grid.clone())?;
+                if !self
+                    .session
+                    .compute
+                    .finish_estimate(key, estimate, Some(version))
+                {
+                    return Err("Preview estimate became stale".into());
+                }
+            }
+        }
+        let ContourResolution::Ready { levels, .. } =
+            resolve_contour_levels(snapshot.source, spec, summary, |key| {
+                self.session.compute.estimate_for(key).cloned()
+            })
+        else {
+            return Err("Contour thresholds are unavailable".into());
+        };
+        Ok(ContourGeometryCacheKey {
+            source: snapshot.source,
+            levels,
+        })
+    }
     pub fn select_nmr_volume_plane(
         &mut self,
         dataset: DatasetId,

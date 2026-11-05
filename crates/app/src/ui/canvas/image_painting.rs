@@ -78,7 +78,29 @@ pub(super) fn paint_document(
     painter: &egui::Painter,
 ) {
     let canvas = &app.doc.canvases[ci];
-    let document = canvas_document(app, ci);
+    let mut document = canvas_document(app, ci);
+    let previews: Vec<_> = canvas
+        .objects
+        .iter()
+        .map(|object| {
+            let plot = object.plot()?;
+            let preview = super::super::nmr_phase_preview::contours(
+                app,
+                painter.ctx(),
+                object.dataset()?,
+                object.id,
+            )?;
+            let mut figure = plot.figure().clone();
+            figure.contours = preview.contours.clone();
+            Some(figure)
+        })
+        .collect();
+    for (item, preview) in document.items.iter_mut().zip(&previews) {
+        if let (plotium_render::DocumentItem::Plot(plot), Some(figure)) = (item, preview) {
+            plot.figure = figure;
+            plot.geometry_generation = None;
+        }
+    }
     let zoom = app.session.board.zoom;
     let bp = canvas.board_pos;
     let detail = workspace_render_detail(painter.ctx(), painter.ctx().input(|input| input.time));

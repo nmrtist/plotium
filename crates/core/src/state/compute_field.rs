@@ -318,7 +318,7 @@ impl ComputeService {
     }
 }
 
-pub(super) fn run_estimate_field(
+pub(in crate::state) fn run_estimate_field(
     key: EstimateKey,
     grid: Arc<ScalarGrid2D>,
 ) -> Result<EstimateResult, String> {
@@ -390,7 +390,7 @@ fn resolved_estimator(key: &EstimateKey) -> Result<EstimateProvenance, String> {
 /// lobes than negative ones, and would make the advice wrong — after grouping,
 /// raising the ladder's floor to the lowest drawn magnitude reproduces exactly
 /// the plot on screen.
-pub(super) fn run_build_contour(
+pub(in crate::state) fn run_build_contour(
     key: ContourGeometryCacheKey,
     grid: Arc<ScalarGrid2D>,
 ) -> Result<ContourGeometry, String> {

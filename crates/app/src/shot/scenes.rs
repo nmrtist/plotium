@@ -100,6 +100,8 @@ pub(super) const SCENES: &[Scene] = &[
     act(2, Op::Resize(1440.0, 900.0)),
     act(2, Op::PanelControls(true)),
     shot(8, "panel_controls_expanded"),
+    act(2, Op::VolumePhase),
+    shot(40, "volume_phase_preview"),
     Scene {
         settle: 4,
         op: None,

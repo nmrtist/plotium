@@ -664,7 +664,7 @@ fn resized_rect(
     resized
 }
 
-pub(super) fn is_active(app: &PlotiumApp, tab: TaskDockTab) -> bool {
+pub(crate) fn is_active(app: &PlotiumApp, tab: TaskDockTab) -> bool {
     app.session.ui.task_dock_active == Some(tab)
 }
 
