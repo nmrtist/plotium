@@ -247,6 +247,7 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui, panel: &mut Panel) {
     }
     scientific_context(app, ui, panel, active);
     reference_editor::render(app, ui, panel, active);
+    shifts_editor::render(app, ui, panel);
     clear_review(app, ui, panel);
     ui.separator();
     if panel.draft.is_some() {
@@ -460,3 +461,6 @@ use scientific_context_editor::scientific_context;
 
 #[path = "protein_reference.rs"]
 mod reference_editor;
+
+#[path = "protein_shifts.rs"]
+mod shifts_editor;

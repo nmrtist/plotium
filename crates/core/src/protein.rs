@@ -21,6 +21,8 @@ id!(CandidateId);
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ProteinState {
     #[serde(default)]
+    pub shift_reviews: Vec<crate::protein_shifts::ShiftReview>,
+    #[serde(default)]
     pub context: crate::protein_context::ScientificContext,
     pub molecules: Vec<Molecule>,
     pub bindings: BTreeMap<DatasetId, MoleculeId>,
@@ -195,7 +197,8 @@ pub fn import_preview(source: &str, fasta: &str) -> Result<Molecule, String> {
 
 impl ProteinState {
     pub fn is_empty(&self) -> bool {
-        self.context.is_empty()
+        self.shift_reviews.is_empty()
+            && self.context.is_empty()
             && self.molecules.is_empty()
             && self.bindings.is_empty()
             && self.assignments.is_empty()
@@ -219,6 +222,7 @@ impl ProteinState {
 
     pub fn validate(&self, doc: &Document) -> Result<(), String> {
         self.context.validate(doc)?;
+        crate::protein_shifts::validate_reviews(&self.shift_reviews)?;
         let (mut molecules, mut chains, mut residues, mut peaks, mut candidates) = (
             HashSet::new(),
             HashSet::new(),
