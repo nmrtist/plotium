@@ -20,6 +20,8 @@ id!(CandidateId);
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ProteinState {
+    #[serde(default)]
+    pub context: crate::protein_context::ScientificContext,
     pub molecules: Vec<Molecule>,
     pub bindings: BTreeMap<DatasetId, MoleculeId>,
     pub assignments: Vec<Assignment>,
@@ -193,7 +195,10 @@ pub fn import_preview(source: &str, fasta: &str) -> Result<Molecule, String> {
 
 impl ProteinState {
     pub fn is_empty(&self) -> bool {
-        self.molecules.is_empty() && self.bindings.is_empty() && self.assignments.is_empty()
+        self.context.is_empty()
+            && self.molecules.is_empty()
+            && self.bindings.is_empty()
+            && self.assignments.is_empty()
     }
     pub fn molecule(&self, id: MoleculeId) -> Result<&Molecule, String> {
         self.molecules
@@ -207,11 +212,13 @@ impl ProteinState {
             .find(|a| a.dataset == dataset && a.peak == peak)
     }
     pub fn remove_dataset(&mut self, dataset: DatasetId) {
+        self.context.experiments.remove(&dataset);
         self.bindings.remove(&dataset);
         self.assignments.retain(|a| a.dataset != dataset);
     }
 
     pub fn validate(&self, doc: &Document) -> Result<(), String> {
+        self.context.validate(doc)?;
         let (mut molecules, mut chains, mut residues, mut peaks, mut candidates) = (
             HashSet::new(),
             HashSet::new(),
@@ -518,7 +525,7 @@ impl PlotiumApp {
         self.commit_protein(state)
     }
 
-    fn commit_protein(&mut self, after: ProteinState) -> Result<(), String> {
+    pub(crate) fn commit_protein(&mut self, after: ProteinState) -> Result<(), String> {
         after.validate(&self.doc)?;
         if after != self.doc.protein {
             self.try_execute_action(self.protein_action(after))

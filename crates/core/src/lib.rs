@@ -19,6 +19,7 @@ mod origin_tests;
 pub mod project;
 pub mod properties;
 pub mod protein;
+pub mod protein_context;
 pub mod settings;
 pub mod state;
 pub mod templates;
