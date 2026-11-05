@@ -15,6 +15,7 @@ struct Panel {
     confirmed_only: bool,
     feedback: String,
     clear_spectrum: Option<(DatasetId, u64)>,
+    context_draft: Option<scientific_context_editor::ContextDraft>,
 }
 
 #[derive(Clone)]
@@ -242,6 +243,7 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui, panel: &mut Panel) {
             sequence(app, ui, panel, &m)
         });
     }
+    scientific_context(app, ui, panel, active);
     clear_review(app, ui, panel);
     ui.separator();
     if panel.draft.is_some() {
@@ -448,3 +450,7 @@ use context::{assignment_context, clear_review, spectrum_name};
 #[cfg(test)]
 #[path = "protein_tests.rs"]
 mod tests;
+
+#[path = "protein_scientific_context.rs"]
+mod scientific_context_editor;
+use scientific_context_editor::scientific_context;

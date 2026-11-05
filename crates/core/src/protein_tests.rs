@@ -468,3 +468,193 @@ fn group_interpretation_is_explicit_and_survives_confirmation_undo_and_export() 
         }
     }
 }
+#[test]
+fn scientific_context_roundtrip_undo_and_scope_boundaries() {
+    use crate::protein_context::*;
+    let mut app = PlotiumApp::new();
+    let m = import(&mut app, "context");
+    let (dataset, _, _) = add_spectrum(&mut app);
+    app.edit_protein(Edit::Bind {
+        dataset,
+        molecule: Some(m.id),
+    })
+    .unwrap();
+    let mut context = ScientificContext::default();
+    let sample = SampleCondition::default();
+    context.experiments.insert(
+        dataset,
+        Experiment {
+            sample: sample.id,
+            kind: ExperimentKind::Unknown,
+            roles: Default::default(),
+            source: "manual experimental record".into(),
+        },
+    );
+    context.samples.push(sample);
+    app.edit_scientific_context(context.clone()).unwrap();
+    assert!(
+        context
+            .check_structure_scope(&app.doc, dataset)
+            .unwrap_err()
+            .contains("single")
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("context.plotium");
+    save_project(&app, &path, false).unwrap();
+    let loaded = load_project(&path).unwrap();
+    assert_eq!(loaded.doc.protein.context, context);
+    let mut invalid = context.clone();
+    invalid.samples[0].temperature_kelvin = Some(-1.0);
+    assert!(app.edit_scientific_context(invalid).is_err());
+    assert_eq!(app.doc.protein.context, context);
+    app.undo();
+    assert!(app.doc.protein.context.is_empty());
+    app.redo();
+    assert_eq!(app.doc.protein.context, context);
+    app.doc
+        .protein
+        .context
+        .experiments
+        .get_mut(&dataset)
+        .unwrap()
+        .sample = SampleConditionId(uuid::Uuid::new_v4());
+    assert!(app.doc.protein.validate(&app.doc).is_err());
+}
+#[test]
+fn structure_scope_requires_explicit_roles_and_supported_chemistry() {
+    use crate::protein_context::*;
+    let mut app = PlotiumApp::new();
+    app.edit_protein(Edit::Import {
+        source: "single.fasta".into(),
+        fasta: include_str!("../../io/tests/fixtures/protein/ubiquitin-bmrb-6457.fasta").into(),
+        name: None,
+        chains: None,
+    })
+    .unwrap();
+    let molecule = app.doc.protein.molecules[0].id;
+    let (dataset, _, _) = add_spectrum(&mut app);
+    app.edit_protein(Edit::Bind {
+        dataset,
+        molecule: Some(molecule),
+    })
+    .unwrap();
+    let sample = SampleCondition {
+        single_major_conformer: true,
+        ..Default::default()
+    };
+    let mut context = ScientificContext::default();
+    context.experiments.insert(
+        dataset,
+        Experiment {
+            sample: sample.id,
+            kind: ExperimentKind::Unknown,
+            roles: Default::default(),
+            source: String::new(),
+        },
+    );
+    context.samples.push(sample);
+    assert!(
+        context
+            .check_structure_scope(&app.doc, dataset)
+            .unwrap_err()
+            .contains("role")
+    );
+    let e = context.experiments.get_mut(&dataset).unwrap();
+    e.kind = ExperimentKind::Noesy;
+    e.roles = [
+        ExperimentAxisRole::IndirectProton,
+        ExperimentAxisRole::Nitrogen,
+        ExperimentAxisRole::ObservedProton,
+    ];
+    context.check_noe_roles(&app.doc, dataset).unwrap();
+    context.experiments.get_mut(&dataset).unwrap().roles[0] = ExperimentAxisRole::ObservedProton;
+    assert!(context.check_noe_roles(&app.doc, dataset).is_err());
+    context.experiments.get_mut(&dataset).unwrap().roles[0] = ExperimentAxisRole::Carbon;
+    assert!(context.validate(&app.doc).unwrap_err().contains("F1"));
+    context.experiments.get_mut(&dataset).unwrap().roles[0] = ExperimentAxisRole::IndirectProton;
+    context.samples[0].nonstandard_chemistry = "ligand".into();
+    context.validate(&app.doc).unwrap();
+    assert!(
+        context
+            .check_structure_scope(&app.doc, dataset)
+            .unwrap_err()
+            .contains("ligands")
+    );
+}
+#[test]
+fn sample_validation_is_atomic_at_ph_boundaries_and_duplicate_ids() {
+    use crate::protein_context::*;
+    let mut app = PlotiumApp::new();
+    let mut context = ScientificContext::default();
+    context.samples.push(SampleCondition::default());
+    for ph in [0.0, 14.0] {
+        context.samples[0].ph = Some(ph);
+        app.edit_scientific_context(context.clone()).unwrap();
+        assert_eq!(app.doc.protein.context, context);
+    }
+    let before = app.doc.protein.clone();
+    for ph in [-0.001, 14.001, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let mut invalid = context.clone();
+        invalid.samples[0].ph = Some(ph);
+        assert!(app.edit_scientific_context(invalid).is_err());
+        assert_eq!(app.doc.protein, before);
+    }
+    context.samples.push(context.samples[0].clone());
+    assert!(
+        app.edit_scientific_context(context)
+            .unwrap_err()
+            .contains("unique")
+    );
+    assert_eq!(app.doc.protein, before);
+    app.undo();
+    assert_eq!(app.doc.protein.context.samples[0].ph, Some(0.0));
+}
+
+#[test]
+fn deleting_spectrum_cleans_only_its_metadata_and_undo_restores_it() {
+    use crate::protein_context::*;
+    let mut app = PlotiumApp::new();
+    let (dataset, _, _) = add_spectrum(&mut app);
+    let (other, _, _) = add_spectrum(&mut app);
+    let mut context = ScientificContext::default();
+    let sample = SampleCondition::default();
+    for d in [dataset, other] {
+        context.experiments.insert(
+            d,
+            Experiment {
+                sample: sample.id,
+                kind: ExperimentKind::Unknown,
+                roles: Default::default(),
+                source: d.to_string(),
+            },
+        );
+    }
+    context.samples.push(sample);
+    app.edit_scientific_context(context.clone()).unwrap();
+    let index = app
+        .doc
+        .datasets
+        .iter()
+        .position(|d| d.resource_id() == dataset)
+        .unwrap();
+    app.try_execute_action(app.delete_dataset_action(index).unwrap())
+        .unwrap();
+    let after = app.doc.protein.context.clone();
+    assert!(!after.experiments.contains_key(&dataset));
+    assert_eq!(
+        after.experiments.get(&other),
+        context.experiments.get(&other)
+    );
+    assert_eq!(after.samples, context.samples);
+    app.doc.protein.validate(&app.doc).unwrap();
+    assert!(
+        app.save_scientific_context_draft(&context, context.clone())
+            .is_err()
+    );
+    assert_eq!(app.doc.protein.context, after);
+    app.undo();
+    assert_eq!(app.doc.protein.context, context);
+    app.doc.protein.validate(&app.doc).unwrap();
+    app.redo();
+    assert_eq!(app.doc.protein.context, after);
+}
