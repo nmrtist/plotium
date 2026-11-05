@@ -15,6 +15,8 @@ struct Panel {
     confirmed_only: bool,
     feedback: String,
     clear_spectrum: Option<(DatasetId, u64)>,
+    reference_baseline: Option<plotium_core::protein_reference::ShiftReference>,
+    reference_draft: Option<(DatasetId, plotium_core::protein_reference::ShiftReference)>,
     context_draft: Option<scientific_context_editor::ContextDraft>,
 }
 
@@ -244,6 +246,7 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui, panel: &mut Panel) {
         });
     }
     scientific_context(app, ui, panel, active);
+    reference_editor::render(app, ui, panel, active);
     clear_review(app, ui, panel);
     ui.separator();
     if panel.draft.is_some() {
@@ -454,3 +457,6 @@ mod tests;
 #[path = "protein_scientific_context.rs"]
 mod scientific_context_editor;
 use scientific_context_editor::scientific_context;
+
+#[path = "protein_reference.rs"]
+mod reference_editor;

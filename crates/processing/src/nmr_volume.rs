@@ -105,6 +105,35 @@ impl NmrVolume {
         Ok(Self { source, shape })
     }
 
+    /// Apply a delta to the current grid; callers retain absolute reference settings.
+    pub fn shifted(&self, offsets: [f64; 3]) -> Result<Self, String> {
+        let mut operations = Vec::new();
+        for (axis, delta_ppm) in offsets.into_iter().enumerate() {
+            if !delta_ppm.is_finite() {
+                return Err("Reference offsets must be finite".into());
+            }
+            if delta_ppm != 0.0 {
+                operations.push(ProcessingOperation::Spectrum {
+                    axis,
+                    operation: nmr::processing::SpectrumOperation::Reference { delta_ppm },
+                });
+            }
+        }
+        if operations.is_empty() {
+            return Ok(self.clone());
+        }
+        let output = ProcessingPlan::new(operations)
+            .and_then(|p| {
+                p.apply_with_context(
+                    self.source.dataset(),
+                    Default::default(),
+                    &mut ExecutionContext::default(),
+                )
+            })
+            .map_err(|e| e.to_string())?;
+        Self::from_processed(NmrSource::new(Arc::new(output)).map_err(|e| e.to_string())?)
+    }
+
     pub fn source(&self) -> &NmrSource {
         &self.source
     }

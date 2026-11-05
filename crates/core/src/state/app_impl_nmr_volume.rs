@@ -224,9 +224,14 @@ impl PlotiumApp {
         // Navigation may have advanced while this phase job was running.
         if let Some(incoming) = result.volume.as_mut() {
             incoming.anchor = volume.anchor;
+            let delta = std::array::from_fn(|a| {
+                volume.peaks.reference.offsets_ppm[a] - incoming.peaks.reference.offsets_ppm[a]
+            });
+            incoming.processed = incoming.processed.shifted(delta)?;
             incoming.peaks = volume.peaks.clone();
             incoming.refresh_peaks()?;
         }
+        result.select_volume_plane(volume.fixed_axis, volume.index)?;
         // Preserve edits made while the numerical worker was running.
         let mut replacement = current.clone();
         replacement.volume = result.volume;

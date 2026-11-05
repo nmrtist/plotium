@@ -32,3 +32,13 @@ The draft retains its original spectrum and context baseline. If Undo/Redo or an
 Experiments reference a stable sample-condition ID. Reuse an ID only for identical conditions; use separate records for different conditions. Roles refer to acquisition F1/F2/F3, independently of display order and acquired nuclei. `observed_proton` and `indirect_proton` distinguish the two proton axes in NOESY. Unknown experiments/roles remain browsable and assignable, but block role-dependent structure operations. Known roles require matching acquired nuclei.
 
 The initial structure scope is one standard-residue chain, one major conformer and supported dense 3D spectra, with manual assignments and external calculation. The scope check reports missing context or unsupported chemistry; it does not validate experiment connectivity, assignments or NOE measurements. No structure calculation or constraint generation is supplied by this step.
+
+## Chemical-shift reference
+
+In the Protein assignments panel, expand **Chemical-shift reference** and select **Edit reference**. Enter absolute F1/F2/F3 offsets in acquisition order (ppm), record the standard or comparison evidence, and explicitly confirm your review before saving. Corrected coordinates equal acquisition coordinates plus the offset; saving the same offset twice does not add it twice. Spectrum planes, peak coordinates and JSON exports use corrected ppm. Peak IDs and assignments remain stable. Undo/redo and project saving retain the reference and its source. Phase changes retain the correction.
+
+The panel reports reference readiness against other spectra with experiment metadata. Both references require manual confirmation and the same sample-condition ID. Different conditions cannot be silently merged. This is a manual reference review, not an automatic peak alignment or certification of matching nuclei, axis roles or chemical shifts. Review those before combining observations. Reference changes may invalidate downstream scientific interpretations.
+
+Confirmed single-atom observations with matching atom identities and nuclei are shown individually as left-minus-right corrected ppm differences. Ambiguous groups are excluded; no matches means not evaluated. No averaging, tolerance verdict or automatic correction is performed.
+
+The reference form names its draft target. When you switch spectra, a warning explains that Save still edits that target. Reference coordinate changes, including undo/redo, clear affected Inspect/Delta pins and slice cursors because their stored readings are no longer valid.
