@@ -422,6 +422,7 @@ fn dense_line_app(rows: usize) -> PlotiumApp {
         panel_frame_pt: None,
         series: vec![NewCurve {
             y_axis: Default::default(),
+            stack: None,
             kind: CurveKind::Line,
             source: TableCurveSource {
                 dataset_id: dataset.resource_id(),

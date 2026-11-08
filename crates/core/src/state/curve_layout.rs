@@ -1,11 +1,12 @@
 //! Slot layout of explicit curves: bars, boxes and violins occupy x slots side
-//! by side, points and lines overlay them, value labels annotate them, and a
-//! transposed plot turns the result on its side. Everything lowers into the
-//! figure IR, so renderers need no chart-specific code.
+//! by side, stacked bars pile up in one share, points and lines overlay them,
+//! value labels annotate them, and a transposed plot turns the result on its
+//! side. Everything lowers into the figure IR, so renderers need no
+//! chart-specific code.
 use super::curve_bars::{BarStyle, CAP_FRACTION, numeric_slots_at};
 use super::table_charts::marks::{box_marks, violin_marks};
 use plotium_figure::{Annotation, Color, ErrorBar, Figure, Polygon, Series, TextAnchor};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 /// How an occupant draws the samples in its slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +35,15 @@ pub(super) struct Occupant {
     pub style: BarStyle,
     pub baseline: f64,
     pub labels: bool,
+    /// Bars naming the same stack pile up in one share of each slot.
+    pub stack: Option<String>,
+}
+
+impl Occupant {
+    /// The stack this curve's bars join; only bars stack.
+    fn stack_group(&self) -> Option<&str> {
+        self.stack.as_deref().filter(|_| self.kind == MarkKind::Bar)
+    }
 }
 
 /// A point or line curve drawn over the occupants.
@@ -59,12 +69,13 @@ pub(super) type Extents = [f64; 4];
 
 /// Occupants split each slot evenly between the curves present in it, and
 /// each fills its own width fraction of its share; a curve alone in a slot
-/// keeps the whole slot. On a category axis, or when spread, the k-th overlay
-/// sits on the k-th occupant's position, so raw points line up with their bar
-/// or box; spare overlays, and those whose occupant has no mark at an x, sit on
-/// the slot centre. A plain numeric overlay (a trend or fit line) keeps its
-/// true x. Category slots are one unit wide, numeric slots follow
-/// [`super::curve_bars::slot_widths`].
+/// keeps the whole slot. Bars of one stack count as one curve and pile up in
+/// curve order, positive values up and negative values down. On a category
+/// axis, or when spread, the k-th overlay sits on the k-th occupant's
+/// position, so raw points line up with their bar or box; spare overlays, and
+/// those whose occupant has no mark at an x, sit on the slot centre. A plain
+/// numeric overlay (a trend or fit line) keeps its true x. Category slots are
+/// one unit wide, numeric slots follow [`super::curve_bars::slot_widths`].
 pub(super) fn lower(
     figure: &mut Figure,
     occupants: Vec<Occupant>,
@@ -98,30 +109,60 @@ pub(super) fn lower(
         widths.get(widths.len() / 2).copied().unwrap_or(1.0)
     };
     let slot_at = |x: f64| slots.get(&key(x)).copied().unwrap_or(typical);
+    // The share each occupant takes: its own, or its stack's first bar's.
+    let lanes: Vec<usize> = occupants
+        .iter()
+        .enumerate()
+        .map(|(index, occupant)| {
+            occupant
+                .stack_group()
+                .and_then(|stack| {
+                    occupants
+                        .iter()
+                        .position(|o| o.stack_group() == Some(stack))
+                })
+                .unwrap_or(index)
+        })
+        .collect();
     let mut residents: HashMap<u64, Vec<usize>> = HashMap::new();
-    for (index, occupant) in occupants.iter().enumerate() {
+    for (lane, occupant) in lanes.iter().zip(&occupants) {
         for point in occupant.series.iter().flat_map(|series| &series.points) {
             let curves = residents.entry(key(point[0])).or_default();
-            if curves.last() != Some(&index) {
-                curves.push(index);
+            if !curves.contains(lane) {
+                curves.push(*lane);
             }
         }
     }
-    // Offset from the slot centre and the share of the slot for one curve at x.
-    let dodge = |index: usize, x: f64| {
+    // Offset from the slot centre and the share of the slot for one lane at x.
+    let dodge = |lane: usize, x: f64| {
         let slot = slot_at(x);
         let curves = residents.get(&key(x)).map_or(&[][..], Vec::as_slice);
         let count = curves.len().max(1);
-        let rank = curves.iter().position(|c| *c == index).unwrap_or(0);
+        let rank = curves.iter().position(|c| *c == lane).unwrap_or(0);
         let share = slot / count as f64;
         ((rank as f64 + 0.5) * share - 0.5 * slot, share)
     };
     let mut extents = Bounds::default();
+    // Running [positive, negative] pile ends of each stack at each x.
+    let mut piles: HashMap<usize, Piles> = HashMap::new();
     for (index, occupant) in occupants.iter().enumerate() {
+        let lane = lanes[index];
         match occupant.kind {
-            MarkKind::Bar => lower_bar(figure, occupant, |x| dodge(index, x), label, &mut extents)?,
+            MarkKind::Bar => {
+                let piles = occupant
+                    .stack_group()
+                    .map(|_| piles.entry(lane).or_default());
+                lower_bar(
+                    figure,
+                    occupant,
+                    |x| dodge(lane, x),
+                    piles,
+                    label,
+                    &mut extents,
+                )?
+            }
             MarkKind::Box | MarkKind::Violin => {
-                lower_distribution(figure, occupant, |x| dodge(index, x), &mut extents)
+                lower_distribution(figure, occupant, |x| dodge(lane, x), &mut extents)
             }
         }
     }
@@ -133,9 +174,9 @@ pub(super) fn lower(
                 if paired
                     && residents
                         .get(&key(x))
-                        .is_some_and(|curves| curves.contains(&index)) =>
+                        .is_some_and(|curves| curves.contains(&lanes[index])) =>
             {
-                let (dx, share) = dodge(index, x);
+                let (dx, share) = dodge(lanes[index], x);
                 (dx, occupant.style.width * share)
             }
             _ => (0.0, 0.8 * slot_at(x)),
@@ -164,10 +205,15 @@ impl Bounds {
     }
 }
 
+/// Pile ends of one stack, keyed like slots: `[positive, negative]` totals
+/// already laid at each x.
+type Piles = HashMap<u64, [f64; 2]>;
+
 fn lower_bar(
     figure: &mut Figure,
     bar: &Occupant,
     dodge: impl Fn(f64) -> (f64, f64),
+    mut piles: Option<&mut Piles>,
     label: LabelStyle,
     extents: &mut Bounds,
 ) -> Result<(), String> {
@@ -180,18 +226,35 @@ fn lower_bar(
             (k, (e.negative, e.positive))
         })
         .collect();
+    // How far each stacked bar's value was lifted, keyed like `reach`, so its
+    // whisker moves with it.
+    let mut lifts: HashMap<(u64, u64), VecDeque<f64>> = HashMap::new();
     for series in &bar.series {
         for &[x, y] in &series.points {
             let (dx, share) = dodge(x);
             let half = 0.5 * bar.style.width * share;
             let (x0, x1) = (x + dx - half, x + dx + half);
-            if ![x0, x1].into_iter().all(f64::is_finite) {
+            let value = y - bar.baseline;
+            let lift = piles.as_deref_mut().map_or(0.0, |piles| {
+                let pile = piles.entry((x + 0.0).to_bits()).or_default();
+                let end = &mut pile[usize::from(value < 0.0)];
+                let lift = *end;
+                *end += value;
+                lift
+            });
+            let (y0, y1) = (bar.baseline + lift, y + lift);
+            if ![x0, x1, y0, y1].into_iter().all(f64::is_finite) {
                 return Err("Bar presentation overflowed.".into());
             }
-            extents.include(x0, bar.baseline);
-            extents.include(x1, y);
-            let mut rect =
-                Polygon::rect(series.name.clone(), x0, x1, bar.baseline, y, series.color);
+            if piles.is_some() {
+                lifts
+                    .entry(((x + 0.0).to_bits(), y.to_bits()))
+                    .or_default()
+                    .push_back(lift);
+            }
+            extents.include(x0, y0);
+            extents.include(x1, y1);
+            let mut rect = Polygon::rect(series.name.clone(), x0, x1, y0, y1, series.color);
             rect.origin = series.origin;
             rect.hatch = bar.style.hatch_for(series.color);
             figure
@@ -200,7 +263,16 @@ fn lower_bar(
                     Some((color, width)) => rect.with_stroke(color, width),
                     None => rect,
                 });
-            if bar.labels {
+            if bar.labels && piles.is_some() {
+                // A label past a stacked segment would sit on the next one.
+                figure.annotations.push(value_label(
+                    value,
+                    [x + dx, 0.5 * (y0 + y1)],
+                    bar.baseline,
+                    TextAnchor::Point,
+                    label,
+                ));
+            } else if bar.labels {
                 let (below, above) = reach
                     .get(&((x + 0.0).to_bits(), y.to_bits()))
                     .copied()
@@ -222,9 +294,17 @@ fn lower_bar(
     }
     for error in &bar.errors {
         let mut error = error.clone();
+        let lift = lifts
+            .get_mut(&((error.center[0] + 0.0).to_bits(), error.center[1].to_bits()))
+            .and_then(VecDeque::pop_front);
         // Whiskers are built at their bar's undodged x.
         let (dx, share) = dodge(error.center[0]);
         error.center[0] += dx;
+        if let Some(lift) = lift {
+            error.center[1] += lift;
+            extents.include(error.center[0], error.center[1] + error.positive);
+            extents.include(error.center[0], error.center[1] - error.negative);
+        }
         // Caps scale with the bar rather than a fixed point width, which on a
         // narrow grouped bar reads as a flat bracket.
         error.cap_data_width = Some(CAP_FRACTION * bar.style.width * share);

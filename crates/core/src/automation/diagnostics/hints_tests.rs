@@ -58,6 +58,7 @@ fn plot(rows: &[(&str, f64)], x: usize, kinds: &[CurveKind]) -> (PlotiumApp, Plo
             kind: *kind,
             source: source(&app, x),
             y_axis: plotium_figure::YAxisSide::Left,
+            stack: None,
         })
         .collect();
     let params = PlotCreateParams {

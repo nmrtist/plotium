@@ -199,6 +199,7 @@ fn curve(app: &PlotiumApp, kind: CurveKind, y: usize, side: YAxisSide) -> NewCur
             y_error_column_id: None,
         },
         y_axis: side,
+        stack: None,
     }
 }
 

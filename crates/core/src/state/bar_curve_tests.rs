@@ -88,6 +88,7 @@ fn curve(kind: CurveKind, source: TableCurveSource) -> NewCurve {
         kind,
         source,
         y_axis: Default::default(),
+        stack: None,
     }
 }
 
@@ -455,3 +456,6 @@ fn bar_hatch_is_a_series_property_drawn_in_the_outline_color() {
     app.commit_property(reset);
     assert!(figure(&app).polygons.iter().all(|p| p.hatch.is_none()));
 }
+
+#[path = "bar_stack_tests.rs"]
+mod stack;

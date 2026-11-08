@@ -55,6 +55,7 @@ fn create(app: &mut PlotiumApp, intent: Option<PlotIntent>) -> Result<TargetRef,
             kind: CurveKind::Bar,
             source,
             y_axis: plotium_figure::YAxisSide::Left,
+            stack: None,
         }],
         intent,
     };

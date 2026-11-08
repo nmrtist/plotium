@@ -103,6 +103,16 @@ export format as real vector lines.
 The gallery's **Bar** and **Grouped bars** charts have one **Bar hatch** under
 **Chart › Advanced** that covers every bar, drawn in a dark shade of each bar's color.
 
+## Stacked bars
+
+Bar curves stack when they share a name in **Bar stack** under **Line › Advanced**.
+At each x, they pile up in curve order: positive values upward from zero and
+negative values downward. A stack takes one bar's place in the slot, so other
+bars or stacks still sit beside it, which gives grouped stacked bars. Each segment
+keeps its own color, hatch and outline, and the legend lists one entry for each
+curve. Error bars sit at the end of their segment, and value labels sit inside it.
+Clear **Bar stack** to put a curve back beside the others.
+
 ## Error bars
 
 Error bars come from a column that holds the uncertainty of another column.

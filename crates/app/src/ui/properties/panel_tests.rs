@@ -217,6 +217,7 @@ fn mixed_curve_page(kinds: [plotium_core::state::CurveKind; 2]) -> (PlotiumApp, 
                     .into_iter()
                     .map(|kind| NewCurve {
                         y_axis: Default::default(),
+                        stack: None,
                         kind,
                         source: source.clone(),
                     })

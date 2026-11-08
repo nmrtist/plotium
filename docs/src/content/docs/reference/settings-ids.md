@@ -77,6 +77,7 @@ break hides.
 | Marker fill, edge colour, edge width | `series.line.marker_fill`, `series.line.marker_edge_color`, `series.line.marker_edge_width` |
 | Hollow marker, marker every N points | `series.line.marker_hollow`, `series.line.marker_every` |
 | Bar width, edge colour, edge width, hatch | `series.bar.width`, `series.bar.edge_color`, `series.bar.edge_width`, `series.bar.hatch` |
+| Bar stack group (blank for none) | `series.bar.stack` |
 | Error bars show, replicates | `series.error_bars` (`unspecified`, `sd`, `sem`, `ci95`), `series.replicates` |
 
 ### Typography

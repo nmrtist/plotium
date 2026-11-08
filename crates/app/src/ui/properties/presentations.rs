@@ -4,13 +4,28 @@
 use super::{routes::*, types::*};
 use plotium_core::properties::*;
 
-pub const PRESENTATIONS: &[PropertyPresentation] = &[
+mod curves;
+
+/// Every presented property; the panel lists a section's rows in this order.
+pub const PRESENTATIONS: &[PropertyPresentation] = &ALL;
+const ALL: [PropertyPresentation; curves::CURVES.len() + OTHERS.len()] =
+    concat(curves::CURVES, OTHERS);
+
+const fn concat<const N: usize>(
+    a: &[PropertyPresentation],
+    b: &[PropertyPresentation],
+) -> [PropertyPresentation; N] {
+    let mut all = [a[0]; N];
+    let mut i = 0;
+    while i < N {
+        all[i] = if i < a.len() { a[i] } else { b[i - a.len()] };
+        i += 1;
+    }
+    all
+}
+
+const OTHERS: &[PropertyPresentation] = &[
     object_entry(guide::POSITION, "Origin", GUIDE_HOME),
-    object_entry(line_display::COLOR, "Color", LINE_HOME),
-    object_entry(line_display::LABEL, "Legend label", LINE_HOME),
-    object_entry(line_display::STYLE, "Line style", LINE_HOME),
-    object_entry(line_display::MARKER, "Marker", LINE_HOME),
-    object_entry(line_display::Y_AXIS, "Y axis", LINE_HOME),
     object_entry(right_axis::Y2_LABEL, "Right Y title", RIGHT_AXIS_HOME),
     object_entry(right_axis::Y2_RANGE, "Right Y range", RIGHT_AXIS_HOME),
     object_entry(right_axis::Y2_SCALE, "Right Y scale", RIGHT_AXIS_HOME),
@@ -30,35 +45,9 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         "Right Y major tick step",
         RIGHT_AXIS_HOME,
     ),
-    object_entry(line_display::MARKER_SIZE, "Marker diameter", LINE_HOME),
-    object_entry(line_display::MARKER_FILL, "Marker fill", LINE_HOME),
-    object_entry(line_display::MARKER_HOLLOW, "Hollow marker", LINE_HOME),
-    object_entry(
-        line_display::MARKER_EVERY,
-        "Marker every N points",
-        LINE_HOME,
-    ),
-    object_entry(line_display::BAR_WIDTH, "Bar width", LINE_HOME),
-    object_entry(line_display::BAR_EDGE_COLOR, "Bar outline color", LINE_HOME),
-    object_entry(line_display::BAR_EDGE_WIDTH, "Bar outline width", LINE_HOME),
-    object_entry(line_display::BAR_HATCH, "Bar hatch", LINE_HOME),
-    object_entry(chart_layout::SPREAD, "Replicate spread", LINE_HOME),
-    object_entry(chart_layout::VALUE_LABELS, "Value labels", LINE_HOME),
-    object_entry(replicates::REPLICATES, "Replicates (n)", LINE_HOME),
-    object_entry(replicates::ERROR_BARS, "Error bars show", LINE_HOME),
     object_entry(chart_layout::ORIENTATION, "Chart orientation", AXIS_HOME),
     object_entry(intent::PURPOSE, "Purpose", CHART_HOME),
     object_entry(intent::CLAIM, "Claim", CHART_HOME),
-    object_entry(
-        line_display::MARKER_EDGE_COLOR,
-        "Marker edge color",
-        LINE_HOME,
-    ),
-    object_entry(
-        line_display::MARKER_EDGE_WIDTH,
-        "Marker edge width",
-        LINE_HOME,
-    ),
     object_entry(plot_display::X_UNIT, "X display unit", AXIS_HOME),
     object_entry(plot_display::Y_UNIT, "Y display unit", AXIS_HOME),
     object_entry(plot_display::X_RANGE, "X range", AXIS_HOME),
@@ -319,14 +308,6 @@ pub const PRESENTATIONS: &[PropertyPresentation] = &[
         localized_label: LocalizedText("Range centre"),
         localized_aliases: &[LocalizedText("colour scale midpoint")],
         home_route: HEATMAP_HOME,
-        canvas_step: false,
-        uses_canvas_length_unit: false,
-    },
-    PropertyPresentation {
-        id: line::STROKE_WIDTH,
-        localized_label: LocalizedText("Stroke width"),
-        localized_aliases: &[LocalizedText("line thickness")],
-        home_route: LINE_HOME,
         canvas_step: false,
         uses_canvas_length_unit: false,
     },
