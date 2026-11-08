@@ -41,8 +41,9 @@ pub(super) fn apply(page: &mut CanvasDocument, edit: &FigureEdit) -> Result<Valu
         .aux_line_pt
         .filter(|width| (0.1..=20.0).contains(width));
     let missing = || "Discover an exact annotation id on this plot.".to_owned();
-    let id = if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit, aux_line_pt)?
-    {
+    let id = if let Some(id) = super::figure_edit_span::apply(&mut annotations, edit)? {
+        id
+    } else if let Some(id) = super::figure_edit_arrow::apply(&mut annotations, edit, aux_line_pt)? {
         id
     } else if let Some(id) =
         super::figure_edit_reference_line::apply(&mut annotations, edit, aux_line_pt)?
@@ -174,7 +175,11 @@ pub(crate) fn annotation_readings(page: &CanvasDocument, object: ObjectId) -> Ve
         .arrows
         .iter()
         .map(super::figure_edit_arrow::arrow_reading);
-    texts.chain(lines).chain(arrows).collect()
+    let spans = annotations
+        .spans
+        .iter()
+        .map(super::figure_edit_span::span_reading);
+    texts.chain(lines).chain(arrows).chain(spans).collect()
 }
 
 pub(crate) fn annotation_reading(

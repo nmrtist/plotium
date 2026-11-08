@@ -15,6 +15,8 @@ pub(in crate::ui) fn plot_text_edit_window(app: &mut PlotiumApp, ctx: &egui::Con
             .annotations;
         if annotations.get(annotation).is_some() {
             Some((ci, true))
+        } else if annotations.span(annotation).is_some() {
+            Some((ci, false))
         } else {
             annotations.reference_line(annotation).map(|_| (ci, false))
         }
@@ -27,8 +29,14 @@ pub(in crate::ui) fn plot_text_edit_window(app: &mut PlotiumApp, ctx: &egui::Con
     let mut save = false;
     let mut delete = false;
     let mut cancel = false;
+    let is_span = app.doc.canvases[ci]
+        .object(object)
+        .and_then(|item| item.plot())
+        .is_some_and(|plot| plot.axis_overrides.annotations.span(annotation).is_some());
     egui::Window::new(if is_text {
         "Edit text"
+    } else if is_span {
+        "Edit span label"
     } else {
         "Edit line label"
     })

@@ -30,7 +30,8 @@ One batch changes one canvas, in supplied edit order, with one Undo/Redo:
 | `annotation_create` | `target: EXACT_PLOT_TARGET`, `text`, `at: [x,y]` in the plot's data coordinates, `font_pt`; optional `kind: "text"`, `color: "#rrggbb"` |
 | `annotation_create` (reference line) | `target: EXACT_PLOT_TARGET`, `kind: "reference_line"`, `orientation: vertical\|horizontal`, `value`; optional `label`, `font_pt`, `line: {color, width_pt, style}` |
 | `annotation_create` (arrow) | `target: EXACT_PLOT_TARGET`, `kind: "arrow"`, tail `at: [x,y]`, head `to: [x,y]`; optional `head: none\|open\|filled\|double`, `line_width_pt`, `color: "#rrggbb"` |
-| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `color`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line) or `at`, `to`, `head`, `line_width_pt`, `color` (arrow); optional `override_hand_edits` |
+| `annotation_create` (span) | `target: EXACT_PLOT_TARGET`, `kind: "span"`, `axis: x\|y`, `range: [start,end]`; optional `opacity`, `label`, `font_pt`, `color: "#rrggbb"` |
+| `annotation_set` | `target: EXACT_PLOT_TARGET`, `annotation_id`; at least one of `text`, `at`, `font_pt`, `color`, `offset_pt`, `placement` (text), `orientation`, `value`, `label`, `font_pt`, `line`, `placement` (reference line), `at`, `to`, `head`, `line_width_pt`, `color` (arrow) or `axis`, `range`, `opacity`, `label`, `font_pt`, `color` (span); optional `override_hand_edits` |
 | `annotation_delete` | `target: EXACT_PLOT_TARGET`, `annotation_id` |
 
 For example, after creating two plots, set their page and selected-panel grid:
@@ -129,10 +130,11 @@ annotations share one id sequence and the 256-per-plot budget, and
 Fields of the other kind are rejected rather than ignored; a reference line
 takes its colour in `line.color`, not `color`.
 
-An arrow or reference line the user moved on the canvas reports
+An arrow, reference line or span the user moved on the canvas reports
 `hand_moved: true` and is listed under `hand_edits` with key
 `annotation.position`. Restyling it is allowed, but a new `at` or `to` on such
-an arrow, or a new `value` or `orientation` on such a line, is rejected unless
+an arrow, a new `value` or `orientation` on such a line, or a new `axis` or
+`range` on such a span, is rejected unless
 `override_hand_edits: true` says the user asked; the moved position then
 becomes the agent's again.
 
@@ -151,6 +153,26 @@ text: label it with a separate text annotation, for example at its tail. Arrows
 share the `annotation_id` sequence and 256-per-plot budget with the other kinds,
 are listed under `annotations` with `kind: "arrow"`, and reject fields of the
 other kinds.
+
+A span annotation (`kind: "span"`) fills a data range across the whole plot:
+`axis: "x"` shades the x range `range` from the bottom to the top of the plot,
+`axis: "y"` shades the y range from the left to the right edge. `range` uses
+the same source units as `at`; its two ends must differ and may come in either
+order. The band follows the axis ranges, zoom and pan, is clipped to the plot
+area, and is painted behind every data layer, so bars, curves, points and
+reference lines stay visible over it. `color` (default
+`#808080`) sets the fill and label colour and `opacity` (0–1, default 0.2) the
+fill opacity. The optional `label` is drawn over the data inside the band's
+top-left corner, at the tick label size until `font_pt` sets one; an empty
+`label` removes it.
+Spans share the `annotation_id` sequence and 256-per-plot budget with the other
+kinds, are listed under `annotations` with `kind: "span"`, and reject fields of
+the other kinds.
+
+```json
+{"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"span",
+ "axis":"x","range":[1.2,1.6],"label":"OER","color":"#4c78a8","opacity":0.15}
+```
 
 Align uses the selected bounding edges/centres. Distribution equalizes centres
 between fixed endpoints, not edge gaps. Grid composes the existing native cell

@@ -195,7 +195,9 @@ impl PlotiumApp {
             }
             PlotPart::Annotation(id) => {
                 let annotations = &plot.axis_overrides.annotations;
-                annotations.arrow(id).is_some() || annotations.reference_line(id).is_some()
+                annotations.arrow(id).is_some()
+                    || annotations.reference_line(id).is_some()
+                    || annotations.span(id).is_some()
             }
             PlotPart::RegionLabel { dataset, region } => self
                 .doc

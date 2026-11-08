@@ -428,9 +428,7 @@ impl PlotObject {
     /// Replace authored annotations without a rebuild: anchors are data
     /// coordinates, so only the lowered labels and legend room change.
     pub(crate) fn set_annotations(&mut self, annotations: super::PlotAnnotations) {
-        self.figure.author_annotations = annotations.lower();
-        self.figure.reference_lines = annotations.lower_reference_lines();
-        self.figure.author_arrows = annotations.lower_arrows();
+        annotations.lower_into(&mut self.figure);
         self.axis_overrides.annotations = annotations;
         self.apply_viewport();
     }

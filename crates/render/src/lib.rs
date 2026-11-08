@@ -14,6 +14,7 @@ pub use label_placement::{LabelLayout, ReferenceLabelBox, TextLabelBox, label_la
 mod projected;
 mod reference_lines;
 mod shape_stroke;
+mod spans;
 mod text_place;
 pub(crate) use projected::{
     baseline_fill_outline, baseline_y, clip_to_plot, error_bar_segments, finite_runs,

@@ -1,7 +1,7 @@
 use super::dto::RangeDto;
 use crate::state::{
     AnnotationId, AxisOverrides, LabelPlacement, PlotAnnotation, PlotAnnotations, PlotArrow,
-    PlotReferenceLine,
+    PlotReferenceLine, PlotSpan,
 };
 use plotium_figure::{
     AxisBreak, AxisFrame, AxisScale, GuideLayout, GuidePlacement, GuideVisibility, LineStyle,
@@ -91,6 +91,24 @@ struct PlotAnnotationsDto {
     reference_lines: Vec<PlotReferenceLineDto>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     arrows: Vec<PlotArrowDto>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    spans: Vec<PlotSpanDto>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PlotSpanDto {
+    id: AnnotationId,
+    axis: plotium_figure::SpanAxis,
+    /// Range ends in the plot's axis units.
+    range: [f64; 2],
+    color: [u8; 3],
+    opacity: f32,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    font_size: Option<f32>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    hand_moved: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -227,6 +245,20 @@ impl PlotAnnotationsDto {
                     hand_moved: a.hand_moved,
                 })
                 .collect(),
+            spans: annotations
+                .spans
+                .iter()
+                .map(|s| PlotSpanDto {
+                    id: s.id,
+                    axis: s.axis,
+                    range: s.range,
+                    color: [s.color.r, s.color.g, s.color.b],
+                    opacity: s.opacity,
+                    label: s.label.clone(),
+                    font_size: s.font_size,
+                    hand_moved: s.hand_moved,
+                })
+                .collect(),
         })
     }
 
@@ -261,6 +293,20 @@ impl PlotAnnotationsDto {
                     line_width: a.line_width,
                     color: plotium_figure::Color::rgb(a.color[0], a.color[1], a.color[2]),
                     hand_moved: a.hand_moved,
+                })
+                .collect(),
+            spans: self
+                .spans
+                .iter()
+                .map(|s| PlotSpan {
+                    id: s.id,
+                    axis: s.axis,
+                    range: s.range,
+                    color: plotium_figure::Color::rgb(s.color[0], s.color[1], s.color[2]),
+                    opacity: s.opacity,
+                    label: s.label.clone(),
+                    font_size: s.font_size,
+                    hand_moved: s.hand_moved,
                 })
                 .collect(),
         }

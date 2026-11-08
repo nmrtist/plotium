@@ -3,7 +3,7 @@
 use super::*;
 use crate::ui::plot_annotations::{self, NewAnnotation};
 use plotium_core::state::{LabelPlacement, PlotMenuPoint, PlotPart};
-use plotium_figure::ReferenceOrientation;
+use plotium_figure::{ReferenceOrientation, SpanAxis};
 
 /// Screen px from the clicked point to a new arrow's tail along each axis.
 const ARROW_TAIL_PX: f32 = 24.0;
@@ -100,6 +100,8 @@ pub(crate) fn menu_items(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) -> bool {
                 "Add horizontal line here",
                 NewAnnotation::Line(ReferenceOrientation::Horizontal),
             ),
+            ("Add x span here", NewAnnotation::Span(SpanAxis::X)),
+            ("Add y span here", NewAnnotation::Span(SpanAxis::Y)),
         ] {
             if ui.button(label).clicked() {
                 plot_annotations::create(app, point, kind);
@@ -119,7 +121,7 @@ pub(crate) fn menu_items(app: &mut PlotiumApp, ci: usize, ui: &mut Ui) -> bool {
     };
     let text = annotations.get(annotation);
     let line = annotations.reference_line(annotation);
-    let has_text = text.is_some() || line.is_some();
+    let has_text = text.is_some() || line.is_some() || annotations.span(annotation).is_some();
     let pinned = text.is_some_and(|t| t.placement != LabelPlacement::Auto)
         || line.is_some_and(|l| !l.label.is_empty() && l.label_placement != LabelPlacement::Auto);
     if has_text && ui.button("Edit text…").clicked() {

@@ -36,6 +36,12 @@ pub fn figure_edit_schema() -> Value {
     let color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb'; default black."});
     let arrow_tail = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow tail point in the plot's source data coordinates (the units in its coordinate_units). The arrow follows axis range, zoom and pan and is clipped to the plot area."});
     let arrow_to = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite [x,y] arrow head point in the same source data coordinates as `at` (the tail); must differ from `at`."});
+    let span_axis = json!({"enum":["x","y"],"description":"x: a band over an x range, spanning the plot's height; y: a band over a y range, spanning its width."});
+    let span_range = json!({"type":"array","minItems":2,"maxItems":2,"items":number,"description":"Finite, distinct [start,end] along axis in the plot's source data coordinates (coordinate_units). The band follows axis range, zoom and pan and is clipped to the plot area."});
+    let span_opacity =
+        json!({"type":"number","minimum":0,"maximum":1,"description":"Fill opacity; default 0.2."});
+    let span_label = json!({"type":"string","maxLength":crate::state::MAX_ANNOTATION_TEXT_BYTES,"description":"Optional label in the span colour, over the data inside the band's top-left corner; empty removes it. It uses the tick label size until font_pt sets one."});
+    let span_color = json!({"type":"string","pattern":"^#[0-9a-fA-F]{6}$","description":"'#rrggbb' fill and label colour; default #808080."});
     let variant = |op: &str, required: Vec<&str>, mut properties: Value| {
         properties["op"] = json!({"const":op});
         let required = std::iter::once("op").chain(required).collect::<Vec<_>>();
@@ -117,11 +123,16 @@ pub fn figure_edit_schema() -> Value {
             vec!["target", "kind", "at", "to"],
             json!({"target":target,"kind":{"const":"arrow"},"at":arrow_tail,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":color}),
         ),
+        variant(
+            "annotation_create",
+            vec!["target", "kind", "axis", "range"],
+            json!({"target":target,"kind":{"const":"span"},"axis":span_axis,"range":span_range,"opacity":span_opacity,"label":span_label,"font_pt":font,"color":span_color}),
+        ),
         {
             let mut set = variant(
                 "annotation_set",
                 vec!["target", "annotation_id"],
-                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":color,"offset_pt":label_offset,"placement":placement,"override_hand_edits":{"type":"boolean","description":"Also re-place a label the user placed by hand (placement hand), or move an annotation the user placed or moved by hand. Pass true only when the user asked for it."}}),
+                json!({"target":target,"annotation_id":annotation_id,"text":annotation_text,"at":data_point,"font_pt":font,"orientation":orientation,"value":line_value,"label":line_label,"line":line_style,"to":arrow_to,"head":arrow_head,"line_width_pt":arrow_width,"color":color,"axis":span_axis,"range":span_range,"opacity":span_opacity,"offset_pt":label_offset,"placement":placement,"override_hand_edits":{"type":"boolean","description":"Also re-place a label the user placed by hand (placement hand), or move an annotation the user placed or moved by hand. Pass true only when the user asked for it."}}),
             );
             set["anyOf"] = json!(
                 [
@@ -136,13 +147,16 @@ pub fn figure_edit_schema() -> Value {
                     "head",
                     "line_width_pt",
                     "color",
+                    "axis",
+                    "range",
+                    "opacity",
                     "offset_pt",
                     "placement"
                 ]
                 .map(|field| json!({"required":[field]}))
             );
             set["description"] = json!(
-                "text, at, color and offset_pt apply to text annotations; orientation, value, label and line to reference lines; font_pt and placement to both; at, to, head, line_width_pt and color to arrows (at is the tail). Labels are placed clear of data automatically; a label the user dragged keeps its place through other edits, and offset_pt or placement on it needs override_hand_edits. Moving a hand-placed text's at, or an arrow's at/to or a reference line's value/orientation the user moved (hand_moved), also needs override_hand_edits."
+                "text, at, color and offset_pt apply to text annotations; orientation, value, label and line to reference lines; font_pt and placement to both; at, to, head, line_width_pt and color to arrows (at is the tail); axis, range, opacity, label, font_pt and color to spans. Labels are placed clear of data automatically; a label the user dragged keeps its place through other edits, and offset_pt or placement on it needs override_hand_edits. Moving a hand-placed text's at, or an arrow's at/to, a reference line's value/orientation or a span's axis/range the user moved (hand_moved), also needs override_hand_edits."
             );
             set
         },
@@ -160,7 +174,7 @@ pub fn figure_edit_schema() -> Value {
         ),
     ];
     variants[0]["not"] = json!({"required":["size_mm","size_preset"]});
-    json!({"type":"object","additionalProperties":false,"required":["canvas","edits"],"properties":{"canvas":target,"edits":{"type":"array","minItems":1,"maxItems":200,"items":{"oneOf":variants}}},"description":"Atomic native authoring on one exact canvas. Panel frames [x,y,w,h] are page pt, resize scales child-local frames. New content frames are parent-local pt. Page size/margins/gutter use mm; margins [top,right,bottom,left]. Grid uses native Frame-basis cells in supplied Panel order, existing page margins/gutter; no page-layout preference change or non-target reflow. Align uses bounding edges/centres, distribution equal centre spacing with endpoints fixed. Panel layout ops require unlocked Panels with free or shared-x stack layout; new text/images need a free-layout parent. panel_stack needs at least two plots in the Panel and its merge Panels: members fill its inner width, heights keep their frame proportions, only the bottom plot draws x tick labels and x title and only the top plot a title, inner boundaries touch with inward x ticks, members get one x range covering all their data and the top member's x major tick step (x scales must match) and draw the bottom member's x direction, and x range, scale, display unit, thousands separator and major tick step edits apply to every member or are rejected. content_frame requires the item and parent unlocked, a free-layout or shared-x stack parent (where only the height counts, as the member's share) and Auto height off; image_replace requires the item and parent unlocked, not a layout mode change. Deletion-only batches accept distinct content_delete, originally empty panel_delete and explicit-column series_delete targets on this canvas. Reject overlaps, last-Series removal, defaults/dynamic displays and mixing deletion with other ops. Preserve empty parents, datasets and assets; preflight lists exact deletions and relationship changes. Hidden exact targets remain addressable. Annotation ops target an exact unlocked plot in an unlocked parent, anchor text, reference lines (kind reference_line) or arrows (kind arrow: tail `at`, head `to`) in source data coordinates, allow at most 256 of any kind per plot and are allowed with Auto height. No top-level ids/targets."})
+    json!({"type":"object","additionalProperties":false,"required":["canvas","edits"],"properties":{"canvas":target,"edits":{"type":"array","minItems":1,"maxItems":200,"items":{"oneOf":variants}}},"description":"Atomic native authoring on one exact canvas. Panel frames [x,y,w,h] are page pt, resize scales child-local frames. New content frames are parent-local pt. Page size/margins/gutter use mm; margins [top,right,bottom,left]. Grid uses native Frame-basis cells in supplied Panel order, existing page margins/gutter; no page-layout preference change or non-target reflow. Align uses bounding edges/centres, distribution equal centre spacing with endpoints fixed. Panel layout ops require unlocked Panels with free or shared-x stack layout; new text/images need a free-layout parent. panel_stack needs at least two plots in the Panel and its merge Panels: members fill its inner width, heights keep their frame proportions, only the bottom plot draws x tick labels and x title and only the top plot a title, inner boundaries touch with inward x ticks, members get one x range covering all their data and the top member's x major tick step (x scales must match) and draw the bottom member's x direction, and x range, scale, display unit, thousands separator and major tick step edits apply to every member or are rejected. content_frame requires the item and parent unlocked, a free-layout or shared-x stack parent (where only the height counts, as the member's share) and Auto height off; image_replace requires the item and parent unlocked, not a layout mode change. Deletion-only batches accept distinct content_delete, originally empty panel_delete and explicit-column series_delete targets on this canvas. Reject overlaps, last-Series removal, defaults/dynamic displays and mixing deletion with other ops. Preserve empty parents, datasets and assets; preflight lists exact deletions and relationship changes. Hidden exact targets remain addressable. Annotation ops target an exact unlocked plot in an unlocked parent, anchor text, reference lines (kind reference_line), arrows (kind arrow: tail `at`, head `to`) or filled spans (kind span, drawn behind data) in source data coordinates, allow at most 256 of any kind per plot and are allowed with Auto height. No top-level ids/targets."})
 }
 /// Built-in page size presets by id, shared by page edits and new canvases.
 pub(super) fn size_preset_schema() -> Value {

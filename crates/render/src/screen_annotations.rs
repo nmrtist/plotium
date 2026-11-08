@@ -129,3 +129,51 @@ pub(crate) fn paint_arrows(
         }
     }
 }
+
+/// Author span fills, mirroring [`crate::svg`]'s span output.
+pub(crate) fn paint_spans(painter: &egui::Painter, projector: &Projector, scale: f32) {
+    for item in crate::spans::layout(projector, scale) {
+        let span = item.span;
+        let rect = egui::Rect::from_min_size(
+            Pos2::new(item.rect.left, item.rect.top),
+            egui::vec2(item.rect.width, item.rect.height),
+        );
+        painter.rect_filled(
+            rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(
+                span.color.r,
+                span.color.g,
+                span.color.b,
+                (span.opacity.clamp(0.0, 1.0) * 255.0).round() as u8,
+            ),
+        );
+    }
+}
+
+/// Author span labels, painted above the data.
+pub(crate) fn paint_span_labels(
+    painter: &egui::Painter,
+    figure: &Figure,
+    projector: &Projector,
+    scale: f32,
+) {
+    for item in crate::spans::layout(projector, scale) {
+        let Some(label) = item.label else {
+            continue;
+        };
+        let color = item.span.color;
+        crate::rich_text::paint(
+            painter,
+            Pos2::new(label.x, label.top),
+            match label.anchor {
+                TextAnchor::Left => Align2::LEFT_TOP,
+                TextAnchor::Center => Align2::CENTER_TOP,
+                TextAnchor::Right => Align2::RIGHT_TOP,
+            },
+            label.text,
+            crate::rich_text::plot_font(label.size, &figure.typography),
+            Color32::from_rgb(color.r, color.g, color.b),
+        );
+    }
+}

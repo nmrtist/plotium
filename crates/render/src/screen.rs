@@ -324,6 +324,7 @@ fn paint_with_detail_and_stats_impl(
     );
     let clipped = painter.with_clip_rect(clip);
 
+    crate::screen_annotations::paint_spans(&clipped, &proj, scale);
     if let Some(grid) = &fig.heatmap {
         for (cell, color) in heatmap_cells(&proj, grid) {
             // Expand a hair so adjacent cells cannot show anti-aliasing seams.
@@ -411,6 +412,7 @@ fn paint_with_detail_and_stats_impl(
     }
 
     crate::screen_annotations::paint_arrows(&clipped, fig, &proj, scale);
+    crate::screen_annotations::paint_span_labels(&clipped, fig, &proj, scale);
     for (a, at) in crate::label_placement::drawn_texts(fig, plot, &labels, scale) {
         let align = match (at.align, at.middle) {
             (crate::text_place::TextAlign::Center, false) => Align2::CENTER_BOTTOM,

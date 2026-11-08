@@ -26,9 +26,10 @@ pub(crate) fn build(contract: &Value) -> Map<String, Value> {
                 ("text_create", _) => "Add a text box",
                 ("text_set", _) => "Change the text of a text box",
                 ("image_create", _) => "Add an image from a local file",
-                ("annotation_create", Some("arrow")) => "Add an arrow in source data coordinates",
-                ("annotation_create", Some("text")) => "Add a text label anchored to data",
-                ("annotation_create", Some("reference_line")) => "Add a vertical or horizontal reference line",
+                ("annotation_create", Some("arrow")) => "Add an arrow",
+                ("annotation_create", Some("text")) => "Add a label at data",
+                ("annotation_create", Some("reference_line")) => "Add a reference line",
+                ("annotation_create", Some("span")) => "Shade an x or y range",
                 ("annotation_set", _) => "Change or move an existing annotation",
                 ("annotation_delete", _) => "Remove an annotation",
                 ("content_delete", _) => "Delete a plot, text box or image",
@@ -181,6 +182,7 @@ fn example(op: &str, kind: Option<&str>) -> Value {
                 json!({"target":content,"kind":"reference_line","orientation":"vertical","value":1})
             }
             "arrow" => json!({"target":content,"kind":"arrow","at":[1,2],"to":[2,3]}),
+            "span" => json!({"target":content,"kind":"span","axis":"x","range":[1,2]}),
             _ => unreachable!("known annotation kinds"),
         },
         "annotation_set" => json!({"target":content,"annotation_id":0,"text":"Label"}),

@@ -30,7 +30,8 @@ description: 通过 MCP 安排页面、面板、文字和图片，精确删除�
 | `annotation_create` | `target: 完整图目标`、`text`、`at: [x,y]`（该图的数据坐标）、`font_pt`；可选 `kind: "text"`、`color: "#rrggbb"` |
 | `annotation_create`（参考线） | `target: 完整图目标`、`kind: "reference_line"`、`orientation: vertical\|horizontal`、`value`；可选 `label`、`font_pt`、`line: {color, width_pt, style}` |
 | `annotation_create`（箭头） | `target: 完整图目标`、`kind: "arrow"`、箭尾 `at: [x,y]`、箭头 `to: [x,y]`；可选 `head: none\|open\|filled\|double`、`line_width_pt`、`color: "#rrggbb"` |
-| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`color`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一；可选 `override_hand_edits` |
+| `annotation_create`（区间） | `target: 完整图目标`、`kind: "span"`、`axis: x\|y`、`range: [起点,终点]`；可选 `opacity`、`label`、`font_pt`、`color: "#rrggbb"` |
+| `annotation_set` | `target: 完整图目标`、`annotation_id`；文字标注至少提供 `text`、`at`、`font_pt`、`color`、`offset_pt`、`placement` 之一，参考线至少提供 `orientation`、`value`、`label`、`font_pt`、`line`、`placement` 之一，箭头至少提供 `at`、`to`、`head`、`line_width_pt`、`color` 之一，区间至少提供 `axis`、`range`、`opacity`、`label`、`font_pt`、`color` 之一；可选 `override_hand_edits` |
 | `annotation_delete` | `target: 完整图目标`、`annotation_id` |
 
 创建两张图后，可设置页面并排列明确选定的两个面板：
@@ -111,9 +112,10 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
 并以 `kind` 区分。提供另一类标注的字段会被拒绝，而不是被忽略；参考线的颜色用
 `line.color` 设置，不用 `color`。
 
-用户在画布上移动过的箭头或参考线报告 `hand_moved: true`，并在 `hand_edits` 中以键
-`annotation.position` 列出。可以改它的样式，但给这样的箭头设置新的 `at`、`to`，或给
-这样的参考线设置新的 `value`、`orientation` 会被拒绝，除非以
+用户在画布上移动过的箭头、参考线或区间报告 `hand_moved: true`，并在 `hand_edits` 中以键
+`annotation.position` 列出。可以改它的样式，但给这样的箭头设置新的 `at`、`to`，给
+这样的参考线设置新的 `value`、`orientation`，或给这样的区间设置新的 `axis`、`range`
+会被拒绝，除非以
 `override_hand_edits: true` 表明是用户要求；改后位置重新算作 agent 的设置。
 
 ```json
@@ -128,6 +130,20 @@ y = `value` 处画横线，单位与 `at` 相同，贯穿整个绘图区。它�
 0.3 pt），`color` 默认黑色；两端不得重合。箭头不带文字，需要说明时另建一个
 文字标注（例如放在箭尾）。箭头与其他标注共用该图的 `annotation_id` 序列和每张图 256 个
 的上限，在 `annotations` 中以 `kind: "arrow"` 列出；提供其他类标注的字段会被拒绝。
+
+区间标注（`kind: "span"`）在整个绘图区内填充一段数据范围：`axis: "x"` 把 x 范围
+`range` 从绘图区底部填到顶部，`axis: "y"` 把 y 范围从左边填到右边。`range` 与 `at`
+使用同一源数据单位，两端不得相同，顺序不限。色带跟随轴范围、缩放和平移，裁切在
+绘图区内，画在所有数据层之下，因此柱子、曲线、散点和参考线都显示在它上面。
+`color`（默认 `#808080`）同时设置填充和标签颜色，`opacity`（0–1，默认 0.2）设置填充
+不透明度。可选的 `label` 画在色带内左上角、数据之上，未用 `font_pt` 指定字号时使用刻度标签字号；
+`label` 为空时移除标签。区间与其他标注共用该图的 `annotation_id` 序列和每张图 256 个的
+上限，在 `annotations` 中以 `kind: "span"` 列出；提供其他类标注的字段会被拒绝。
+
+```json
+{"op":"annotation_create","target":EXACT_PLOT_TARGET,"kind":"span",
+ "axis":"x","range":[1.2,1.6],"label":"OER","color":"#4c78a8","opacity":0.15}
+```
 
 Align 依据所选边界／中心；Distribute 在固定两端中心间等分中心位置，不等分边缘
 间隙。Grid 将已有原生格子算法与 authoring 尺寸 setter 组合用于明确子集，不表示
