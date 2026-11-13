@@ -130,35 +130,28 @@ fn prioritize_proportional(fonts: &mut FontDefinitions, platform: &PlatformFonts
     if platform.system_cjk_regular.is_some() {
         preferred.push(SYSTEM_CJK_REGULAR_KEY.to_owned());
     }
-    for name in preferred.iter().rev() {
-        if let Some(index) = proportional.iter().position(|candidate| candidate == name) {
-            proportional.remove(index);
-        }
-        proportional.insert(0, name.clone());
-    }
+    // Phosphor maps lowercase ASCII and '-' to blank ligature components.
+    // Keep egui's bundled text face ahead of all optional fonts.
+    proportional.retain(|name| name != "phosphor");
+    proportional.splice(1..1, preferred);
 }
 
 fn build_emphasized_family(fonts: &mut FontDefinitions, platform: &PlatformFonts) {
-    let mut family = Vec::new();
-    if platform.system_ui_semibold.is_some() {
-        family.push(SYSTEM_UI_SEMIBOLD_KEY.to_owned());
-    } else if platform.system_ui_regular.is_some() {
-        family.push(SYSTEM_UI_REGULAR_KEY.to_owned());
-    }
-    family.push("phosphor".to_owned());
-    if platform.system_cjk_semibold.is_some() {
-        family.push(SYSTEM_CJK_SEMIBOLD_KEY.to_owned());
-    } else if platform.system_cjk_regular.is_some() {
-        family.push(SYSTEM_CJK_REGULAR_KEY.to_owned());
-    }
-    for fallback in fonts
+    let mut family = fonts
         .families
         .get(&FontFamily::Proportional)
         .expect("egui default fonts include a proportional family")
-    {
-        if !family.contains(fallback) {
-            family.push(fallback.clone());
-        }
+        .clone();
+    if platform.system_ui_semibold.is_some() {
+        family.insert(0, SYSTEM_UI_SEMIBOLD_KEY.to_owned());
+    }
+    if platform.system_cjk_semibold.is_some() {
+        let after_icons = family
+            .iter()
+            .position(|name| name == "phosphor")
+            .expect("Phosphor is registered in the proportional family")
+            + 1;
+        family.insert(after_icons, SYSTEM_CJK_SEMIBOLD_KEY.to_owned());
     }
     fonts
         .families
@@ -319,13 +312,21 @@ mod tests {
         });
 
         assert_eq!(
-            &fonts.families[&FontFamily::Proportional][..3],
+            &fonts.families[&FontFamily::Proportional][1..4],
             [SYSTEM_UI_REGULAR_KEY, "phosphor", SYSTEM_CJK_REGULAR_KEY]
         );
         let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
+        let bundled = fonts.families[&FontFamily::Proportional][0].as_str();
         assert_eq!(
-            &fonts.families[&emphasized][..3],
-            [SYSTEM_UI_SEMIBOLD_KEY, "phosphor", SYSTEM_CJK_SEMIBOLD_KEY]
+            &fonts.families[&emphasized][..6],
+            [
+                SYSTEM_UI_SEMIBOLD_KEY,
+                bundled,
+                SYSTEM_UI_REGULAR_KEY,
+                "phosphor",
+                SYSTEM_CJK_SEMIBOLD_KEY,
+                SYSTEM_CJK_REGULAR_KEY,
+            ]
         );
         assert_eq!(fonts.font_data[SYSTEM_UI_REGULAR_KEY].index, 1);
         assert_eq!(fonts.font_data[SYSTEM_UI_SEMIBOLD_KEY].index, 2);
@@ -333,18 +334,15 @@ mod tests {
         assert_eq!(fonts.font_data[SYSTEM_CJK_SEMIBOLD_KEY].index, 4);
         let arial = figure_font_family(Typeface::Arial, FontWeight::Regular);
         let figure = FontFamily::Name(FIGURE_FONT_FAMILY.into());
-        assert_eq!(
-            &fonts.families[&figure][..2],
-            [arial, SYSTEM_UI_REGULAR_KEY]
-        );
+        assert_eq!(&fonts.families[&figure][..2], [arial, bundled]);
         // A missing bold face falls back to the regular one.
         let bold = FontFamily::Name(figure_font_family(Typeface::Arial, FontWeight::Bold).into());
-        assert_eq!(&fonts.families[&bold][..2], [arial, SYSTEM_UI_REGULAR_KEY]);
+        assert_eq!(&fonts.families[&bold][..2], [arial, bundled]);
         // A missing typeface falls back to the UI stack.
         let times = FontFamily::Name(
             figure_font_family(Typeface::TimesNewRoman, FontWeight::Regular).into(),
         );
-        assert_eq!(fonts.families[&times][0], SYSTEM_UI_REGULAR_KEY);
+        assert_eq!(fonts.families[&times][0], bundled);
     }
 
     #[test]
@@ -357,24 +355,43 @@ mod tests {
             figure: Vec::new(),
         });
         let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
-        assert_eq!(fonts.families[&emphasized][0], SYSTEM_UI_REGULAR_KEY);
+        assert_eq!(fonts.families[&emphasized][1], SYSTEM_UI_REGULAR_KEY);
     }
 
     #[test]
-    fn missing_system_fonts_preserve_portable_fallbacks() {
-        let defaults = FontDefinitions::default();
-        let fonts = build_definitions(PlatformFonts::default());
-
-        assert_eq!(fonts.families[&FontFamily::Proportional][0], "phosphor");
-        assert!(
-            fonts.families[&FontFamily::Proportional]
-                .iter()
-                .any(|font| defaults.families[&FontFamily::Proportional].contains(font))
-        );
-        assert_eq!(
-            fonts.families[&FontFamily::Monospace],
-            defaults.families[&FontFamily::Monospace]
-        );
+    fn bundled_fonts_render_english_without_system_fonts() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(build_definitions(PlatformFonts::default()));
+        let ascii: String = ('!'..='~').collect();
+        let icon = egui_phosphor::regular::FOLDER_OPEN;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            for family in [
+                FontFamily::Proportional,
+                FontFamily::Monospace,
+                FontFamily::Name(EMPHASIZED_FAMILY_NAME.into()),
+                FontFamily::Name(FIGURE_FONT_FAMILY.into()),
+            ] {
+                let sample = if family == FontFamily::Monospace {
+                    ascii.clone()
+                } else {
+                    format!("{ascii} {icon}")
+                };
+                let font = egui::FontId::new(16.0, family.clone());
+                ui.fonts_mut(|fonts| {
+                    assert!(fonts.has_glyphs(&font, &sample), "{family:?}");
+                    let galley = fonts.layout_no_wrap(sample, font, egui::Color32::WHITE);
+                    for glyph in galley.rows.iter().flat_map(|row| &row.glyphs) {
+                        if glyph.chr != ' ' {
+                            assert!(
+                                glyph.advance_width > 0.0 && !glyph.uv_rect.is_nothing(),
+                                "{family:?}: invisible glyph for {:?}",
+                                glyph.chr,
+                            );
+                        }
+                    }
+                });
+            }
+        });
     }
 
     #[test]

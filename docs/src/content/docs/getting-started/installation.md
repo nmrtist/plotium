@@ -15,6 +15,8 @@ in Finder. Installation does not require running a terminal command.
 
 On Windows and Linux, unpack the ZIP anywhere you like and run `plotium`.
 These portable packages do not need an installer.
+Plotium includes fonts for the English interface. System fonts provide
+additional characters, such as Chinese text.
 
 | Platform | Download suffix | Requirement |
 | --- | --- | --- |
