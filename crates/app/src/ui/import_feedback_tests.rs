@@ -20,7 +20,7 @@ fn queue_fixture(app: &mut PlotiumApp) {
 }
 
 #[test]
-fn first_native_import_opens_its_result_while_hovering() {
+fn first_native_import_does_not_navigate_while_hovering() {
     let mut app = app();
     queue_fixture(&mut app);
     cancel_on_input(
@@ -34,17 +34,13 @@ fn first_native_import_opens_its_result_while_hovering() {
     assert!(app.session.active_canvas.is_none());
     let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(Default::default(), |ui| apply_open_target(&mut app, ui));
-    assert_eq!(app.session.active_canvas, Some(0));
-    assert_eq!(
-        app.session.ui.frame_selection,
-        vec![plotium_core::state::BoardFrameId::Page(
-            app.doc.canvases[0].resource_id
-        )]
-    );
+    assert!(app.session.active_canvas.is_none());
+    assert!(app.session.ui.frame_selection.is_empty());
+    assert!(app.session.ui.data_selection.is_empty());
 }
 
 #[test]
-fn first_native_batch_shows_all_spectra_together_without_results_window() {
+fn first_native_batch_waits_for_explicit_view_action() {
     let mut app = app();
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../io/tests/fixtures/nmr/jcamp-ppm.dx");
@@ -54,20 +50,19 @@ fn first_native_batch_shows_all_spectra_together_without_results_window() {
     assert!(app.session.active_canvas.is_none());
     let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(Default::default(), |ui| apply_open_target(&mut app, ui));
-    assert_eq!(app.session.active_canvas, Some(0));
-    assert_eq!(app.session.ui.data_selection, vec![0, 1]);
+    assert!(app.session.active_canvas.is_none());
+    assert!(app.session.ui.data_selection.is_empty());
     assert!(app.session.ui.frame_selection.is_empty());
     assert!(app.session.board_reveal.is_none());
-    assert_eq!(
-        app.session.viewport_mode,
-        plotium_core::state::ViewportMode::Fit(plotium_core::state::BoardFitTarget::AllFrames)
-    );
-    assert!(
-        !ctx.data_mut(|data| data
-            .get_temp::<ResultsState>(window_id(&app))
-            .unwrap_or_default())
-            .open
-    );
+    let batch = app.session.data_imports.batches().back().unwrap().id;
+    let before = app.session.viewport_mode.clone();
+    app.session.ui.data_browser_filter = "existing query".into();
+    commands::execute_without_clipboard(CommandId::ViewImportBatch(batch), &mut app, &ctx);
+    assert_eq!(app.session.ui.data_browser_batch, Some(batch));
+    assert!(app.session.view == PrimaryView::Data);
+    assert_eq!(app.session.ui.data_browser_filter, "existing query");
+    assert_eq!(app.session.viewport_mode, before);
+    assert!(app.session.ui.data_selection.is_empty());
     let first = app.doc.canvases[0].board_pos;
     let second = app.doc.canvases[1].board_pos;
     assert_ne!(first, second);
@@ -104,6 +99,45 @@ fn results_command_is_discoverable_and_requires_an_import() {
         summary(app.session.data_imports.batches().back().unwrap()),
         "No data files were found."
     );
+}
+
+#[test]
+fn view_batch_requires_live_results_and_identifies_the_batch() {
+    let mut app = app();
+    let pending = app.queue_user_data_import("pending".into(), || Ok(Vec::new()));
+    let pending = CommandId::ViewImportBatch(pending);
+    let pending_reason = commands::describe(&app, pending).disabled_reason;
+    assert_eq!(
+        pending_reason,
+        Some("Wait for a dataset to finish importing.")
+    );
+
+    app.new_table_dataset();
+    let item = ImportItem {
+        path: "sample".into(),
+        result: Ok(ImportTarget {
+            dataset: app.doc.datasets[0].resource_id(),
+            canvas: None,
+        }),
+    };
+    let first = app.record_completed_user_import("first".into(), vec![item.clone()]);
+    let second = app.record_completed_user_import("second".into(), vec![item]);
+    let command = CommandId::ViewImportBatch(first);
+    let first_desc = commands::describe(&app, command);
+    let second_desc = commands::describe(&app, CommandId::ViewImportBatch(second));
+    assert!(first_desc.enabled && second_desc.enabled);
+    assert_ne!(first_desc.label, second_desc.label);
+
+    app.undo();
+    assert!(app.doc.datasets.is_empty());
+    let removed = commands::describe(&app, command);
+    assert!(!removed.enabled);
+    assert!(removed.disabled_reason.is_some());
+    assert_ne!(removed.disabled_reason, pending_reason);
+    commands::execute_without_clipboard(command, &mut app, &Context::default());
+    assert_eq!(app.session.ui.data_browser_batch, None);
+    app.redo();
+    assert!(commands::describe(&app, command).enabled);
 }
 
 #[test]

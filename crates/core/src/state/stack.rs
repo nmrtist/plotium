@@ -324,6 +324,7 @@ impl PlotiumApp {
                 .primary_color()
                 .unwrap_or(OVERLAY_PALETTE[i % OVERLAY_PALETTE.len()]);
             for mut contour in part.contours {
+                contour.origin = Some(plotium_figure::SeriesOrigin(sb.id.get()));
                 // A concrete ContourSpec owns independent positive and negative
                 // styling. The legacy chart fallback retains its palette override
                 // until the broad stack migration lands in phase 7.

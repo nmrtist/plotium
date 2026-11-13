@@ -241,6 +241,7 @@ pub(crate) fn table_dataset_from_v1(
             ProjectError::Invalid(format!("table has invalid stable id {}", data.id))
         })?,
         field_catalog: sidecar.field_catalog,
+        organization: Default::default(),
         acquisition_identity: super::convert::read_acquisition_identity(data)?,
         provenance: sidecar.provenance,
         meta: sidecar.meta,

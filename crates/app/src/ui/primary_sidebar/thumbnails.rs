@@ -1,12 +1,18 @@
 use egui::{Align2, Color32, Rect, Response, Sense, Stroke, StrokeKind, Ui, vec2};
 use plotium_core::state::PlotiumApp;
 
+use crate::ui::{
+    commands::{self, CommandId},
+    data_navigation::CanvasComposition,
+};
+
 pub(super) fn canvas_row(
-    app: &PlotiumApp,
+    app: &mut PlotiumApp,
     ci: usize,
     ui: &mut Ui,
     selected: bool,
     name: &str,
+    summary: Option<&CanvasComposition>,
 ) -> Response {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 64.0), Sense::hover());
     let response = ui.interact(
@@ -73,6 +79,109 @@ pub(super) fn canvas_row(
         egui::TextStyle::Button,
     );
     let label = Align2::LEFT_CENTER.align_size_within_rect(galley.size(), text_rect);
-    painter.galley(label.min, galley, visuals.text_color());
-    response.on_hover_text(name)
+    if let Some(summary) = summary {
+        const EDIT_SIZE: f32 = 18.0;
+        const EDIT_GAP: f32 = 4.0;
+        let editable = !summary.datasets.is_empty();
+        let summary_width = text_rect.width() - if editable { EDIT_SIZE + EDIT_GAP } else { 0.0 };
+        let summary_rect = text_rect.translate(vec2(0.0, 9.0));
+        painter.galley(label.min - vec2(0.0, 9.0), galley, visuals.text_color());
+        let galley = egui::WidgetText::from(&summary.compact).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Truncate),
+            summary_width.max(0.0),
+            egui::TextStyle::Small,
+        );
+        let line = Align2::LEFT_CENTER.align_size_within_rect(galley.size(), summary_rect);
+        painter.galley(line.min, galley, ui.visuals().weak_text_color());
+        if editable {
+            let edit_left = (line.right() + EDIT_GAP).min(text_rect.right() - EDIT_SIZE);
+            let edit_rect = Rect::from_min_size(
+                egui::pos2(edit_left, line.center().y - EDIT_SIZE * 0.5),
+                vec2(EDIT_SIZE, EDIT_SIZE),
+            );
+            edit_experiment_button(
+                app,
+                ui,
+                response.id.with("edit_experiment"),
+                edit_rect,
+                summary,
+            );
+        }
+        response.on_hover_text(format!("{name}\n{}\n{}", summary.compact, summary.details))
+    } else {
+        painter.galley(label.min, galley, visuals.text_color());
+        response.on_hover_text(name)
+    }
+}
+
+fn edit_experiment_button(
+    app: &mut PlotiumApp,
+    ui: &mut Ui,
+    id: egui::Id,
+    rect: Rect,
+    summary: &CanvasComposition,
+) {
+    let label = "Edit experiment and tags";
+    let response = ui.interact(rect, id, Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
+    });
+    let visuals = ui.style().interact(&response);
+    let color =
+        if response.hovered() || response.is_pointer_button_down_on() || response.has_focus() {
+            ui.painter()
+                .rect_filled(rect, visuals.corner_radius, visuals.weak_bg_fill);
+            visuals.text_color()
+        } else {
+            ui.visuals().weak_text_color()
+        };
+    ui.painter().text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        egui_phosphor::regular::PENCIL_SIMPLE,
+        egui::FontId::proportional(12.0),
+        color,
+    );
+    let response = response.on_hover_text(label);
+    if let [dataset] = summary.datasets.as_slice() {
+        if response.clicked() {
+            commands::execute_without_clipboard(
+                CommandId::EditDatasetMetadata(Some(*dataset)),
+                app,
+                ui.ctx(),
+            );
+        }
+    } else {
+        egui::Popup::menu(&response).id(id.with("menu")).show(|ui| {
+            ui.label("Choose a plotted dataset to edit");
+            egui::ScrollArea::vertical()
+                .max_height(240.0)
+                .show(ui, |ui| {
+                    for &dataset in &summary.datasets {
+                        let Some(di) = app.doc.dataset_index(dataset) else {
+                            continue;
+                        };
+                        let data = &app.doc.datasets[di];
+                        let name = data.browser_name();
+                        let label = data.experiment_label().map_or_else(
+                            || name.clone(),
+                            |experiment| format!("{name} · {experiment}"),
+                        );
+                        if ui
+                            .button(label)
+                            .on_hover_text(data.source_identifier())
+                            .clicked()
+                        {
+                            commands::execute_without_clipboard(
+                                CommandId::EditDatasetMetadata(Some(dataset)),
+                                app,
+                                ui.ctx(),
+                            );
+                            ui.close();
+                        }
+                    }
+                });
+        });
+    }
 }

@@ -261,6 +261,12 @@ impl PlotiumApp {
                     c.panel_labels_visible = *after;
                 }
             }
+            Action::SetDatasetOrganization { dataset, after, .. } => {
+                let index = dataset_index!(*dataset);
+                if let Some(d) = self.doc.datasets.get_mut(index) {
+                    *d.organization_mut() = after.clone();
+                }
+            }
             Action::RenameDataset { dataset, after, .. } => {
                 let dataset = dataset_index!(*dataset);
                 if let Some(d) = self.doc.datasets.get_mut(dataset) {

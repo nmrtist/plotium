@@ -208,6 +208,51 @@ fn open_target(app: &mut PlotiumApp, ui: &Ui, target: &ImportTarget) -> bool {
     true
 }
 
+pub(super) fn view_batch_button(app: &mut PlotiumApp, ui: &mut Ui, batch: ImportBatchId) -> bool {
+    let command = CommandId::ViewImportBatch(batch);
+    let descriptor = commands::describe(app, command);
+    if ui
+        .add_enabled(descriptor.enabled, egui::Button::new("View this import"))
+        .on_disabled_hover_text(descriptor.disabled_reason.unwrap_or_default())
+        .clicked()
+    {
+        commands::execute_without_clipboard(command, app, ui.ctx());
+        true
+    } else {
+        false
+    }
+}
+
+pub(super) fn view_batch_gate(app: &PlotiumApp, id: ImportBatchId) -> Result<(), &'static str> {
+    let batch = app
+        .session
+        .data_imports
+        .batches()
+        .iter()
+        .find(|batch| batch.id == id)
+        .ok_or("Choose a recent import batch.")?;
+    if batch.items.iter().any(|item| {
+        item.result
+            .as_ref()
+            .is_ok_and(|target| app.doc.dataset_index(target.dataset).is_some())
+    }) {
+        Ok(())
+    } else if batch.loaded() > 0 {
+        Err("Restore a removed dataset or import it again to view these results.")
+    } else if matches!(batch.phase, ImportPhase::Complete | ImportPhase::Cancelled) {
+        Err("Import a dataset successfully before viewing its results.")
+    } else {
+        Err("Wait for a dataset to finish importing.")
+    }
+}
+
+pub(super) fn view_batch(app: &mut PlotiumApp, ctx: &Context, batch: ImportBatchId) {
+    app.session.ui.data_browser_batch = Some(batch);
+    app.session.view = PrimaryView::Data;
+    app.session.primary_sidebar_visible = true;
+    ctx.data_mut(|data| data.remove::<ResultsState>(window_id(app)));
+}
+
 pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
     let id = window_id(app);
     let mut state = ctx.data_mut(|data| data.get_temp::<ResultsState>(id).unwrap_or_default());
@@ -219,6 +264,7 @@ pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
         state.selected = batches.back().map(|batch| batch.id);
     }
     let mut retry = None;
+    let mut viewed = false;
     egui::Window::new("Import results")
         .id(id)
         .open(&mut state.open)
@@ -267,6 +313,9 @@ pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
                 return;
             };
             ui.label(summary(batch));
+            if view_batch_button(app, ui, batch.id) {
+                viewed = true;
+            }
             if ui
                 .link("Warnings and details in operation history")
                 .clicked()
@@ -327,6 +376,7 @@ pub(crate) fn results_window(app: &mut PlotiumApp, ctx: &Context) {
                     }
                 });
         });
+    state.open &= !viewed;
     ctx.data_mut(|data| data.insert_temp(id, state));
     if let Some(command) = retry {
         commands::execute_without_clipboard(command, app, ctx);

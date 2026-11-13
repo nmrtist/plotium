@@ -7,6 +7,7 @@ pub struct AfmDataset {
     pub resource_id: DatasetId,
     /// Persisted mapping from stable channel keys to dataset-local field ids.
     pub field_catalog: FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub data: Arc<AfmData>,
     /// Immutable keys calculated with the loaded raster data, never serialized.
@@ -29,6 +30,7 @@ impl AfmDataset {
         Self {
             resource_id: DatasetId::new(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity,
             data: Arc::new(data),
             image_field_keys,
@@ -94,6 +96,7 @@ impl AfmDataset {
         let mut figure = self.contour_base_figure(field)?;
         if !geometry.positive.is_empty() {
             figure.contours.push(Contour {
+                origin: None,
                 segments: geometry.positive.as_ref().to_vec(),
                 color: style.positive_color.resolve(),
                 width: style.width.get(),
@@ -101,6 +104,7 @@ impl AfmDataset {
         }
         if !geometry.negative.is_empty() {
             figure.contours.push(Contour {
+                origin: None,
                 segments: geometry.negative.as_ref().to_vec(),
                 color: style.negative_color.resolve(),
                 width: style.width.get(),

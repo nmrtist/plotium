@@ -99,6 +99,7 @@ fn lineage_resolution_rejects_missing_self_and_cycles() {
         ]
     };
     let binding = |data: &str, sources: &[&str]| DatasetBinding {
+        organization: Default::default(),
         data: data.to_owned(),
         recipe: format!("recipe_{data}"),
         derivation: (!sources.is_empty()).then(|| DerivationDto {

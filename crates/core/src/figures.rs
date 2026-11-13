@@ -371,6 +371,7 @@ pub fn build_dosy_figure_cancellable(
             &grid, NY, NX, ppm_lo, ppm_hi, logd_lo, logd_hi, &levels, cancelled,
         )?;
         fig = fig.with_contour(Contour {
+            origin: None,
             segments,
             color: contour.style.positive_color.resolve(),
             width: contour.style.width.get(),
@@ -452,6 +453,7 @@ pub fn build_ilt_figure_cancellable(
             cancelled,
         )?;
         fig = fig.with_contour(Contour {
+            origin: None,
             segments,
             color: contour.style.positive_color.resolve(),
             width: contour.style.width.get(),

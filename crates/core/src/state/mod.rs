@@ -72,10 +72,12 @@ mod cursors;
 mod data_import;
 mod dataset_delete;
 mod dataset_identity;
+mod dataset_organization;
 pub use data_import::{
     DataImports, ImportBatch, ImportBatchId, ImportDiscovery, ImportItem, ImportOpenTarget,
     ImportPhase, ImportTarget,
 };
+pub use dataset_organization::*;
 mod curve_bars;
 mod curve_layout;
 pub(crate) use curve_bars::bar_edge_color;

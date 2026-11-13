@@ -166,3 +166,29 @@ pub(super) fn palette_available(app: &PlotiumApp, id: super::CommandId) -> bool 
             && app.session.ui.trace_composer.is_none()
             && !app.session.ui.interaction.is_active())
 }
+
+pub(super) fn data_navigation_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'static str> {
+    match id {
+        CommandId::EditDatasetMetadata(Some(dataset)) => requires(
+            app.doc.dataset_index(dataset).is_some(),
+            "Choose an available dataset.",
+        ),
+        CommandId::EditDatasetMetadata(None) | CommandId::LocateDatasetPlot(None) => requires(
+            app.active_dataset().is_some(),
+            "Select data in the Data List first.",
+        ),
+        CommandId::LocateDatasetPlot(Some(_)) => Ok(()),
+        CommandId::GoToDatasetPlot(target) => requires(
+            target.hidden(app).is_some(),
+            "Choose an available plot series.",
+        ),
+        CommandId::RevealDatasetPlot(target) => requires(
+            target.hidden(app) == Some(true),
+            "Choose a hidden plot series to reveal.",
+        ),
+        CommandId::ViewImportBatch(batch) => {
+            crate::ui::import_feedback::view_batch_gate(app, batch)
+        }
+        _ => unreachable!("not a data navigation command"),
+    }
+}

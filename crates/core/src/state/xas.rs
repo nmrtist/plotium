@@ -148,6 +148,7 @@ impl XasCalibrationError {
 pub struct XasDataset {
     pub resource_id: DatasetId,
     pub field_catalog: FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub scan: XasScan,
     pub signal: Option<XasSignal>,
@@ -172,6 +173,7 @@ impl XasDataset {
         Self {
             resource_id: DatasetId::new(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity,
             scan,
             signal,

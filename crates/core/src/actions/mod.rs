@@ -415,6 +415,11 @@ pub enum Action {
         before: bool,
         after: bool,
     },
+    SetDatasetOrganization {
+        dataset: DatasetId,
+        before: crate::state::DatasetOrganization,
+        after: crate::state::DatasetOrganization,
+    },
     RenameDataset {
         dataset: DatasetId,
         before: Option<String>,
@@ -664,6 +669,7 @@ impl Action {
             Self::DeleteDataset { .. } => "delete dataset",
             Self::CreatePlot { .. } => "create native plot",
             Self::ReplacePanelState { .. } => "edit panel structure",
+            Self::SetDatasetOrganization { .. } => "edit dataset experiment and tags",
             Self::DeleteFigureTargets { .. } => "delete figure targets",
             Self::Composite(actions) => actions
                 .iter()
@@ -735,6 +741,7 @@ impl Action {
             Self::SetCanvasCaption { before, after, .. } => before == after,
             Self::SetPanelLabelStyle { before, after, .. } => before == after,
             Self::SetPanelLabelsVisible { before, after, .. } => before == after,
+            Self::SetDatasetOrganization { before, after, .. } => before == after,
             Self::RenameDataset { before, after, .. } => before == after,
             Self::SetCurveFitAnalyses { before, after, .. } => before == after,
             Self::EditTable { delta, .. } => delta.is_empty(),

@@ -12,6 +12,7 @@ pub(super) struct DatasetNode {
     pub dataset: usize,
     pub linked_reference: bool,
     pub cycle_cut: bool,
+    pub matches_filter: bool,
     pub analysis: Vec<AnalysisItem>,
     pub derived: Vec<DatasetNode>,
 }
@@ -125,15 +126,44 @@ impl DataTree {
     }
 
     pub fn filtered(&self, app: &PlotiumApp, query: &str) -> Self {
-        let query = query.trim().to_lowercase();
-        if query.is_empty() {
+        let terms: Vec<_> = query.split_whitespace().map(str::to_lowercase).collect();
+        let tag = app.session.ui.data_browser_tag.as_deref();
+        let batch = app.session.ui.data_browser_batch;
+        if terms.is_empty() && tag.is_none() && batch.is_none() {
             return self.clone();
         }
+        let mut batch_members = HashSet::new();
+        let mut paths = HashMap::new();
+        for import in app.session.data_imports.batches() {
+            for item in &import.items {
+                if let Ok(target) = &item.result {
+                    if Some(import.id) == batch {
+                        batch_members.insert(target.dataset);
+                    }
+                    if !terms.is_empty() {
+                        paths.insert(target.dataset, item.path.to_string_lossy());
+                    }
+                }
+            }
+        }
+        let matches: Vec<_> = app
+            .doc
+            .datasets
+            .iter()
+            .map(|dataset| {
+                let path = paths.get(&dataset.resource_id());
+                let eligible = (batch.is_none() || batch_members.contains(&dataset.resource_id()))
+                    && tag.is_none_or(|tag| dataset.organization().has_tag(tag));
+                let query_match =
+                    eligible && matches_dataset(dataset, &terms, path.map(|p| p.as_ref()));
+                (eligible, query_match)
+            })
+            .collect();
         Self {
             roots: self
                 .roots
                 .iter()
-                .filter_map(|node| filter_node(node, app, &query))
+                .filter_map(|node| filter_node(node, &matches, &terms))
                 .collect(),
         }
     }
@@ -141,8 +171,14 @@ impl DataTree {
     /// Dataset rows in the exact order the current tree renders them. Linked
     /// references are one logical selectable item and therefore appear once.
     pub(super) fn visible_datasets(&self, app: &PlotiumApp, filtering: bool) -> Vec<usize> {
-        fn visit(node: &DatasetNode, app: &PlotiumApp, filtering: bool, out: &mut Vec<usize>) {
-            if !out.contains(&node.dataset) {
+        fn visit(
+            node: &DatasetNode,
+            app: &PlotiumApp,
+            filtering: bool,
+            out: &mut Vec<usize>,
+            seen: &mut HashSet<usize>,
+        ) {
+            if node.matches_filter && seen.insert(node.dataset) {
                 out.push(node.dataset);
             }
             let dataset_open = filtering
@@ -159,14 +195,15 @@ impl DataTree {
                     .contains(&node.dataset);
             if dataset_open && derived_open && !node.cycle_cut {
                 for child in &node.derived {
-                    visit(child, app, filtering, out);
+                    visit(child, app, filtering, out, seen);
                 }
             }
         }
 
         let mut visible = Vec::new();
+        let mut seen = HashSet::new();
         for root in &self.roots {
-            visit(root, app, filtering, &mut visible);
+            visit(root, app, filtering, &mut visible, &mut seen);
         }
         visible
     }
@@ -192,6 +229,7 @@ fn build_node(
             dataset: di,
             linked_reference: is_linked(app, di),
             cycle_cut: true,
+            matches_filter: true,
             analysis: Vec::new(),
             derived: Vec::new(),
         };
@@ -207,6 +245,7 @@ fn build_node(
         dataset: di,
         linked_reference: is_linked(app, di),
         cycle_cut: false,
+        matches_filter: true,
         analysis: analysis_items(&app.doc.datasets[di]),
         derived,
     }
@@ -315,42 +354,77 @@ fn analysis_items(dataset: &Dataset) -> Vec<AnalysisItem> {
     result
 }
 
-fn filter_node(node: &DatasetNode, app: &PlotiumApp, query: &str) -> Option<DatasetNode> {
-    let dataset = &app.doc.datasets[node.dataset];
-    let lineage_label = dataset
-        .lineage()
-        .map(|lineage| lineage.kind.label())
-        .unwrap_or("Original data");
-    let self_matches = [
-        dataset.display_name(),
-        dataset.kind_label().to_owned(),
-        dataset.summary(),
-        lineage_label.to_owned(),
-    ]
-    .iter()
-    .any(|text| text.to_lowercase().contains(query));
+pub(super) fn filtering(app: &PlotiumApp) -> bool {
+    !app.session.ui.data_browser_filter.trim().is_empty()
+        || app.session.ui.data_browser_tag.is_some()
+        || app.session.ui.data_browser_batch.is_some()
+}
 
-    if self_matches {
-        return Some(node.clone());
+fn matches_dataset(dataset: &Dataset, terms: &[String], import_path: Option<&str>) -> bool {
+    if terms.is_empty() {
+        return true;
     }
+    let identity = dataset.acquisition_identity();
+    let summary = dataset.summary();
+    let fields = [
+        dataset.name().as_deref().unwrap_or(""),
+        dataset.compact_category(),
+        dataset.kind_label(),
+        summary.as_str(),
+        dataset.dimension_label().unwrap_or(""),
+        dataset.experiment_label().unwrap_or(""),
+        dataset.source_identifier(),
+        &identity.source_label,
+        identity.subject.as_deref().unwrap_or(""),
+        import_path.unwrap_or(""),
+        dataset
+            .lineage()
+            .map_or("Original data", |l| l.kind.label()),
+    ]
+    .into_iter()
+    .chain(dataset.organization().tags().iter().map(String::as_str))
+    .chain(
+        dataset
+            .as_table()
+            .into_iter()
+            .flat_map(|table| &table.import_sources)
+            .filter_map(|source| source.name.as_deref()),
+    )
+    .map(str::to_lowercase)
+    .collect::<Vec<_>>();
+    terms
+        .iter()
+        .all(|term| fields.iter().any(|field| field.contains(term)))
+}
+
+fn filter_node(
+    node: &DatasetNode,
+    matches: &[(bool, bool)],
+    terms: &[String],
+) -> Option<DatasetNode> {
+    let (eligible, self_matches) = matches[node.dataset];
     let analysis: Vec<_> = node
         .analysis
         .iter()
         .filter(|item| {
-            item.label.to_lowercase().contains(query)
-                || item.kind.type_label().to_lowercase().contains(query)
+            eligible
+                && (self_matches || {
+                    let text = format!("{} {}", item.label, item.kind.type_label()).to_lowercase();
+                    terms.iter().all(|term| text.contains(term))
+                })
         })
         .cloned()
         .collect();
     let derived: Vec<_> = node
         .derived
         .iter()
-        .filter_map(|child| filter_node(child, app, query))
+        .filter_map(|child| filter_node(child, matches, terms))
         .collect();
-    (!analysis.is_empty() || !derived.is_empty()).then_some(DatasetNode {
+    (self_matches || !analysis.is_empty() || !derived.is_empty()).then_some(DatasetNode {
         dataset: node.dataset,
         linked_reference: node.linked_reference,
         cycle_cut: node.cycle_cut,
+        matches_filter: eligible && (self_matches || !analysis.is_empty()),
         analysis,
         derived,
     })
@@ -409,229 +483,5 @@ pub(super) fn sources_tooltip(app: &PlotiumApp, di: usize) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use plotium_core::state::{
-        CurveFitReference, DatasetId, DatasetLineage, DerivationKind, FloatSeries, LineShapeKind,
-        MultipletPatternKind, NmrDataset, PeakMark, PeakOrigin, StoredLineFit, StoredMultiplet,
-        materialized_float_series_table,
-    };
-    use plotium_core::{DisplayModeLabel, IntegralResult};
-    use plotium_io::{Domain, NmrData};
-
-    fn root(name: &str) -> Dataset {
-        let mut dataset = NmrDataset::load_with_pipeline(
-            NmrData {
-                points: vec![1.0.into(), 0.0.into()],
-                domain: Domain::Frequency,
-                spectral_width_hz: 1.0,
-                observe_freq_mhz: 1.0,
-                carrier_ppm: 0.0,
-                nucleus: "1H".into(),
-                source: name.into(),
-                group_delay: 0.0,
-            },
-            Some(plotium_processing::AxisPipeline { steps: Vec::new() }),
-            Some(false),
-        )
-        .unwrap();
-        dataset.name = Some(name.into());
-        Dataset::Nmr(Box::new(dataset))
-    }
-
-    fn derived(name: &str, kind: DerivationKind, sources: &[DatasetId]) -> Dataset {
-        let mut table = materialized_float_series_table(
-            ("x".into(), "".into(), vec![Some(0.0)]),
-            Vec::new(),
-            "plotium.test.derived-table.v1",
-        )
-        .unwrap();
-        table.name = Some(name.into());
-        table.lineage = Some(DatasetLineage::new(kind, sources.iter().copied()));
-        Dataset::Table(Box::new(table))
-    }
-
-    #[test]
-    fn builds_deep_multi_source_references_in_stable_order() {
-        let mut app = PlotiumApp::new();
-        app.doc.datasets = vec![root("A"), root("B")];
-        let roots = [
-            app.doc.datasets[0].resource_id(),
-            app.doc.datasets[1].resource_id(),
-        ];
-        app.doc
-            .datasets
-            .push(derived("AB", DerivationKind::SpectrumArithmetic, &roots));
-        let ab = app.doc.datasets[2].resource_id();
-        app.doc
-            .datasets
-            .push(derived("deep", DerivationKind::LineFitTable, &[ab]));
-        let tree = DataTree::build(&app);
-        assert_eq!(
-            tree.roots.iter().map(|n| n.dataset).collect::<Vec<_>>(),
-            vec![0, 1]
-        );
-        assert_eq!(tree.roots[0].derived[0].dataset, 2);
-        assert!(tree.roots[0].derived[0].linked_reference);
-        assert_eq!(tree.roots[0].derived[0].derived[0].dataset, 3);
-        assert_eq!(tree.roots[1].derived[0].dataset, 2);
-    }
-
-    #[test]
-    fn filtering_keeps_ancestor_path() {
-        let mut app = PlotiumApp::new();
-        app.doc.datasets = vec![root("source")];
-        let source = app.doc.datasets[0].resource_id();
-        app.doc
-            .datasets
-            .push(derived("result", DerivationKind::LineFitTable, &[source]));
-        let filtered = DataTree::build(&app).filtered(&app, "peak fit table");
-        assert_eq!(filtered.roots.len(), 1);
-        assert_eq!(filtered.roots[0].dataset, 0);
-        assert_eq!(filtered.roots[0].derived[0].dataset, 1);
-    }
-
-    #[test]
-    fn visible_dataset_order_follows_the_rendered_lineage_tree() {
-        let mut app = PlotiumApp::new();
-        app.doc.datasets = vec![root("A"), root("B")];
-        let source = app.doc.datasets[0].resource_id();
-        app.doc
-            .datasets
-            .push(derived("A child", DerivationKind::Projection, &[source]));
-
-        let tree = DataTree::build(&app);
-        assert_eq!(tree.visible_datasets(&app, false), vec![0, 2, 1]);
-
-        app.session.ui.data_browser_collapsed_derived.insert(0);
-        assert_eq!(tree.visible_datasets(&app, false), vec![0, 1]);
-    }
-
-    #[test]
-    fn cycles_are_cut_and_remain_accessible() {
-        let mut app = PlotiumApp::new();
-        app.doc.datasets = vec![root("A"), root("B")];
-        let ids = [
-            app.doc.datasets[0].resource_id(),
-            app.doc.datasets[1].resource_id(),
-        ];
-        app.doc.datasets[0].set_lineage(Some(DatasetLineage::new(DerivationKind::Slice, [ids[1]])));
-        app.doc.datasets[1].set_lineage(Some(DatasetLineage::new(
-            DerivationKind::Projection,
-            [ids[0]],
-        )));
-        let tree = DataTree::build(&app);
-        assert!(!tree.roots.is_empty());
-        assert!(tree.roots[0].derived[0].derived[0].cycle_cut);
-    }
-
-    #[test]
-    fn enumerates_stable_analysis_ids_and_fitted_columns() {
-        let mut spectrum = root("analysis");
-        let nmr = spectrum.as_nmr_mut().unwrap();
-        nmr.peaks.marks.push(PeakMark {
-            id: 11,
-            x: 2.5,
-            y: 1.0,
-            origin: PeakOrigin::Manual,
-            label: Some("solvent".to_owned()),
-        });
-        nmr.integrals.push(IntegralResult {
-            id: 12,
-            start_ppm: 1.0,
-            end_ppm: 2.0,
-            area: 1.0,
-            normalized_area: 1.0,
-            mode: DisplayModeLabel::Real,
-            reference_value: None,
-        });
-        nmr.line_fits.push(StoredLineFit {
-            id: 13,
-            lo: 1.0,
-            hi: 2.0,
-            shape: LineShapeKind::Lorentzian,
-            peaks: Vec::new(),
-            offset: 0.0,
-            offset_sigma: None,
-            r2: 0.99,
-        });
-        nmr.multiplets.push(StoredMultiplet {
-            id: 14,
-            lo: 1.0,
-            hi: 2.0,
-            center_ppm: 1.5,
-            pattern: MultipletPatternKind::Singlet,
-            j_values: Vec::new(),
-            area: 1.0,
-            peak_ppm: vec![1.5],
-        });
-
-        let table = materialized_float_series_table(
-            ("x".into(), "".into(), vec![Some(0.0)]),
-            vec![FloatSeries {
-                name: "decay".to_owned(),
-                unit: String::new(),
-                values: vec![Some(1.0)],
-                uncertainty: None,
-                fit: Some(CurveFitReference {
-                    analysis_id: 0,
-                    instance_id: "column-0".into(),
-                    response: "y".into(),
-                }),
-            }],
-            "plotium.test.analysis-table.v1",
-        )
-        .unwrap();
-
-        let mut app = PlotiumApp::new();
-        app.doc.datasets = vec![spectrum, Dataset::Table(Box::new(table))];
-        let tree = DataTree::build(&app);
-        let kinds: Vec<_> = tree.roots[0]
-            .analysis
-            .iter()
-            .map(|item| item.kind.clone())
-            .collect();
-        assert_eq!(
-            kinds,
-            vec![
-                AnalysisKind::Peak(11),
-                AnalysisKind::Integral(12),
-                AnalysisKind::LineFit(13),
-                AnalysisKind::Multiplet(14),
-            ]
-        );
-        assert_eq!(
-            tree.roots[1].analysis[0].kind,
-            AnalysisKind::CurveFitResponse(
-                app.doc.datasets[1].as_table().unwrap().series_bindings[0].value_column
-            )
-        );
-    }
-
-    #[test]
-    fn external_focus_reveals_ancestor_branches() {
-        let mut app = PlotiumApp::new();
-        app.doc.datasets = vec![root("source")];
-        let source = app.doc.datasets[0].resource_id();
-        app.doc
-            .datasets
-            .push(derived("child", DerivationKind::Slice, &[source]));
-        let child = app.doc.datasets[1].resource_id();
-        app.doc.datasets.push(derived(
-            "grandchild",
-            DerivationKind::LineFitTable,
-            &[child],
-        ));
-        app.session
-            .ui
-            .data_browser_collapsed_datasets
-            .extend([0, 1, 2]);
-        app.session.ui.data_browser_collapsed_derived.extend([0, 1]);
-        app.focus_single(2);
-
-        reveal_active_path(&mut app);
-
-        assert!(app.session.ui.data_browser_collapsed_datasets.is_empty());
-        assert!(app.session.ui.data_browser_collapsed_derived.is_empty());
-    }
-}
+#[path = "data_browser_tests.rs"]
+mod tests;

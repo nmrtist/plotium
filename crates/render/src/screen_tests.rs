@@ -245,6 +245,7 @@ fn render_stats_separate_full_and_interactive_work() {
         (0..10_000).map(|i| [i as f64, (i % 3) as f64]).collect(),
     ));
     fig.contours.push(Contour {
+        origin: None,
         segments: (0..1_000)
             .map(|i| [[i as f64, 0.0], [i as f64, 1.0]])
             .collect(),

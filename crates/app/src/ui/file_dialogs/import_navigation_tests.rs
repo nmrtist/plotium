@@ -1,7 +1,5 @@
 use super::*;
-use plotium_core::state::{
-    BoardFitTarget, BoardFrameId, ImportOpenTarget, PrimaryView, ViewportMode,
-};
+use plotium_core::state::{BoardFitTarget, BoardFrameId, PrimaryView, ViewportMode};
 
 fn preview(app: &mut PlotiumApp, count: usize) {
     let mut candidates = Vec::new();
@@ -87,7 +85,7 @@ fn appending_tables_preserves_navigation_drafts_and_original_undo_selection() {
 }
 
 #[test]
-fn first_multiple_tables_request_one_workspace_without_selecting_last_table() {
+fn first_multiple_tables_keep_navigation_and_record_the_batch() {
     let mut app = PlotiumApp::new_with_settings(Default::default());
     preview(&mut app, 2);
     commit(&mut app);
@@ -95,11 +93,10 @@ fn first_multiple_tables_request_one_workspace_without_selecting_last_table() {
     assert!(app.session.active_canvas.is_none());
     assert!(app.session.ui.sheet_open.is_none());
     assert!(app.session.ui.data_selection.is_empty());
-    let Some(ImportOpenTarget::Workspace(targets)) = app.take_import_open_target() else {
-        panic!("multi-table import should open its workspace");
-    };
-    assert_eq!(targets.len(), 2);
-    for (target, dataset) in targets.iter().zip(&app.doc.datasets) {
-        assert_eq!(target.dataset, dataset.resource_id());
+    assert!(app.take_import_open_target().is_none());
+    let batch = app.session.data_imports.batches().back().unwrap();
+    assert_eq!(batch.loaded(), 2);
+    for (item, dataset) in batch.items.iter().zip(&app.doc.datasets) {
+        assert_eq!(item.result.as_ref().unwrap().dataset, dataset.resource_id());
     }
 }

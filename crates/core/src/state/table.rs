@@ -190,6 +190,7 @@ pub struct TableDataset {
     pub resource_id: crate::state::DatasetId,
     /// Persisted identity for the table's default series field.
     pub field_catalog: crate::state::FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     /// Executable extraction recipe used to refresh this immutable table.
     pub provenance: Option<TableProvenance>,
@@ -247,6 +248,7 @@ impl TableDataset {
         Self {
             resource_id: new_resource_id(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity: plotium_io::AcquisitionIdentity {
                 subject: None,
                 acquisition: None,

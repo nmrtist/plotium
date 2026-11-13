@@ -36,6 +36,7 @@ pub struct NmrDataset {
     pub native_base: plotium_io::nmr_view::NmrSource,
     pub native_processed: plotium_io::nmr_view::NmrSource,
     pub phase_reports: Vec<plotium_processing::nmr_bridge::PhaseReport>,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub base: Processed1D,
     pub pipeline: AxisPipeline,
@@ -126,6 +127,7 @@ impl NmrDataset {
             resource_id: DatasetId::new(),
             field_catalog,
             data,
+            organization: Default::default(),
             acquisition_identity,
             native_base: base.source,
             native_processed: processed.source,
@@ -268,6 +270,7 @@ pub struct Nmr2DDataset {
     pub nus_request: Option<plotium_processing::nmr_execution::NusRequest>,
     /// Import diagnostic when automatic reconstruction could not produce a spectrum.
     pub reconstruction_warning: Option<String>,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub params: Params2D,
     /// Persistent owner-local allocator shared by both axes.
@@ -436,6 +439,7 @@ impl Nmr2DDataset {
             resource_id: DatasetId::new(),
             field_catalog,
             data: Arc::new(data),
+            organization: Default::default(),
             acquisition_identity,
             native_base: base.source,
             native_processed: output.source,

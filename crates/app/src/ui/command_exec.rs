@@ -95,6 +95,21 @@ fn execute_inner(
         }
         CommandId::ImportTable => super::file_dialogs::import_delimited_table(app),
         CommandId::ImportResults => super::import_feedback::open_results(app, ctx, None),
+        CommandId::EditDatasetMetadata(dataset) => super::dataset_editor::open(app, ctx, dataset),
+        CommandId::LocateDatasetPlot(dataset) => {
+            if let Some(dataset) = dataset.or_else(|| {
+                app.active_dataset()
+                    .and_then(|i| app.doc.datasets.get(i))
+                    .map(|d| d.resource_id())
+            }) {
+                app.session.primary_sidebar_visible = true;
+                app.session.view = plotium_core::state::PrimaryView::Data;
+                super::data_navigation::locate_dataset(app, ctx, dataset);
+            }
+        }
+        CommandId::GoToDatasetPlot(target) => super::data_navigation::navigate(app, ctx, target),
+        CommandId::RevealDatasetPlot(target) => super::data_navigation::reveal(app, ctx, target),
+        CommandId::ViewImportBatch(batch) => super::import_feedback::view_batch(app, ctx, batch),
         CommandId::RetryImportBatch(batch) => {
             if let Some(retry) = app.retry_failed_import(batch) {
                 super::import_feedback::open_results(app, ctx, Some(retry));

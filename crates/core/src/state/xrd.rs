@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 pub struct XrdDataset {
     pub resource_id: DatasetId,
     pub field_catalog: FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub data: XrdData,
     pub params: XrdProcessing,
@@ -32,6 +33,7 @@ impl XrdDataset {
         Self {
             resource_id: DatasetId::new(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity,
             data,
             params,

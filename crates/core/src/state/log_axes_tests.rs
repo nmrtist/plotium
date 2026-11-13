@@ -27,6 +27,7 @@ fn only_curve_plots_offer_log_axes() {
     assert_eq!(log_scale_unavailable(&categorical, false), None);
     let mut contour = line.clone();
     contour.contours.push(plotium_figure::Contour {
+        origin: None,
         segments: vec![],
         color: plotium_figure::Color::BLACK,
         width: 1.0,

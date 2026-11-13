@@ -387,6 +387,7 @@ fn save_project_impl(
             None
         };
         bindings.push(DatasetBinding {
+            organization: dataset.organization().clone(),
             data: data_id,
             recipe: recipe_id,
             derivation,
@@ -559,6 +560,7 @@ pub fn load_project(path: &Path) -> Result<PlotiumApp> {
         dataset.set_resource_id(binding.data.parse().map_err(|_| {
             ProjectError::Invalid(format!("dataset has invalid stable id {}", binding.data))
         })?);
+        *dataset.organization_mut() = binding.organization.clone();
         let di = app.doc.datasets.len();
         app.doc.datasets.push(dataset);
         app.session

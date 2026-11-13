@@ -1,5 +1,5 @@
 use super::*;
-use plotium_core::state::{ImportOpenTarget, PrimaryView};
+use plotium_core::state::PrimaryView;
 
 fn load_fixture(app: &mut PlotiumApp, count: usize) {
     let fixture =
@@ -42,7 +42,7 @@ fn archive_batch_keeps_existing_workspace_and_records_each_native_result() {
 }
 
 #[test]
-fn first_archive_opens_single_result_or_combined_workspace() {
+fn first_archive_keeps_navigation_and_records_results() {
     for count in [1, 2] {
         let mut app = PlotiumApp::new_with_settings(Default::default());
         load_with(
@@ -52,17 +52,10 @@ fn first_archive_opens_single_result_or_combined_workspace() {
             |_, _| {},
         );
         assert!(app.session.active_canvas.is_none());
-        match app.take_import_open_target().unwrap() {
-            ImportOpenTarget::Dataset(target) => {
-                assert_eq!(count, 1);
-                assert_eq!(target.dataset, app.doc.datasets[0].resource_id());
-            }
-            ImportOpenTarget::Workspace(targets) => {
-                assert_eq!(count, 2);
-                assert_eq!(targets.len(), count);
-            }
-            ImportOpenTarget::Batch(_) => panic!("imports do not open results dialogs"),
-        }
+        assert!(app.take_import_open_target().is_none());
+        assert!(app.session.ui.data_selection.is_empty());
+        let batch = app.session.data_imports.batches().back().unwrap();
+        assert_eq!(batch.loaded(), count);
     }
 }
 

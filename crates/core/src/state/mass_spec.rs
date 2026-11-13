@@ -71,6 +71,7 @@ pub struct ExtractedMassSpectrum {
 pub struct MassSpecDataset {
     pub resource_id: DatasetId,
     pub field_catalog: FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub run: MassSpecRun,
     pub name: Option<String>,
@@ -162,6 +163,7 @@ impl MassSpecDataset {
         Self {
             resource_id: DatasetId::new(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity,
             run,
             name: None,
