@@ -21,6 +21,32 @@ from its context menu.
 Search is case-insensitive and keeps the complete ancestor path visible;
 clearing it restores your previous expanded and collapsed branches.
 
+Search terms can match across the dataset name, experiment, tags, data type,
+dimensionality, source, and scientific summary (for example, `600.0 MHz`).
+The search `hnco 3d batch-12` can match an
+experiment label, the acquisition dimensionality, and a source folder. Hover a
+row for source details. Click a tag to filter by it; remove the filter with
+its × button.
+
+In **Canvas**, click the pencil beside the card's dataset summary. If the
+canvas contains several datasets, choose which one to edit. In **Data**,
+right-click a dataset and choose **Edit experiment and tags…**, or select
+several datasets and use the button above the list to edit them together.
+Enter a display name or choose an NMR suggestion. For a single dataset, the
+editor shows the imported name separately. **Use imported names** clears your
+overrides. Experiment names and tags are labels; they do not change
+processing or assignment. Add a new tag or choose one from **Project tags**.
+On a mixed selection, a count beside a tag shows how many datasets have it.
+Removing a tag leaves the other tags in place. These edits support undo and
+redo and are saved with the project.
+
+Use **Locate plot** to go straight to a dataset's series, including a series
+in an overlay. If the dataset appears more than once, choose a destination in
+the **Plot destinations** window, even if the Data List filters hide the row.
+Hidden destinations are marked; use **Reveal** to show one. Locating a plot
+keeps your filters and briefly highlights the visible series or outlines the
+plot, for example when locating a heatmap.
+
 ## Selecting and opening
 
 Click a dataset or reference to select it. `Shift`-click selects the continuous
@@ -44,6 +70,10 @@ can remove those first. Deletion can be undone.
 
 Projects saved with much older versions of Plotium may show some derived results
 as top-level datasets; they remain fully usable.
+
+In **Canvas**, the line under each title summarizes the datasets directly
+plotted there, including hidden series. A dataset used more than once is
+counted once. Hover the title to see the full composition.
 
 ## Board views
 

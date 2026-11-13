@@ -188,6 +188,7 @@ pub(super) fn pause_for_command(app: &mut PlotiumApp, command: CommandId) {
             | CommandId::HelpManual
             | CommandId::CheckUpdates
             | CommandId::ImportResults
+            | CommandId::ViewImportBatch(_)
             | CommandId::ClearRecentFiles
             | CommandId::SaveProject
             | CommandId::TogglePrimarySidebar

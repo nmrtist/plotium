@@ -16,7 +16,9 @@ mod command_exec;
 mod command_palette;
 pub(crate) mod commands;
 mod data_export_dialog;
+mod data_navigation;
 mod data_sheet;
+mod dataset_editor;
 mod diagnostics;
 mod export_dialog;
 mod feedback_banner;
@@ -202,6 +204,7 @@ pub fn render(
     // Same for an armed Reference pick: collapsing its editor or switching
     // datasets must not leave a live click trap on the plot.
     app.sync_reference_pick();
+    dataset_editor::window(app, ui.ctx());
     data_sheet_dock(app, ui, dark);
     egui::CentralPanel::default()
         .frame(egui::Frame::new().fill(workspace_fill(dark)).inner_margin(
@@ -243,6 +246,7 @@ pub fn render(
     file_dialogs::table_import_preview_window(app, &ctx);
     settings_window(app, &ctx, agent_connections);
     command_palette::command_palette_window(app, clipboard_table_paste, &ctx);
+    data_navigation::destinations_window(app, &ctx);
     menus::about_window(app, &ctx);
     quit_confirm_window(app, &ctx);
     diagnostic_history_window(app, &ctx);

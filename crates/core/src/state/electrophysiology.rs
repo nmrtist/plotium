@@ -77,6 +77,7 @@ pub struct ElectrophysiologyDataset {
     pub resource_id: DatasetId,
     /// Persisted mapping from stable channel keys to dataset-local field ids.
     pub field_catalog: FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub data: ElectrophysiologyData,
     /// Calculated from loaded samples and omitted from project metadata.
@@ -203,6 +204,7 @@ impl ElectrophysiologyDataset {
         Self {
             resource_id: new_resource_id(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity,
             data,
             field_keys: OnceLock::from(field_keys),

@@ -44,6 +44,8 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::ImportTiffPages,
         CommandId::PasteImage,
         CommandId::CancelDataImport,
+        CommandId::EditDatasetMetadata(None),
+        CommandId::LocateDatasetPlot(None),
         CommandId::CancelImageImport,
         CommandId::ReplaceImage,
         CommandId::PasteTable,

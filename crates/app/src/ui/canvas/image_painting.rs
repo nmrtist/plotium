@@ -79,19 +79,45 @@ pub(super) fn paint_document(
 ) {
     let canvas = &app.doc.canvases[ci];
     let mut document = canvas_document(app, ci);
+    let highlight = crate::ui::data_navigation::highlight(app, painter.ctx(), canvas.resource_id);
+    let mut outline = None;
+    let accent = plotium_figure::Color::rgb(221, 82, 16);
     let previews: Vec<_> = canvas
         .objects
         .iter()
         .map(|object| {
             let plot = object.plot()?;
-            let preview = super::super::nmr_phase_preview::contours(
-                app,
-                painter.ctx(),
-                object.dataset()?,
-                object.id,
-            )?;
+            let preview = object.dataset().and_then(|dataset| {
+                super::super::nmr_phase_preview::contours(app, painter.ctx(), dataset, object.id)
+            });
+            let target = highlight.filter(|target| target.plot == object.id);
+            if preview.is_none() && target.is_none() {
+                return None;
+            }
             let mut figure = plot.figure().clone();
-            figure.contours = preview.contours.clone();
+            if let Some(preview) = preview {
+                figure.contours = preview.contours.clone();
+            }
+            if let Some(target) = target {
+                let origin = Some(plotium_figure::SeriesOrigin(target.series.get()));
+                let mut accented = false;
+                for series in figure.series.iter_mut().filter(|s| s.origin == origin) {
+                    accented = true;
+                    series.color = accent;
+                    series.width = (series.width * 2.0).max(2.0);
+                    series.appearance.marker_fill = Some(accent);
+                }
+                for contour in figure.contours.iter_mut().filter(|s| s.origin == origin) {
+                    accented = true;
+                    contour.color = accent;
+                    contour.width = (contour.width * 2.0).max(2.0);
+                }
+                if !accented {
+                    outline = canvas
+                        .content_page_frame(object.id)
+                        .map(|frame| frame.rect());
+                }
+            }
             Some(figure)
         })
         .collect();
@@ -117,6 +143,24 @@ pub(super) fn paint_document(
         },
         detail,
     );
+    if let Some(frame) = outline {
+        let transform = BoardTransform::from_board(app.session.board, rect);
+        let screen = transform.board_rect_screen(PlotRect::new(
+            bp[0] + frame.left,
+            bp[1] + frame.top,
+            frame.width,
+            frame.height,
+        ));
+        painter.rect_stroke(
+            screen,
+            0.0,
+            egui::Stroke::new(
+                4.0_f32,
+                egui::Color32::from_rgb(accent.r, accent.g, accent.b),
+            ),
+            egui::StrokeKind::Inside,
+        );
+    }
 }
 
 fn loading_image_placeholder(

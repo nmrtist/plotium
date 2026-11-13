@@ -509,6 +509,8 @@ pub struct RangeAnnotation {
 /// figure is built, so both renderers only project and stroke.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Contour {
+    #[serde(skip)]
+    pub origin: Option<SeriesOrigin>,
     pub segments: Vec<[[f64; 2]; 2]>,
     pub color: Color,
     pub width: f32,

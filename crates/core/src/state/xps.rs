@@ -45,6 +45,7 @@ pub struct StoredXpsFit {
 pub struct XpsDataset {
     pub resource_id: DatasetId,
     pub field_catalog: FieldCatalog,
+    pub organization: super::DatasetOrganization,
     pub acquisition_identity: plotium_io::AcquisitionIdentity,
     pub experiment: Arc<XpsExperiment>,
     pub name: Option<String>,
@@ -96,6 +97,7 @@ impl XpsDataset {
         Self {
             resource_id: DatasetId::new(),
             field_catalog,
+            organization: Default::default(),
             acquisition_identity,
             experiment: Arc::new(experiment),
             name: None,

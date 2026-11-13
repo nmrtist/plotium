@@ -132,13 +132,10 @@ pub(crate) fn select_dataset(
     dataset: usize,
     modifiers: SelectModifiers,
 ) {
-    let table_frame = app.doc.datasets[dataset].as_table().and_then(|table| {
-        if table.board_sheet_visible() {
-            Some(plotium_core::state::FrameRef::Sheet(dataset))
-        } else {
-            plotium_core::state::page_frame_showing_dataset(app, dataset)
-        }
-    });
+    let table_frame = app.doc.datasets[dataset]
+        .as_table()
+        .filter(|table| table.board_sheet_visible())
+        .map(|_| plotium_core::state::FrameRef::Sheet(dataset));
     app.session.ui.selection_scope = plotium_core::state::SelectionScope::DataList;
     select_dataset_range(app, visible, dataset, modifiers);
     app.session.ui.data_browser_selected_node = Some(format!("dataset:{dataset}"));
@@ -266,7 +263,7 @@ pub(crate) fn handle_keyboard_selection(app: &mut PlotiumApp, ctx: &egui::Contex
         }
         SelectionScope::DataList if !app.doc.datasets.is_empty() => {
             let query = app.session.ui.data_browser_filter.clone();
-            let filtering = !query.trim().is_empty();
+            let filtering = super::data_browser::filtering(app);
             let visible = super::data_browser::DataTree::build(app)
                 .filtered(app, &query)
                 .visible_datasets(app, filtering);

@@ -404,11 +404,7 @@ where
     } else {
         import_navigation::preserve(app, import)
     };
-    let batch =
-        app.record_completed_user_import_with_operations(path, items, vec![preview.report.id]);
-    if empty && !single {
-        app.request_completed_import_open(batch);
-    }
+    app.record_completed_user_import_with_operations(path, items, vec![preview.report.id]);
     app.session.record_operation(preview.report);
     // Noting the file persists preferences, and a failed write reports itself
     // through the status line. Recording the import first keeps that

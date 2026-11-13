@@ -275,6 +275,8 @@ pub struct UiState {
     /// Transient Data-browser state. Dataset and Derived-data branches default
     /// open, so only explicit collapses are recorded; Analysis defaults closed.
     pub data_browser_filter: String,
+    pub data_browser_tag: Option<String>,
+    pub data_browser_batch: Option<super::ImportBatchId>,
     pub data_browser_collapsed_datasets: HashSet<usize>,
     pub data_browser_collapsed_derived: HashSet<usize>,
     pub data_browser_expanded_analysis: HashSet<usize>,
@@ -509,6 +511,8 @@ impl Default for UiState {
             frame_selection: Vec::new(),
             data_selection: Vec::new(),
             data_browser_filter: String::new(),
+            data_browser_tag: None,
+            data_browser_batch: None,
             data_browser_collapsed_datasets: HashSet::new(),
             data_browser_collapsed_derived: HashSet::new(),
             data_browser_expanded_analysis: HashSet::new(),

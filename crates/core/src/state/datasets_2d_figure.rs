@@ -236,6 +236,7 @@ pub(crate) fn apply_contour_geometry(
 ) -> Figure {
     if !geometry.positive.is_empty() {
         figure.contours.push(Contour {
+            origin: None,
             segments: geometry.positive.as_ref().to_vec(),
             color: style.positive_color.resolve(),
             width: style.width.get(),
@@ -243,6 +244,7 @@ pub(crate) fn apply_contour_geometry(
     }
     if !geometry.negative.is_empty() {
         figure.contours.push(Contour {
+            origin: None,
             segments: geometry.negative.as_ref().to_vec(),
             color: style.negative_color.resolve(),
             width: style.width.get(),

@@ -19,7 +19,6 @@ fn load_with(
 ) {
     app.cancel_import_open_intent();
     let before = app.doc.datasets.len();
-    let empty = before == 0 && app.doc.canvases.is_empty();
     let previous_order = app
         .session
         .operation_history
@@ -80,11 +79,7 @@ fn load_with(
         }
     }
     let loaded = items.iter().any(|item| item.result.is_ok());
-    let batch =
-        app.record_completed_user_import_with_operations(path.to_owned(), items, operation_ids);
-    if empty {
-        app.request_completed_import_open(batch);
-    }
+    app.record_completed_user_import_with_operations(path.to_owned(), items, operation_ids);
     if loaded {
         note_recent(app, path);
     }

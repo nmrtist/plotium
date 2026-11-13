@@ -107,7 +107,7 @@ pub(super) fn validate_action(
                 validate_action(app, child, shape)?;
             }
         }
-        Action::RenameDataset { dataset, .. } => {
+        Action::RenameDataset { dataset, .. } | Action::SetDatasetOrganization { dataset, .. } => {
             if !shape.has_dataset(app, *dataset) {
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
             }

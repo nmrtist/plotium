@@ -286,8 +286,7 @@ impl PlotiumApp {
             self.session.data_imports.finish(id);
         }
     }
-    /// Only an explicit first import may continue by opening its results. Any
-    /// later intentional input cancels that continuation, even if selection returns.
+    /// Enqueue a user import without changing the workspace when it finishes.
     pub fn queue_user_data_import(
         &mut self,
         recent: PathBuf,
@@ -306,12 +305,7 @@ impl PlotiumApp {
         discover: impl FnOnce() -> Result<ImportDiscovery, String> + Send + 'static,
     ) -> ImportBatchId {
         self.cancel_import_open_intent();
-        let open = self.doc.datasets.is_empty() && self.doc.canvases.is_empty();
-        let id = self.enqueue_import(recent, Box::new(discover));
-        if open {
-            self.session.data_imports.open_intent = Some(id);
-        }
-        id
+        self.enqueue_import(recent, Box::new(discover))
     }
     /// Background callers never request navigation when their import completes.
     pub fn queue_data_import(

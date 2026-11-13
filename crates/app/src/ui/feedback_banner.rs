@@ -102,6 +102,9 @@ pub(super) fn feedback_banner(app: &mut PlotiumApp, ui: &mut Ui, dark: bool) {
                                 app.session.ui.dismissed_feedback_order = completion_order;
                             }
                         }
+                        if let Some(batch) = batch {
+                            import_feedback::view_batch_button(app, ui, batch);
+                        }
                         if ui.button("Details").clicked() {
                             if let Some(batch) = batch {
                                 commands::execute_without_clipboard(

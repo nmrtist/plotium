@@ -51,6 +51,11 @@ pub enum CommandId {
     HelpManual,
     ImportTable,
     ImportResults,
+    EditDatasetMetadata(Option<plotium_core::state::DatasetId>),
+    LocateDatasetPlot(Option<plotium_core::state::DatasetId>),
+    GoToDatasetPlot(super::data_navigation::Destination),
+    RevealDatasetPlot(super::data_navigation::Destination),
+    ViewImportBatch(plotium_core::state::ImportBatchId),
     RetryImportBatch(plotium_core::state::ImportBatchId),
     RecomputeScientificTask(plotium_core::state::ActivityId),
     ImportImage,
@@ -198,13 +203,12 @@ pub struct CommandDescriptor {
 pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
     command_ids(app.session.recent_files.len())
         .into_iter()
-        .chain(
-            app.session
-                .data_imports
-                .batches()
-                .iter()
-                .map(|batch| CommandId::RetryImportBatch(batch.id)),
-        )
+        .chain(app.session.data_imports.batches().iter().flat_map(|batch| {
+            [
+                CommandId::RetryImportBatch(batch.id),
+                CommandId::ViewImportBatch(batch.id),
+            ]
+        }))
         .chain(super::scientific_task_feedback::commands(app))
         .map(|id| {
             debug_assert!(!id.stable_id().is_empty());
@@ -286,6 +290,8 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             !app.session.data_imports.batches().is_empty(),
             "Import data before viewing import results.",
         ),
+        CommandId::EditDatasetMetadata(_) | CommandId::LocateDatasetPlot(_) | CommandId::GoToDatasetPlot(_)
+        | CommandId::RevealDatasetPlot(_) | CommandId::ViewImportBatch(_) => helpers::data_navigation_gate(app, id),
         CommandId::RetryImportBatch(batch) => requires(
             app.session.data_imports.batches().iter().any(|item| {
                 item.id == batch

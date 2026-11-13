@@ -495,6 +495,7 @@ mod tests {
                 .collect(),
         ));
         figure.contours.push(Contour {
+            origin: None,
             segments: vec![[[0.0, 0.0], [1.0, 1.0]], [[9.0, 1.0], [10.0, 2.0]]],
             color: Color::BLACK,
             width: 1.0,

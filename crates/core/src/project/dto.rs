@@ -630,6 +630,11 @@ pub struct BoardViewDto {
 
 #[derive(Serialize, Deserialize)]
 pub struct DatasetBinding {
+    #[serde(
+        default,
+        skip_serializing_if = "crate::state::DatasetOrganization::is_empty"
+    )]
+    pub organization: crate::state::DatasetOrganization,
     pub data: String,
     pub recipe: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

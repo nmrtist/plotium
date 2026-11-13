@@ -16,6 +16,11 @@ impl CommandId {
     pub fn stable_id(self) -> String {
         match self {
             Self::OpenRecent(i) => format!("file.open_recent.{i}"),
+            Self::EditDatasetMetadata(_) => "data.edit_metadata".into(),
+            Self::LocateDatasetPlot(_) => "data.locate_plot".into(),
+            Self::GoToDatasetPlot(_) => "data.go_to_plot".into(),
+            Self::RevealDatasetPlot(_) => "data.reveal_plot".into(),
+            Self::ViewImportBatch(id) => format!("file.view_import.{id}"),
             Self::RetryImportBatch(id) => format!("file.retry_import.{id}"),
             Self::RecomputeScientificTask(id) => format!("analysis.recompute_task.{}", id.0),
             Self::NewCanvas(i) => format!("file.new_canvas.{i}"),
@@ -81,6 +86,16 @@ pub(super) fn command_identity(
         CommandId::HelpManual => plain("User Manual", Some(icon::BOOK_OPEN)),
         CommandId::ImportTable => plain("Import Table…", Some(icon::FILE_CSV)),
         CommandId::ImportResults => plain("Import Results", Some(icon::LIST_CHECKS)),
+        CommandId::EditDatasetMetadata(_) => plain("Edit experiment and tags…", None),
+        CommandId::LocateDatasetPlot(_) => plain("Locate plot", None),
+        CommandId::GoToDatasetPlot(target) => plain(
+            &target
+                .label(app)
+                .unwrap_or_else(|| "Plot unavailable".into()),
+            None,
+        ),
+        CommandId::RevealDatasetPlot(_) => plain("Reveal", None),
+        CommandId::ViewImportBatch(id) => plain(&format!("View this import — Batch {id}"), None),
         CommandId::RetryImportBatch(id) => plain(
             &format!("Retry Failed Imports — Batch {id}"),
             Some(icon::ARROWS_CLOCKWISE),

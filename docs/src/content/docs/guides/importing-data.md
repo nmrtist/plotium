@@ -33,6 +33,12 @@ continue working. When you import multiple datasets, they appear on the board in
 their original discovery order without changing your current page or selection.
 The status bar shows the current file and success/failure counts; review failures
 in the diagnostic history.
+Use **View this import** in the import banner or **Import Results** to show
+only datasets from that batch in **Data**. The batch filter combines with your
+search and tag filter. Remove it with ×. Import results are kept for the
+current project session, with up to 32 completed or cancelled batches retained;
+the filter clears if its batch is dropped.
+
 Additional imports wait for the current batch. Opening, closing, or creating a
 project cancels unfinished imports for the previous project.
 

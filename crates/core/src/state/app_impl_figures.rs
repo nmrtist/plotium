@@ -301,6 +301,9 @@ impl PlotiumApp {
                     .build_encoded_series_figure(series)
                     .unwrap_or_else(|| unsupported_series_figure(series));
                 self.apply_series_binding_style(&mut figure, series);
+                for contour in &mut figure.contours {
+                    contour.origin = Some(plotium_figure::SeriesOrigin(series.id.get()));
+                }
                 return self.normalize_binding_figure(figure, size_mm);
             }
             if let Some(series) = binding.series.first()
@@ -310,6 +313,9 @@ impl PlotiumApp {
                     .build_encoded_series_figure(series)
                     .unwrap_or_else(|| unsupported_series_figure(series));
                 self.apply_series_binding_style(&mut figure, series);
+                for contour in &mut figure.contours {
+                    contour.origin = Some(plotium_figure::SeriesOrigin(series.id.get()));
+                }
                 return self.normalize_binding_figure(figure, size_mm);
             }
             let Some(primary_id) = binding.primary_dataset() else {

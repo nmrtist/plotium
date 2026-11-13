@@ -26,10 +26,7 @@ fn discovered_source_failure_does_not_discard_successful_files() {
         std::path::Path::new("unreadable-folder")
     );
     assert!(!batch.retryable);
-    assert!(matches!(
-        app.take_import_open_target(),
-        Some(ImportOpenTarget::Dataset(_))
-    ));
+    assert!(app.take_import_open_target().is_none());
 }
 use crate::state::XrdDataset;
 
@@ -375,12 +372,12 @@ fn first_batch_opens_all_successes_together_and_all_failure_never_navigates() {
 }
 
 #[test]
-fn new_user_import_cancels_previous_continuation_and_existing_content_never_opens() {
+fn user_imports_never_queue_automatic_navigation() {
     let mut app = PlotiumApp::new_with_settings(Default::default());
     let first = app.queue_user_data_import("first".into(), || Ok(Vec::new()));
     let second = app.queue_user_data_import("second".into(), || Ok(Vec::new()));
     assert_ne!(first, second);
-    assert_eq!(app.session.data_imports.open_intent, Some(second));
+    assert!(app.session.data_imports.open_intent.is_none());
     app.install_prepared_import(std::path::Path::new("existing"), Ok(prepared()));
     app.queue_user_data_import("append".into(), || Ok(Vec::new()));
     assert!(app.session.data_imports.open_intent.is_none());

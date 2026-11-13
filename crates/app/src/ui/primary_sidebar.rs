@@ -7,10 +7,12 @@ use plotium_core::state::{
 };
 mod board_views;
 mod data_browser;
+mod dataset_rows;
 mod layer_controls;
 mod layers_tree;
 pub(crate) mod selection;
 mod thumbnails;
+use super::data_navigation::{self, PlotIndex};
 use board_views::board_views_section;
 use data_browser::{AnalysisItem, AnalysisKind, DataTree, DatasetNode};
 use selection::*;
@@ -30,6 +32,7 @@ pub fn render(app: &mut PlotiumApp, ui: &mut Ui) {
                 ))
                 .desired_width(f32::INFINITY),
         );
+        dataset_rows::filters(app, ui);
         ui.add_space(4.0);
     }
     if app.session.view == PrimaryView::Canvas && !app.doc.canvases.is_empty() {
@@ -38,6 +41,11 @@ pub fn render(app: &mut PlotiumApp, ui: &mut Ui) {
             .show_inside(ui, |ui| board_views_section(app, ui));
     }
     egui::ScrollArea::vertical()
+        .id_salt((
+            "primary_list",
+            app.session.view == PrimaryView::Data,
+            app.session.project_context.to_string(),
+        ))
         .auto_shrink([false, false])
         .show(ui, |ui| match app.session.view {
             PrimaryView::Canvas => canvas_list(app, ui),
@@ -89,6 +97,7 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
         ui.weak("No canvases yet. Opening data creates one automatically.");
         return;
     }
+    let index = data_navigation::index(app, ui.ctx());
     let mut select: Option<(usize, SelectModifiers)> = None;
     let mut open_settings: Option<usize> = None;
     let mut delete: Option<usize> = None;
@@ -101,7 +110,7 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
             Some(RenameState { target: RenameTarget::Canvas(i), .. }) if *i == ci
         );
         if renaming {
-            let row = thumbnails::canvas_row(app, ci, ui, true, "");
+            let row = thumbnails::canvas_row(app, ci, ui, true, "", None);
             let mut rect = row.rect.shrink2(egui::vec2(6.0, 12.0));
             rect.min.x += 80.0;
             let mut editor = ui.new_child(egui::UiBuilder::new().max_rect(rect));
@@ -115,7 +124,8 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
         }
         let name = app.doc.canvases[ci].name.clone();
         let selected = crate::ui::canvas::frame_is_selected(app, FrameRef::Page(ci));
-        let resp = thumbnails::canvas_row(app, ci, ui, selected, &name);
+        let summary = index.summaries.get(&app.doc.canvases[ci].resource_id);
+        let resp = thumbnails::canvas_row(app, ci, ui, selected, &name, summary);
         if resp.clicked() {
             claim_list_keyboard_focus(ui, &resp);
             select = Some((ci, select_modifiers(ui)));
@@ -140,7 +150,6 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
                 ui.close();
             }
         });
-        resp.on_hover_text("Double-click to rename");
     }
     if let Some(ci) = app.session.active_canvas
         && ci < app.doc.canvases.len()
@@ -208,7 +217,8 @@ fn data_list(app: &mut PlotiumApp, ui: &mut Ui) {
     }
     data_browser::reveal_active_path(app);
     let query = app.session.ui.data_browser_filter.clone();
-    let filtering = !query.trim().is_empty();
+    let filtering = data_browser::filtering(app);
+    let index = data_navigation::index(app, ui.ctx());
     let tree = DataTree::build(app).filtered(app, &query);
     if tree.roots.is_empty() {
         ui.weak("No matching data or analysis results.");
@@ -223,7 +233,7 @@ fn data_list(app: &mut PlotiumApp, ui: &mut Ui) {
             ui,
             node,
             0,
-            filtering,
+            (&index, filtering),
             &mut rename_rendered,
             &mut event,
         );
@@ -248,10 +258,11 @@ fn render_dataset_node(
     ui: &mut Ui,
     node: &DatasetNode,
     depth: usize,
-    filtering: bool,
+    display: (&PlotIndex, bool),
     rename_rendered: &mut bool,
     event: &mut Option<BrowserEvent>,
 ) {
+    let (index, filtering) = display;
     let di = node.dataset;
     let has_children = !node.analysis.is_empty() || !node.derived.is_empty();
     let open = filtering || !app.session.ui.data_browser_collapsed_datasets.contains(&di);
@@ -310,15 +321,12 @@ fn render_dataset_node(
                     .on_hover_text(freshness.reason);
             }
         }
-        let mut resp = ui.selectable_label(selected, app.doc.datasets[di].display_name());
-        if let Some(tooltip) = data_browser::sources_tooltip(app, di) {
-            resp = resp.on_hover_text(tooltip);
-        } else {
-            resp = resp.on_hover_text(format!(
-                "{} · Double-click to open",
-                app.doc.datasets[di].kind_label()
-            ));
+        if !node.matches_filter {
+            ui.weak(app.doc.datasets[di].browser_name()).on_hover_text("Lineage context");
+            return;
         }
+        let mut resp = ui.add(egui::Button::selectable(selected, app.doc.datasets[di].browser_name()).truncate());
+        resp = resp.on_hover_text_at_pointer(format!("{}\n{}", app.doc.datasets[di].browser_name(), dataset_rows::details(app, di)));
         if resp.clicked() {
             claim_list_keyboard_focus(ui, &resp);
             *event = Some(BrowserEvent::SelectDataset(di, select_modifiers(ui)));
@@ -330,16 +338,22 @@ fn render_dataset_node(
             *event = Some(BrowserEvent::OpenSheet(di));
         }
 
-        let can_stack = app.stackable_selection().is_some();
-        let source_target = provenance_source_frame(app, di);
-        let chart_target = plotium_core::state::page_frame_showing_dataset(app, di);
         resp.context_menu(|ui| {
+            let can_stack = app.stackable_selection().is_some();
+            let source_target = provenance_source_frame(app, di);
             if ui.button("Open data sheet").clicked() {
                 *event = Some(BrowserEvent::OpenSheet(di));
                 ui.close();
             }
             if ui.button("Rename").clicked() {
                 *event = Some(BrowserEvent::StartRename(di));
+                ui.close();
+            }
+            if dataset_rows::button(
+                app,
+                ui,
+                super::commands::CommandId::EditDatasetMetadata(Some(app.doc.datasets[di].resource_id())),
+            ) {
                 ui.close();
             }
             if app.doc.datasets[di].lineage().is_some() && ui.button("Reveal sources").clicked() {
@@ -373,7 +387,7 @@ fn render_dataset_node(
                 *event = Some(BrowserEvent::Stack);
                 ui.close();
             }
-            if source_target.is_some() || chart_target.is_some() {
+            if source_target.is_some() {
                 ui.separator();
             }
             if let Some(frame) = source_target
@@ -382,14 +396,12 @@ fn render_dataset_node(
                 *event = Some(BrowserEvent::Jump(frame));
                 ui.close();
             }
-            if let Some(frame) = chart_target
-                && ui.button("Jump to plot").clicked()
-            {
-                *event = Some(BrowserEvent::Jump(frame));
-                ui.close();
-            }
+
         });
     });
+    if node.matches_filter && !renaming {
+        dataset_rows::summary(app, ui, di, depth, index);
+    }
     if !open || node.cycle_cut {
         return;
     }
@@ -397,7 +409,7 @@ fn render_dataset_node(
         render_analysis_group(app, ui, node, depth + 1, filtering, event);
     }
     if !node.derived.is_empty() {
-        render_derived_group(app, ui, node, depth + 1, filtering, rename_rendered, event);
+        render_derived_group(app, ui, node, depth + 1, display, rename_rendered, event);
     }
 }
 fn render_analysis_group(
@@ -455,11 +467,12 @@ fn render_derived_group(
     ui: &mut Ui,
     node: &DatasetNode,
     depth: usize,
-    filtering: bool,
+    display: (&PlotIndex, bool),
     rename_rendered: &mut bool,
     event: &mut Option<BrowserEvent>,
 ) {
     let di = node.dataset;
+    let (_, filtering) = display;
     let open = filtering || !app.session.ui.data_browser_collapsed_derived.contains(&di);
     ui.horizontal(|ui| {
         ui.add_space(depth as f32 * 12.0);
@@ -479,7 +492,7 @@ fn render_derived_group(
     });
     if open {
         for child in &node.derived {
-            render_dataset_node(app, ui, child, depth + 1, filtering, rename_rendered, event);
+            render_dataset_node(app, ui, child, depth + 1, display, rename_rendered, event);
         }
     }
 }
@@ -515,7 +528,7 @@ fn apply_browser_event(
             app.focus_single(di);
             app.session.ui.rename = Some(RenameState {
                 target: RenameTarget::Data(di),
-                buffer: app.doc.datasets[di].display_name(),
+                buffer: app.doc.datasets[di].browser_name(),
                 focus: true,
             });
         }
