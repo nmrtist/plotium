@@ -44,7 +44,7 @@ fn zoom_to_fit_command_seeds_springs_from_the_live_camera() {
         ("board_fit_center_y", -900.0),
     ] {
         let key = crate::ui::viewport_local_id(&ctx, id);
-        crate::ui::switcher::animate_spring(&ctx, key, stale, 0.0);
+        crate::ui::motion::spring(&ctx, key, stale, 0.0);
     }
 
     execute_without_clipboard(CommandId::ZoomToFit, &mut app, &ctx);
@@ -59,7 +59,7 @@ fn zoom_to_fit_command_seeds_springs_from_the_live_camera() {
         ("board_fit_center_y", -40.0),
     ] {
         let key = crate::ui::viewport_local_id(&ctx, id);
-        let seeded = crate::ui::switcher::animate_spring(&ctx, key, live, 0.0);
+        let seeded = crate::ui::motion::spring(&ctx, key, live, 0.0);
         assert_eq!(seeded, live);
     }
     assert_eq!(app.session.status, "Fit all 1 board frame to view.");

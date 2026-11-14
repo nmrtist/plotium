@@ -70,17 +70,17 @@ pub(crate) fn freeze_board_for_gesture(app: &mut PlotiumApp) {
 
 /// Seed the fit springs from the live camera.
 fn seed_board_fit_springs(app: &mut PlotiumApp, ctx: &egui::Context) {
-    crate::ui::switcher::seed_spring(
+    crate::ui::motion::seed_spring(
         ctx,
         viewport_local_id(ctx, FIT_ZOOM_ID),
         app.session.board.zoom,
     );
-    crate::ui::switcher::seed_spring(
+    crate::ui::motion::seed_spring(
         ctx,
         viewport_local_id(ctx, FIT_CENTER_X_ID),
         app.session.board.world_center[0],
     );
-    crate::ui::switcher::seed_spring(
+    crate::ui::motion::seed_spring(
         ctx,
         viewport_local_id(ctx, FIT_CENTER_Y_ID),
         app.session.board.world_center[1],
@@ -153,19 +153,15 @@ pub(crate) fn drive_board_fit(
     let ctx = ui.ctx();
     let dt = ui.input(|i| i.stable_dt);
     let before = app.session.board;
-    app.session.board.zoom = crate::ui::switcher::animate_spring(
-        ctx,
-        viewport_local_id(ctx, FIT_ZOOM_ID),
-        target.zoom,
-        dt,
-    );
-    app.session.board.world_center[0] = crate::ui::switcher::animate_spring(
+    app.session.board.zoom =
+        crate::ui::motion::spring(ctx, viewport_local_id(ctx, FIT_ZOOM_ID), target.zoom, dt);
+    app.session.board.world_center[0] = crate::ui::motion::spring(
         ctx,
         viewport_local_id(ctx, FIT_CENTER_X_ID),
         target.world_center[0],
         dt,
     );
-    app.session.board.world_center[1] = crate::ui::switcher::animate_spring(
+    app.session.board.world_center[1] = crate::ui::motion::spring(
         ctx,
         viewport_local_id(ctx, FIT_CENTER_Y_ID),
         target.world_center[1],

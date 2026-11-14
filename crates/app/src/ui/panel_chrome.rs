@@ -38,9 +38,19 @@ fn button(ui: &mut Ui, label: &str) -> (Rect, Response) {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
     });
     let visuals = ui.style().interact(&response);
-    if response.hovered() || response.is_pointer_button_down_on() || response.has_focus() {
+    let pressed = response.is_pointer_button_down_on() || response.has_focus();
+    let hover = super::motion::hover(ui.ctx(), response.id, response.hovered());
+    // Presses show at once; only hover enter and exit ease.
+    if pressed {
         ui.painter()
             .rect_filled(rect, visuals.corner_radius, visuals.weak_bg_fill);
+    } else if hover > 0.0 {
+        let hovered = &ui.visuals().widgets.hovered;
+        ui.painter().rect_filled(
+            rect,
+            hovered.corner_radius,
+            hovered.weak_bg_fill.gamma_multiply(hover),
+        );
     }
     (rect, response)
 }

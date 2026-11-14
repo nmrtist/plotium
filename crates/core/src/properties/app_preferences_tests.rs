@@ -126,7 +126,7 @@ fn backup_bound_rejects_the_value_and_names_the_actual_limit() {
 }
 
 #[test]
-fn all_thirteen_app_preferences_reset_through_their_catalog_definitions() {
+fn all_fourteen_app_preferences_reset_through_their_catalog_definitions() {
     let mut settings = Settings::default();
     settings.general.snap_enabled = false;
     settings.general.equal_scale_homonuclear_2d_imports = false;
@@ -135,6 +135,7 @@ fn all_thirteen_app_preferences_reset_through_their_catalog_definitions() {
     settings.appearance.theme = ThemeMode::Dark;
     settings.appearance.graphics_power = GraphicsPowerPreference::HighPerformance;
     settings.appearance.canvas_accent = Some([12, 34, 56]);
+    settings.appearance.reduce_motion = ReduceMotion::On;
     settings.export.include_view_snapshots = true;
     settings.export.trim_to_visible_content = true;
     settings.canvas_size.scale_content = true;
@@ -150,6 +151,7 @@ fn all_thirteen_app_preferences_reset_through_their_catalog_definitions() {
         THEME,
         GRAPHICS_POWER,
         ACCENT_COLOR,
+        REDUCE_MOTION,
         INCLUDE_VIEW_SNAPSHOTS,
         TRIM_TO_VISIBLE_CONTENT,
         SCALE_CONTENT,
@@ -175,6 +177,10 @@ fn all_thirteen_app_preferences_reset_through_their_catalog_definitions() {
         defaults.appearance.graphics_power
     );
     assert_eq!(app.settings.appearance.canvas_accent, None);
+    assert_eq!(
+        app.settings.appearance.reduce_motion,
+        defaults.appearance.reduce_motion
+    );
     assert_eq!(app.settings.export, defaults.export);
     assert_eq!(
         app.settings.canvas_size.scale_content,
@@ -209,4 +215,36 @@ fn snap_catalog_and_legacy_setter_share_one_authoritative_value_and_clear_guides
             .value,
         AggregateValue::Uniform(PropertyValue::Bool(true))
     );
+}
+
+#[test]
+fn reduce_motion_preference_round_trips_and_labels_the_platform_default() {
+    let mut app = PlotiumApp::new_with_settings(Settings::default());
+    commit(
+        &mut app,
+        REDUCE_MOTION,
+        PropertyValue::Enum(REDUCE_MOTION_ON),
+    );
+    assert_eq!(app.settings.appearance.reduce_motion, ReduceMotion::On);
+
+    let resolved = app
+        .resolve_property(&PropertyAddress::new(app.app_target(), REDUCE_MOTION))
+        .expect("reduce motion reads");
+    assert_eq!(
+        resolved.value,
+        AggregateValue::Uniform(PropertyValue::Enum(REDUCE_MOTION_ON))
+    );
+    let ResolvedSchema::Enum { variants } = resolved.schema else {
+        panic!("reduce motion is an enum");
+    };
+    let default_label = variants
+        .iter()
+        .find(|variant| variant.id == REDUCE_MOTION_SYSTEM)
+        .map(|variant| variant.canonical_label);
+    let expected = if system_reduce_motion_is_readable() {
+        "Follow system"
+    } else {
+        "Default (off)"
+    };
+    assert_eq!(default_label, Some(expected));
 }

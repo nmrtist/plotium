@@ -319,8 +319,8 @@ fn migrated_preferences_keep_their_real_section_density() {
         ),
         (
             SettingsCategory::Appearance.section_id(),
-            3,
-            "theme, GPU, and the accent override row",
+            4,
+            "theme, GPU, the accent override, and reduce motion rows",
         ),
         (
             SettingsCategory::Processing.section_id(),

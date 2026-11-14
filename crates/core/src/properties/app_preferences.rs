@@ -8,7 +8,9 @@ use super::{
     PropertyTransaction, PropertyValue, ResolvedProperty, ResolvedSchema, ScopeKind, Tier,
     ValueCopies, ValueSchema, definition,
 };
-use crate::settings::{GraphicsPowerPreference, MAX_PROJECT_BACKUP_GENERATIONS, ThemeMode};
+use crate::settings::{
+    GraphicsPowerPreference, MAX_PROJECT_BACKUP_GENERATIONS, ReduceMotion, ThemeMode,
+};
 use crate::state::PlotiumApp;
 use crate::update::{UpdateChannel, UpdateChannelSetting};
 use plotium_figure::Color;
@@ -25,6 +27,7 @@ pub const PROJECT_BACKUP_GENERATIONS: PropertyId =
 pub const THEME: PropertyId = PropertyId("settings.appearance.theme");
 pub const GRAPHICS_POWER: PropertyId = PropertyId("settings.appearance.graphics_power");
 pub const ACCENT_COLOR: PropertyId = PropertyId("settings.appearance.accent.color");
+pub const REDUCE_MOTION: PropertyId = PropertyId("settings.appearance.reduce_motion");
 pub const INCLUDE_VIEW_SNAPSHOTS: PropertyId = PropertyId("settings.export.include_view_snapshots");
 pub const TRIM_TO_VISIBLE_CONTENT: PropertyId =
     PropertyId("settings.export.trim_to_visible_content");
@@ -37,6 +40,9 @@ pub const THEME_LIGHT: &str = "light";
 pub const THEME_DARK: &str = "dark";
 pub const GRAPHICS_LOW_POWER: &str = "low_power";
 pub const GRAPHICS_HIGH_PERFORMANCE: &str = "high_performance";
+pub const REDUCE_MOTION_SYSTEM: &str = "system";
+pub const REDUCE_MOTION_ON: &str = "on";
+pub const REDUCE_MOTION_OFF: &str = "off";
 pub const UPDATE_AUTO: &str = "auto";
 pub const UPDATE_STABLE: &str = "stable";
 pub const UPDATE_BETA: &str = "beta";
@@ -55,6 +61,18 @@ const THEME_VARIANTS: &[EnumVariant] = &[
 const GRAPHICS_VARIANTS: &[EnumVariant] = &[
     EnumVariant::new(GRAPHICS_LOW_POWER, "Power saving"),
     EnumVariant::new(GRAPHICS_HIGH_PERFORMANCE, "High performance"),
+];
+const REDUCE_MOTION_VARIANTS: &[EnumVariant] = &[
+    EnumVariant::new(REDUCE_MOTION_SYSTEM, "Follow system"),
+    EnumVariant::new(REDUCE_MOTION_ON, "On"),
+    EnumVariant::new(REDUCE_MOTION_OFF, "Off"),
+];
+/// Linux exposes no reliable reduced-motion setting, so the default plays
+/// animations there.
+const REDUCE_MOTION_VARIANTS_UNREADABLE: &[EnumVariant] = &[
+    EnumVariant::new(REDUCE_MOTION_SYSTEM, "Default (off)"),
+    EnumVariant::new(REDUCE_MOTION_ON, "On"),
+    EnumVariant::new(REDUCE_MOTION_OFF, "Off"),
 ];
 const UPDATE_VARIANTS: &[EnumVariant] = &[
     EnumVariant::new(UPDATE_AUTO, "Follow build"),
@@ -169,6 +187,15 @@ pub(crate) const DEFINITIONS: &[PropertyDefinition] = &[
         DefaultPolicy::Derived,
         "Canvas accent",
         &["selection colour", "guide color", "accent color"],
+    ),
+    app_definition(
+        REDUCE_MOTION,
+        ValueSchema::Enum {
+            variants: REDUCE_MOTION_VARIANTS,
+        },
+        DefaultPolicy::Fixed(PropertyValue::Enum(REDUCE_MOTION_SYSTEM)),
+        "Reduce motion",
+        &["animations", "interface motion", "accessibility motion"],
     ),
     app_definition(
         INCLUDE_VIEW_SNAPSHOTS,
@@ -287,6 +314,16 @@ fn fixed_default(definition: &'static PropertyDefinition) -> Option<PropertyValu
 }
 
 fn resolved_schema(definition: &'static PropertyDefinition) -> ResolvedSchema {
+    if definition.id == REDUCE_MOTION {
+        let variants = if system_reduce_motion_is_readable() {
+            REDUCE_MOTION_VARIANTS
+        } else {
+            REDUCE_MOTION_VARIANTS_UNREADABLE
+        };
+        return ResolvedSchema::Enum {
+            variants: variants.iter().collect(),
+        };
+    }
     if definition.id == UPDATE_CHANNEL {
         let variants = match UpdateChannel::built_in() {
             UpdateChannel::Stable => UPDATE_VARIANTS_STABLE,
@@ -338,6 +375,7 @@ fn value_of(app: &PlotiumApp, id: PropertyId) -> Result<PropertyValue, PropertyE
             ]);
             PropertyValue::Color(Color::rgb(r, g, b))
         }
+        REDUCE_MOTION => PropertyValue::Enum(reduce_motion_key(settings.appearance.reduce_motion)),
         INCLUDE_VIEW_SNAPSHOTS => PropertyValue::Bool(settings.export.include_view_snapshots),
         TRIM_TO_VISIBLE_CONTENT => PropertyValue::Bool(settings.export.trim_to_visible_content),
         SCALE_CONTENT => PropertyValue::Bool(settings.canvas_size.scale_content),
@@ -412,6 +450,10 @@ fn write_value(
         (ACCENT_COLOR, PropertyValue::Color(value)) => {
             settings.appearance.canvas_accent = Some([value.r, value.g, value.b])
         }
+        (REDUCE_MOTION, PropertyValue::Enum(value)) => {
+            settings.appearance.reduce_motion =
+                reduce_motion(value).expect("validated reduce motion")
+        }
         (INCLUDE_VIEW_SNAPSHOTS, PropertyValue::Bool(value)) => {
             settings.export.include_view_snapshots = value
         }
@@ -461,6 +503,28 @@ fn graphics(value: &str) -> Option<GraphicsPowerPreference> {
     match value {
         GRAPHICS_LOW_POWER => Some(GraphicsPowerPreference::LowPower),
         GRAPHICS_HIGH_PERFORMANCE => Some(GraphicsPowerPreference::HighPerformance),
+        _ => None,
+    }
+}
+
+/// Whether the desktop can read a platform reduced-motion setting.
+pub const fn system_reduce_motion_is_readable() -> bool {
+    cfg!(any(target_os = "macos", windows))
+}
+
+fn reduce_motion_key(value: ReduceMotion) -> &'static str {
+    match value {
+        ReduceMotion::System => REDUCE_MOTION_SYSTEM,
+        ReduceMotion::On => REDUCE_MOTION_ON,
+        ReduceMotion::Off => REDUCE_MOTION_OFF,
+    }
+}
+
+fn reduce_motion(value: &str) -> Option<ReduceMotion> {
+    match value {
+        REDUCE_MOTION_SYSTEM => Some(ReduceMotion::System),
+        REDUCE_MOTION_ON => Some(ReduceMotion::On),
+        REDUCE_MOTION_OFF => Some(ReduceMotion::Off),
         _ => None,
     }
 }
