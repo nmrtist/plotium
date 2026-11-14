@@ -94,20 +94,20 @@ pub(super) fn screen_contour_segments_cached<'a>(
     let cache = shared_cache(ctx);
     if let Some(lod) = lock_cache(&cache).get(key) {
         return match detail {
-            ScreenRenderDetail::Full => ScreenContourSegments::full(segments, 0),
-            ScreenRenderDetail::Interactive => {
-                ScreenContourSegments::from_lod(segments, lod, budget, 0)
+            ScreenRenderDetail::Full if budget == usize::MAX => {
+                ScreenContourSegments::full(segments, 0)
             }
+            _ => ScreenContourSegments::from_lod(segments, lod, budget, 0),
         };
     }
 
     let lod = prepare_contour_lod(segments, viewport);
     lock_cache(&cache).insert(key, Arc::clone(&lod));
     match detail {
-        ScreenRenderDetail::Full => ScreenContourSegments::full(segments, segments.len()),
-        ScreenRenderDetail::Interactive => {
-            ScreenContourSegments::from_lod(segments, lod, budget, segments.len())
+        ScreenRenderDetail::Full if budget == usize::MAX => {
+            ScreenContourSegments::full(segments, segments.len())
         }
+        _ => ScreenContourSegments::from_lod(segments, lod, budget, segments.len()),
     }
 }
 

@@ -38,6 +38,8 @@ introduces the same regions in walkthrough form.
   near another frame, it snaps to that frame's edges and the standard gap.
   Hold <kbd>Alt</kbd> while dragging to bypass snapping. See
   [Navigation](/reference/shortcuts/#navigation) for fitting and moving the view.
+  Screen plots adapt line and contour detail to their displayed size. Zoom in
+  to inspect fine detail; figure exports are unaffected by this screen simplification.
 - **Data sheet** — the panel docked below the board where a table is edited.
   The board shrinks to make room. Drag its top edge to resize it; its header
   collapses, maximizes, or closes it. See [Tables](/guides/tables/#editing).
