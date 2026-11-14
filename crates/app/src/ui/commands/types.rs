@@ -81,6 +81,7 @@ pub enum CommandId {
     UiScaleDown,
     UiScaleReset,
     Present,
+    DetachedPreview(Option<plotium_core::state::CanvasId>),
     ToggleGrid,
     ToggleSnap,
     Preferences,

@@ -354,6 +354,20 @@ fn shortcut_command(ctx: &egui::Context) -> Option<commands::CommandId> {
     })
 }
 
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn handle_preview_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) {
+    use commands::CommandId;
+    match ctx.input(bound_command) {
+        // The main window's Ctrl+W closes the project. Here it closes the view.
+        Some(CommandId::CloseProject) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+        Some(id @ (CommandId::Undo | CommandId::Redo)) => {
+            commands::execute_without_clipboard(id, app, ctx);
+            ctx.request_repaint_of(egui::ViewportId::ROOT);
+        }
+        _ => {}
+    }
+}
+
 fn bound_command(i: &egui::InputState) -> Option<commands::CommandId> {
     BINDINGS
         .iter()

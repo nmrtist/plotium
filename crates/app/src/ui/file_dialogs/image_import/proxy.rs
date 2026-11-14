@@ -210,6 +210,14 @@ pub(crate) fn poll_rebuilds(app: &mut PlotiumApp, ctx: &egui::Context) {
                 .insert((hash, page_index), decoded_edge.min(*edge));
             // The board and sidebar were already painted this frame.
             ctx.request_repaint();
+            if ctx.input(|input| {
+                input
+                    .raw
+                    .viewports
+                    .contains_key(&crate::detached_preview::viewport_id())
+            }) {
+                ctx.request_repaint_of(crate::detached_preview::viewport_id());
+            }
         }
         if rebuilds.active.is_some() {
             return;

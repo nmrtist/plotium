@@ -5,6 +5,7 @@
 
 mod agent_connections;
 mod agent_install;
+mod detached_preview;
 mod fonts;
 mod graphics;
 mod observability;
@@ -120,6 +121,7 @@ pub(crate) fn cancel_relaunch() {
 struct Shell {
     // Deferred viewport callbacks can share application state without owning the shell.
     app: Arc<Mutex<PlotiumApp>>,
+    detached_preview: detached_preview::DetachedPreview,
     recovery: Option<plotium_core::project::RecoveryManager>,
     pending_recovery: Option<plotium_core::project::RecoverySnapshot>,
     pending_crash_report: Option<std::path::PathBuf>,
@@ -583,15 +585,15 @@ fn main() -> eframe::Result<()> {
                 }
             }
             #[cfg(target_os = "macos")]
-            let native_menu =
-                ui::native_menu::NativeMenu::new(&app, &cc.egui_ctx).map_err(|error| {
-                    std::io::Error::other(format!("failed to install macOS menu: {error}"))
-                })?;
+            let native_menu = ui::native_menu::NativeMenu::new(&app, cc).map_err(|error| {
+                std::io::Error::other(format!("failed to install macOS menu: {error}"))
+            })?;
             #[cfg(target_os = "macos")]
             open_documents.set_context(&cc.egui_ctx);
             let observed_edit_generation = app.doc.edit_generation;
             Ok(Box::new(Shell {
                 app: Arc::new(Mutex::new(app)),
+                detached_preview: Default::default(),
                 recovery,
                 pending_recovery,
                 pending_crash_report,

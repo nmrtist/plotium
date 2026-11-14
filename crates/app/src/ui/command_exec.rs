@@ -234,6 +234,9 @@ fn execute_inner(
         CommandId::UiScaleUp => crate::scale::nudge_ui_zoom(app, ctx, 1),
         CommandId::UiScaleDown => crate::scale::nudge_ui_zoom(app, ctx, -1),
         CommandId::UiScaleReset => crate::scale::reset_ui_zoom(app, ctx),
+        CommandId::DetachedPreview(canvas) => {
+            crate::detached_preview::request_open(app, ctx, canvas)
+        }
         CommandId::Present => super::present::toggle_present_mode(app),
         CommandId::ToggleGrid => {
             if let Some(canvas) = app.session.active_canvas {

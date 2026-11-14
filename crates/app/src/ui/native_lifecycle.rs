@@ -3,9 +3,10 @@
 use std::cell::Cell;
 
 use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
+    NSWindow, NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
     NSWindowWillEnterFullScreenNotification, NSWindowWillExitFullScreenNotification,
 };
 use objc2_foundation::{
@@ -13,6 +14,7 @@ use objc2_foundation::{
     NSObjectProtocol,
 };
 use plotium_core::state::PlotiumApp;
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 // Core Apple event FourCharCodes from AERegistry.h.
 const CORE_EVENT_CLASS: u32 = u32::from_be_bytes(*b"aevt");
@@ -70,10 +72,10 @@ pub(super) struct AppleEvents {
 }
 
 impl AppleEvents {
-    pub(super) fn new(ctx: &egui::Context) -> Self {
+    pub(super) fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let mtm = MainThreadMarker::new().expect("native menus are created on the main thread");
         let handler = LifecycleHandler::alloc(mtm).set_ivars(EventState {
-            ctx: ctx.clone(),
+            ctx: cc.egui_ctx.clone(),
             quit_requested: Cell::new(false),
         });
         // SAFETY: NSObject's init has this signature and initializes our superclass.
@@ -98,30 +100,41 @@ impl AppleEvents {
                 andEventID: QUIT_APPLICATION
             ];
         }
+        let root_window = root_window(cc);
+        if root_window.is_none() {
+            log::warn!("could not identify the main window for full screen notifications");
+        }
         let center = NSNotificationCenter::defaultCenter();
-        // SAFETY: These selectors each take one NSNotification. Only the root
-        // window can enter full screen; tool windows are embedded egui panels.
+        // SAFETY: These selectors each take one NSNotification. Filter by the
+        // root window so a preview changing Space cannot affect root close.
         // Observe completion without replacing winit's native window delegate.
-        unsafe {
-            for (name, selector) in [
-                (
-                    NSWindowWillEnterFullScreenNotification,
-                    sel!(fullscreenWillChange:),
-                ),
-                (
-                    NSWindowWillExitFullScreenNotification,
-                    sel!(fullscreenWillChange:),
-                ),
-                (
-                    NSWindowDidEnterFullScreenNotification,
-                    sel!(fullscreenDidEnter:),
-                ),
-                (
-                    NSWindowDidExitFullScreenNotification,
-                    sel!(fullscreenDidExit:),
-                ),
-            ] {
-                center.addObserver_selector_name_object(&handler, selector, Some(name), None);
+        if let Some(root_window) = root_window {
+            unsafe {
+                for (name, selector) in [
+                    (
+                        NSWindowWillEnterFullScreenNotification,
+                        sel!(fullscreenWillChange:),
+                    ),
+                    (
+                        NSWindowWillExitFullScreenNotification,
+                        sel!(fullscreenWillChange:),
+                    ),
+                    (
+                        NSWindowDidEnterFullScreenNotification,
+                        sel!(fullscreenDidEnter:),
+                    ),
+                    (
+                        NSWindowDidExitFullScreenNotification,
+                        sel!(fullscreenDidExit:),
+                    ),
+                ] {
+                    center.addObserver_selector_name_object(
+                        &handler,
+                        selector,
+                        Some(name),
+                        Some(&root_window),
+                    );
+                }
             }
         }
         Self { handler }
@@ -153,6 +166,17 @@ impl Drop for AppleEvents {
             }
         }
     }
+}
+
+fn root_window(cc: &eframe::CreationContext<'_>) -> Option<Retained<NSWindow>> {
+    let handle = cc.window_handle().ok()?;
+    let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
+        return None;
+    };
+    // SAFETY: On the main thread, raw-window-handle guarantees a live NSView
+    // for the lifetime of the handle. NSView's window getter returns NSWindow.
+    let view = unsafe { handle.ns_view.cast::<AnyObject>().as_ref() };
+    unsafe { msg_send![view, window] }
 }
 
 pub(super) fn show_window(ctx: &egui::Context) {

@@ -51,6 +51,8 @@ mod scientific_task_feedback;
 mod secondary_sidebar;
 mod settings_dialog;
 mod shortcuts;
+#[cfg(not(target_os = "macos"))]
+pub(crate) use shortcuts::handle_preview_shortcut;
 mod sidebars;
 mod switcher;
 #[cfg(not(target_os = "macos"))]

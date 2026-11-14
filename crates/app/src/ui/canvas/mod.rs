@@ -32,6 +32,9 @@ mod authoring;
 mod axis_mapping;
 mod band_editor;
 mod board;
+mod header_menu;
+pub(crate) use header_menu::detached_preview_menu;
+use header_menu::show_header_menu;
 mod board_caption;
 mod board_marquee;
 mod board_notes;
@@ -306,8 +309,11 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     paint_frame_captions(app, rect, ui, &painter);
     render_inline_panel_note_editor(app, rect, ui);
     paint_sheet_frames(app, rect, ui, &painter);
+    let header_menu = show_header_menu(app, rect, &resp);
     if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
-        resp.context_menu(|ui| frame_zoom_menu(app, ui));
+        if !header_menu {
+            resp.context_menu(|ui| frame_zoom_menu(app, ui));
+        }
         return;
     }
     paint_layout_overlay(app, ci, rect, &painter, chrome);
@@ -328,7 +334,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         canvas_cursor(app, ci, rect, ui);
     }
 
-    if data_edit_target(app, ci).is_none() {
+    if !header_menu && data_edit_target(app, ci).is_none() {
         if resp.secondary_clicked()
             && let Some(pointer) = resp.interact_pointer_pos()
         {

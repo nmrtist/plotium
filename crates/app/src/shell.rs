@@ -153,11 +153,18 @@ impl eframe::App for Shell {
         let mut app = shared.lock().expect("application state lock poisoned");
         #[cfg(target_os = "macos")]
         {
+            if ctx.input(|input| input.viewport().close_requested()) {
+                self.detached_preview.close();
+            }
             // Native menus and Dock events must also work with no visible window.
             if self.pending_recovery.is_none() {
                 self.open_documents.poll(&mut app, ctx);
-                self.native_menu
-                    .poll(&mut app, &mut self.clipboard_table_paste, ctx);
+                self.native_menu.poll(
+                    &mut app,
+                    &mut self.clipboard_table_paste,
+                    ctx,
+                    &mut self.detached_preview,
+                );
             }
             // Fullscreen transitions can make the root temporarily non-visible:
             // eframe still calls logic, but skips ui and would otherwise exit.
@@ -172,12 +179,24 @@ impl eframe::App for Shell {
             ctx,
             self.pending_recovery.is_some() || self.manual_save_job.is_some(),
         );
+        self.detached_preview.register(&app, ctx, &shared);
+        if ctx.input(|input| input.viewport().visible() == Some(false))
+            && self.detached_preview.is_open()
+        {
+            ui::file_dialogs::image_import::poll_rebuilds(&mut app, ctx);
+        }
     }
 
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // eframe calls this hook for child viewports too. Their input must
         // not cancel intents or synthesize shortcuts in the main window.
         if raw_input.viewport_id != egui::ViewportId::ROOT {
+            if raw_input.viewport_id == detached_preview::viewport_id()
+                && raw_input.viewport().close_requested()
+            {
+                self.detached_preview.close();
+                ctx.request_repaint_of(egui::ViewportId::ROOT);
+            }
             return;
         }
         let mut app = self.app.lock().expect("application state lock poisoned");
@@ -232,6 +251,7 @@ impl eframe::App for Shell {
             ctx.request_repaint_after(std::time::Duration::from_millis(33));
         }
         self.tick_recovery(&mut app, &ctx);
+        self.detached_preview.refresh(&app, &ctx);
     }
 
     #[cfg(windows)]
