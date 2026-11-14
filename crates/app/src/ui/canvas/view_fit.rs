@@ -26,8 +26,12 @@ pub(crate) fn store_navigation_rect(ctx: &egui::Context, rect: EguiRect) {
     });
 }
 
-fn navigation_rect(ctx: &egui::Context) -> Option<EguiRect> {
+pub(crate) fn navigation_rect(ctx: &egui::Context) -> Option<EguiRect> {
     ctx.data(|data| data.get_temp::<EguiRect>(egui::Id::new(NAVIGATION_RECT_ID)))
+}
+
+pub(crate) fn clear_navigation_rect(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.remove::<EguiRect>(egui::Id::new(NAVIGATION_RECT_ID)));
 }
 
 /// The pointer position, unless a floating task card sits under it — over a

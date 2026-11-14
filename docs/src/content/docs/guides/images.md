@@ -24,8 +24,9 @@ as Paint. Pasting in a text field continues to paste text normally.
 When Plotium creates a page for an image, it uses the image's physical size when
 DPI information is available and assumes 96 DPI otherwise. The page is at most
 89 mm wide, and its height follows the image's aspect ratio. The image fills the
-page without distortion. Importing several images is one undoable action; a
-failed or cancelled import leaves the project unchanged.
+page without distortion. Importing several images is one undoable action. If preparation is cancelled or some files fail, the images
+already prepared successfully are added together and can be undone in one step.
+If none succeeded, the project is unchanged.
 
 For formats that need special handling, use these commands:
 
@@ -33,8 +34,12 @@ For formats that need special handling, use these commands:
   PNG or WebP. **Add Images…** tells you when an image is animated.
 - **Add Images Without Metadata…** removes metadata by converting the image to
   PNG before adding it.
-- **Add All TIFF Pages…** adds every readable page of a multi-page TIFF. The
-  standard **Add Images…** command adds only its first page.
+- **Add All TIFF Pages…** reads the pages of each TIFF in order. If a page
+  cannot be read, earlier pages are kept and the remaining pages of that TIFF
+  are skipped. The standard **Add Images…** command adds only the first page.
+
+Preview detail adapts to the visible size and available memory; publication
+export still uses the source.
 
 ## Adjust an image
 
