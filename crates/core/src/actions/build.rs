@@ -473,6 +473,7 @@ impl Action {
     ) -> Self {
         Self::InsertCanvas {
             index,
+            activate: true,
             auto_place: canvas.board_pos == [0.0, 0.0],
             canvas: Box::new(canvas),
             active_before,
@@ -528,6 +529,7 @@ impl Action {
             canvas_index: app.doc.canvases.len(),
             canvas_resource_id: crate::state::CanvasId::new(),
             prepared_canvas: None,
+            board_position: None,
             dataset: Box::new(dataset),
             canvas_name,
             size_mm,
@@ -556,6 +558,7 @@ impl Action {
             canvas_index: app.doc.canvases.len(),
             canvas_resource_id: crate::state::CanvasId::new(),
             prepared_canvas: None,
+            board_position: None,
             dataset: Box::new(dataset),
             canvas_name: String::new(),
             size_mm: crate::state::DEFAULT_CANVAS_SIZE_MM,

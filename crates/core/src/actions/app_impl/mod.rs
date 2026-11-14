@@ -230,7 +230,13 @@ impl PlotiumApp {
         }
     }
 
-    fn insert_canvas_value(&mut self, index: usize, mut canvas: CanvasDocument, auto_place: bool) {
+    fn insert_canvas_value(
+        &mut self,
+        index: usize,
+        mut canvas: CanvasDocument,
+        auto_place: bool,
+        activate: bool,
+    ) {
         if index > self.doc.canvases.len() {
             return;
         }
@@ -238,6 +244,14 @@ impl PlotiumApp {
             canvas.board_pos = crate::state::next_board_frame_pos(self, canvas.size_pt());
         }
         self.doc.canvases.insert(index, canvas);
+        if !activate {
+            if let Some(active) = &mut self.session.active_canvas
+                && *active >= index
+            {
+                *active += 1;
+            }
+            return;
+        }
         self.session.active_canvas = Some(index);
         let active = self.doc.canvases[index]
             .active_dataset()
@@ -260,6 +274,29 @@ impl PlotiumApp {
             .and_then(|id| self.doc.dataset_index(id));
         self.set_active_dataset(active);
         self.set_selection(Selection::None);
+    }
+
+    fn remove_background_import_canvas(&mut self, index: usize, fallback: Option<usize>) {
+        if index >= self.doc.canvases.len() {
+            return;
+        }
+        let removed = self.doc.canvases.remove(index).resource_id;
+        self.session
+            .ui
+            .frame_selection
+            .retain(|frame| *frame != crate::state::BoardFrameId::Page(removed));
+        self.session.ui.hierarchical_selection.clear_canvas(removed);
+        match self.session.active_canvas {
+            Some(active) if active == index => {
+                self.session.active_canvas = fallback.filter(|&i| i < self.doc.canvases.len());
+                self.sync_selection_to_active_canvas();
+                if self.session.tool.is_data_tool() {
+                    self.set_tool(crate::state::Tool::BrowseZoom);
+                }
+            }
+            Some(active) if active > index => self.session.active_canvas = Some(active - 1),
+            _ => {}
+        }
     }
 
     fn set_canvas_size(&mut self, canvas: usize, state: &PageSizeState) {

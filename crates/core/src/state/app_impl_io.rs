@@ -269,6 +269,7 @@ impl PlotiumApp {
             Ok(prepared) => {
                 let super::data_import::PreparedImport {
                     dataset,
+                    board_position,
                     source,
                     format,
                     warnings,
@@ -277,7 +278,9 @@ impl PlotiumApp {
                     .as_nmr2d()
                     .and_then(|data| data.reconstruction_warning.clone());
                 let before = self.doc.datasets.len();
-                if let Err(error) = self.insert_prepared_dataset(dataset, &source) {
+                if let Err(error) =
+                    self.insert_prepared_dataset_at(dataset, &source, board_position)
+                {
                     return self.install_prepared_import(path, Err(error));
                 }
                 if self.doc.datasets.len() == before {
@@ -475,14 +478,27 @@ impl PlotiumApp {
     }
 
     fn insert_prepared_dataset(&mut self, dataset: Dataset, source: &str) -> Result<(), String> {
+        self.insert_prepared_dataset_at(dataset, source, None)
+    }
+
+    fn insert_prepared_dataset_at(
+        &mut self,
+        dataset: Dataset,
+        source: &str,
+        position: Option<[f32; 2]>,
+    ) -> Result<(), String> {
         let name = Self::short_name(source);
-        self.try_execute_action(Action::insert_dataset_with_default_canvas(
+        let mut action = Action::insert_dataset_with_default_canvas(
             self,
             dataset,
-            format!("Canvas {} — {}", self.doc.canvases.len() + 1, name),
+            name.to_owned(),
             DEFAULT_CANVAS_SIZE_MM,
-        ))
-        .map_err(|error| error.to_string())
+        );
+        if let Action::InsertDatasetWithCanvas { board_position, .. } = &mut action {
+            *board_position = position;
+        }
+        self.try_execute_action(action)
+            .map_err(|error| error.to_string())
     }
 
     pub fn request_export(&mut self, format: ExportFormat) {

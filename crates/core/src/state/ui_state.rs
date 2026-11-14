@@ -272,6 +272,7 @@ pub struct UiState {
     /// Multi-selection of datasets in the Data list (Shift/Ctrl click), the input
     /// to the "Stack selected data" command. Transient; a plain click resets it.
     pub data_selection: Vec<usize>,
+    pub board_viewport_aspect: f32, // Used only to place new import blocks.
     /// Transient Data-browser state. Dataset and Derived-data branches default
     /// open, so only explicit collapses are recorded; Analysis defaults closed.
     pub data_browser_filter: String,
@@ -510,6 +511,7 @@ impl Default for UiState {
             tile_drop: None,
             frame_selection: Vec::new(),
             data_selection: Vec::new(),
+            board_viewport_aspect: 1.6,
             data_browser_filter: String::new(),
             data_browser_tag: None,
             data_browser_batch: None,

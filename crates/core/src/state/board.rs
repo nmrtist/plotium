@@ -155,6 +155,50 @@ pub fn next_board_frame_pos_with_extra(
     [0.0, top]
 }
 
+/// Place one import gesture beyond the existing workspace bounds. The caller
+/// supplies the viewport aspect ratio; invalid or unavailable ratios use 1.6.
+pub fn imported_board_positions(
+    app: &PlotiumApp,
+    sizes: &[[f32; 2]],
+    viewport_aspect: f32,
+) -> Vec<[f32; 2]> {
+    if sizes.is_empty() {
+        return Vec::new();
+    }
+    let aspect = if viewport_aspect.is_finite() && viewport_aspect > 0.0 {
+        viewport_aspect
+    } else {
+        1.6
+    };
+    let mean_width = sizes.iter().map(|s| s[0]).sum::<f32>() / sizes.len() as f32;
+    let mean_height = sizes.iter().map(|s| s[1]).sum::<f32>() / sizes.len() as f32;
+    let columns = ((sizes.len() as f32 * aspect * (mean_height + BOARD_GUTTER_PT)
+        / (mean_width + BOARD_GUTTER_PT))
+        .sqrt()
+        .round() as usize)
+        .clamp(1, sizes.len());
+    let existing = rects_with_extra(app, &[]);
+    let origin = if existing.is_empty() {
+        [0.0, 0.0]
+    } else {
+        [
+            existing
+                .iter()
+                .map(|r| r.left)
+                .fold(f32::INFINITY, f32::min),
+            existing
+                .iter()
+                .map(|r| r.bottom())
+                .fold(f32::NEG_INFINITY, f32::max)
+                + BOARD_GUTTER_PT,
+        ]
+    };
+    grid_positions(sizes, columns, BOARD_GUTTER_PT)
+        .into_iter()
+        .map(|p| [p[0] + origin[0], p[1] + origin[1]])
+        .collect()
+}
+
 /// Row-major top-lefts (pt) for frames of the given `sizes` packed into `cols`
 /// columns with `gutter` spacing. Each column's x aligns to its widest frame and
 /// each row's y to its tallest, so the result is a cleanly aligned matrix.

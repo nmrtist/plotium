@@ -5,6 +5,7 @@ use std::{collections::VecDeque, path::PathBuf, sync::mpsc};
 
 pub(super) struct PreparedImport {
     pub dataset: Dataset,
+    pub board_position: Option<[f32; 2]>,
     pub source: String,
     pub format: plotium_io::DataFormat,
     pub warnings: Vec<plotium_io::LoadWarning>,
@@ -40,6 +41,7 @@ impl PreparedImport {
         }
         Ok(Self {
             dataset,
+            board_position: None,
             source,
             format: loaded.format,
             warnings,
@@ -132,6 +134,7 @@ struct Job {
     receiver: mpsc::Receiver<Event>,
     id: ImportBatchId,
     cancellation: nmr::CancellationToken,
+    prepared: Vec<(PathBuf, PreparedImport)>,
 }
 
 impl Drop for Job {
@@ -247,7 +250,8 @@ impl PlotiumApp {
             .drain(..)
             .map(|request| request.id)
             .collect();
-        if let Some(job) = imports.active.take() {
+        if let Some(mut job) = imports.active.take() {
+            self.commit_import_batch(&mut imports, job.id, std::mem::take(&mut job.prepared));
             ids.push(job.id);
         }
         for id in ids {
@@ -394,7 +398,7 @@ impl PlotiumApp {
             }),
         ))
     }
-    /// Process at most one item per frame, bounding both preparation and UI work.
+    /// Receive at most one prepared item per frame; commit the batch when complete.
     pub fn poll_data_import(&mut self) -> bool {
         let mut imports = std::mem::take(&mut self.session.data_imports);
         if imports.active.is_none()
@@ -463,6 +467,7 @@ impl PlotiumApp {
                         receiver,
                         id,
                         cancellation,
+                        prepared: Vec::new(),
                     })
                 }
                 Err(error) => {
@@ -493,14 +498,31 @@ impl PlotiumApp {
                         batch.failed()
                     );
                 }
-                Ok(Event::Item(path, result)) => {
-                    self.record_import_item(&mut imports, id, path, result)
-                }
+                Ok(Event::Item(path, result)) => match result {
+                    Ok(prepared) => {
+                        let job = imports
+                            .active
+                            .as_mut()
+                            .expect("active import received an item");
+                        job.prepared.push((path, prepared));
+                        self.session.status =
+                            format!("Preparing import: {} ready to commit.", job.prepared.len());
+                    }
+                    Err(error) => self.record_import_item(&mut imports, id, path, Err(error)),
+                },
                 Ok(Event::DiscoveryFailed(path, error)) => {
                     imports.batch_mut(id).retryable = false;
                     self.record_import_item(&mut imports, id, path, Err(error));
                 }
                 Ok(Event::Finished) => {
+                    let prepared = std::mem::take(
+                        &mut imports
+                            .active
+                            .as_mut()
+                            .expect("active import finished")
+                            .prepared,
+                    );
+                    self.commit_import_batch(&mut imports, id, prepared);
                     let batch = imports.batch_mut(id);
                     self.session.status = format!(
                         "Import complete: {} loaded, {} failed.",
@@ -515,6 +537,14 @@ impl PlotiumApp {
                 }
                 Err(mpsc::TryRecvError::Empty) => {}
                 Err(mpsc::TryRecvError::Disconnected) => {
+                    let prepared = std::mem::take(
+                        &mut imports
+                            .active
+                            .as_mut()
+                            .expect("active import disconnected")
+                            .prepared,
+                    );
+                    self.commit_import_batch(&mut imports, id, prepared);
                     let path = imports.batch_mut(id).recent.clone();
                     self.record_import_item(
                         &mut imports,
@@ -531,6 +561,41 @@ impl PlotiumApp {
         self.session.data_imports = imports;
         busy
     }
+    // Prepared objects are not exposed until this synchronous commit, so edits
+    // made while the worker runs remain separate and cannot depend on half a batch.
+    fn commit_import_batch(
+        &mut self,
+        imports: &mut DataImports,
+        id: ImportBatchId,
+        prepared: Vec<(PathBuf, PreparedImport)>,
+    ) {
+        let mut history = std::mem::take(&mut self.session.undo_stack);
+        let redo = std::mem::take(&mut self.session.redo_stack);
+        let mut actions = Vec::new();
+        let size =
+            super::CanvasDocument::new(String::new(), super::DEFAULT_CANVAS_SIZE_MM).size_pt();
+        let positions = super::imported_board_positions(
+            self,
+            &vec![size; prepared.len()],
+            self.session.ui.board_viewport_aspect,
+        );
+        for ((path, mut item), position) in prepared.into_iter().zip(positions) {
+            item.board_position = Some(position);
+            self.record_import_item(imports, id, path, Ok(item));
+            // Drain after each insertion, before the history limit can evict any
+            // earlier import action. No event loop runs inside this scope.
+            actions.append(&mut self.session.undo_stack);
+        }
+        if actions.is_empty() {
+            self.session.redo_stack = redo;
+        } else {
+            history.push(crate::actions::Action::Composite(actions));
+            if history.len() > self.session.history_limit {
+                history.remove(0);
+            }
+        }
+        self.session.undo_stack = history;
+    }
     fn record_import_item(
         &mut self,
         imports: &mut DataImports,
@@ -544,6 +609,7 @@ impl PlotiumApp {
         let selection = self.session.ui.data_selection.clone();
         let view = self.session.view;
         let before = self.doc.datasets.len();
+        let canvas_before = self.doc.canvases.len();
         let previous_order = self
             .session
             .operation_history
@@ -563,9 +629,9 @@ impl PlotiumApp {
             Ok(ImportTarget {
                 dataset,
                 canvas: self
-                    .session
-                    .active_canvas
-                    .and_then(|index| self.doc.canvases.get(index))
+                    .doc
+                    .canvases
+                    .get(canvas_before)
                     .filter(|canvas| {
                         canvas.objects.iter().any(|object| {
                             object

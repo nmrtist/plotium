@@ -5,8 +5,24 @@ pub(super) fn commit(
     job: &mut ImportJob,
     results: Vec<Result<Candidate, Failure>>,
 ) {
+    let sizes: Vec<_> = results
+        .iter()
+        .filter_map(|result| result.as_ref().ok())
+        .map(|candidate| CanvasDocument::new(String::new(), candidate.auto_page_size_mm).size_pt())
+        .collect();
+    let positions = plotium_core::state::imported_board_positions(
+        app,
+        &sizes,
+        app.session.ui.board_viewport_aspect,
+    );
     let first_canvas = app.doc.canvases.len();
     let active_before = app.session.active_canvas;
+    let selection = app.session.ui.selection.clone();
+    let hierarchical = app.session.ui.hierarchical_selection.clone();
+    let panel_label = app.session.ui.panel_label_selection;
+    let plot_part = app.session.ui.plot_part_selection;
+    let data_selection = app.session.ui.data_selection.clone();
+    let view = app.session.view;
     let mut failures = Vec::new();
     let mut warnings = Vec::new();
     let mut staged_assets: Vec<AssetRecord> = Vec::new();
@@ -45,17 +61,14 @@ pub(super) fn commit(
         }
 
         let index = first_canvas + imported;
-        let mut page =
-            CanvasDocument::new(format!("Figure {}", index + 1), candidate.auto_page_size_mm);
+        let name = candidate.display_name().to_owned();
+        let mut page = CanvasDocument::new(name, candidate.auto_page_size_mm);
+        page.board_pos = positions[imported];
         let id = page.allocate_object_id();
         let [width, height] = page.size_pt();
         page.objects.push(CanvasObject {
             id,
-            name: Path::new(&candidate.basename)
-                .file_stem()
-                .and_then(|name| name.to_str())
-                .unwrap_or("Image")
-                .to_owned(),
+            name: candidate.display_name().to_owned(),
             frame: ObjectFrame::new(0.0, 0.0, width, height),
             locked: false,
             visible: true,
@@ -67,16 +80,19 @@ pub(super) fn commit(
         });
         page.create_panel_for_content(id)
             .expect("a raster image supports a one-item panel");
-        let empty = CanvasDocument::new(page.name.clone(), page.size_mm);
-        page_actions.push(Action::insert_canvas(
-            index,
-            empty.clone(),
-            if imported == 0 {
-                active_before
-            } else {
-                Some(index - 1)
-            },
-        ));
+        let mut empty = CanvasDocument::new(page.name.clone(), page.size_mm);
+        empty.board_pos = page.board_pos;
+        let mut insert = Action::insert_canvas(index, empty.clone(), active_before);
+        if let Action::InsertCanvas {
+            auto_place,
+            activate,
+            ..
+        } = &mut insert
+        {
+            *auto_place = false;
+            *activate = false;
+        }
+        page_actions.push(insert);
         page_actions.push(Action::ReplacePanelState {
             canvas: index,
             before: PanelState::of(&empty),
@@ -121,5 +137,12 @@ pub(super) fn commit(
     } else {
         job.state = ImportImageState::Failed;
     }
+    app.session.active_canvas = active_before;
+    app.session.ui.selection = selection;
+    app.session.ui.hierarchical_selection = hierarchical;
+    app.session.ui.panel_label_selection = panel_label;
+    app.session.ui.plot_part_selection = plot_part;
+    app.session.ui.data_selection = data_selection;
+    app.session.view = view;
     record_result(app, job.operation, imported, failures, warnings);
 }

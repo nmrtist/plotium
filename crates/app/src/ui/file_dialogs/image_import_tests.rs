@@ -219,7 +219,7 @@ fn successful_import_into_empty_project_creates_one_undoable_page() {
     assert_eq!(app.doc.canvases.len(), 1);
     assert_eq!(app.doc.canvases[0].objects.len(), 1);
     assert_eq!(app.doc.assets.len(), 1);
-    assert_eq!(app.session.active_canvas, Some(0));
+    assert_eq!(app.session.active_canvas, None);
     assert_eq!(
         app.doc.canvases[0].objects[0].frame,
         ObjectFrame::new(
@@ -297,6 +297,8 @@ fn multiple_images_into_empty_project_create_distinct_pages_in_source_order() {
         ],
     );
     assert_eq!(app.doc.canvases.len(), 2);
+    assert_eq!(app.doc.canvases[0].name, "first");
+    assert_eq!(app.doc.canvases[1].name, "second");
     assert_eq!(app.doc.canvases[0].objects[0].name, "first");
     assert_eq!(app.doc.canvases[1].objects[0].name, "second");
     assert_ne!(app.doc.canvases[0].size_mm, app.doc.canvases[1].size_mm);
@@ -314,7 +316,7 @@ fn multiple_images_into_empty_project_create_distinct_pages_in_source_order() {
 }
 
 #[test]
-fn sequential_new_page_batches_never_retarget_the_active_imported_page() {
+fn sequential_new_page_batches_preserve_the_existing_active_page() {
     let mut app = PlotiumApp::default();
     app.doc.canvases.push(CanvasDocument::new(
         "Existing".to_owned(),
@@ -332,7 +334,7 @@ fn sequential_new_page_batches_never_retarget_the_active_imported_page() {
         ],
     );
     assert_eq!(app.doc.canvases.len(), 3);
-    assert_eq!(app.session.active_canvas, Some(2));
+    assert_eq!(app.session.active_canvas, Some(0));
     assert!(app.doc.canvases[0].objects.is_empty());
     assert_eq!(app.session.undo_stack.len(), 1);
 
@@ -343,21 +345,21 @@ fn sequential_new_page_batches_never_retarget_the_active_imported_page() {
         vec![Ok(candidate("third.png", [300, 300]))],
     );
     assert_eq!(app.doc.canvases.len(), 4);
-    assert_eq!(app.session.active_canvas, Some(3));
+    assert_eq!(app.session.active_canvas, Some(0));
     assert_eq!(app.doc.canvases[2].objects.len(), 1);
     assert_eq!(app.doc.canvases[3].objects[0].name, "third");
     assert_eq!(app.session.undo_stack.len(), 2);
 
     app.undo();
     assert_eq!(app.doc.canvases.len(), 3);
-    assert_eq!(app.session.active_canvas, Some(2));
+    assert_eq!(app.session.active_canvas, Some(0));
     app.undo();
     assert_eq!(app.doc.canvases.len(), 1);
     assert_eq!(app.session.active_canvas, Some(0));
     app.redo();
     app.redo();
     assert_eq!(app.doc.canvases.len(), 4);
-    assert_eq!(app.session.active_canvas, Some(3));
+    assert_eq!(app.session.active_canvas, Some(0));
 }
 
 #[test]
@@ -630,4 +632,45 @@ fn disconnected_worker_reports_and_keeps_prepared_images_once() {
     assert!(!has_active_jobs());
     app.undo();
     assert!(app.doc.canvases.is_empty());
+}
+
+#[test]
+fn image_batch_history_keeps_the_existing_editing_target() {
+    let mut app = PlotiumApp::default();
+    let mut existing = ready_job(&mut app, ImportImageTarget::NewPages);
+    commit(
+        &mut app,
+        &mut existing,
+        vec![Ok(candidate("existing.png", [2, 2]))],
+    );
+    app.session.active_canvas = Some(0);
+    let object = app.doc.canvases[0].objects[0].id;
+    app.select_object(0, object);
+    let selection = app.session.ui.hierarchical_selection.clone();
+    app.doc.canvases[0].board_pos = [-100.0, 140.0];
+    let existing = app.doc.canvases[0].board_rect_pt();
+    app.session.tool = plotium_core::state::Tool::ManualPhase;
+    let mut job = ready_job(&mut app, ImportImageTarget::NewPages);
+    commit(
+        &mut app,
+        &mut job,
+        vec![
+            Ok(candidate("wide.png", [400, 200])),
+            Ok(candidate("tall.png", [200, 400])),
+        ],
+    );
+    assert_eq!(app.session.active_canvas, Some(0));
+    assert_eq!(app.session.tool, plotium_core::state::Tool::ManualPhase);
+    assert_eq!(app.doc.canvases[0].board_pos, [-100.0, 140.0]);
+    let wide = app.doc.canvases[1].board_rect_pt();
+    let tall = app.doc.canvases[2].board_rect_pt();
+    assert!(wide.top > existing.bottom() && tall.top > existing.bottom());
+    assert!(wide.right() < tall.left || wide.bottom() < tall.top);
+    app.undo();
+    assert_eq!(app.session.ui.selection.object(), Some(object));
+    assert_eq!(app.session.ui.hierarchical_selection, selection);
+    app.redo();
+    assert_eq!(app.session.active_canvas, Some(0));
+    assert_eq!(app.session.ui.selection.object(), Some(object));
+    assert_eq!(app.session.tool, plotium_core::state::Tool::ManualPhase);
 }

@@ -97,6 +97,7 @@ impl PlotiumApp {
                 index: self.doc.canvases.len(),
                 canvas: Box::new(destination),
                 active_before: self.session.active_canvas,
+                activate: true,
                 auto_place: false,
             },
             Action::ReplacePanelState {

@@ -32,6 +32,7 @@ use crate::state::XrdDataset;
 
 fn prepared() -> PreparedImport {
     PreparedImport {
+        board_position: None,
         dataset: Dataset::Xrd(Box::new(XrdDataset::load(plotium_io::XrdData {
             two_theta_deg: vec![1.0, 2.0, 3.0],
             intensity: vec![2.0, 4.0, 2.0],
@@ -62,12 +63,13 @@ fn app_with_channel() -> (PlotiumApp, mpsc::Sender<Event>) {
         receiver,
         id,
         cancellation: nmr::CancellationToken::new(),
+        prepared: Vec::new(),
     });
     (app, sender)
 }
 
 #[test]
-fn commits_only_one_item_per_poll_and_preserves_selection_and_undo() {
+fn commits_batch_atomically_and_preserves_selection_and_undo() {
     let (mut app, sender) = app_with_channel();
     assert!(app.install_prepared_import(std::path::Path::new("existing"), Ok(prepared())));
     let selected = app.session.ui.data_selection.clone();
@@ -78,13 +80,16 @@ fn commits_only_one_item_per_poll_and_preserves_selection_and_undo() {
             .unwrap();
     }
     assert!(app.poll_data_import());
-    assert_eq!(app.doc.datasets.len(), 2);
+    assert_eq!(app.doc.datasets.len(), 1);
     assert_eq!(app.session.active_canvas, active);
     assert_eq!(app.session.ui.data_selection, selected);
     assert!(app.poll_data_import());
+    assert_eq!(app.doc.datasets.len(), 1);
+    sender.send(Event::Finished).unwrap();
+    assert!(!app.poll_data_import());
     assert_eq!(app.doc.datasets.len(), 3);
     app.undo();
-    assert_eq!(app.doc.datasets.len(), 2);
+    assert_eq!(app.doc.datasets.len(), 1);
     app.redo();
     assert_eq!(app.doc.datasets.len(), 3);
 }
@@ -109,6 +114,8 @@ fn failed_item_is_reported_and_does_not_prevent_later_success() {
             .outcome,
         crate::operation::OperationOutcome::Failure
     );
+    app.poll_data_import();
+    sender.send(Event::Finished).unwrap();
     app.poll_data_import();
     assert_eq!(app.doc.datasets.len(), 1);
     assert!(app.session.status.contains("1 loaded, 1 failed"));
@@ -416,6 +423,7 @@ fn cancelling_import_signals_worker_and_marks_batch_cancelled() {
         receiver,
         id,
         cancellation: cancellation.clone(),
+        prepared: Vec::new(),
     });
     app.cancel_data_imports();
     assert!(cancellation.is_cancelled());
@@ -427,4 +435,206 @@ fn cancelling_import_signals_worker_and_marks_batch_cancelled() {
     assert!(app.take_import_open_target().is_none());
     assert!(!app.poll_data_import());
     assert!(app.doc.datasets.is_empty());
+}
+
+#[test]
+fn large_import_keeps_prior_and_interleaved_edits_as_separate_history() {
+    let (mut app, sender) = app_with_channel();
+    assert!(app.install_prepared_import(std::path::Path::new("prior"), Ok(prepared())));
+    for _ in 0..205 {
+        sender
+            .send(Event::Item("next".into(), Ok(prepared())))
+            .unwrap();
+        assert!(app.poll_data_import());
+    }
+    assert_eq!(app.doc.datasets.len(), 1);
+    assert!(app.install_prepared_import(std::path::Path::new("interleaved"), Ok(prepared())));
+    sender.send(Event::Finished).unwrap();
+    assert!(!app.poll_data_import());
+    assert_eq!(app.session.undo_stack.len(), 3);
+    assert_eq!(app.doc.datasets.len(), 207);
+    app.undo();
+    assert_eq!(app.doc.datasets.len(), 2);
+    app.redo();
+    assert_eq!(app.doc.datasets.len(), 207);
+    app.undo();
+    app.undo();
+    assert_eq!(app.doc.datasets.len(), 1);
+}
+
+#[test]
+fn cancel_commits_prepared_successes_as_one_step() {
+    let (mut app, sender) = app_with_channel();
+    for _ in 0..2 {
+        sender
+            .send(Event::Item("ready".into(), Ok(prepared())))
+            .unwrap();
+        app.poll_data_import();
+    }
+    app.cancel_data_imports();
+    assert_eq!(app.doc.datasets.len(), 2);
+    assert_eq!(app.session.undo_stack.len(), 1);
+    app.undo();
+    assert!(app.doc.datasets.is_empty());
+}
+
+#[test]
+fn imported_batch_stays_outside_hand_arranged_content_and_undo_restores_it() {
+    let (mut app, sender) = app_with_channel();
+    assert!(app.install_prepared_import(std::path::Path::new("prior"), Ok(prepared())));
+    app.doc.canvases[0].board_pos = [-50.0, 250.0];
+    let original = app.doc.canvases[0].board_rect_pt();
+    for _ in 0..8 {
+        sender
+            .send(Event::Item("next".into(), Ok(prepared())))
+            .unwrap();
+        app.poll_data_import();
+    }
+    sender.send(Event::Finished).unwrap();
+    app.poll_data_import();
+    assert_eq!(app.doc.canvases[0].board_pos, [-50.0, 250.0]);
+    for canvas in &app.doc.canvases[1..] {
+        assert!(canvas.board_pos[1] >= original.bottom() + super::super::BOARD_GUTTER_PT);
+    }
+    let positions: Vec<_> = app.doc.canvases.iter().map(|c| c.board_pos).collect();
+    app.undo();
+    assert_eq!(app.doc.canvases.len(), 1);
+    app.redo();
+    assert_eq!(
+        positions,
+        app.doc
+            .canvases
+            .iter()
+            .map(|c| c.board_pos)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+#[ignore = "manual import commit CPU benchmark"]
+fn benchmark_atomic_import_commit() {
+    for count in [200, 500] {
+        let (mut app, sender) = app_with_channel();
+        for _ in 0..count {
+            sender
+                .send(Event::Item("sample".into(), Ok(prepared())))
+                .unwrap();
+            app.poll_data_import();
+        }
+        sender.send(Event::Finished).unwrap();
+        let started = std::time::Instant::now();
+        assert!(!app.poll_data_import());
+        eprintln!(
+            "atomic import commit: {count} tiny XRD datasets: {:?}",
+            started.elapsed()
+        );
+        assert_eq!(app.session.undo_stack.len(), 1);
+        assert_eq!(app.doc.datasets.len(), count);
+    }
+}
+
+#[test]
+fn disconnected_batch_commits_once_and_records_one_failure() {
+    let (mut app, sender) = app_with_channel();
+    sender
+        .send(Event::Item("ready".into(), Ok(prepared())))
+        .unwrap();
+    app.poll_data_import();
+    drop(sender);
+    assert!(!app.poll_data_import());
+    assert!(!app.poll_data_import());
+    let batch = app.session.data_imports.batches().back().unwrap();
+    assert_eq!((batch.loaded(), batch.failed()), (1, 1));
+    assert_eq!(app.session.undo_stack.len(), 1);
+    app.cancel_data_imports();
+    assert_eq!(app.session.undo_stack.len(), 1);
+    app.undo();
+    assert!(app.doc.datasets.is_empty());
+}
+
+#[test]
+fn background_commit_preserves_manual_phase_tool() {
+    let (mut app, sender) = app_with_channel();
+    assert!(app.install_prepared_import(std::path::Path::new("existing"), Ok(prepared())));
+    app.session.tool = super::super::Tool::ManualPhase;
+    sender
+        .send(Event::Item("new".into(), Ok(prepared())))
+        .unwrap();
+    app.poll_data_import();
+    sender.send(Event::Finished).unwrap();
+    app.poll_data_import();
+    assert_eq!(app.session.tool, super::super::Tool::ManualPhase);
+}
+
+#[test]
+fn batch_history_preserves_navigation_and_returns_import_target() {
+    let (mut app, sender) = app_with_channel();
+    assert!(app.install_prepared_import(std::path::Path::new("existing"), Ok(prepared())));
+    assert!(app.install_prepared_import(std::path::Path::new("other"), Ok(prepared())));
+    app.focus_datasets(&[0, 1], Some(1));
+    app.session.tool = super::super::Tool::ManualPhase;
+    let active = app.session.active_canvas;
+    let selection = app.session.ui.data_selection.clone();
+    let view = app.session.view;
+    sender
+        .send(Event::Item("new".into(), Ok(prepared())))
+        .unwrap();
+    app.poll_data_import();
+    sender.send(Event::Finished).unwrap();
+    app.poll_data_import();
+    let target = app.session.data_imports.batches().back().unwrap().items[0]
+        .result
+        .as_ref()
+        .unwrap();
+    assert_eq!(target.canvas, Some(app.doc.canvases[2].resource_id));
+    app.undo();
+    assert_eq!(app.session.active_canvas, active);
+    assert_eq!(app.session.ui.data_selection, selection);
+    assert_eq!(app.session.tool, super::super::Tool::ManualPhase);
+    app.redo();
+    assert_eq!(app.session.active_canvas, active);
+    assert_eq!(app.session.ui.data_selection, selection);
+    assert!(app.session.view == view);
+    assert_eq!(app.session.tool, super::super::Tool::ManualPhase);
+}
+
+#[test]
+fn undo_falls_back_from_the_active_imported_page() {
+    use crate::state::{BoardFrameId, Tool};
+
+    let (mut app, sender) = app_with_channel();
+    assert!(app.install_prepared_import(std::path::Path::new("existing"), Ok(prepared())));
+    sender
+        .send(Event::Item("new".into(), Ok(prepared())))
+        .unwrap();
+    sender.send(Event::Finished).unwrap();
+    assert!(app.poll_data_import());
+    assert!(!app.poll_data_import());
+
+    let page = app.doc.canvases[1].resource_id;
+    let object = app.doc.canvases[1].objects[0].id;
+    app.session.active_canvas = Some(1);
+    app.focus_single(1);
+    app.select_object(1, object);
+    app.session.ui.frame_selection = vec![BoardFrameId::Page(page)];
+    app.set_tool(Tool::ManualPhase);
+
+    app.undo();
+    assert_eq!(app.session.active_canvas, Some(0));
+    assert_eq!(app.session.ui.data_selection, vec![0]);
+    let restored = &app.doc.canvases[0];
+    assert_eq!(app.session.ui.selection.object(), restored.selected_object);
+    for path in app.session.ui.hierarchical_selection.paths() {
+        assert_eq!(path.canvas, restored.resource_id);
+        if let Some(content) = path.content {
+            assert!(restored.object(content).is_some());
+        }
+    }
+    assert!(app.session.ui.frame_selection.is_empty());
+    assert_eq!(app.session.tool, Tool::BrowseZoom);
+    assert!(app.doc.canvas_index(page).is_none());
+
+    app.redo();
+    assert_eq!(app.doc.canvas_index(page), Some(1));
+    assert_eq!(app.session.active_canvas, Some(0));
 }
