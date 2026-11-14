@@ -149,6 +149,7 @@ pub(super) fn show(app: &mut PlotiumApp, ci: usize, object: ObjectId, ui: &mut U
             plot: TargetRef::resource(canvas_object_ref(canvas, object)),
             series: vec![NewCurve {
                 y_axis: Default::default(),
+                stack: None,
                 kind: if draft.scatter {
                     CurveKind::Scatter
                 } else {

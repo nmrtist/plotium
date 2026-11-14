@@ -27,6 +27,7 @@ fn fixture() -> PlotiumApp {
     let series = (1..=2)
         .map(|i| NewCurve {
             y_axis: Default::default(),
+            stack: None,
             kind: CurveKind::Line,
             source: TableCurveSource {
                 dataset_id: table.resource_id,

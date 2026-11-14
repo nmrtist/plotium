@@ -168,6 +168,10 @@ pub struct LineEncoding {
     /// Hatch drawn over the bar fill in the outline color; only bars read it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bar_hatch: Option<crate::HatchPattern>,
+    /// Stack group: bars of one plot that share it pile up at each x instead
+    /// of sitting side by side; only bars read it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bar_stack: Option<String>,
     /// Horizontal spread of replicate points that share an x slot, as a
     /// fraction of the mark they overlay; `None` stacks them on one line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -217,6 +221,7 @@ impl Default for LineEncoding {
             bar_edge_color: None,
             bar_edge_width: None,
             bar_hatch: None,
+            bar_stack: None,
             spread: None,
             value_labels: false,
         }

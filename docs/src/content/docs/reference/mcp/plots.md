@@ -58,7 +58,13 @@ neighbours sit closer. Its x column may be numeric or a
 Utf8 text column; text values become categories in table row order, and equal
 texts share one slot. Bar curves that share a slot sit side by side within it; a
 bar alone in its slot keeps the full width, so one bar curve per category gives
-centred bars in their own colors. A `box` or `violin` curve summarises the raw y
+centred bars in their own colors. Optional `stack` on a `bar` curve names a
+stack: bar curves with the same name pile up at each x in series order,
+positive values up and negative values down, in one bar's share of the slot,
+beside other bars and stacks. Each keeps its own color, hatch and whiskers,
+drawn at its segment's end; value labels sit inside the segment. `stack` on
+another kind is rejected; later edits use `series.bar.stack`, where blank text
+unstacks. A `box` or `violin` curve summarises the raw y
 samples that share each x (Tukey box: median, IQR and 1.5 × IQR whiskers with
 outliers; violin: Gaussian kernel density with a quartile bar), takes no y error
 column, and shares slots with bars. `line` and `scatter` curves may use a text x

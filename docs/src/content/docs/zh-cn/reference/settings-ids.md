@@ -71,6 +71,7 @@ description: 自动化窗口、工作流、命令行和 AI 客户端使用的稳
 | 符号填充色、边框色、边框宽度 | `series.line.marker_fill`、`series.line.marker_edge_color`、`series.line.marker_edge_width` |
 | 空心符号、每 N 个点画一个符号 | `series.line.marker_hollow`、`series.line.marker_every` |
 | 柱宽、柱边框色、柱边框宽度、柱阴影 | `series.bar.width`、`series.bar.edge_color`、`series.bar.edge_width`、`series.bar.hatch` |
+| 柱堆叠组（留空表示不堆叠） | `series.bar.stack` |
 | 误差棒含义、重复次数 | `series.error_bars`（`unspecified`、`sd`、`sem`、`ci95`）、`series.replicates` |
 
 ### 排印

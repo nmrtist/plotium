@@ -56,6 +56,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let series = (1..=if i == 0 { 6 } else { 2 })
             .map(|j| NewCurve {
                 y_axis: Default::default(),
+                stack: None,
                 kind: if j % 2 == 0 {
                     CurveKind::Scatter
                 } else {

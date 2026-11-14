@@ -31,11 +31,13 @@ fn fixture() -> PlotiumApp {
             series: vec![
                 NewCurve {
                     y_axis: Default::default(),
+                    stack: None,
                     kind: CurveKind::Line,
                     source: source.clone(),
                 },
                 NewCurve {
                     y_axis: Default::default(),
+                    stack: None,
                     kind: CurveKind::Scatter,
                     source: source.clone(),
                 },
@@ -461,6 +463,7 @@ fn r6_affine_and_domain_unit_range_inputs_retain_native_meaning() {
             panel_frame_pt: None,
             series: vec![NewCurve {
                 y_axis: Default::default(),
+                stack: None,
                 kind: CurveKind::Line,
                 source,
             }],
