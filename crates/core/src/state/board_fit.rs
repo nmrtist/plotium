@@ -1,6 +1,7 @@
 use super::{
     BoardFitItem, BoardFitTarget, BoardFrameId, FrameRef, PlotiumApp, SelectionScope,
-    board_frame_id, board_frame_ref, board_frames, frame_board_rect, page_frame_showing_dataset,
+    board_frame_display, board_frame_id, board_frame_ref, board_frames, frame_board_rect,
+    page_frame_showing_dataset,
 };
 use plotium_render::Rect;
 
@@ -82,9 +83,19 @@ pub fn captured_board_fit(
 
 pub fn board_fit_item_rect(app: &PlotiumApp, item: BoardFitItem) -> Option<Rect> {
     let rect = match item {
-        BoardFitItem::Frame(id) => frame_board_rect(app, board_frame_ref(app, id)?)?,
+        BoardFitItem::Frame(id) => {
+            let frame = board_frame_ref(app, id)?;
+            if !board_frame_display(app, frame).shows_content() {
+                return None;
+            }
+            frame_board_rect(app, frame)?
+        }
         BoardFitItem::Content { canvas, content } => {
-            let page = app.doc.canvases.get(app.doc.canvas_index(canvas)?)?;
+            let ci = app.doc.canvas_index(canvas)?;
+            if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+                return None;
+            }
+            let page = app.doc.canvases.get(ci)?;
             let object = page.object(content).filter(|object| object.visible)?;
             let mut rect = page.content_page_frame(object.id)?.rect();
             if let Some(panel) = page.parent_panel(content).and_then(|id| page.panel(id)) {
@@ -108,7 +119,11 @@ pub fn board_fit_item_rect(app: &PlotiumApp, item: BoardFitItem) -> Option<Rect>
             rect
         }
         BoardFitItem::Panel { canvas, panel } => {
-            let page = app.doc.canvases.get(app.doc.canvas_index(canvas)?)?;
+            let ci = app.doc.canvas_index(canvas)?;
+            if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+                return None;
+            }
+            let page = app.doc.canvases.get(ci)?;
             let panel = page.panel(panel).filter(|panel| panel.visible)?;
             let mut rect = panel.frame.rect();
             rect.left += page.board_pos[0];
@@ -135,6 +150,7 @@ pub fn board_fit_bounds(app: &PlotiumApp, target: &BoardFitTarget) -> Option<([f
         BoardFitTarget::AllFrames => Box::new(
             board_frames(app)
                 .into_iter()
+                .filter(|&frame| board_frame_display(app, frame).shows_content())
                 .filter_map(|frame| frame_board_rect(app, frame))
                 .filter(valid_rect),
         ),

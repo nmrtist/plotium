@@ -1,5 +1,59 @@
 use plotium_core::state::{Dataset, ObjectId, PlotiumApp, Tool};
 
+pub(super) fn editing_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'static str> {
+    super::super::nmr_volume::editing_gate(app, id).and_then(|_| spotlight_edit_gate(app, id))
+}
+
+fn spotlight_edit_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'static str> {
+    use CommandId::*;
+    let edits_canvas = matches!(
+        id,
+        StepProperty(_)
+            | Group
+            | Ungroup
+            | CreatePanel
+            | ComposePanel
+            | DissolvePanel
+            | DeletePanel
+            | DuplicatePanel
+            | MergePanels
+            | StackPanelsSharedX
+            | SplitPanel
+            | SetPanelLayout(_)
+            | MoveContentToPanel(_)
+            | ToggleGrid
+            | CanvasSettings
+            | SetCanvasSizePreset(_)
+            | ArrangeGrid(_, _)
+            | ArrangeGridCustom
+            | SimplifyInnerAxes
+            | SetSpacingMode(_)
+            | SetGutterPreset(_)
+            | Align(_)
+            | Distribute(_)
+            | ZOrder(_)
+            | ApplyTheme(_)
+            | FigureTypography
+            | FitPlotY
+            | FitPlotXY
+            | ResetPeakHeight
+            | PasteImage
+            | ReplaceImage
+    );
+    requires(
+        !edits_canvas || !super::super::canvas::active_canvas_is_placeholder(app),
+        "Select a matching canvas or turn off spotlight before editing.",
+    )
+}
+
+pub(super) fn spotlight_gate(app: &PlotiumApp, id: CommandId) -> Result<(), &'static str> {
+    requires(
+        (id == CommandId::ToggleBoardSpotlight && app.session.ui.board_spotlight.is_some())
+            || (!app.doc.canvases.is_empty() && plotium_core::state::board_filter_active(app)),
+        "Filter the Data or Canvases list before highlighting matches.",
+    )
+}
+
 use super::{CommandExecutionClass, CommandId};
 
 impl CommandId {

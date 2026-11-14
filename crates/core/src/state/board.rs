@@ -27,6 +27,36 @@ pub fn board_frames(app: &PlotiumApp) -> Vec<FrameRef> {
     frames
 }
 
+/// Presentation of a frame, independent of board membership and layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoardFrameDisplay {
+    Normal,
+    Placeholder,
+}
+
+impl BoardFrameDisplay {
+    pub fn shows_content(self) -> bool {
+        self == Self::Normal
+    }
+}
+
+pub fn board_filter_active(app: &PlotiumApp) -> bool {
+    !app.session.ui.data_browser_filter.trim().is_empty()
+        || app.session.ui.data_browser_tag.is_some()
+        || app.session.ui.data_browser_batch.is_some()
+}
+
+pub fn board_frame_display(app: &PlotiumApp, frame: FrameRef) -> BoardFrameDisplay {
+    if let FrameRef::Page(ci) = frame
+        && let Some(matches) = &app.session.ui.board_spotlight
+        && let Some(canvas) = app.doc.canvases.get(ci)
+        && !matches.contains(&canvas.resource_id)
+    {
+        return BoardFrameDisplay::Placeholder;
+    }
+    BoardFrameDisplay::Normal
+}
+
 /// Convert an immediate collection reference into the stable identity used by
 /// queued reveal and fit work. Hidden calculated sheets are not board frames.
 pub fn board_frame_id(app: &PlotiumApp, frame: FrameRef) -> Option<BoardFrameId> {

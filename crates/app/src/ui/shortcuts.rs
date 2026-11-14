@@ -423,11 +423,9 @@ pub(super) fn handle_rename_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) 
             }
         }
         plotium_core::state::PrimaryView::Canvas => {
-            if let Some(ci) = app
-                .session
-                .active_canvas
-                .filter(|&ci| ci < app.doc.canvases.len())
-            {
+            if let Some(ci) = app.session.active_canvas.filter(|&ci| {
+                ci < app.doc.canvases.len() && !super::canvas::active_canvas_is_placeholder(app)
+            }) {
                 app.session.ui.rename = Some(plotium_core::state::RenameState {
                     target: plotium_core::state::RenameTarget::Canvas(ci),
                     buffer: app.doc.canvases[ci].name.clone(),
@@ -472,6 +470,9 @@ pub(super) fn handle_focus_shortcut(app: &mut PlotiumApp, ctx: &egui::Context) {
 }
 
 pub(super) fn handle_hierarchy_traversal(app: &mut PlotiumApp, ctx: &egui::Context) {
+    if super::canvas::active_canvas_is_placeholder(app) {
+        return;
+    }
     if ctx.egui_wants_keyboard_input() {
         return;
     }
@@ -586,6 +587,13 @@ fn delete_selection(app: &mut PlotiumApp, ctx: &egui::Context) {
     use plotium_core::state::SelectionScope;
     if matches!(
         app.session.ui.selection_scope,
+        SelectionScope::CanvasObjects | SelectionScope::Layers
+    ) && super::canvas::active_canvas_is_placeholder(app)
+    {
+        return;
+    }
+    if matches!(
+        app.session.ui.selection_scope,
         SelectionScope::Board | SelectionScope::CanvasList
     ) {
         if app.session.tool.axis() != plotium_core::state::ToolAxis::Analyze {
@@ -683,7 +691,16 @@ fn delete_selected_panel_or_pages(app: &mut PlotiumApp, ctx: &egui::Context) {
                 .iter()
                 .filter_map(
                     |&frame| match plotium_core::state::board_frame_ref(app, frame) {
-                        Some(FrameRef::Page(ci)) => Some(ci),
+                        Some(FrameRef::Page(ci))
+                            if app.session.ui.selection_scope == SelectionScope::CanvasList
+                                || plotium_core::state::board_frame_display(
+                                    app,
+                                    FrameRef::Page(ci),
+                                )
+                                .shows_content() =>
+                        {
+                            Some(ci)
+                        }
                         _ => None,
                     },
                 )

@@ -177,6 +177,12 @@ pub(super) fn command_identity(
             Some(icon::SIDEBAR_SIMPLE),
             Some(app.session.secondary_sidebar_visible),
         ),
+        CommandId::ToggleBoardSpotlight => (
+            "Spotlight Filter Matches".into(),
+            None,
+            Some(app.session.ui.board_spotlight.is_some()),
+        ),
+        CommandId::ShowBoardMatches => ("Show Matches".into(), Some(icon::CORNERS_OUT), None),
         CommandId::ZoomToFit => ("Show All".into(), Some(icon::ARROWS_OUT), None),
         CommandId::ZoomToSelection => ("Show Selection".into(), Some(icon::CORNERS_OUT), None),
         CommandId::ResetPeakHeight => {
@@ -538,6 +544,8 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::TogglePrimarySidebar => "view.primary_sidebar",
         CommandId::ToggleSecondarySidebar => "view.secondary_sidebar",
         CommandId::ZoomToFit => "view.zoom_fit",
+        CommandId::ToggleBoardSpotlight => "view.toggle_spotlight",
+        CommandId::ShowBoardMatches => "view.show_matches",
         CommandId::ZoomToSelection => "view.zoom_selection",
         CommandId::FitPlotY => "view.fit_plot_y",
         CommandId::FitPlotXY => "view.fit_plot_xy",

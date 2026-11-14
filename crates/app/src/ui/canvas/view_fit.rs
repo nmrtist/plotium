@@ -67,6 +67,9 @@ pub(crate) fn pointer_in_plot_data(app: &PlotiumApp, ctx: &egui::Context) -> boo
 /// pointer) still acts on the plot the user is working with.
 fn fit_target(app: &PlotiumApp, ctx: &egui::Context) -> Option<(usize, ObjectId)> {
     let ci = app.session.active_canvas?;
+    if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+        return None;
+    }
     let pointed = navigation_rect(ctx)
         .zip(uncovered_pointer(app, ctx))
         .filter(|(rect, p)| rect.contains(*p))
@@ -110,6 +113,9 @@ pub(crate) fn can_reset_peak_height(app: &PlotiumApp) -> bool {
     let Some(ci) = app.session.active_canvas else {
         return false;
     };
+    if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+        return false;
+    }
     let Some(id) = app
         .doc
         .canvases

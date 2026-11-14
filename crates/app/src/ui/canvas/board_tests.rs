@@ -491,3 +491,60 @@ fn all_fit_waits_on_an_empty_board_but_direct_manipulation_cancels_it() {
     freeze_board_for_gesture(&mut app);
     assert_eq!(app.session.viewport_mode, ViewportMode::Manual);
 }
+
+#[test]
+fn spotlight_command_preserves_layout_and_excludes_placeholders_from_board_targets() {
+    use crate::ui::commands::{self, CommandId};
+    use plotium_core::state::board_fit_bounds;
+    let mut app = app_with_pages(&[[0.0, 0.0], [500.0, 0.0]]);
+    app.doc.canvases[0].name = "Match me".into();
+    app.doc.canvases[1].name = "Other".into();
+    app.activate_canvas(1);
+    let ctx = egui::Context::default();
+    assert!(!commands::describe(&app, CommandId::ShowBoardMatches).enabled);
+    app.session.ui.data_browser_filter = "match".into();
+    assert!(commands::describe(&app, CommandId::ShowBoardMatches).enabled);
+    commands::execute_without_clipboard(CommandId::ShowBoardMatches, &mut app, &ctx);
+
+    assert!(matches!(
+        app.session.viewport_mode,
+        ViewportMode::Fit(BoardFitTarget::Items(_))
+    ));
+    assert_eq!(
+        frame_at(&app, screen(), Pos2::new(10.0, 12.0)),
+        Some(FrameRef::Page(0))
+    );
+    assert_eq!(frame_at(&app, screen(), Pos2::new(510.0, 12.0)), None);
+    assert_eq!(
+        frame_header_at(&app, screen(), Pos2::new(510.0, -3.0)),
+        None
+    );
+    assert_eq!(
+        board_fit_bounds(&app, &BoardFitTarget::AllFrames)
+            .unwrap()
+            .1,
+        1
+    );
+    assert_eq!(board_frames(&app).len(), 2);
+    assert!(!commands::describe(&app, CommandId::PasteImage).enabled);
+    assert_eq!(
+        commands::describe(&app, CommandId::ToggleBoardSpotlight).checked,
+        Some(true)
+    );
+
+    app.session.ui.data_browser_filter.clear();
+    refresh_spotlight(&mut app, &ctx);
+    assert_eq!(
+        frame_at(&app, screen(), Pos2::new(510.0, 12.0)),
+        Some(FrameRef::Page(1))
+    );
+    assert_eq!(
+        board_fit_bounds(&app, &BoardFitTarget::AllFrames)
+            .unwrap()
+            .1,
+        2
+    );
+    assert_eq!(app.doc.canvases[0].board_pos, [0.0, 0.0]);
+    assert_eq!(app.doc.canvases[1].board_pos, [500.0, 0.0]);
+    assert!(app.session.undo_stack.is_empty());
+}

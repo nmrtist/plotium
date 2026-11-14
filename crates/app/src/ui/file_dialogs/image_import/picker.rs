@@ -95,7 +95,8 @@ fn import_image_paths_with_options(
     let ci = app
         .session
         .active_canvas
-        .filter(|index| *index < app.doc.canvases.len());
+        .filter(|index| *index < app.doc.canvases.len())
+        .filter(|_| !crate::ui::canvas::active_canvas_is_placeholder(app));
     let target = ci.map_or(ImportImageTarget::NewPages, |ci| {
         let canvas = app.doc.canvases[ci].resource_id;
         match app

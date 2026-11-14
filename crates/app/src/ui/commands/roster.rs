@@ -76,6 +76,8 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::TogglePrimarySidebar,
         CommandId::ToggleSecondarySidebar,
         CommandId::ZoomToFit,
+        CommandId::ToggleBoardSpotlight,
+        CommandId::ShowBoardMatches,
         CommandId::ZoomToSelection,
         CommandId::FitPlotY,
         CommandId::FitPlotXY,

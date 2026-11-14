@@ -10,7 +10,8 @@ pub(crate) fn handle_frame_caption_interactions(
     let mut consumed = false;
     for ci in 0..app.doc.canvases.len() {
         let canvas = &app.doc.canvases[ci];
-        if !canvas.caption_visible {
+        if !canvas.caption_visible || !board_frame_display(app, FrameRef::Page(ci)).shows_content()
+        {
             continue;
         }
         let page = bt.page_screen_rect(canvas);
@@ -92,6 +93,10 @@ pub(crate) fn render_inline_panel_note_editor(
         return;
     };
     let ci = edit.canvas;
+    if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+        cancel_inline_panel_note_edit(app);
+        return;
+    }
     let object_id = edit.object;
     let Some(row) = panel_note_row_rect(app, screen, ui, ci, object_id) else {
         cancel_inline_panel_note_edit(app);
@@ -147,7 +152,7 @@ fn panel_note_row_rect(
     object_id: ObjectId,
 ) -> Option<egui::Rect> {
     let canvas = app.doc.canvases.get(ci)?;
-    if !canvas.caption_visible {
+    if !canvas.caption_visible || !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
         return None;
     }
     let bt = BoardTransform::from_board(app.session.board, screen);

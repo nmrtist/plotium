@@ -116,6 +116,13 @@ impl PlotiumApp {
                     }
                 }
             }
+            Interaction::Frame(drag) => {
+                for (id, before) in drag.before {
+                    if let Some(frame) = board_frame_ref(self, id) {
+                        set_frame_board_pos(self, frame, before);
+                    }
+                }
+            }
             Interaction::Panel(drag) => {
                 if let Some(page) = self.doc.canvases.get_mut(drag.canvas) {
                     if let Some(panel) = page.panel_mut(drag.panel) {

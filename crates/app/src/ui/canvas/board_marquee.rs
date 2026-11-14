@@ -58,6 +58,7 @@ pub(super) fn handle(app: &mut PlotiumApp, rect: egui::Rect, ui: &Ui) -> bool {
         let transform = BoardTransform::from_board(app.session.board, rect);
         let hits = board_frames(app)
             .into_iter()
+            .filter(|&frame| board_frame_display(app, frame).shows_content())
             .filter(|frame| {
                 frame_screen_rect(&transform, app, *frame)
                     .is_some_and(|frame_rect| marquee.intersects(frame_rect))
