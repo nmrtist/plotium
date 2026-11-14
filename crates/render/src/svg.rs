@@ -299,6 +299,7 @@ fn write_figure(
         ph = plot.height,
     );
     let _ = write!(s, r#"<g clip-path="url(#{clip_id})">"#);
+    crate::spans::write_svg_fills(s, &proj);
     if let Some(grid) = &fig.heatmap {
         let _ = write!(s, r#"<g shape-rendering="crispEdges">"#);
         for (cell, color) in heatmap_cells(&proj, grid) {
@@ -431,6 +432,7 @@ fn write_figure(
         );
     }
     arrows::write(s, &proj, fig);
+    crate::spans::write_svg_labels(s, &proj);
     for (a, at) in crate::label_placement::drawn_texts(fig, plot, &labels, 1.0) {
         let anchor = match at.align {
             crate::text_place::TextAlign::Center => "middle",

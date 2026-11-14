@@ -25,6 +25,7 @@ mod dc;
 mod legend;
 mod reference_lines;
 mod right_axis;
+mod spans;
 
 use dc::{Dc, TextStyle, blend, l};
 
@@ -345,6 +346,7 @@ fn write_figure_content(
     let hidden_frame = fig.axis_frame == AxisFrame::Hidden;
     let (x_ticks, y_ticks) = (&layout.x_ticks, &layout.y_ticks);
 
+    spans::write_fills(dc, &proj);
     if fig.show_grid && !hidden_frame {
         for &xt in &x_ticks.values {
             let (px, _) = proj.project([xt, fig.y.min]);
@@ -541,6 +543,7 @@ fn write_figure_content(
             );
         }
         arrows::write(dc, &proj, fig);
+        spans::write_labels(dc, &proj);
         for (a, at) in crate::label_placement::drawn_texts(fig, plot, &labels, 1.0) {
             let align = match at.align {
                 crate::text_place::TextAlign::Center => TA_CENTER,

@@ -1,14 +1,14 @@
-//! Picking and moving author arrows and reference lines inside a plot.
+//! Picking and moving author arrows, reference lines and spans inside a plot.
 use super::*;
 use plotium_core::state::{AnnotationId, AxisOverrides, MarkGrip, PlotAnnotations, PlotObject};
-use plotium_figure::{Figure, ReferenceOrientation};
+use plotium_figure::{Figure, ReferenceOrientation, SpanAxis};
 
 /// Screen px around a mark's stroke that still picks it.
 const PICK_PX: f32 = 4.0;
 /// Screen px around an arrow end within which a drag moves only that end.
 const END_PX: f32 = 6.0;
 
-/// An arrow or reference line under the pointer.
+/// An arrow, reference line or span edge under the pointer.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct MarkHit {
     pub annotation: AnnotationId,
@@ -55,8 +55,18 @@ fn line_screen(
     }
 }
 
-/// The topmost arrow or reference line of `plot_object` near `pointer`.
-/// Arrows are drawn over reference lines, so they are tested first.
+/// Screen x or y of the span edges `[range[0], range[1]]`.
+fn span_screen(figure: &Figure, plot: PlotRect, axis: SpanAxis, range: [f64; 2]) -> [f32; 2] {
+    let orientation = match axis {
+        SpanAxis::X => ReferenceOrientation::Vertical,
+        SpanAxis::Y => ReferenceOrientation::Horizontal,
+    };
+    range.map(|value| line_screen(figure, plot, orientation, value))
+}
+
+/// The topmost arrow, reference line or span edge of `plot_object` near
+/// `pointer`, in drawing order. A span is picked only at its edges, so the
+/// data drawn over its inside stays reachable.
 pub(super) fn mark_hit(
     plot_object: &PlotObject,
     plot: PlotRect,
@@ -89,7 +99,7 @@ pub(super) fn mark_hit(
             grip,
         });
     }
-    annotations.reference_lines.iter().rev().find_map(|line| {
+    let line = annotations.reference_lines.iter().rev().find_map(|line| {
         let at = line_screen(figure, plot, line.orientation, line.value);
         let along = match line.orientation {
             ReferenceOrientation::Vertical => pointer.x,
@@ -98,6 +108,31 @@ pub(super) fn mark_hit(
         ((along - at).abs() <= PICK_PX + 0.5 * line.width * scale).then_some(MarkHit {
             annotation: line.id,
             grip: MarkGrip::Whole,
+        })
+    });
+    line.or_else(|| {
+        annotations.spans.iter().rev().find_map(|span| {
+            let [start, end] = span_screen(figure, plot, span.axis, span.range);
+            let along = match span.axis {
+                SpanAxis::X => pointer.x,
+                SpanAxis::Y => pointer.y,
+            };
+            let near = |edge: f32| edge.is_finite() && (along - edge).abs() <= PICK_PX;
+            // A narrow span is moved whole, so one edge never hides the other.
+            let grip = if (end - start).abs() < 3.0 * END_PX {
+                (near(start) || near(end) || (along - start) * (along - end) <= 0.0)
+                    .then_some(MarkGrip::Whole)
+            } else if near(start) {
+                Some(MarkGrip::Tail)
+            } else if near(end) {
+                Some(MarkGrip::Head)
+            } else {
+                None
+            }?;
+            Some(MarkHit {
+                annotation: span.id,
+                grip,
+            })
         })
     })
 }
@@ -165,6 +200,39 @@ pub(super) fn moved_mark(
         arrow.hand_moved = true;
         return Some(overrides);
     }
+    if let Some(start) = from.span(annotation) {
+        let [a, b] = span_screen(figure, plot, start.axis, start.range);
+        let moving: &[f32] = match grip {
+            MarkGrip::Whole => &[a, b],
+            MarkGrip::Tail => &[a],
+            MarkGrip::Head => &[b],
+        };
+        // A span only moves along its axis.
+        let shift = match start.axis {
+            SpanAxis::X => limit(delta[0], moving, plot.left, plot.right()),
+            SpanAxis::Y => limit(delta[1], moving, plot.top, plot.bottom()),
+        };
+        if shift == 0.0 {
+            return None;
+        }
+        let unproject_along = |at: f32| match start.axis {
+            SpanAxis::X => from_screen_x(at, plot, &figure.x),
+            SpanAxis::Y => from_screen_y(at, plot, &figure.y),
+        };
+        let mut range = start.range;
+        // The edge that stays keeps its exact value.
+        if grip != MarkGrip::Head {
+            range[0] = unproject_along(a + shift);
+        }
+        if grip != MarkGrip::Tail {
+            range[1] = unproject_along(b + shift);
+        }
+        let span = annotations.span_mut(annotation)?;
+        span.range = range;
+        span.validate().ok()?;
+        span.hand_moved = true;
+        return Some(overrides);
+    }
     let start = from.reference_line(annotation)?;
     let at = line_screen(figure, plot, start.orientation, start.value);
     // A line only moves across itself.
@@ -188,8 +256,8 @@ pub(super) fn moved_mark(
     Some(overrides)
 }
 
-/// The screen box mark `annotation` is drawn in: an arrow's span, or the
-/// strip a reference line runs along.
+/// The screen box mark `annotation` is drawn in: an arrow's extent, the
+/// strip a reference line runs along, or a span's visible band.
 pub(super) fn mark_bounds(
     plot_object: &PlotObject,
     plot: PlotRect,
@@ -203,6 +271,20 @@ pub(super) fn mark_bounds(
         let min = tail.min(head);
         let max = tail.max(head);
         return Some(PlotRect::new(min.x, min.y, max.x - min.x, max.y - min.y));
+    }
+    if let Some(span) = annotations.span(annotation) {
+        let [a, b] = span_screen(figure, plot, span.axis, span.range);
+        let clamp = |lo: f32, hi: f32| (a.min(b).max(lo), a.max(b).min(hi));
+        return Some(match span.axis {
+            SpanAxis::X => {
+                let (left, right) = clamp(plot.left, plot.right());
+                PlotRect::new(left, plot.top, (right - left).max(0.0), plot.height)
+            }
+            SpanAxis::Y => {
+                let (top, bottom) = clamp(plot.top, plot.bottom());
+                PlotRect::new(plot.left, top, plot.width, (bottom - top).max(0.0))
+            }
+        });
     }
     let line = annotations.reference_line(annotation)?;
     let at = line_screen(figure, plot, line.orientation, line.value);

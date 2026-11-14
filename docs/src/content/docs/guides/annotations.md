@@ -50,23 +50,27 @@ your placement, and it moves a label you placed only when you ask it to.
 Right-click the label and choose **Automatic position** to return it to
 automatic placement.
 
-### Editing labels, arrows, and reference lines
+### Editing labels, arrows, reference lines, and spans
 
 - **Add**: right-click an empty spot inside a plot and choose **Add text
-  here**, **Add arrow here**, **Add vertical line here**, or **Add horizontal
-  line here**. The new annotation sits at the clicked data point; an arrow
-  points at it.
+  here**, **Add arrow here**, **Add vertical line here**, **Add horizontal
+  line here**, **Add x span here**, or **Add y span here**. The new annotation
+  sits at the clicked data point; an arrow points at it, and a span starts as
+  a narrow band ending there. A span shades a data range across the whole plot
+  and is drawn behind the data, so bars and curves stay on top of it.
 - **Edit text**: double-click a text annotation or reference-line label, or
   choose **Edit text…** from its right-click menu. In a text annotation
   `Enter` starts a new line and `Ctrl`/`Cmd` + `Enter` saves; a reference-line
-  label is one line, saved with `Enter`. `Esc` cancels.
+  label is one line, saved with `Enter`. `Esc` cancels. A span's label is
+  edited the same way from **Edit text…** in its right-click menu.
 - **Move**: drag an arrow to move it, or drag one of its ends to move only that
-  end; drag a reference line across itself to change its value. Arrow keys
-  nudge the selected annotation. An AI client keeps an arrow or line you moved
+  end; drag a reference line across itself to change its value; drag either
+  edge of a span to resize it (a narrow span moves whole). Arrow keys nudge the
+  selected annotation. An AI client keeps an arrow, line or span you moved
   where you put it unless you ask it to move it.
 - **Style**: click an annotation to select it; the Object inspector shows its
-  size and color (text), color, width, and style (reference lines), or color,
-  width, and head (arrows).
+  size and color (text), color, width, and style (reference lines), color,
+  width, and head (arrows), or label, color, and opacity (spans).
 - **Delete**: press `Delete` or `Backspace`, or choose **Delete annotation**
   from its right-click menu.
 

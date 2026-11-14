@@ -616,9 +616,7 @@ pub fn view_to_canvas(
                 }
                 // Overrides are the one source of authored annotations; a
                 // snapshot's baked copy is a lifecycle copy, not a second state.
-                figure.author_annotations = axis_overrides.annotations.lower();
-                figure.reference_lines = axis_overrides.annotations.lower_reference_lines();
-                figure.author_arrows = axis_overrides.annotations.lower_arrows();
+                axis_overrides.annotations.lower_into(&mut figure);
                 let viewport = viewport_convert::restore(
                     view_object.viewport.as_ref(),
                     &mut figure,

@@ -446,12 +446,14 @@ pub(super) fn figure_cost(f: &plotium_figure::Figure) -> (usize, usize) {
         + f.reference_lines
             .iter()
             .map(|l| l.label.len())
-            .sum::<usize>();
+            .sum::<usize>()
+        + f.spans.iter().map(|s| s.label.len()).sum::<usize>();
     bytes += f.text_annotations().count() * size_of::<plotium_figure::Annotation>()
         + f.reference_lines.len() * size_of::<plotium_figure::ReferenceLine>()
         + f.range_annotations.len() * size_of::<plotium_figure::RangeAnnotation>()
         + f.integral_curves.len() * size_of::<plotium_figure::IntegralCurve>()
         + f.error_bars.len() * size_of::<plotium_figure::ErrorBar>()
-        + f.author_arrows.len() * size_of::<plotium_figure::ArrowAnnotation>();
+        + f.author_arrows.len() * size_of::<plotium_figure::ArrowAnnotation>()
+        + f.spans.len() * size_of::<plotium_figure::SpanAnnotation>();
     (bytes.saturating_add(text), text)
 }
