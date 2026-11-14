@@ -84,10 +84,20 @@ fn desktop_frames(app: &mut PlotiumApp, label: &str) {
     let mut title = None;
     let mut samples = Vec::new();
     let mut tessellation = Vec::new();
-    for frame in 0..13 {
+    let mut totals = Vec::new();
+    let mut vertices = 0;
+    const DESKTOP_WARMUP_FRAMES: usize = 90;
+    for frame in 0..DESKTOP_WARMUP_FRAMES + MEASURED_FRAMES {
+        if frame == 60 {
+            // Freeze the settled fit before timing Full detail; spring movement
+            // otherwise keeps refreshing the interactive-detail grace period.
+            app.session.viewport_mode = plotium_core::state::ViewportMode::Manual;
+        }
         let start = Instant::now();
         let output = ctx.run_ui(
             egui::RawInput {
+                // Advance beyond the navigation detail grace period before sampling.
+                time: Some(frame as f64 / 60.0),
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
                     egui::vec2(SCREEN_WIDTH, SCREEN_HEIGHT),
@@ -113,17 +123,39 @@ fn desktop_frames(app: &mut PlotiumApp, label: &str) {
         );
         let ui_time = start.elapsed();
         let start = Instant::now();
-        std::hint::black_box(ctx.tessellate(output.shapes, output.pixels_per_point));
-        if frame >= 3 {
+        let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
+        let tessellation_time = start.elapsed();
+        if frame >= DESKTOP_WARMUP_FRAMES {
+            assert_eq!(
+                super::render_detail::workspace_render_detail(&ctx, frame as f64 / 60.0),
+                ScreenRenderDetail::Full
+            );
+            vertices = primitives
+                .iter()
+                .map(|primitive| match &primitive.primitive {
+                    egui::epaint::Primitive::Mesh(mesh) => mesh.vertices.len(),
+                    egui::epaint::Primitive::Callback(_) => 0,
+                })
+                .sum::<usize>();
             samples.push(ui_time);
-            tessellation.push(start.elapsed());
+            totals.push(ui_time + tessellation_time);
+            tessellation.push(tessellation_time);
         }
     }
     samples.sort_unstable();
     tessellation.sort_unstable();
+    totals.sort_unstable();
+    println!(
+        "{label} total CPU: median={:?} p95={:?}; vertices={vertices}",
+        totals[totals.len() / 2],
+        totals[(totals.len() * 95).div_ceil(100) - 1]
+    );
     println!(
         "{label} desktop UI: median={:?} p95={:?}; tessellation median={:?} p95={:?}",
-        samples[5], samples[9], tessellation[5], tessellation[9]
+        samples[samples.len() / 2],
+        samples[(samples.len() * 95).div_ceil(100) - 1],
+        tessellation[tessellation.len() / 2],
+        tessellation[(tessellation.len() * 95).div_ceil(100) - 1]
     );
 }
 
@@ -265,4 +297,66 @@ fn add_stats(total: &mut RenderStats, frame: &RenderStats) {
     total.contour_source_segments_scanned += frame.contour_source_segments_scanned;
     total.contour_segments_visited += frame.contour_segments_visited;
     total.contour_segments_submitted += frame.contour_segments_submitted;
+}
+
+/// CPU UI construction and tessellation only, not end-to-end GPU frame time.
+/// Run with cargo test --release -p plotium bench_stress_workspace -- --ignored --nocapture.
+#[test]
+#[ignore = "synthetic CPU benchmark; use a release build"]
+fn bench_stress_workspace() {
+    use plotium_core::actions::Action;
+    use plotium_core::state::{BoardFitTarget, Dataset, NmrDataset, ViewportMode};
+    for count in [12, 60, 120, 500] {
+        let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+        for index in 0..count {
+            let data = plotium_io::NmrData {
+                points: (0..32768)
+                    .map(|i| {
+                        let x = i as f64 / 32768.0;
+                        num_complex::Complex64::new(
+                            (-((x - 0.35) / 0.01).powi(2)).exp()
+                                + 0.4 * (-((x - 0.7) / 0.02).powi(2)).exp(),
+                            0.0,
+                        )
+                    })
+                    .collect(),
+                domain: plotium_io::Domain::Frequency,
+                spectral_width_hz: 4000.0,
+                observe_freq_mhz: 400.0,
+                carrier_ppm: 5.0,
+                nucleus: "1H".to_owned(),
+                source: format!("synthetic-{index}"),
+                group_delay: 0.0,
+            };
+            let dataset = Dataset::Nmr(Box::new(NmrDataset::load(data).unwrap()));
+            // Prepare each independent page without measuring repeated import/history
+            // bookkeeping; this benchmark measures only the finished workspace.
+            let mut page_app =
+                PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+            page_app
+                .try_execute_action(Action::insert_dataset_with_default_canvas(
+                    &page_app,
+                    dataset,
+                    format!("Spectrum {index}"),
+                    [160.0, 100.0],
+                ))
+                .unwrap();
+            wait_for_compute(&mut page_app);
+            let mut canvas = page_app.doc.canvases.remove(0);
+            let size = canvas.size_pt();
+            canvas.board_pos = [
+                (index % 3) as f32 * (size[0] + plotium_core::state::BOARD_GUTTER_PT),
+                (index / 3) as f32 * (size[1] + plotium_core::state::BOARD_GUTTER_PT),
+            ];
+            app.doc.datasets.append(&mut page_app.doc.datasets);
+            app.doc.canvases.push(canvas);
+        }
+        app.activate_canvas(0);
+        app.session.viewport_mode = ViewportMode::Fit(BoardFitTarget::AllFrames);
+        desktop_frames(&mut app, &format!("{count} overview"));
+        app.session.viewport_mode = ViewportMode::Fit(BoardFitTarget::Frame(
+            plotium_core::state::BoardFrameId::Page(app.doc.canvases[count / 2].resource_id),
+        ));
+        desktop_frames(&mut app, &format!("{count} single-canvas"));
+    }
 }

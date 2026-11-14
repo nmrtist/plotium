@@ -118,7 +118,7 @@ fn short_trace_keeps_its_real_samples() {
     let points: Vec<_> = (0..2_000)
         .map(|index| [index as f64, (index % 7) as f64])
         .collect();
-    let drawn = line_points(&points, 0.0, 2_000.0, FULL_MIN_LINE_COLUMNS);
+    let drawn = line_points(&points, 0.0, 2_000.0, 2_048);
     assert!(drawn.points.as_ref() == points.as_slice());
     assert!(matches!(drawn.points, std::borrow::Cow::Borrowed(_)));
 }
@@ -169,10 +169,7 @@ fn non_monotonic_x_is_pooled_without_unsafe_clipping() {
 
 #[test]
 fn columns_track_device_pixels_within_bounds() {
-    assert_eq!(
-        line_columns(ScreenRenderDetail::Full, 320.0, 1.0),
-        FULL_MIN_LINE_COLUMNS
-    );
+    assert_eq!(line_columns(ScreenRenderDetail::Full, 320.0, 1.0), 640);
     assert_eq!(line_columns(ScreenRenderDetail::Full, 900.0, 2.0), 3_600);
     assert_eq!(
         line_columns(ScreenRenderDetail::Full, 9_000.0, 2.0),
@@ -231,7 +228,7 @@ fn interactive_contour_budget_is_stable_and_prioritizes_visible_segments() {
         &segments,
         ScreenRenderDetail::Full,
         [0.0, 1.0, 0.0, 1.0],
-        512,
+        usize::MAX,
     );
     assert_eq!(full.len(), source_len);
 }
@@ -355,4 +352,46 @@ fn log_y_pooling_ignores_samples_without_a_position() {
     assert!(drawn.pooled);
     let interior = &drawn.points[1..drawn.points.len() - 1];
     assert!(interior.iter().all(|p| p[1] > 0.0));
+}
+
+#[test]
+fn overview_full_detail_contours_are_bounded_but_inspection_is_exact() {
+    use crate::screen_contour_cache::{ContourCacheKey, screen_contour_segments_cached};
+
+    let small = contour_segment_budget(ScreenRenderDetail::Full, 40.0, 30.0, 1.0);
+    let larger = contour_segment_budget(ScreenRenderDetail::Full, 200.0, 150.0, 1.0);
+    assert!(small < larger);
+    let segments = vec![[[0.0, 0.0], [1.0, 1.0]]; 20_000];
+    let ctx = egui::Context::default();
+    let viewport = [0.0, 1.0, 0.0, 1.0];
+    let key = ContourCacheKey::new(7, 0, segments.len(), viewport);
+    let draw = |budget| {
+        screen_contour_segments_cached(
+            &ctx,
+            Some(key),
+            &segments,
+            ScreenRenderDetail::Full,
+            viewport,
+            budget,
+        )
+    };
+
+    let overview = draw(small);
+    assert_eq!(overview.len(), small);
+    assert_eq!(overview.source_segments_scanned(), segments.len());
+
+    let inspection = draw(contour_segment_budget(
+        ScreenRenderDetail::Full,
+        800.0,
+        600.0,
+        1.0,
+    ));
+    assert_eq!(inspection.len(), segments.len());
+    assert_eq!(inspection.source_segments_scanned(), 0);
+
+    let overview_again = draw(small);
+    assert_eq!(overview_again.len(), small);
+    assert_eq!(overview_again.source_segments_scanned(), 0);
+    assert_eq!(line_columns(ScreenRenderDetail::Full, 4.0, 1.0), 64);
+    assert_eq!(line_columns(ScreenRenderDetail::Full, 1200.0, 1.0), 2400);
 }

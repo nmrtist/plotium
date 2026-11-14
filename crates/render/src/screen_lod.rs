@@ -1,7 +1,7 @@
 use crate::screen::ScreenRenderDetail;
 use std::sync::Arc;
 
-pub(super) const FULL_MIN_LINE_COLUMNS: usize = 2_048;
+pub(super) const FULL_MIN_LINE_COLUMNS: usize = 64;
 pub(super) const FULL_MAX_LINE_COLUMNS: usize = 16_384;
 pub(super) const INTERACTIVE_MIN_LINE_COLUMNS: usize = 64;
 pub(super) const INTERACTIVE_MAX_LINE_COLUMNS: usize = 2_048;
@@ -90,10 +90,12 @@ pub(super) fn contour_segment_budget(
     plot_height: f32,
     pixels_per_point: f32,
 ) -> usize {
-    if detail == ScreenRenderDetail::Full {
+    let scale = valid_pixel_scale(pixels_per_point);
+    // Keep inspection-sized plots exact; only small overview plots use a
+    // segment budget. Export renderers do not use this screen-only policy.
+    if detail == ScreenRenderDetail::Full && plot_width.max(plot_height) * scale >= 256.0 {
         return usize::MAX;
     }
-    let scale = valid_pixel_scale(pixels_per_point);
     let physical_area = (plot_width * scale).max(1.0) * (plot_height * scale).max(1.0);
     ((physical_area / 8.0) as usize).clamp(
         INTERACTIVE_MIN_CONTOUR_SEGMENTS,
@@ -107,7 +109,7 @@ pub(super) fn screen_contour_segments(
     viewport: [f64; 4],
     budget: usize,
 ) -> ScreenContourSegments<'_> {
-    if detail == ScreenRenderDetail::Full {
+    if detail == ScreenRenderDetail::Full && budget == usize::MAX {
         return ScreenContourSegments::full(segments, 0);
     }
     let selected = prepare_contour_lod(segments, viewport);
