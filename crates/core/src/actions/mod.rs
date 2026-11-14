@@ -517,6 +517,8 @@ pub enum Action {
         index: usize,
         canvas: Box<CanvasDocument>,
         active_before: Option<usize>,
+        /// Background batches add pages without changing the editing target.
+        activate: bool,
         /// Resolve a default position on insertion; false preserves an explicit origin.
         auto_place: bool,
     },
@@ -593,6 +595,7 @@ pub enum Action {
         canvas_index: usize,
         canvas_resource_id: crate::state::CanvasId,
         prepared_canvas: Option<Box<CanvasDocument>>,
+        board_position: Option<[f32; 2]>,
         dataset: Box<Dataset>,
         canvas_name: String,
         size_mm: [f32; 2],

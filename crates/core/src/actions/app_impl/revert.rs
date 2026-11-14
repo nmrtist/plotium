@@ -396,9 +396,14 @@ impl PlotiumApp {
             Action::InsertCanvas {
                 index,
                 active_before,
+                activate,
                 ..
             } => {
-                self.remove_canvas_at(*index, *active_before);
+                if *activate {
+                    self.remove_canvas_at(*index, *active_before);
+                } else {
+                    self.remove_background_import_canvas(*index, *active_before);
+                }
             }
             Action::ApplyTheme { canvas, before, .. } => {
                 self.apply_theme_snapshot(*canvas, before);
@@ -429,8 +434,11 @@ impl PlotiumApp {
                 inserted_object_id,
                 active_canvas_before,
                 active_dataset_before,
+                board_position,
                 ..
             } => {
+                let background = board_position.is_some();
+                let removed_active_dataset = self.active_dataset() == Some(*dataset_index);
                 if let Some(ci) = inserted_into_existing_canvas {
                     if let Some(canvas) = self.doc.canvases.get_mut(*ci)
                         && let Some(id) = inserted_object_id
@@ -466,6 +474,8 @@ impl PlotiumApp {
                             self.session.ui.panel_note_inline_edit = None;
                         }
                     }
+                } else if background {
+                    self.remove_background_import_canvas(*canvas_index, *active_canvas_before);
                 } else if *canvas_index < self.doc.canvases.len() {
                     self.doc.canvases.remove(*canvas_index);
                 }
@@ -473,8 +483,19 @@ impl PlotiumApp {
                     let dataset = self.doc.datasets.remove(*dataset_index);
                     self.forget_removed_dataset(*dataset_index, dataset.resource_id());
                 }
-                self.session.active_canvas = *active_canvas_before;
-                self.set_active_dataset(*active_dataset_before);
+                if !background {
+                    self.session.active_canvas = *active_canvas_before;
+                    self.set_active_dataset(*active_dataset_before);
+                } else if removed_active_dataset {
+                    if self.active_dataset().is_none() {
+                        self.set_active_dataset(
+                            active_dataset_before.filter(|&i| i < self.doc.datasets.len()),
+                        );
+                    }
+                    if self.session.tool == crate::state::Tool::ManualPhase {
+                        self.set_tool(crate::state::Tool::BrowseZoom);
+                    }
+                }
             }
             Action::TransferObjects { .. } => self.revert_transfer(action),
             Action::TileDrop { .. } => self.revert_tile_drop(action),

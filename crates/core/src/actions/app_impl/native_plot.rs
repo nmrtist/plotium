@@ -89,7 +89,12 @@ impl PlotiumApp {
         self.validate_plot_insertion(insertion)?;
         match insertion {
             NativePlotInsertion::NewCanvas { page, .. } => {
-                self.insert_canvas_value(self.doc.canvases.len(), page.as_ref().clone(), false);
+                self.insert_canvas_value(
+                    self.doc.canvases.len(),
+                    page.as_ref().clone(),
+                    false,
+                    true,
+                );
             }
             NativePlotInsertion::ExistingCanvas {
                 canvas,

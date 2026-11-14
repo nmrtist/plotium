@@ -29,8 +29,10 @@ so, and otherwise goes to [table import](#import-a-table).
 ## Follow import progress
 
 Scientific data files and acquisition folders load in the background, so you can
-continue working. When you import multiple datasets, they appear on the board in
-their original discovery order without changing your current page or selection.
+continue working. Prepared datasets are added together when the batch finishes
+or is cancelled. Successful items form one Undo step, in discovery order, without
+changing your current page or selection. New canvases form a block in empty space
+rather than filling gaps in your existing layout; their names put the source first.
 The status bar shows the current file and success/failure counts; review failures
 in the diagnostic history.
 Use **View this import** in the import banner or **Import Results** to show

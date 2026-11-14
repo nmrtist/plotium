@@ -137,6 +137,10 @@ pub(crate) enum CanvasInteractionClearScope {
 }
 
 pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
+    let viewport = ui.available_size();
+    if viewport.x > 0.0 && viewport.y > 0.0 {
+        app.session.ui.board_viewport_aspect = viewport.x / viewport.y;
+    }
     let Some(ci) = app.session.active_canvas else {
         if app.doc.canvases.is_empty() && !board_frames(app).is_empty() {
             board::render_sheets_only(app, ui);

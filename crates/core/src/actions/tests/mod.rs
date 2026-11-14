@@ -150,6 +150,7 @@ fn insert_dataset_existing_canvas_does_not_select_inserted_object() {
         canvas_index: app.doc.canvases.len(),
         canvas_resource_id: crate::state::CanvasId::new(),
         prepared_canvas: None,
+        board_position: None,
         dataset: Box::new(dataset),
         canvas_name: "unused".to_owned(),
         size_mm: DEFAULT_CANVAS_SIZE_MM,

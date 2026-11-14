@@ -393,9 +393,10 @@ impl PlotiumApp {
                 index,
                 canvas,
                 auto_place,
+                activate,
                 ..
             } => {
-                self.insert_canvas_value(*index, canvas.as_ref().clone(), *auto_place);
+                self.insert_canvas_value(*index, canvas.as_ref().clone(), *auto_place, *activate);
             }
             Action::ApplyTheme { canvas, after, .. } => {
                 self.apply_theme_snapshot(*canvas, after);
@@ -429,6 +430,7 @@ impl PlotiumApp {
                 canvas_index,
                 canvas_resource_id,
                 prepared_canvas,
+                board_position,
                 dataset,
                 canvas_name,
                 size_mm,
@@ -478,7 +480,9 @@ impl PlotiumApp {
                         )
                     });
                     canvas.resource_id.clone_from(canvas_resource_id);
-                    canvas.board_pos = crate::state::next_board_frame_pos(self, canvas.size_pt());
+                    canvas.board_pos = board_position.unwrap_or_else(|| {
+                        crate::state::next_board_frame_pos(self, canvas.size_pt())
+                    });
                     for object in &mut canvas.objects {
                         if let Some(plot) = object.plot_mut() {
                             plot.set_figure_typography(self.doc.style_library.figure_typography);
@@ -486,10 +490,16 @@ impl PlotiumApp {
                     }
                     self.doc.canvases.push(canvas);
                     self.rebuild_canvases_for(*dataset_index);
-                    self.session.active_canvas = Some(*canvas_index);
+                    if board_position.is_none() {
+                        self.session.active_canvas = Some(*canvas_index);
+                    }
                 }
-                self.focus_single(*dataset_index);
-                self.session.view = PrimaryView::Canvas;
+                // Background batch insertion preserves the active editing tool
+                // and draft; focus_single can cancel a live manual phase edit.
+                if board_position.is_none() {
+                    self.focus_single(*dataset_index);
+                    self.session.view = PrimaryView::Canvas;
+                }
             }
             Action::TransferObjects { .. } => self.apply_transfer(action),
             Action::TileDrop { .. } => self.apply_tile_drop(action),

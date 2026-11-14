@@ -24,7 +24,10 @@ as Paint. Pasting in a text field continues to paste text normally.
 When Plotium creates a page for an image, it uses the image's physical size when
 DPI information is available and assumes 96 DPI otherwise. The page is at most
 89 mm wide, and its height follows the image's aspect ratio. The image fills the
-page without distortion. Importing several images is one undoable action. If preparation is cancelled or some files fail, the images
+page without distortion. New pages are named after their files and placed as one
+block in empty space, without moving existing pages or changing your current
+page or selection. Importing several images is one undoable action. If preparation
+is cancelled or some files fail, the images
 already prepared successfully are added together and can be undone in one step.
 If none succeeded, the project is unchanged.
 

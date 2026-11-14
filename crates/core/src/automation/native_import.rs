@@ -291,6 +291,7 @@ impl PreparedNativeImport {
                     canvas_index: app.doc.canvases.len() + offset,
                     canvas_resource_id: canvas.resource_id,
                     prepared_canvas: Some(Box::new(canvas)),
+                    board_position: None,
                     dataset: Box::new(loaded.dataset),
                     canvas_name: loaded.source,
                     size_mm: crate::state::DEFAULT_CANVAS_SIZE_MM,

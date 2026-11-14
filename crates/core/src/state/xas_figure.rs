@@ -76,6 +76,7 @@ impl PlotiumApp {
             index: self.doc.canvases.len(),
             canvas: Box::new(page),
             active_before: self.session.active_canvas,
+            activate: true,
             auto_place: true,
         });
         Ok(())
