@@ -16,6 +16,7 @@ pub fn plot_create_schema() -> Value {
     let source =
         curve_binding_schema(false)["properties"]["edits"]["items"]["properties"]["source"].clone();
     let name = json!({"type":"string","minLength":1,"maxLength":1024,"description":"Nonblank name, at most 1024 UTF-8 bytes; names are labels, not identity."});
+    let stack = json!({"type":"string","minLength":1,"maxLength":crate::state::MAX_STACK_NAME_BYTES,"description":"Bars only. Bar curves naming the same stack pile up at each x in series order, positive values up and negative down, in one share of the slot; other bars and stacks still sit beside them. Each curve keeps its own color, hatch and error whiskers, drawn at its segment's end. Later edits use property series.bar.stack."});
     let mut parent = target;
     parent["description"] = json!(
         "Exact whole document, empty canvas without panels, or its sole empty visible unlocked free-layout panel. Creation never uses selection. An explicit panel_frame_pt on an existing canvas creates an additional Panel without moving existing content."
@@ -32,7 +33,7 @@ pub fn plot_create_schema() -> Value {
         "panel_frame_pt":{"type":"array","minItems":4,"maxItems":4,"items":{"type":"number"},"description":"New Panel [x,y,width,height] in page-relative pt, finite positive width/height. Required to add a second Panel to an existing canvas. Omit for existing empty-Panel parent and native empty-page placement."},
         "panel_name":{"type":"string","minLength":1,"maxLength":1024,"description":"Only for a newly created panel; defaults to plot name."},
         "intent":plot_intent_schema(),
-        "series":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","additionalProperties":false,"required":["kind","source"],"properties":{"kind":{"enum":["line","scatter","bar","box","violin"],"description":"bar: filled bars from 0 with optional y errors. box/violin: summaries of the raw y samples at each x (no y error column). Bars, boxes and violins sharing an x slot sit side by side; lines and points overlay them, the k-th overlay curve aligned with the k-th bar/box curve. x may be a Utf8 column (categories in row order)."},"source":source}}}
+        "series":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","additionalProperties":false,"required":["kind","source"],"properties":{"kind":{"enum":["line","scatter","bar","box","violin"],"description":"bar: filled bars from 0 with optional y errors. box/violin: summaries of the raw y samples at each x (no y error column). Bars, boxes and violins sharing an x slot sit side by side; lines and points overlay them, the k-th overlay curve aligned with the k-th bar/box curve. x may be a Utf8 column (categories in row order)."},"source":source,"stack":stack}}}
     }})
 }
 fn plot_intent_schema() -> Value {

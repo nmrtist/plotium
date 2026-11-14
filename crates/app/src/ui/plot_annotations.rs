@@ -3,9 +3,9 @@
 use plotium_core::actions::Action;
 use plotium_core::state::{
     AnnotationId, AxisOverrides, DEFAULT_ARROW_LINE_WIDTH_PT, ObjectId, PlotAnnotations,
-    PlotMenuPoint, PlotPart, PlotReferenceLine, PlotTextEditState, PlotiumApp, Tool,
+    PlotMenuPoint, PlotPart, PlotReferenceLine, PlotSpan, PlotTextEditState, PlotiumApp, Tool,
 };
-use plotium_figure::{ArrowHead, Color, ReferenceOrientation};
+use plotium_figure::{ArrowHead, Color, ReferenceOrientation, SpanAxis};
 
 /// Text a new text annotation starts with, until the user types its own.
 const NEW_TEXT: &str = "Text";
@@ -15,6 +15,7 @@ pub(crate) enum NewAnnotation {
     Text,
     Arrow,
     Line(ReferenceOrientation),
+    Span(SpanAxis),
 }
 
 fn overrides(app: &PlotiumApp, ci: usize, object: ObjectId) -> Option<AxisOverrides> {
@@ -93,6 +94,14 @@ pub(crate) fn create(app: &mut PlotiumApp, point: PlotMenuPoint, kind: NewAnnota
             }
             annotations.add_reference_line(line)
         }
+        // A narrow band from the new-arrow tail spot to the clicked point.
+        NewAnnotation::Span(axis) => {
+            let range = match axis {
+                SpanAxis::X => [point.tail[0], point.at[0]],
+                SpanAxis::Y => [point.at[1], point.tail[1]],
+            };
+            annotations.add_span(PlotSpan::new(annotations.next_id, axis, range))
+        }
     }) else {
         return;
     };
@@ -107,7 +116,7 @@ pub(crate) fn create(app: &mut PlotiumApp, point: PlotMenuPoint, kind: NewAnnota
     app.session.status = "Added annotation.".into();
 }
 
-/// Open the text of text annotation or reference line `annotation` for
+/// Open the text of text annotation, reference line or span `annotation` for
 /// editing, selecting it.
 pub(crate) fn open_text_editor(
     app: &mut PlotiumApp,
@@ -123,6 +132,8 @@ pub(crate) fn open_text_editor(
         (text.text.clone(), PlotPart::Label(annotation))
     } else if let Some(line) = annotations.reference_line(annotation) {
         (line.label.clone(), PlotPart::Label(annotation))
+    } else if let Some(span) = annotations.span(annotation) {
+        (span.label.clone(), PlotPart::Annotation(annotation))
     } else {
         return;
     };
@@ -136,8 +147,8 @@ pub(crate) fn open_text_editor(
     });
 }
 
-/// Replace the text of a text annotation, or the label of a reference line
-/// (where empty removes it).
+/// Replace the text of a text annotation, or the label of a reference line or
+/// span (where empty removes it).
 pub(crate) fn set_text(
     app: &mut PlotiumApp,
     ci: usize,
@@ -153,6 +164,9 @@ pub(crate) fn set_text(
         } else if let Some(line) = annotations.reference_line_mut(annotation) {
             line.label = text.to_owned();
             line.validate()
+        } else if let Some(span) = annotations.span_mut(annotation) {
+            span.label = text.to_owned();
+            span.validate()
         } else {
             Err("The annotation no longer exists.".into())
         }

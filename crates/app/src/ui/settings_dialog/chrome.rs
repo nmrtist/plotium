@@ -69,6 +69,20 @@ fn apply_chrome_geometry(style: &mut egui::Style, geometry: ChromeGeometry) {
     style.visuals.menu_corner_radius = surface;
 }
 
+/// Muted chrome text (Ribbon group titles, hints) must reach 4.5:1 on the card
+/// fill while staying visibly lighter than labels. Opaque greys keep that
+/// independent of egui's alpha-derived weak colour; dark labels are raised so
+/// both constraints fit.
+fn apply_text_contrast(visuals: &mut egui::Visuals) {
+    let (text, weak) = if visuals.dark_mode {
+        (180, 140)
+    } else {
+        (80, 112)
+    };
+    visuals.widgets.noninteractive.fg_stroke.color = egui::Color32::from_gray(text);
+    visuals.weak_text_color = Some(egui::Color32::from_gray(weak));
+}
+
 pub(crate) fn apply_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
     let pref = match mode {
         ThemeMode::System => egui::ThemePreference::System,
@@ -87,6 +101,7 @@ pub(crate) fn apply_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
             // when a modal disables the chrome behind it.
             style.visuals.widgets.noninteractive.weak_bg_fill =
                 style.visuals.widgets.inactive.weak_bg_fill;
+            apply_text_contrast(&mut style.visuals);
         });
     }
     ctx.data_mut(|data| {
@@ -236,6 +251,43 @@ mod tests {
                 assert_eq!(style.visuals.window_corner_radius, surface);
                 assert_eq!(style.visuals.menu_corner_radius, surface);
             }
+        }
+    }
+
+    fn relative_luminance(color: egui::Color32) -> f32 {
+        let channel = |value: u8| {
+            let c = f32::from(value) / 255.0;
+            if c <= 0.039_28 {
+                c / 12.92
+            } else {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
+    }
+
+    fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
+        let (la, lb) = (relative_luminance(a), relative_luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    #[test]
+    fn chrome_text_meets_contrast_on_cards_and_panels() {
+        for dark in [false, true] {
+            let mut visuals = if dark {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            };
+            apply_text_contrast(&mut visuals);
+            let card = crate::ui::card_frame(dark, egui::Margin::ZERO).fill;
+            let text = visuals.text_color();
+            let weak = visuals.weak_text_color();
+            for surface in [card, visuals.panel_fill] {
+                assert!(contrast(weak, surface) >= 4.5, "dark={dark} {surface:?}");
+                assert!(contrast(text, surface) >= 7.0, "dark={dark} {surface:?}");
+            }
+            assert!(contrast(text, card) >= 1.5 * contrast(weak, card));
         }
     }
 }

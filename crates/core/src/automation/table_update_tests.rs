@@ -167,11 +167,13 @@ fn patch_refresh_undo_redo_preserve_native_curves_display_and_freshness() {
         series: vec![
             NewCurve {
                 y_axis: Default::default(),
+                stack: None,
                 kind: CurveKind::Line,
                 source: source(&app, 0, 1),
             },
             NewCurve {
                 y_axis: Default::default(),
+                stack: None,
                 kind: CurveKind::Line,
                 source: source(&app, derived, 2),
             },
@@ -518,6 +520,7 @@ fn native_pivot_refresh_is_rejected_atomically_without_restricting_native_refres
         panel_frame_pt: None,
         series: vec![NewCurve {
             y_axis: Default::default(),
+            stack: None,
             kind: CurveKind::Line,
             source: source(&app, 1, 1),
         }],

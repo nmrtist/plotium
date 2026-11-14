@@ -57,6 +57,7 @@ fn fixture(derived: bool) -> (PlotiumApp, usize) {
         panel_frame_pt: None,
         series: vec![NewCurve {
             y_axis: Default::default(),
+            stack: None,
             kind: CurveKind::Line,
             source: TableCurveSource {
                 dataset_id: dataset.resource_id(),

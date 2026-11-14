@@ -355,12 +355,19 @@ impl PlotiumApp {
                         first_span = Some((hi - lo).max(f64::MIN_POSITIVE));
                     }
                 }
-                prepared.push((series_index, part, role, line.value_labels, style));
+                prepared.push((
+                    series_index,
+                    part,
+                    role,
+                    line.value_labels,
+                    style,
+                    line.bar_stack.clone(),
+                ));
             }
         }
         let (mut occupants, mut overlays) = (Vec::new(), Vec::new());
         let labels = prepared.iter().any(|p| p.3);
-        for (index, mut part, role, value_labels, style) in prepared {
+        for (index, mut part, role, value_labels, style, stack_group) in prepared {
             let offset = matches!(stack.mode, StackMode::Offset);
             // Bars stay on their slots; shear would skew the slot width.
             let xoff = if offset && matches!(role, Role::Overlay(_)) {
@@ -373,6 +380,8 @@ impl PlotiumApp {
             } else {
                 0.0
             };
+            // Stacked values move when lowered; layout reports where they land.
+            let piled = stack_group.is_some() && matches!(role, Role::Occupant(MarkKind::Bar));
             for series in &mut part.series {
                 series.display_baseline += yoff;
                 if stack.active == Some(index) {
@@ -387,8 +396,10 @@ impl PlotiumApp {
                     }
                     xmin = xmin.min(x);
                     xmax = xmax.max(x);
-                    ymin = ymin.min(y);
-                    ymax = ymax.max(y);
+                    if !piled {
+                        ymin = ymin.min(y);
+                        ymax = ymax.max(y);
+                    }
                 }
             }
             for e in &mut part.error_bars {
@@ -403,8 +414,10 @@ impl PlotiumApp {
                 {
                     return Err("Curve error presentation overflowed.".into());
                 }
-                ymin = ymin.min(e.center[1] - e.negative);
-                ymax = ymax.max(e.center[1] + e.positive);
+                if !piled {
+                    ymin = ymin.min(e.center[1] - e.negative);
+                    ymax = ymax.max(e.center[1] + e.positive);
+                }
             }
             match role {
                 Role::Occupant(kind) => occupants.push(Occupant {
@@ -414,6 +427,7 @@ impl PlotiumApp {
                     style,
                     baseline: yoff,
                     labels: value_labels,
+                    stack: stack_group,
                 }),
                 Role::Overlay(spread) => overlays.push(Overlay {
                     series: part.series,

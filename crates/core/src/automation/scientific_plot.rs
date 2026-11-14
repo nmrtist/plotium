@@ -325,6 +325,7 @@ pub(super) fn prepare(
                 y_error_column_id: None,
             },
             y_axis: plotium_figure::YAxisSide::Left,
+            stack: None,
         };
         let plan = worker
             .plan_plot_creation(

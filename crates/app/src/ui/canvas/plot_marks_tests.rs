@@ -131,3 +131,33 @@ fn a_shift_along_a_line_does_not_move_it() {
     let from = object.axis_overrides.annotations.clone();
     assert!(moved_mark(&object, PLOT, line, MarkGrip::Whole, &from, [0.0, 5.0]).is_none());
 }
+
+#[test]
+fn spans_pick_by_their_edges_and_drag_along_their_axis() {
+    let (mut object, _, _) = fixture();
+    let mut annotations = object.axis_overrides.annotations.clone();
+    let span = annotations
+        .add_span(plotium_core::state::PlotSpan::new(
+            AnnotationId::new(0),
+            plotium_figure::SpanAxis::Y,
+            [1.0, 4.0],
+        ))
+        .expect("valid span");
+    object.axis_overrides.annotations = annotations;
+    let grip = |p: Pos2| mark_hit(&object, PLOT, 1.0, p).map(|hit| (hit.annotation, hit.grip));
+    assert_eq!(grip(screen(1.0, 1.0)), Some((span, MarkGrip::Tail)));
+    assert_eq!(grip(screen(1.0, 4.0)), Some((span, MarkGrip::Head)));
+    // The inside stays free for the data drawn over it.
+    assert_eq!(grip(screen(1.0, 2.5)), None);
+
+    let from = object.axis_overrides.annotations.clone();
+    let moved =
+        moved_mark(&object, PLOT, span, MarkGrip::Head, &from, [50.0, -40.0]).expect("moved edge");
+    let moved = moved.annotations.span(span).expect("span");
+    assert!(moved.hand_moved);
+    assert_eq!(moved.range[0], 1.0);
+    assert!((moved.range[1] - 6.0).abs() < 1e-4, "{moved:?}");
+    let bounds = mark_bounds(&object, PLOT, span).expect("bounds");
+    assert_eq!((bounds.left, bounds.width), (PLOT.left, PLOT.width));
+    assert!((bounds.top - screen(0.0, 4.0).y).abs() < 1e-3);
+}

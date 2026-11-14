@@ -122,18 +122,18 @@ fn prioritize_proportional(fonts: &mut FontDefinitions, platform: &PlatformFonts
         .families
         .get_mut(&FontFamily::Proportional)
         .expect("egui default fonts include a proportional family");
-    let mut preferred = Vec::new();
-    if platform.system_ui_regular.is_some() {
-        preferred.push(SYSTEM_UI_REGULAR_KEY.to_owned());
-    }
-    preferred.push("phosphor".to_owned());
+    let mut fallbacks = vec!["phosphor".to_owned()];
     if platform.system_cjk_regular.is_some() {
-        preferred.push(SYSTEM_CJK_REGULAR_KEY.to_owned());
+        fallbacks.push(SYSTEM_CJK_REGULAR_KEY.to_owned());
     }
-    // Phosphor maps lowercase ASCII and '-' to blank ligature components.
-    // Keep egui's bundled text face ahead of all optional fonts.
+    // Phosphor maps lowercase ASCII and '-' to blank ligature components, so
+    // every text face precedes it. The system UI face leads so body text
+    // matches the emphasized family.
     proportional.retain(|name| name != "phosphor");
-    proportional.splice(1..1, preferred);
+    proportional.splice(1..1, fallbacks);
+    if platform.system_ui_regular.is_some() {
+        proportional.insert(0, SYSTEM_UI_REGULAR_KEY.to_owned());
+    }
 }
 
 fn build_emphasized_family(fonts: &mut FontDefinitions, platform: &PlatformFonts) {
@@ -311,18 +311,24 @@ mod tests {
             }],
         });
 
+        let bundled = FontDefinitions::default().families[&FontFamily::Proportional][0].clone();
+        let bundled = bundled.as_str();
         assert_eq!(
-            &fonts.families[&FontFamily::Proportional][1..4],
-            [SYSTEM_UI_REGULAR_KEY, "phosphor", SYSTEM_CJK_REGULAR_KEY]
+            &fonts.families[&FontFamily::Proportional][..4],
+            [
+                SYSTEM_UI_REGULAR_KEY,
+                bundled,
+                "phosphor",
+                SYSTEM_CJK_REGULAR_KEY
+            ]
         );
         let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
-        let bundled = fonts.families[&FontFamily::Proportional][0].as_str();
         assert_eq!(
             &fonts.families[&emphasized][..6],
             [
                 SYSTEM_UI_SEMIBOLD_KEY,
-                bundled,
                 SYSTEM_UI_REGULAR_KEY,
+                bundled,
                 "phosphor",
                 SYSTEM_CJK_SEMIBOLD_KEY,
                 SYSTEM_CJK_REGULAR_KEY,
@@ -334,15 +340,18 @@ mod tests {
         assert_eq!(fonts.font_data[SYSTEM_CJK_SEMIBOLD_KEY].index, 4);
         let arial = figure_font_family(Typeface::Arial, FontWeight::Regular);
         let figure = FontFamily::Name(FIGURE_FONT_FAMILY.into());
-        assert_eq!(&fonts.families[&figure][..2], [arial, bundled]);
+        assert_eq!(
+            &fonts.families[&figure][..2],
+            [arial, SYSTEM_UI_REGULAR_KEY]
+        );
         // A missing bold face falls back to the regular one.
         let bold = FontFamily::Name(figure_font_family(Typeface::Arial, FontWeight::Bold).into());
-        assert_eq!(&fonts.families[&bold][..2], [arial, bundled]);
+        assert_eq!(&fonts.families[&bold][..2], [arial, SYSTEM_UI_REGULAR_KEY]);
         // A missing typeface falls back to the UI stack.
         let times = FontFamily::Name(
             figure_font_family(Typeface::TimesNewRoman, FontWeight::Regular).into(),
         );
-        assert_eq!(fonts.families[&times][0], bundled);
+        assert_eq!(fonts.families[&times][0], SYSTEM_UI_REGULAR_KEY);
     }
 
     #[test]
@@ -355,13 +364,26 @@ mod tests {
             figure: Vec::new(),
         });
         let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
-        assert_eq!(fonts.families[&emphasized][1], SYSTEM_UI_REGULAR_KEY);
+        assert_eq!(fonts.families[&emphasized][0], SYSTEM_UI_REGULAR_KEY);
+        assert_eq!(
+            fonts.families[&FontFamily::Proportional][0],
+            SYSTEM_UI_REGULAR_KEY
+        );
     }
 
     #[test]
     fn bundled_fonts_render_english_without_system_fonts() {
+        assert_english_and_icons_render(PlatformFonts::default());
+    }
+
+    #[test]
+    fn system_fonts_render_english_and_icons() {
+        assert_english_and_icons_render(load_platform_fonts());
+    }
+
+    fn assert_english_and_icons_render(platform: PlatformFonts) {
         let ctx = egui::Context::default();
-        ctx.set_fonts(build_definitions(PlatformFonts::default()));
+        ctx.set_fonts(build_definitions(platform));
         let ascii: String = ('!'..='~').collect();
         let icon = egui_phosphor::regular::FOLDER_OPEN;
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
@@ -428,6 +450,25 @@ mod tests {
         {
             let face = FontRef::from_index(&face.bytes, face.index).expect("valid system UI face");
             assert!(face.charmap().map('A').is_some());
+        }
+        // The system UI faces precede Phosphor, so they must not own its icons.
+        let mut defaults = FontDefinitions::default();
+        egui_phosphor::add_to_fonts(&mut defaults, egui_phosphor::Variant::Regular);
+        let phosphor = FontRef::new(&defaults.font_data["phosphor"].font).expect("valid Phosphor");
+        for face in [
+            platform.system_ui_regular.as_ref(),
+            platform.system_ui_semibold.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let face = FontRef::from_index(&face.bytes, face.index).expect("valid system UI face");
+            for (codepoint, _) in phosphor.charmap().mappings() {
+                assert!(
+                    codepoint < 0xE000 || face.charmap().map(codepoint).is_none(),
+                    "system UI face shadows Phosphor U+{codepoint:04X}"
+                );
+            }
         }
         if let Some(cjk) = platform.system_cjk_regular.as_ref() {
             let cjk = FontRef::from_index(&cjk.bytes, cjk.index).expect("valid system CJK face");

@@ -335,6 +335,12 @@ impl AxisOverrides {
             arrow.at.swap(0, 1);
             arrow.to.swap(0, 1);
         }
+        for span in &mut annotations.spans {
+            span.axis = match span.axis {
+                plotium_figure::SpanAxis::X => plotium_figure::SpanAxis::Y,
+                plotium_figure::SpanAxis::Y => plotium_figure::SpanAxis::X,
+            };
+        }
         for line in &mut annotations.reference_lines {
             line.orientation = match line.orientation {
                 plotium_figure::ReferenceOrientation::Vertical => {
@@ -425,9 +431,7 @@ impl AxisOverrides {
             figure.guide_title.clone_from(title);
         }
         figure.legend_position = self.legend_position;
-        figure.author_annotations = self.annotations.lower();
-        figure.reference_lines = self.annotations.lower_reference_lines();
-        figure.author_arrows = self.annotations.lower_arrows();
+        self.annotations.lower_into(figure);
     }
 
     /// A dragged or explicitly positioned legend is always an inside guide.

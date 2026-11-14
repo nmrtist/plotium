@@ -27,6 +27,7 @@ mod typeface;
 pub use display::*;
 pub use reference_line::{
     ReferenceLabelPosition, ReferenceLabelSide, ReferenceLine, ReferenceOrientation,
+    SpanAnnotation, SpanAxis,
 };
 pub use typeface::{FontWeight, Typeface};
 
@@ -579,6 +580,9 @@ pub struct Figure {
     /// exactly like `author_annotations`.
     #[serde(default)]
     pub reference_lines: Vec<ReferenceLine>,
+    /// Author-placed filled spans, owned by plot overrides like `reference_lines`.
+    #[serde(default)]
+    pub spans: Vec<SpanAnnotation>,
     /// Author-placed arrows, owned by plot overrides like `author_annotations`.
     #[serde(default)]
     pub author_arrows: Vec<ArrowAnnotation>,
@@ -654,6 +658,7 @@ impl Figure {
             annotations: Vec::new(),
             author_annotations: Vec::new(),
             reference_lines: Vec::new(),
+            spans: Vec::new(),
             author_arrows: Vec::new(),
             range_annotations: Vec::new(),
             contours: Vec::new(),

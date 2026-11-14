@@ -30,6 +30,7 @@ pub const PROPERTIES: &[PropertyId] = &[
     properties::line_display::Y_AXIS,
     properties::chart_layout::SPREAD,
     properties::chart_layout::VALUE_LABELS,
+    properties::chart_layout::BAR_STACK,
     properties::chart_layout::ORIENTATION,
     properties::intent::PURPOSE,
     properties::intent::CLAIM,

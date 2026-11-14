@@ -5,7 +5,7 @@ use crate::ui::plot_annotations;
 use plotium_core::state::{
     ARROW_LINE_WIDTH_PT, LabelPlacement, MAX_REFERENCE_LINE_WIDTH_PT, MIN_REFERENCE_LINE_WIDTH_PT,
 };
-use plotium_figure::{ArrowHead, LineStyle};
+use plotium_figure::{ArrowHead, LineStyle, SpanAxis};
 
 fn color_edit(ui: &mut Ui, color: &mut Color) -> bool {
     let mut rgb = [color.r, color.g, color.b];
@@ -124,6 +124,22 @@ pub(super) fn annotation_section(app: &mut PlotiumApp, ci: usize, object: Object
                         ui.selectable_value(&mut arrow.head, head, head_name(head));
                     }
                 });
+        });
+    } else if let Some(span) = annotations.span_mut(id) {
+        ui.label(crate::typography::headline(match span.axis {
+            SpanAxis::X => "X span",
+            SpanAxis::Y => "Y span",
+        }));
+        edit_text = text_row(ui, "Label", &span.label);
+        color_edit(ui, &mut span.color);
+        ui.horizontal(|ui| {
+            ui.label("Opacity");
+            ui.add(
+                DragValue::new(&mut span.opacity)
+                    .range(0.0..=1.0)
+                    .speed(0.01)
+                    .max_decimals(2),
+            );
         });
     } else {
         return;

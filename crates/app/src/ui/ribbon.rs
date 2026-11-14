@@ -15,7 +15,7 @@ use plotium_core::state::{ArrangeGridDraft, PlotiumApp, ToolGroup, WorkflowTab};
 use super::clipboard_table::ClipboardTablePaste;
 use super::commands::{self, CommandDescriptor, CommandId};
 use buttons::{collapsed_tile, overflow_item, ribbon_button};
-use layout::{GroupScale, STACK_GAP, TILE_HEIGHT, TabPlan};
+use layout::{CAPTION_BAND, GroupScale, STACK_GAP, TILE_HEIGHT, TabPlan};
 
 /// The native metric includes a little more bottom breathing room than the
 /// tab highlight needs visually; trim it so the highlight has equal margins.
@@ -62,9 +62,13 @@ fn task_row(
     chrome: super::RibbonChrome,
 ) {
     let Some(traffic_lights) = chrome.macos_traffic_lights else {
-        // Windows and Linux retain the original Ribbon task-row layout; their
-        // separate custom title bar owns all window chrome and dragging.
-        ui.horizontal(|ui| render_task_row_contents(app, clipboard, ui, false, None));
+        // Windows and Linux: the separate custom title bar owns window chrome
+        // and dragging, so the row only compacts its controls to fit.
+        ui.horizontal(|ui| {
+            let compact =
+                super::ribbon_chrome::controls_need_compacting(app, ui, 0.0, ui.available_width());
+            render_task_row_contents(app, clipboard, ui, compact, None);
+        });
         return;
     };
 
@@ -309,7 +313,7 @@ fn command_row(
         .partition(|(index, _)| plan.shown[*index]);
 
     ui.horizontal(|ui| {
-        ui.set_min_height(TILE_HEIGHT + 18.0);
+        ui.set_min_height(TILE_HEIGHT + CAPTION_BAND + 2.0);
         // The plan charged every group `GROUP_SLOT_EXTRA` for its separator;
         // the row must spend exactly that.
         ui.spacing_mut().item_spacing.x = layout::GROUP_GAP;
@@ -394,7 +398,8 @@ fn ribbon_group(
     // column is placed at its planned offset inside it, so the pixels and
     // the width budget agree by construction: content can never grow the
     // group, and a stack of two rows never grows the row.
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT + 16.0), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT + CAPTION_BAND), Sense::hover());
     let mut x = rect.left() + ((width - content_width) / 2.0).max(0.0);
     for column in columns {
         let column_rect = egui::Rect::from_min_size(
@@ -452,7 +457,8 @@ fn collapsed_group(
     let icon = entries.iter().find_map(|command| command.icon);
     let popup_id = ui.id().with(("collapsed_group", title));
     let open = egui::Popup::is_id_open(ui.ctx(), popup_id);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT + 16.0), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT + CAPTION_BAND), Sense::hover());
     let mut tile_ui = ui.new_child(
         UiBuilder::new()
             .max_rect(egui::Rect::from_min_size(

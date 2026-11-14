@@ -242,8 +242,8 @@ fn small_keeps_the_label_of_a_command_its_icon_cannot_name() {
 
 #[test]
 fn collapsed_groups_reserve_width_for_their_titles() {
-    assert!(group_width("Guides", &[], GroupScale::Collapsed, &estimate) >= 58.0);
-    assert!(group_width("Distribute", &[], GroupScale::Collapsed, &estimate) <= 112.0);
+    assert!(group_width("Guides", &[], GroupScale::Collapsed, &estimate) >= MIN_TILE_WIDTH);
+    assert!(group_width("Distribute", &[], GroupScale::Collapsed, &estimate) <= MAX_TILE_WIDTH);
 }
 
 #[test]

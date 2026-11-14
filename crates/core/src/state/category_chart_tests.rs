@@ -64,6 +64,7 @@ fn curve(kind: CurveKind, source: TableCurveSource) -> NewCurve {
         kind,
         source,
         y_axis: plotium_figure::YAxisSide::Left,
+        stack: None,
     }
 }
 

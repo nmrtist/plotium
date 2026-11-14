@@ -9,9 +9,12 @@ pub(crate) const TITLE_3_PT: f32 = 15.0;
 pub(crate) const HEADLINE_PT: f32 = 13.0;
 pub(crate) const BODY_PT: f32 = 13.0;
 pub(crate) const CALLOUT_PT: f32 = 12.0;
-pub(crate) const SUBHEADLINE_PT: f32 = 11.0;
-pub(crate) const CAPTION_PT: f32 = 10.0;
+pub(crate) const SUBHEADLINE_PT: f32 = 12.0;
+pub(crate) const CAPTION_PT: f32 = 11.0;
 pub(crate) const MONOSPACE_PT: f32 = 13.0;
+/// Count badges sit in the corner of a 30 pt icon button; anything larger
+/// covers the glyph, so they stay below the caption size.
+pub(crate) const BADGE_PT: f32 = 9.0;
 
 pub(crate) const EMPHASIZED_FAMILY_NAME: &str = "plotium-emphasized";
 
@@ -108,6 +111,10 @@ pub(crate) fn caption_font() -> FontId {
     FontId::new(CAPTION_PT, FontFamily::Proportional)
 }
 
+pub(crate) fn badge_font() -> FontId {
+    FontId::new(BADGE_PT, FontFamily::Proportional)
+}
+
 #[cfg(test)]
 pub(crate) fn test_context() -> egui::Context {
     let ctx = egui::Context::default();
@@ -131,7 +138,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn semantic_scale_matches_the_compact_macos_ramp() {
+    fn semantic_scale_keeps_the_chrome_labels_readable() {
         assert_eq!(
             [
                 LARGE_TITLE_PT,
@@ -143,12 +150,12 @@ mod tests {
                 SUBHEADLINE_PT,
                 CAPTION_PT,
             ],
-            [26.0, 22.0, 17.0, 15.0, 13.0, 12.0, 11.0, 10.0]
+            [26.0, 22.0, 17.0, 15.0, 13.0, 12.0, 12.0, 11.0]
         );
     }
 
     #[test]
-    fn default_application_styles_never_drop_below_ten_points() {
+    fn default_application_styles_never_drop_below_eleven_points() {
         let ctx = egui::Context::default();
         apply(&ctx);
         let style = ctx.global_style();
@@ -159,7 +166,7 @@ mod tests {
             TextStyle::Heading,
             TextStyle::Monospace,
         ] {
-            assert!(style.text_styles[&text_style].size >= CAPTION_PT);
+            assert!(style.text_styles[&text_style].size >= 11.0);
         }
     }
 }

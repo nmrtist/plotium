@@ -185,7 +185,7 @@ pub(crate) fn hand_placed_label_readings(app: &PlotiumApp) -> Vec<Value> {
 
 /// Hand-edit key of a label the user dragged.
 pub const HAND_PLACED_LABEL_KEY: &str = "annotation.label_position";
-/// Hand-edit key of an arrow or reference line the user moved.
+/// Hand-edit key of an arrow, reference line or span the user moved.
 pub const HAND_MOVED_ANNOTATION_KEY: &str = "annotation.position";
 
 fn hand_placed_labels(annotations: &PlotAnnotations) -> Vec<Value> {
@@ -218,7 +218,12 @@ fn hand_moved_annotations(annotations: &PlotAnnotations) -> Vec<Value> {
         .iter()
         .filter(|a| a.hand_moved)
         .map(|a| json!({"annotation_id":a.id,"at":a.at,"to":a.to}));
-    lines.chain(arrows).collect()
+    let spans = annotations
+        .spans
+        .iter()
+        .filter(|s| s.hand_moved)
+        .map(|s| json!({"annotation_id":s.id,"axis":s.axis,"range":s.range}));
+    lines.chain(arrows).chain(spans).collect()
 }
 
 /// The plot part the user selected on the canvas, with its current placement
@@ -272,6 +277,8 @@ pub(crate) fn plot_part_reading(app: &PlotiumApp) -> Option<Value> {
             let annotations = &plot.axis_overrides.annotations;
             let mut reading = if let Some(arrow) = annotations.arrow(id) {
                 json!({"kind":"arrow","at":arrow.at,"to":arrow.to,"hand_moved":arrow.hand_moved})
+            } else if let Some(span) = annotations.span(id) {
+                json!({"kind":"span","axis":span.axis,"range":span.range,"hand_moved":span.hand_moved})
             } else {
                 let line = annotations.reference_line(id)?;
                 json!({"kind":"reference_line","value":line.value,"hand_moved":line.hand_moved})

@@ -1,5 +1,5 @@
-//! Category-chart layout properties: replicate spread and value labels on a
-//! series, and the orientation of an explicit-coordinate plot.
+//! Category-chart layout properties: replicate spread, value labels and bar
+//! stack group on a series, and the orientation of an explicit-coordinate plot.
 use super::provider::PropertyProvider;
 use super::target::{require_plot_object_target, resolved_schema, series_context};
 use super::*;
@@ -8,6 +8,7 @@ use plotium_figure::{SeriesEncoding, SeriesKind, UnitInterval};
 
 pub const SPREAD: PropertyId = PropertyId("series.points.spread");
 pub const VALUE_LABELS: PropertyId = PropertyId("series.value_labels");
+pub const BAR_STACK: PropertyId = PropertyId("series.bar.stack");
 pub const ORIENTATION: PropertyId = PropertyId("object.chart.orientation");
 const SPREAD_BOUNDS: FloatBounds = FloatBounds::inclusive(0., 1.);
 const ORIENTATIONS: &[EnumVariant] = &[
@@ -41,6 +42,7 @@ const DEFINITIONS: &[PropertyDefinition] = &[
         "Replicate spread",
     ),
     series(VALUE_LABELS, ValueSchema::Bool, "Value labels"),
+    series(BAR_STACK, ValueSchema::Text, "Bar stack"),
     PropertyDefinition {
         id: ORIENTATION,
         scope_kind: ScopeKind::Object,
@@ -137,6 +139,12 @@ impl PropertyProvider for ChartLayoutProvider {
                     SeriesKind::Bar | SeriesKind::Points | SeriesKind::Line
                 ),
             ),
+            BAR_STACK => (
+                PropertyValue::Text(line.bar_stack.clone().unwrap_or_default()),
+                PropertyValue::Text(String::new()),
+                Some(line.bar_stack.is_some()),
+                kind == SeriesKind::Bar,
+            ),
             _ => return Err(PropertyError::UnknownProperty(d.id.to_string())),
         };
         Ok(ResolvedProperty {
@@ -148,6 +156,8 @@ impl PropertyProvider for ChartLayoutProvider {
                 Availability::Editable
             } else if d.id == SPREAD {
                 Availability::Disabled("Choose a point or line curve to spread its replicates.")
+            } else if d.id == BAR_STACK {
+                Availability::Disabled("Choose a bar curve to stack it.")
             } else {
                 Availability::Disabled("Choose a bar, point or line curve to label its values.")
             },
@@ -217,6 +227,17 @@ impl PropertyProvider for ChartLayoutProvider {
                 };
             }
             (VALUE_LABELS, PropertyValue::Bool(on)) => line.value_labels = on,
+            // Blank text takes the curve out of its stack.
+            (BAR_STACK, PropertyValue::Text(name)) => {
+                line.bar_stack = if name.trim().is_empty() {
+                    None
+                } else {
+                    Some(
+                        crate::state::bar_stack_name(&name)
+                            .map_err(|message| invalid(d.id, &message))?,
+                    )
+                };
+            }
             _ => return Err(invalid(d.id, "Value does not match this property.")),
         }
         Ok(())

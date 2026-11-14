@@ -106,6 +106,10 @@ pub enum FigureEdit {
         head: Option<plotium_figure::ArrowHead>,
         line_width_pt: Option<f32>,
         color: Option<String>,
+        axis: Option<plotium_figure::SpanAxis>,
+        /// Span range ends in data units along `axis`.
+        range: Option<[f64; 2]>,
+        opacity: Option<f32>,
     },
     AnnotationSet {
         target: TargetRef,
@@ -122,6 +126,10 @@ pub enum FigureEdit {
         head: Option<plotium_figure::ArrowHead>,
         line_width_pt: Option<f32>,
         color: Option<String>,
+        axis: Option<plotium_figure::SpanAxis>,
+        /// Span range ends in data units along `axis`.
+        range: Option<[f64; 2]>,
+        opacity: Option<f32>,
         /// Pinned text offset from `at` in pt, x right and y up.
         offset_pt: Option<[f32; 2]>,
         placement: Option<PlacementRequest>,

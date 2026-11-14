@@ -35,6 +35,9 @@ pub struct NewCurve {
     /// Line and scatter curves may be measured on the right y axis.
     #[serde(default)]
     pub y_axis: plotium_figure::YAxisSide,
+    /// Bar curves naming the same stack pile up at each x.
+    #[serde(default)]
+    pub stack: Option<String>,
 }
 impl NewCurve {
     pub(crate) fn encoding(&self) -> Result<LineEncoding, String> {
@@ -43,11 +46,31 @@ impl NewCurve {
         }
         let mut line = LineEncoding {
             kind: self.kind.native(),
+            bar_stack: self
+                .stack
+                .as_deref()
+                .map(|stack| match self.kind {
+                    CurveKind::Bar => bar_stack_name(stack),
+                    _ => Err("Only bar curves stack; omit stack on other kinds.".into()),
+                })
+                .transpose()?,
             ..LineEncoding::default()
         };
         line.appearance.y_axis = self.y_axis;
         Ok(line)
     }
+}
+/// Longest stack name, in UTF-8 bytes.
+pub(crate) const MAX_STACK_NAME_BYTES: usize = 256;
+/// `name` trimmed, when it is a valid stack name.
+pub(crate) fn bar_stack_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty() || name.len() > MAX_STACK_NAME_BYTES {
+        return Err(format!(
+            "A stack name is nonblank text of at most {MAX_STACK_NAME_BYTES} bytes."
+        ));
+    }
+    Ok(name.to_owned())
 }
 /// Unit the first of `curves` brings to the right axis, when one goes there.
 pub(crate) fn first_right_axis_unit(

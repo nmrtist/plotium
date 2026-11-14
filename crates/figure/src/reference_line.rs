@@ -1,4 +1,4 @@
-//! Data-valued horizontal or vertical guide lines spanning the plot area.
+//! Data-valued guide lines and filled spans across the plot area.
 use crate::{Color, LineStyle};
 use serde::{Deserialize, Serialize};
 
@@ -48,4 +48,30 @@ pub enum ReferenceLabelSide {
 pub struct ReferenceLabelPosition {
     pub along: f32,
     pub side: ReferenceLabelSide,
+}
+
+/// The data axis a span covers a range of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanAxis {
+    /// An x range: the band runs from the bottom to the top of the plot.
+    X,
+    /// A y range: the band runs from the left to the right of the plot.
+    Y,
+}
+
+/// A filled band over a data range that spans the whole plot rectangle. It is
+/// painted behind every data layer, so it never hides marks.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpanAnnotation {
+    pub axis: SpanAxis,
+    /// Range ends in data units, in either order.
+    pub range: [f64; 2],
+    pub color: Color,
+    /// Fill opacity, 0–1.
+    pub opacity: f32,
+    /// Empty draws no label.
+    pub label: String,
+    /// Label size in points; `None` follows the figure's tick text size.
+    pub label_size: Option<f32>,
 }

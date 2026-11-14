@@ -126,6 +126,11 @@ pub fn page_metrics(
                         fonts.push(line.label_size.unwrap_or(typography.tick_pt));
                     }
                 }
+                for span in &plot.figure().spans {
+                    if !span.label.trim().is_empty() {
+                        fonts.push(span.label_size.unwrap_or(typography.tick_pt));
+                    }
+                }
                 for series in &plot.figure().series {
                     if series.points.is_empty() {
                         continue;
