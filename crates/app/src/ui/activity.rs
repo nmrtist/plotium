@@ -95,7 +95,7 @@ pub(super) fn history_button(
             } else {
                 count.to_string()
             },
-            egui::FontId::proportional(9.0),
+            crate::typography::badge_font(),
             ui.visuals().text_color(),
         );
     }

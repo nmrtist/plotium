@@ -34,6 +34,8 @@ const RECOVERY_RETRY_INTERVAL: Duration = Duration::from_secs(15);
 /// Intended logical (point) size of a fresh main window; also the physical
 /// pixel size it is created at before the UI scale is known.
 pub(crate) const DEFAULT_WINDOW_PT: [f32; 2] = [1100.0, 700.0];
+/// Smallest window the Ribbon task row is laid out to fit.
+pub(crate) const MIN_WINDOW_PT: [f32; 2] = [720.0, 460.0];
 
 fn desired_maximum_frame_latency() -> Option<u32> {
     // eframe synchronizes Metal presentation with CoreAnimation transactions
@@ -499,7 +501,7 @@ fn main() -> eframe::Result<()> {
     };
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size(inner)
-        .with_min_inner_size([720.0, 460.0])
+        .with_min_inner_size(MIN_WINDOW_PT)
         .with_title("Plotium")
         .with_icon(application_icon());
     let viewport = ui::configure_ribbon_viewport(viewport);

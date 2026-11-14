@@ -315,7 +315,7 @@ pub(super) fn button(app: &mut PlotiumApp, ui: &mut Ui) {
             } else {
                 unseen.to_string()
             },
-            egui::FontId::proportional(9.0),
+            crate::typography::badge_font(),
             ui.visuals().warn_fg_color,
         );
     }
