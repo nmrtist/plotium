@@ -313,20 +313,21 @@ pub fn navigation_font_size(size: f32) -> f32 {
 }
 
 #[cfg(feature = "screen")]
-fn navigation_text_id() -> egui::Id {
-    egui::Id::new("plotium.render.navigation_text")
+fn navigation_text_id(ctx: &egui::Context) -> egui::Id {
+    egui::Id::new((ctx.viewport_id(), "plotium.render.navigation_text"))
 }
 
 #[cfg(feature = "screen")]
 fn navigation_text(ctx: &egui::Context) -> bool {
-    ctx.data(|data| data.get_temp(navigation_text_id()))
-        .unwrap_or(false)
+    let id = navigation_text_id(ctx);
+    ctx.data(|data| data.get_temp(id)).unwrap_or(false)
 }
 
 /// Selects whether text painted from now on snaps to navigation font sizes.
 #[cfg(feature = "screen")]
 pub(crate) fn set_navigation_text(ctx: &egui::Context, enabled: bool) {
-    ctx.data_mut(|data| data.insert_temp(navigation_text_id(), enabled));
+    let id = navigation_text_id(ctx);
+    ctx.data_mut(|data| data.insert_temp(id, enabled));
 }
 
 /// An egui galley for `text`, with scripts set smaller and aligned to the

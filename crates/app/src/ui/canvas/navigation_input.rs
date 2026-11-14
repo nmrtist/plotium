@@ -56,8 +56,8 @@ struct GestureEnd {
     pointer: Pos2,
 }
 
-fn trackpad_target_id() -> egui::Id {
-    egui::Id::new("plotium.trackpad_navigation_target")
+fn trackpad_target_id(ctx: &egui::Context) -> egui::Id {
+    crate::ui::viewport_local_id(ctx, "plotium.trackpad_navigation_target")
 }
 
 /// The plot under `p` when it is the selected plot and `p` is on its data body.
@@ -94,8 +94,9 @@ pub(super) fn trackpad_target(
         return None;
     }
     let pass = ctx.cumulative_pass_nr();
+    let id = trackpad_target_id(ctx);
     ctx.data_mut(|data| {
-        let stored = data.get_temp::<TrackpadTargetState>(trackpad_target_id());
+        let stored = data.get_temp::<TrackpadTargetState>(id);
         let continued = stored.filter(|state| {
             let other_canvas = matches!(
                 state.target,
@@ -115,7 +116,7 @@ pub(super) fn trackpad_target(
         });
         let target = continued.map_or_else(choose, |state| state.target);
         data.insert_temp(
-            trackpad_target_id(),
+            id,
             TrackpadTargetState {
                 target,
                 serial: gesture.serial,
@@ -163,17 +164,18 @@ pub(super) fn note_wheel_device(ctx: &egui::Context, events: &[egui::Event], tra
         .iter()
         .any(|event| matches!(event, egui::Event::MouseWheel { .. }));
     if pinch || wheel {
-        ctx.data_mut(|data| data.insert_temp(wheel_device_id(), pinch || trackpad));
+        let id = wheel_device_id(ctx);
+        ctx.data_mut(|data| data.insert_temp(id, pinch || trackpad));
     }
 }
 
 pub(crate) fn last_wheel_was_trackpad(ctx: &egui::Context) -> bool {
-    ctx.data(|data| data.get_temp::<bool>(wheel_device_id()))
-        .unwrap_or(false)
+    let id = wheel_device_id(ctx);
+    ctx.data(|data| data.get_temp::<bool>(id)).unwrap_or(false)
 }
 
-fn wheel_device_id() -> egui::Id {
-    egui::Id::new("plotium.last_wheel_trackpad")
+fn wheel_device_id(ctx: &egui::Context) -> egui::Id {
+    crate::ui::viewport_local_id(ctx, "plotium.last_wheel_trackpad")
 }
 
 pub(super) fn classify_navigation_input(
@@ -206,9 +208,9 @@ pub(super) fn macos_trackpad_gesture(
             board_target: bool,
         }
 
-        let state_id = egui::Id::new("plotium.macos_trackpad_gesture");
+        let state_id = crate::ui::viewport_local_id(ctx, "plotium.macos_trackpad_gesture");
+        let serial_id = crate::ui::viewport_local_id(ctx, "plotium.macos_trackpad_gesture_serial");
         ctx.data_mut(|data| {
-            let serial_id = egui::Id::new("plotium.macos_trackpad_gesture_serial");
             let mut serial = data.get_temp::<u64>(serial_id).unwrap_or_default();
             let mut stored = data.get_temp::<StoredGesture>(state_id).unwrap_or_default();
             let mut frame_target = stored.active.then_some(stored.board_target);
@@ -298,7 +300,8 @@ pub(crate) fn sync_macos_trackpad_gesture(
     }) {
         let gesture = macos_trackpad_gesture(ctx, events, false);
         if gesture.finished {
-            ctx.data_mut(|data| data.remove_temp::<TrackpadTargetState>(trackpad_target_id()));
+            let id = trackpad_target_id(ctx);
+            ctx.data_mut(|data| data.remove_temp::<TrackpadTargetState>(id));
         }
     }
     #[cfg(not(target_os = "macos"))]

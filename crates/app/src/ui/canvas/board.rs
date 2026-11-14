@@ -1,4 +1,5 @@
 use super::*;
+use crate::ui::viewport_local_id;
 
 /// Height (screen px) of the grab-bar/label strip drawn just above each page on
 /// the board. Fixed in screen space so it stays readable and grabbable at any
@@ -69,15 +70,19 @@ pub(crate) fn freeze_board_for_gesture(app: &mut PlotiumApp) {
 
 /// Seed the fit springs from the live camera.
 fn seed_board_fit_springs(app: &mut PlotiumApp, ctx: &egui::Context) {
-    crate::ui::switcher::seed_spring(ctx, egui::Id::new(FIT_ZOOM_ID), app.session.board.zoom);
     crate::ui::switcher::seed_spring(
         ctx,
-        egui::Id::new(FIT_CENTER_X_ID),
+        viewport_local_id(ctx, FIT_ZOOM_ID),
+        app.session.board.zoom,
+    );
+    crate::ui::switcher::seed_spring(
+        ctx,
+        viewport_local_id(ctx, FIT_CENTER_X_ID),
         app.session.board.world_center[0],
     );
     crate::ui::switcher::seed_spring(
         ctx,
-        egui::Id::new(FIT_CENTER_Y_ID),
+        viewport_local_id(ctx, FIT_CENTER_Y_ID),
         app.session.board.world_center[1],
     );
 }
@@ -148,17 +153,21 @@ pub(crate) fn drive_board_fit(
     let ctx = ui.ctx();
     let dt = ui.input(|i| i.stable_dt);
     let before = app.session.board;
-    app.session.board.zoom =
-        crate::ui::switcher::animate_spring(ctx, egui::Id::new(FIT_ZOOM_ID), target.zoom, dt);
+    app.session.board.zoom = crate::ui::switcher::animate_spring(
+        ctx,
+        viewport_local_id(ctx, FIT_ZOOM_ID),
+        target.zoom,
+        dt,
+    );
     app.session.board.world_center[0] = crate::ui::switcher::animate_spring(
         ctx,
-        egui::Id::new(FIT_CENTER_X_ID),
+        viewport_local_id(ctx, FIT_CENTER_X_ID),
         target.world_center[0],
         dt,
     );
     app.session.board.world_center[1] = crate::ui::switcher::animate_spring(
         ctx,
-        egui::Id::new(FIT_CENTER_Y_ID),
+        viewport_local_id(ctx, FIT_CENTER_Y_ID),
         target.world_center[1],
         dt,
     );
@@ -185,7 +194,7 @@ fn fit_bbox_around_occluders(
     // A card can cover the entire board while the window is being resized.
     // Keep the camera until usable space returns; there is no valid fit yet.
     let (best_index, best_viewport) = best?;
-    let id = egui::Id::new(FIT_CANDIDATE_ID);
+    let id = viewport_local_id(ctx, FIT_CANDIDATE_ID);
     let previous_index = ctx.data(|data| data.get_temp::<usize>(id));
     let chosen = previous_index
         .filter(|index| *index != best_index)

@@ -21,17 +21,18 @@ pub(crate) enum PlotFitAxes {
 /// Publish the board rectangle canvas navigation ran against this frame, so
 /// keyboard commands can hit-test the pointer without re-deriving layout.
 pub(crate) fn store_navigation_rect(ctx: &egui::Context, rect: EguiRect) {
-    ctx.data_mut(|data| {
-        data.insert_temp(egui::Id::new(NAVIGATION_RECT_ID), rect);
-    });
+    let id = crate::ui::viewport_local_id(ctx, NAVIGATION_RECT_ID);
+    ctx.data_mut(|data| data.insert_temp(id, rect));
 }
 
 pub(crate) fn navigation_rect(ctx: &egui::Context) -> Option<EguiRect> {
-    ctx.data(|data| data.get_temp::<EguiRect>(egui::Id::new(NAVIGATION_RECT_ID)))
+    let id = crate::ui::viewport_local_id(ctx, NAVIGATION_RECT_ID);
+    ctx.data(|data| data.get_temp::<EguiRect>(id))
 }
 
 pub(crate) fn clear_navigation_rect(ctx: &egui::Context) {
-    ctx.data_mut(|data| data.remove::<EguiRect>(egui::Id::new(NAVIGATION_RECT_ID)));
+    let id = crate::ui::viewport_local_id(ctx, NAVIGATION_RECT_ID);
+    ctx.data_mut(|data| data.remove::<EguiRect>(id));
 }
 
 /// The pointer position, unless a floating task card sits under it — over a

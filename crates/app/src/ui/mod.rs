@@ -83,6 +83,11 @@ pub(crate) use windows::handle_close_request;
 use windows::*;
 use workspace_geometry::resolve as workspace_geometry;
 
+// egui's temporary data map is shared across native windows.
+fn viewport_local_id(ctx: &egui::Context, key: &str) -> Id {
+    Id::new((ctx.viewport_id(), key))
+}
+
 #[allow(clippy::too_many_arguments)] // Desktop-owned services stay outside PlotiumApp.
 pub fn render(
     app: &mut PlotiumApp,

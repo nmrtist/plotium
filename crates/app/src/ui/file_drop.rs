@@ -102,8 +102,7 @@ thread_local! {
 }
 
 pub(super) fn handle(app: &mut PlotiumApp, ctx: &egui::Context) {
-    let board_rect = ctx
-        .data(|data| data.get_temp::<egui::Rect>(egui::Id::new("plotium.canvas.navigation_rect")));
+    let board_rect = canvas::navigation_rect(ctx);
     let (hovered_paths, dropped, pointer, now) = ctx.input(|input| {
         (
             input
