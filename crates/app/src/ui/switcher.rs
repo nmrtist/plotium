@@ -79,8 +79,10 @@ pub fn segmented(ui: &mut Ui, current: &mut PrimaryView) -> bool {
 
     let width = ui.available_width();
     let (track_rect, _) = ui.allocate_exact_size(Vec2::new(width, TRACK_HEIGHT), Sense::hover());
-    let track_radius = CornerRadius::same(9);
-    let segment_radius = CornerRadius::same(6);
+    // The pill uses the platform control radius; the track's radius adds the
+    // inset so both curves stay concentric.
+    let segment_radius = ui.visuals().widgets.inactive.corner_radius;
+    let track_radius = CornerRadius::same(segment_radius.nw.saturating_add(SEGMENT_INSET as u8));
 
     let painter = ui.painter().clone();
     painter.rect_filled(track_rect, track_radius, track_fill);
@@ -102,8 +104,7 @@ pub fn segmented(ui: &mut Ui, current: &mut PrimaryView) -> bool {
         Pos2::new(inner.left() + pill_pos * slot_w, inner.top()),
         Vec2::new(slot_w, inner.height()),
     );
-    // The pill floats like the chrome cards do: no hairline box, just a soft
-    // drop shadow lifting it off the track.
+    // No hairline box, just a soft drop shadow lifting the pill off the track.
     let pill_shadow = egui::epaint::Shadow {
         offset: [0, 1],
         blur: 4,

@@ -172,15 +172,22 @@ fn highlight_falls_off_symmetrically_to_zero() {
 }
 
 #[test]
-fn central_margin_preserves_sidebar_gaps_only_when_present() {
-    let both = central_workspace_margin(true, true);
-    assert_eq!((both.left, both.right), (8, 8));
+fn board_margin_keeps_the_resize_grab_off_the_board() {
+    let margin = CENTRAL_WORKSPACE_MARGIN;
+    assert_eq!((margin.left, margin.right), (4, 4));
+    assert!(f32::from(margin.left) > SIDEBAR_RESIZE_GRAB_RADIUS);
+    assert!(f32::from(margin.right) > SIDEBAR_RESIZE_GRAB_RADIUS);
+}
 
-    let primary_only = central_workspace_margin(true, false);
-    assert_eq!((primary_only.left, primary_only.right), (8, 4));
-
-    let neither = central_workspace_margin(false, false);
-    assert_eq!((neither.left, neither.right), (4, 4));
+#[test]
+fn resize_grab_spans_the_full_sidebar_height() {
+    let sidebar = Rect::from_min_max(Pos2::new(0.0, 80.0), Pos2::new(240.0, 700.0));
+    for (edge, x) in [(SidebarEdge::Right, 240.0), (SidebarEdge::Left, 0.0)] {
+        let hit = sidebar_edge_hit_rect(sidebar, edge);
+        assert_eq!(hit.y_range(), sidebar.y_range());
+        assert_eq!(hit.center().x, x);
+        assert_eq!(hit.width(), 2.0 * SIDEBAR_RESIZE_GRAB_RADIUS);
+    }
 }
 
 #[test]
@@ -234,7 +241,17 @@ fn cursor_at_edge_offset(edge: SidebarEdge, offset: f32) -> egui::CursorIcon {
                     edge,
                     true,
                 );
-                egui::CentralPanel::default().show_inside(ui, |_| {});
+                // A draggable board behind the real workspace margin must not
+                // take the grab from the divider.
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE.inner_margin(CENTRAL_WORKSPACE_MARGIN))
+                    .show_inside(ui, |ui| {
+                        ui.interact(
+                            ui.max_rect(),
+                            Id::new("board"),
+                            egui::Sense::click_and_drag(),
+                        );
+                    });
             },
         )
     };

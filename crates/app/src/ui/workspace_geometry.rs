@@ -74,8 +74,9 @@ pub(super) fn resolve(app: &PlotiumApp, host_rect: Rect, ctx: &egui::Context) ->
         board_rect = host_rect;
     }
     let mut task_card_bounds = board_rect;
+    // Sidebars reach the window bottom; keep cards the same gap above it.
     if let Some(sidebar) = sidebars.secondary.or(sidebars.primary) {
-        task_card_bounds.max.y = sidebar.bottom();
+        task_card_bounds.max.y = sidebar.bottom() - SIDEBAR_GAP;
     }
     // Cards float over the board only, never over the docked data sheet.
     if let Some(dock) = super::data_sheet::dock_rect(ctx) {
@@ -173,6 +174,9 @@ mod tests {
 
         assert_eq!(geometry.board_rect.left(), primary.right() + SIDEBAR_GAP);
         assert_eq!(geometry.board_rect.right(), secondary.left() - SIDEBAR_GAP);
-        assert_eq!(geometry.task_card_bounds.bottom(), secondary.bottom());
+        assert_eq!(
+            geometry.task_card_bounds.bottom(),
+            secondary.bottom() - SIDEBAR_GAP
+        );
     }
 }

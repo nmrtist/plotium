@@ -63,6 +63,7 @@ mod trace_alignment;
 mod trace_composer;
 #[cfg(any(target_os = "macos", test))]
 mod window_lifecycle;
+pub(crate) mod window_shell;
 mod windows;
 mod workspace_geometry;
 
@@ -76,12 +77,11 @@ use plotium_core::actions::Action;
 use plotium_core::export::{ExportPageScope, ExportScopeKind, ExportSettings};
 use plotium_core::operation::OperationOutcome;
 use plotium_core::state::{Interaction, PlotiumApp, Selection};
-pub(crate) use ribbon_chrome::{
-    RibbonChrome, configure_viewport as configure_ribbon_viewport, current as current_ribbon_chrome,
-};
+pub(crate) use ribbon_chrome::{RibbonChrome, current as current_ribbon_chrome};
 pub(crate) use settings_dialog::apply_chrome_theme;
 use settings_dialog::{settings_window, sync_chrome_theme};
 use shortcuts::*;
+use window_shell::workspace_fill;
 pub(crate) use windows::handle_close_request;
 use windows::*;
 use workspace_geometry::resolve as workspace_geometry;
@@ -177,25 +177,28 @@ pub fn render(
     }
 
     let dark = ui.visuals().dark_mode;
-    // The gaps between chrome cards show whatever the root panel painted, so
+    // Gaps around workspace cards show whatever the root panel painted, so
     // lay the workspace colour under everything first.
     ui.painter()
         .rect_filled(ui.max_rect(), 0.0, workspace_fill(dark));
 
+    // The title bar and the Ribbon form one surface that meets the window
+    // edges; a single divider separates it from the workspace below.
     #[cfg(not(target_os = "macos"))]
     egui::Panel::top("title_bar")
-        .frame(flush_frame(dark, egui::Margin::ZERO))
+        .frame(window_shell::edge_frame(dark, egui::Margin::ZERO))
         .show_separator_line(false)
         .show_inside(ui, |ui| {
             title_bar::render(app, clipboard_table_paste, ui);
         });
 
-    egui::Panel::top("ribbon")
+    let ribbon = egui::Panel::top("ribbon")
         .frame(ribbon_chrome::frame(dark))
         .show_separator_line(false)
         .show_inside(ui, |ui| {
             ribbon::render(app, clipboard_table_paste, ui, ribbon_chrome);
         });
+    window_shell::paint_separator(ui, ribbon.response.rect, window_shell::Side::Bottom, dark);
 
     feedback_banner(app, ui, dark);
     activity::observe(app);
@@ -217,12 +220,11 @@ pub fn render(
     data_sheet_dock(app, ui, dark);
     canvas::clear_navigation_rect(&ctx);
     egui::CentralPanel::default()
-        .frame(egui::Frame::new().fill(workspace_fill(dark)).inner_margin(
-            central_workspace_margin(
-                app.session.primary_sidebar_visible,
-                app.session.secondary_sidebar_visible,
-            ),
-        ))
+        .frame(
+            egui::Frame::new()
+                .fill(workspace_fill(dark))
+                .inner_margin(CENTRAL_WORKSPACE_MARGIN),
+        )
         .show_inside(ui, |ui| {
             // Same stable id scope as the sidebars: the central panel's ids
             // must not shift when a sidebar toggles (see `show_sidebar`).
@@ -276,6 +278,8 @@ pub fn render(
     file_drop::handle(app, &ctx);
     #[cfg(not(target_os = "macos"))]
     title_bar::resize_zones(&ctx);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    window_shell::paint_window_outline(&ctx, dark);
 
     let now = ctx.input(|i| i.time);
     app.finish_pending_wheel_zoom(now, false);
@@ -363,16 +367,16 @@ const SIDEBAR_RESIZE_GRAB_RADIUS: f32 = 2.0;
 const SIDEBAR_HIGHLIGHT_RADIUS: f32 = 90.0;
 const SIDEBAR_HIGHLIGHT_SAMPLE_STEP: f32 = 6.0;
 
-fn central_workspace_margin(primary_visible: bool, secondary_visible: bool) -> egui::Margin {
-    egui::Margin {
-        left: if primary_visible { 8 } else { 4 },
-        right: if secondary_visible { 8 } else { 4 },
-        top: 4,
-        bottom: 2,
-    }
-}
+/// Keeps the board clear of the sidebar resize grab, which straddles the
+/// sidebar divider, so the board never takes that drag.
+const CENTRAL_WORKSPACE_MARGIN: egui::Margin = egui::Margin {
+    left: 4,
+    right: 4,
+    top: 4,
+    bottom: 2,
+};
 
-/// Keep the resize interaction local to the visible card edge while replacing
+/// Keep the resize interaction local to the sidebar divider while replacing
 /// egui's full-height, high-contrast separator with restrained feedback.
 fn show_resizable_sidebar<R>(
     panel: egui::Panel,
@@ -419,16 +423,16 @@ fn sidebar_resize_enabled(ui: &Ui, panel_id: Id, edge: SidebarEdge) -> bool {
     {
         return true;
     }
-    let card_rect = ui
+    let sidebar_rect = ui
         .ctx()
-        .data(|data| data.get_temp::<Rect>(panel_id.with("plotium_card_rect")));
-    let Some(card_rect) = card_rect else {
+        .data(|data| data.get_temp::<Rect>(panel_id.with("plotium_sidebar_rect")));
+    let Some(sidebar_rect) = sidebar_rect else {
         return true;
     };
     let on_edge = ui
         .ctx()
         .pointer_hover_pos()
-        .is_some_and(|pointer| sidebar_edge_hit_rect(card_rect, edge).contains(pointer));
+        .is_some_and(|pointer| sidebar_edge_hit_rect(sidebar_rect, edge).contains(pointer));
     if on_edge && previous_response.is_none() {
         // The resizer was omitted on the previous pass. Register it now and
         // schedule the pass on which egui can hit-test its new rectangle.
@@ -437,33 +441,26 @@ fn sidebar_resize_enabled(ui: &Ui, panel_id: Id, edge: SidebarEdge) -> bool {
     on_edge
 }
 
-fn sidebar_edge_hit_rect(card_rect: Rect, edge: SidebarEdge) -> Rect {
+fn sidebar_edge_hit_rect(sidebar_rect: Rect, edge: SidebarEdge) -> Rect {
     let x = match edge {
-        SidebarEdge::Left => card_rect.left(),
-        SidebarEdge::Right => card_rect.right(),
+        SidebarEdge::Left => sidebar_rect.left(),
+        SidebarEdge::Right => sidebar_rect.right(),
     };
-    let corner_radius = 8.0;
-    Rect::from_min_max(
-        Pos2::new(
-            x - SIDEBAR_RESIZE_GRAB_RADIUS,
-            card_rect.top() + corner_radius,
-        ),
-        Pos2::new(
-            x + SIDEBAR_RESIZE_GRAB_RADIUS,
-            card_rect.bottom() - corner_radius,
-        ),
+    Rect::from_x_y_ranges(
+        (x - SIDEBAR_RESIZE_GRAB_RADIUS)..=(x + SIDEBAR_RESIZE_GRAB_RADIUS),
+        sidebar_rect.y_range(),
     )
 }
 
 fn paint_sidebar_resize_edge(
     ui: &Ui,
     panel_id: Id,
-    card_rect: Rect,
+    sidebar_rect: Rect,
     edge: SidebarEdge,
     dark: bool,
 ) {
     ui.ctx().data_mut(|data| {
-        data.insert_temp(panel_id.with("plotium_card_rect"), card_rect);
+        data.insert_temp(panel_id.with("plotium_sidebar_rect"), sidebar_rect);
     });
     let Some(response) = ui.ctx().read_response(panel_id.with("__resize")) else {
         return;
@@ -472,8 +469,7 @@ fn paint_sidebar_resize_edge(
         return;
     }
 
-    let corner_radius = 8.0;
-    let straight_edge = sidebar_edge_hit_rect(card_rect, edge);
+    let straight_edge = sidebar_edge_hit_rect(sidebar_rect, edge);
     let hover_pointer = ui.ctx().pointer_hover_pos();
     if !response.dragged() && !hover_pointer.is_some_and(|pointer| straight_edge.contains(pointer))
     {
@@ -496,12 +492,16 @@ fn paint_sidebar_resize_edge(
     let Some(pointer) = pointer else {
         return;
     };
+    // Centre the highlight on the 1 px divider painted inside the sidebar.
+    let ppp = ui.painter().pixels_per_point();
     let x = match edge {
-        SidebarEdge::Left => card_rect.left(),
-        SidebarEdge::Right => card_rect.right(),
+        SidebarEdge::Left => window_shell::separator_center(sidebar_rect.left(), 1.0, ppp),
+        SidebarEdge::Right => window_shell::separator_center(sidebar_rect.right(), -1.0, ppp),
     };
-    let min_y = (card_rect.top() + corner_radius).max(pointer.y - SIDEBAR_HIGHLIGHT_RADIUS);
-    let max_y = (card_rect.bottom() - corner_radius).min(pointer.y + SIDEBAR_HIGHLIGHT_RADIUS);
+    let min_y = sidebar_rect.top().max(pointer.y - SIDEBAR_HIGHLIGHT_RADIUS);
+    let max_y = sidebar_rect
+        .bottom()
+        .min(pointer.y + SIDEBAR_HIGHLIGHT_RADIUS);
     if min_y >= max_y {
         return;
     }
@@ -530,17 +530,6 @@ fn paint_sidebar_resize_edge(
 fn sidebar_highlight_alpha(distance: f32) -> f32 {
     let t = (distance.abs() / SIDEBAR_HIGHLIGHT_RADIUS).clamp(0.0, 1.0);
     1.0 - t * t * (3.0 - 2.0 * t)
-}
-
-/// Chrome layering: the Ribbon and sidebars sit as rounded cards on a slightly
-/// darker workspace instead of being fenced off by separator lines. Fills stay
-/// near-neutral so the chrome never skews colour judgement of plot data.
-fn workspace_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(21, 22, 24)
-    } else {
-        Color32::from_rgb(243, 244, 246)
-    }
 }
 
 pub(super) enum ModalKind {
@@ -576,17 +565,13 @@ pub(super) fn modal(ctx: &egui::Context, id: &str, kind: ModalKind) -> egui::Mod
 }
 
 fn card_frame(dark: bool, outer_margin: egui::Margin) -> egui::Frame {
-    let (fill, stroke, shadow_alpha) = if dark {
-        (
-            Color32::from_rgb(34, 35, 38),
-            Color32::from_white_alpha(12),
-            96,
-        )
+    let (stroke, shadow_alpha) = if dark {
+        (Color32::from_white_alpha(12), 96)
     } else {
-        (Color32::WHITE, Color32::from_black_alpha(15), 20)
+        (Color32::from_black_alpha(15), 20)
     };
     egui::Frame::new()
-        .fill(fill)
+        .fill(window_shell::chrome_fill(dark))
         .stroke(Stroke::new(1.0_f32, stroke))
         .corner_radius(settings_dialog::surface_corner_radius())
         .inner_margin(8)
@@ -597,14 +582,6 @@ fn card_frame(dark: bool, outer_margin: egui::Margin) -> egui::Frame {
             spread: 0,
             color: Color32::from_black_alpha(shadow_alpha),
         })
-}
-
-/// The menu strip blends into the workspace rather than floating on it.
-#[cfg(not(target_os = "macos"))]
-fn flush_frame(dark: bool, inner_margin: egui::Margin) -> egui::Frame {
-    egui::Frame::new()
-        .fill(workspace_fill(dark))
-        .inner_margin(inner_margin)
 }
 
 #[cfg(test)]

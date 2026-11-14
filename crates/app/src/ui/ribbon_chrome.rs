@@ -43,20 +43,6 @@ pub(crate) fn current(_ctx: &egui::Context, _frame: &eframe::Frame) -> RibbonChr
     RibbonChrome::default()
 }
 
-pub(crate) fn configure_viewport(viewport: egui::ViewportBuilder) -> egui::ViewportBuilder {
-    // Windows and Linux draw a VS Code style title bar inside the content area;
-    // macOS keeps the native traffic lights and system menu.
-    #[cfg(not(target_os = "macos"))]
-    let viewport = viewport.with_decorations(false);
-    #[cfg(target_os = "macos")]
-    let viewport = viewport
-        .with_fullsize_content_view(true)
-        .with_titlebar_shown(false)
-        .with_title_shown(false)
-        .with_titlebar_buttons_shown(true);
-    viewport
-}
-
 pub(super) fn inline_project_title(app: &PlotiumApp) -> String {
     let project = app
         .doc
@@ -197,40 +183,18 @@ fn text_width(ui: &Ui, text: impl Into<WidgetText>, fallback: TextStyle) -> f32 
 }
 
 pub(super) fn frame(dark: bool) -> egui::Frame {
-    #[cfg(target_os = "macos")]
-    {
-        // The task row occupies the native title-bar area, so its surface must
-        // meet the window edges instead of floating below them as a card.
-        super::card_frame(
-            dark,
-            egui::Margin {
-                left: 0,
-                right: 0,
-                top: 0,
-                bottom: 4,
-            },
-        )
-        .corner_radius(0)
-        .inner_margin(egui::Margin {
+    // On macOS the task row occupies the native title-bar area; elsewhere it
+    // continues the surface of the drawn title bar above it.
+    let top = if cfg!(target_os = "macos") { 0 } else { 4 };
+    super::window_shell::edge_frame(
+        dark,
+        egui::Margin {
             left: 8,
             right: 8,
-            top: 0,
+            top,
             bottom: 8,
-        })
-        .shadow(egui::epaint::Shadow::NONE)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        super::card_frame(
-            dark,
-            egui::Margin {
-                left: 8,
-                right: 8,
-                top: 4,
-                bottom: 4,
-            },
-        )
-    }
+        },
+    )
 }
 
 #[cfg(test)]

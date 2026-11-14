@@ -23,12 +23,7 @@ pub(super) fn render(app: &mut PlotiumApp, ui: &mut Ui, dark: bool, workspace_wi
         let max_width =
             (workspace_width - other_width - MIN_WORKSPACE_WIDTH).clamp(min_width, 420.0);
         let panel = egui::Panel::left("primary_sidebar")
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
-                left: 8,
-                right: 0,
-                top: 4,
-                bottom: 8,
-            }))
+            .frame(egui::Frame::NONE)
             .show_separator_line(false)
             .resizable(true)
             .default_size(
@@ -69,12 +64,7 @@ pub(super) fn render(app: &mut PlotiumApp, ui: &mut Ui, dark: bool, workspace_wi
         let max_width =
             (workspace_width - other_width - MIN_WORKSPACE_WIDTH).clamp(min_width, 460.0);
         let panel = egui::Panel::right("secondary_sidebar")
-            .frame(egui::Frame::NONE.inner_margin(egui::Margin {
-                left: 0,
-                right: 8,
-                top: 4,
-                bottom: 8,
-            }))
+            .frame(egui::Frame::NONE)
             .show_separator_line(false)
             .resizable(true)
             .default_size(
@@ -177,9 +167,9 @@ fn show_sidebar(
                 .global_scope(true),
             |ui| {
                 let size = ui.available_size();
-                let frame = card_frame(dark, egui::Margin::ZERO);
+                let frame = window_shell::edge_frame(dark, window_shell::EDGE_INSET);
                 let inset = frame.total_margin().sum();
-                frame
+                let rect = frame
                     .show(ui, |ui| {
                         ui.set_min_size((size - inset).max(Vec2::ZERO));
                         if primary {
@@ -189,7 +179,14 @@ fn show_sidebar(
                         }
                     })
                     .response
-                    .rect
+                    .rect;
+                let divider = if primary {
+                    window_shell::Side::Right
+                } else {
+                    window_shell::Side::Left
+                };
+                window_shell::paint_separator(ui, rect, divider, dark);
+                rect
             },
         )
         .inner
