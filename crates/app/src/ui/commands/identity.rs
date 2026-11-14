@@ -213,6 +213,7 @@ pub(super) fn command_identity(
             Some(icon::ARROW_COUNTER_CLOCKWISE),
             None,
         ),
+        CommandId::DetachedPreview(_) => plain("Open in New Window", None),
         CommandId::Present => (
             "Present Full Screen".into(),
             Some(icon::PROJECTOR_SCREEN),
@@ -554,6 +555,7 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::UiScaleDown => "view.ui_scale_down",
         CommandId::UiScaleReset => "view.ui_scale_reset",
         CommandId::Present => "view.present",
+        CommandId::DetachedPreview(_) => "view.detached_preview",
         CommandId::ToggleGrid => "view.grid",
         CommandId::ToggleSnap => "view.snap",
         CommandId::Preferences => "app.preferences",

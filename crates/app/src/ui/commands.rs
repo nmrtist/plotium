@@ -273,6 +273,13 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 .is_some_and(|monitor| monitor.user.is_some()),
             "Adjust the UI scale before resetting it to automatic.",
         ),
+        CommandId::DetachedPreview(canvas) => requires(
+            canvas.map_or_else(
+                || crate::detached_preview::active_canvas(app).is_some(),
+                |id| app.doc.canvases.iter().any(|canvas| canvas.resource_id == id),
+            ),
+            "Select a canvas before opening a preview.",
+        ),
         CommandId::Present => requires(
             has_canvas,
             "Open a canvas before entering presentation mode.",

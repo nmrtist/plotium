@@ -5,6 +5,7 @@
 
 mod agent_connections;
 mod agent_install;
+mod detached_preview;
 mod fonts;
 mod graphics;
 mod observability;
@@ -116,7 +117,8 @@ pub(crate) fn cancel_relaunch() {
 }
 
 struct Shell {
-    app: PlotiumApp,
+    app: Arc<Mutex<PlotiumApp>>,
+    detached_preview: detached_preview::DetachedPreview,
     recovery: Option<plotium_core::project::RecoveryManager>,
     pending_recovery: Option<plotium_core::project::RecoverySnapshot>,
     pending_crash_report: Option<std::path::PathBuf>,
@@ -166,19 +168,19 @@ impl Shell {
 }
 
 impl Shell {
-    fn start_pending_project_save(&mut self, ctx: &egui::Context) {
+    fn start_pending_project_save(&mut self, app: &mut PlotiumApp, ctx: &egui::Context) {
         project_save::start_pending_project_save(
-            &mut self.app,
+            app,
             &mut self.manual_save_job,
             self.recovery_job.as_ref(),
             ctx,
         );
     }
 
-    fn drive_project_transition(&mut self, ctx: &egui::Context) {
+    fn drive_project_transition(&mut self, app: &mut PlotiumApp, ctx: &egui::Context) {
         use plotium_core::state::ProjectTransition;
         let Some(target) = project_save::ready_project_transition(
-            &mut self.app,
+            app,
             &mut self.manual_save_job,
             self.recovery_job.as_ref(),
             ctx,
@@ -188,52 +190,52 @@ impl Shell {
 
         let completed = match target {
             ProjectTransition::New => {
-                self.clear_recovery_for_project_swap();
-                self.app.start_new_project();
+                self.clear_recovery_for_project_swap(app);
+                app.start_new_project();
                 true
             }
             ProjectTransition::Close => {
-                self.clear_recovery_for_project_swap();
-                self.app.close_project();
+                self.clear_recovery_for_project_swap(app);
+                app.close_project();
                 true
             }
             ProjectTransition::Open(path) => {
-                let opened = self.app.load_project_from(&path);
+                let opened = app.load_project_from(&path);
                 if opened {
-                    self.clear_recovery_for_project_swap();
+                    self.clear_recovery_for_project_swap(app);
                 }
                 opened
             }
             ProjectTransition::Quit => {
-                self.app.session.ui.project_transition = None;
-                self.app.session.allow_close = true;
+                app.session.ui.project_transition = None;
+                app.session.allow_close = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 return;
             }
         };
         if !completed {
-            self.app.session.ui.project_transition = None;
+            app.session.ui.project_transition = None;
         }
-        self.observed_edit_generation = self.app.doc.edit_generation;
+        self.observed_edit_generation = app.doc.edit_generation;
         self.last_recovered_generation = None;
         self.recovery_deadline = None;
         self.next_recovery_at = Instant::now() + RECOVERY_INTERVAL;
     }
 
-    fn clear_recovery_for_project_swap(&mut self) {
+    fn clear_recovery_for_project_swap(&mut self, app: &mut PlotiumApp) {
         if let Some(Err(error)) = self
             .recovery
             .as_ref()
             .map(plotium_core::project::RecoveryManager::clear_current)
         {
-            self.app.session.status =
+            app.session.status =
                 format!("Project changed, but old recovery data could not be cleared: {error}");
         }
         self.recovery_written = false;
         self.last_recovered_generation = None;
     }
 
-    fn tick_recovery(&mut self, ctx: &egui::Context) {
+    fn tick_recovery(&mut self, app: &mut PlotiumApp, ctx: &egui::Context) {
         let now = Instant::now();
         if self
             .recovery_job
@@ -252,12 +254,11 @@ impl Shell {
                     self.next_recovery_at = now + RECOVERY_INTERVAL;
                 }
                 Ok(Err(error)) => {
-                    self.app.session.status = format!("Automatic recovery save failed: {error}");
+                    app.session.status = format!("Automatic recovery save failed: {error}");
                     self.next_recovery_at = now + RECOVERY_RETRY_INTERVAL;
                 }
                 Err(_) => {
-                    self.app.session.status =
-                        "Automatic recovery worker failed unexpectedly.".into();
+                    app.session.status = "Automatic recovery worker failed unexpectedly.".into();
                     self.next_recovery_at = now + RECOVERY_RETRY_INTERVAL;
                 }
             }
@@ -266,7 +267,7 @@ impl Shell {
             self.next_recovery_at = Instant::now() + RECOVERY_INTERVAL;
             return;
         }
-        if !self.app.doc.dirty {
+        if !app.doc.dirty {
             if self.recovery_job.is_none() && self.recovery_written {
                 match self
                     .recovery
@@ -274,7 +275,7 @@ impl Shell {
                     .map(plotium_core::project::RecoveryManager::clear_current)
                 {
                     Some(Err(error)) => {
-                        self.app.session.status =
+                        app.session.status =
                             format!("Saved project, but could not clear recovery data: {error}");
                         self.recovery_written = false;
                         self.last_recovered_generation = None;
@@ -289,12 +290,8 @@ impl Shell {
             self.next_recovery_at = now + RECOVERY_INTERVAL;
             return;
         }
-        let generation = self.app.doc.edit_generation;
-        if !recovery_needed(
-            self.app.doc.dirty,
-            generation,
-            self.last_recovered_generation,
-        ) {
+        let generation = app.doc.edit_generation;
+        if !recovery_needed(app.doc.dirty, generation, self.last_recovered_generation) {
             self.recovery_deadline = None;
             self.next_recovery_at = now + RECOVERY_INTERVAL;
             return;
@@ -310,23 +307,22 @@ impl Shell {
             ctx.request_repaint_after(Duration::from_millis(100));
             return;
         }
-        if self.manual_save_job.is_some() || self.app.session.ui.pending_project_save.is_some() {
+        if self.manual_save_job.is_some() || app.session.ui.pending_project_save.is_some() {
             self.next_recovery_at = now + RECOVERY_RETRY_INTERVAL;
             ctx.request_repaint_after(Duration::from_millis(100));
             return;
         }
         if now >= self.next_recovery_at {
-            if self.app.compute_busy() {
+            if app.compute_busy() {
                 self.next_recovery_at = now + RECOVERY_RETRY_INTERVAL;
                 ctx.request_repaint_after(RECOVERY_RETRY_INTERVAL);
                 return;
             }
             if let Some(recovery) = &self.recovery {
-                let request = match plotium_core::project::prepare_recovery_snapshot(&self.app) {
+                let request = match plotium_core::project::prepare_recovery_snapshot(app) {
                     Ok(request) => request,
                     Err(error) => {
-                        self.app.session.status =
-                            format!("Automatic recovery save failed: {error}");
+                        app.session.status = format!("Automatic recovery save failed: {error}");
                         self.next_recovery_at = now + RECOVERY_RETRY_INTERVAL;
                         ctx.request_repaint_after(RECOVERY_RETRY_INTERVAL);
                         return;
@@ -347,7 +343,7 @@ impl Shell {
         ctx.request_repaint_after(self.next_recovery_at.saturating_duration_since(now));
     }
 
-    fn show_recovery_prompt(&mut self, ctx: &egui::Context) {
+    fn show_recovery_prompt(&mut self, app: &mut PlotiumApp, ctx: &egui::Context) {
         let Some(snapshot) = self.pending_recovery.clone() else {
             return;
         };
@@ -384,7 +380,7 @@ impl Shell {
 
         if recover {
             match plotium_core::project::restore_recovery(&snapshot) {
-                Ok(mut app) => {
+                Ok(mut recovered) => {
                     let adopted = self
                         .recovery
                         .as_mut()
@@ -395,12 +391,11 @@ impl Shell {
                     let cleanup_warning = match adopted {
                         Ok(warning) => warning,
                         Err(error) => {
-                            self.app.session.status =
-                                format!("Could not claim recovery data: {error}");
+                            app.session.status = format!("Could not claim recovery data: {error}");
                             return;
                         }
                     };
-                    app.session.status = cleanup_warning.map_or_else(
+                    recovered.session.status = cleanup_warning.map_or_else(
                         || "Recovered unsaved work. Save the project to make it permanent.".into(),
                         |warning| {
                             format!(
@@ -408,16 +403,16 @@ impl Shell {
                             )
                         },
                     );
-                    self.app.install_loaded_project(app);
+                    app.install_loaded_project(recovered);
                     self.pending_recovery = None;
                     self.recovery_written = true;
-                    self.last_recovered_generation = Some(self.app.doc.edit_generation);
-                    self.observed_edit_generation = self.app.doc.edit_generation;
+                    self.last_recovered_generation = Some(app.doc.edit_generation);
+                    self.observed_edit_generation = app.doc.edit_generation;
                     self.recovery_deadline = None;
                     self.next_recovery_at = Instant::now() + RECOVERY_INTERVAL;
                 }
                 Err(error) => {
-                    self.app.session.status = format!("Recovery failed: {error}");
+                    app.session.status = format!("Recovery failed: {error}");
                 }
             }
         } else if discard {
@@ -433,7 +428,7 @@ impl Shell {
             match result {
                 Ok(()) => self.pending_recovery = None,
                 Err(error) => {
-                    self.app.session.status = format!("Could not discard recovery data: {error}");
+                    app.session.status = format!("Could not discard recovery data: {error}");
                 }
             }
         }
@@ -587,15 +582,15 @@ fn main() -> eframe::Result<()> {
                 }
             }
             #[cfg(target_os = "macos")]
-            let native_menu =
-                ui::native_menu::NativeMenu::new(&app, &cc.egui_ctx).map_err(|error| {
-                    std::io::Error::other(format!("failed to install macOS menu: {error}"))
-                })?;
+            let native_menu = ui::native_menu::NativeMenu::new(&app, cc).map_err(|error| {
+                std::io::Error::other(format!("failed to install macOS menu: {error}"))
+            })?;
             #[cfg(target_os = "macos")]
             open_documents.set_context(&cc.egui_ctx);
             let observed_edit_generation = app.doc.edit_generation;
             Ok(Box::new(Shell {
-                app,
+                app: Arc::new(Mutex::new(app)),
+                detached_preview: Default::default(),
                 recovery,
                 pending_recovery,
                 pending_crash_report,

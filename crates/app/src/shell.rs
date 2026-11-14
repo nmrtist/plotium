@@ -149,57 +149,80 @@ pub(super) fn poll_manual_project_save(
 
 impl eframe::App for Shell {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let shared = Arc::clone(&self.app);
+        let mut app = shared.lock().expect("application state lock poisoned");
+        let root_closing = ctx.input(|input| input.viewport().close_requested());
         #[cfg(target_os = "macos")]
         {
             // Native menus and Dock events must also work with no visible window.
             if self.pending_recovery.is_none() {
-                self.open_documents.poll(&mut self.app, ctx);
-                self.native_menu
-                    .poll(&mut self.app, &mut self.clipboard_table_paste, ctx);
+                self.open_documents.poll(&mut app, ctx);
+                self.native_menu.poll(
+                    &mut app,
+                    &mut self.clipboard_table_paste,
+                    ctx,
+                    &mut self.detached_preview,
+                );
             }
             // Fullscreen transitions can make the root temporarily non-visible:
             // eframe still calls logic, but skips ui and would otherwise exit.
-            ui::handle_close_request(&mut self.app, ctx);
+            ui::handle_close_request(&mut app, ctx);
         }
-        poll_background_work(&mut self.app, &mut self.manual_save_job, ctx);
+        poll_background_work(&mut app, &mut self.manual_save_job, ctx);
         // A finished recovery snapshot may be holding a queued manual save.
-        self.tick_recovery(ctx);
-        self.start_pending_project_save(ctx);
+        self.tick_recovery(&mut app, ctx);
+        self.start_pending_project_save(&mut app, ctx);
         self.agent_connections.poll(
-            &mut self.app,
+            &mut app,
             ctx,
             self.pending_recovery.is_some() || self.manual_save_job.is_some(),
         );
+        if cfg!(target_os = "macos") && root_closing {
+            self.detached_preview.close();
+        }
+        self.detached_preview.register(&app, ctx, &shared);
     }
 
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        ui::result_follow::pause_on_input(&mut self.app, ctx, raw_input);
-        ui::import_feedback::cancel_on_input(&mut self.app, raw_input);
+        if raw_input.viewport_id != egui::ViewportId::ROOT {
+            if raw_input.viewport_id == detached_preview::viewport_id()
+                && raw_input.viewport().close_requested()
+            {
+                self.detached_preview.close();
+                ctx.request_repaint_of(egui::ViewportId::ROOT);
+            }
+            return;
+        }
+        let mut app = self.app.lock().expect("application state lock poisoned");
+        ui::result_follow::pause_on_input(&mut app, ctx, raw_input);
+        ui::import_feedback::cancel_on_input(&mut app, raw_input);
         #[cfg(windows)]
         ui::clipboard_native::restore_missing_paste_shortcut(raw_input);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let shared = Arc::clone(&self.app);
+        let mut app = shared.lock().expect("application state lock poisoned");
         observability::show_pending_crash_dialog();
-        self.scale.drive(&mut self.app, &ctx, frame);
+        self.scale.drive(&mut app, &ctx, frame);
         let ribbon_chrome = ui::current_ribbon_chrome(&ctx, frame);
         let recovery_blocked = self.pending_recovery.is_some();
         if !recovery_blocked && let Some(driver) = &mut self.shot {
-            driver.drive(&mut self.app, &ctx);
+            driver.drive(&mut app, &ctx);
         }
-        self.show_recovery_prompt(&ctx);
-        if self.app.session.updates.tick() {
+        self.show_recovery_prompt(&mut app, &ctx);
+        if app.session.updates.tick() {
             ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        } else if let Some(delay) = self.app.session.updates.next_check_delay() {
+        } else if let Some(delay) = app.session.updates.next_check_delay() {
             ctx.request_repaint_after(delay.max(std::time::Duration::from_millis(100)));
         }
         if let plotium_core::update::UpdateStatus::Installed { plan, .. } =
-            self.app.session.updates.status()
+            app.session.updates.status()
         {
             *PENDING_INSTALL.lock().unwrap() = Some(plan.clone());
         }
         ui::render(
-            &mut self.app,
+            &mut app,
             &mut self.clipboard_table_paste,
             &mut self.batch_workflow,
             &mut self.agent_connections,
@@ -210,18 +233,19 @@ impl eframe::App for Shell {
         );
         // Apply save completion after every edit-producing poll. This makes the
         // generation check below cover compute results that arrived this frame.
-        poll_manual_project_save(&mut self.app, &mut self.manual_save_job, &ctx);
-        self.start_pending_project_save(&ctx);
+        poll_manual_project_save(&mut app, &mut self.manual_save_job, &ctx);
+        self.start_pending_project_save(&mut app, &ctx);
         self.agent_connections.poll(
-            &mut self.app,
+            &mut app,
             &ctx,
             recovery_blocked || self.manual_save_job.is_some(),
         );
-        self.drive_project_transition(&ctx);
-        if self.app.data_export_busy() {
+        self.drive_project_transition(&mut app, &ctx);
+        if app.data_export_busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(33));
         }
-        self.tick_recovery(&ctx);
+        self.tick_recovery(&mut app, &ctx);
+        self.detached_preview.refresh(&app, &ctx);
     }
 
     #[cfg(windows)]

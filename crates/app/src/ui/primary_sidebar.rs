@@ -180,6 +180,8 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
             start_rename = Some(ci);
         }
         resp.context_menu(|ui| {
+            let canvas = app.doc.canvases[ci].resource_id;
+            crate::ui::canvas::detached_preview_menu(app, ui, canvas);
             if ui.button("Rename").clicked() {
                 start_rename = Some(ci);
                 ui.close();

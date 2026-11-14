@@ -55,7 +55,11 @@ pub(crate) struct NativeMenu {
 }
 
 impl NativeMenu {
-    pub(crate) fn new(app: &PlotiumApp, ctx: &egui::Context) -> Result<Self, muda::Error> {
+    pub(crate) fn new(
+        app: &PlotiumApp,
+        cc: &eframe::CreationContext<'_>,
+    ) -> Result<Self, muda::Error> {
+        let ctx = &cc.egui_ctx;
         let (sender, receiver) = mpsc::channel();
         let repaint = ctx.clone();
         muda::MenuEvent::set_event_handler(Some(move |event: muda::MenuEvent| {
@@ -69,7 +73,7 @@ impl NativeMenu {
         let menu = Menu::new();
         let mut native = Self {
             _menu: menu,
-            lifecycle: super::native_lifecycle::AppleEvents::new(ctx),
+            lifecycle: super::native_lifecycle::AppleEvents::new(cc),
             receiver,
             events: HashMap::new(),
             tracked: Vec::new(),
@@ -113,6 +117,7 @@ impl NativeMenu {
         app: &mut PlotiumApp,
         clipboard: &mut ClipboardTablePaste,
         ctx: &egui::Context,
+        preview: &mut crate::detached_preview::DetachedPreview,
     ) {
         // AppKit fires menu key equivalents before egui ever sees the
         // keystroke, so mirror the focus gate every egui shortcut handler
@@ -127,7 +132,13 @@ impl NativeMenu {
             let Some(&id) = self.events.get(&stable_id) else {
                 continue;
             };
-            if typing
+            let preview_focused = preview.is_focused(ctx);
+            if preview_focused && id == CommandId::CloseWindow {
+                preview.close();
+                continue;
+            }
+            if !preview_focused
+                && typing
                 && !matches!(
                     id,
                     CommandId::CommandPalette | CommandId::CloseWindow | CommandId::Quit
@@ -136,7 +147,9 @@ impl NativeMenu {
             {
                 continue;
             }
-            if id != CommandId::CloseWindow {
+            if id != CommandId::CloseWindow
+                && (!preview_focused || matches!(id, CommandId::Quit | CommandId::CommandPalette))
+            {
                 super::native_lifecycle::show_window(ctx);
             }
             commands::execute(id, app, clipboard, ctx);
