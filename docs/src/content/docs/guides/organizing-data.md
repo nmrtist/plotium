@@ -75,6 +75,19 @@ In **Canvas**, the line under each title summarizes the datasets directly
 plotted there, including hidden series. A dataset used more than once is
 counted once. Hover the title to see the full composition.
 
+## Find canvases and images
+
+The **Canvas** and **Data** tabs share the search text, tag filter and import
+batch filter. Canvas search also matches canvas names and image layer names,
+including canvases without plotted datasets. A tag or data import filter only
+includes canvases containing a matching dataset. Clear these filters to include
+pure image pages again.
+
+Choose **Compact rows** for a text-only canvas list. Layers have their own
+scrolling area below the list. Selecting a result locates its existing canvas;
+it does not create a duplicate. Shift-selection and keyboard navigation follow
+the filtered rows.
+
 ## Board views
 
 In **Canvas** mode, the lower part of the side bar holds named **Board

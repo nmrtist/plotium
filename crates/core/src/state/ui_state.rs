@@ -1,4 +1,7 @@
 use super::*;
+#[path = "ui_state_preferences.rs"]
+mod preferences;
+pub use preferences::{SettingsCategory, SettingsDialog};
 #[path = "ui_state_nmr_import.rs"]
 mod nmr_import;
 use crate::actions::PendingWheelPropertyEdit;
@@ -57,74 +60,6 @@ pub struct AuthorDrag {
     pub canvas: usize,
     pub start: [f32; 2],
     pub current: [f32; 2],
-}
-
-/// A rail row in Preferences, including controls that only live for this session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum SettingsCategory {
-    #[default]
-    General,
-    Appearance,
-    Processing,
-    Export,
-    Recent,
-    AgentConnections,
-}
-
-impl SettingsCategory {
-    pub const ALL: [SettingsCategory; 6] = [
-        SettingsCategory::General,
-        SettingsCategory::Appearance,
-        SettingsCategory::Processing,
-        SettingsCategory::Export,
-        SettingsCategory::Recent,
-        SettingsCategory::AgentConnections,
-    ];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            SettingsCategory::General => "General",
-            SettingsCategory::Appearance => "Appearance",
-            SettingsCategory::Processing => "Processing",
-            SettingsCategory::Export => "Export",
-            SettingsCategory::Recent => "Recent",
-            SettingsCategory::AgentConnections => "AI connections (MCP)",
-        }
-    }
-
-    pub const fn section_id(self) -> &'static str {
-        match self {
-            SettingsCategory::General => "preferences.general",
-            SettingsCategory::Appearance => "preferences.appearance",
-            SettingsCategory::Processing => "preferences.processing",
-            SettingsCategory::Export => "preferences.export",
-            SettingsCategory::Recent => "preferences.recent",
-            SettingsCategory::AgentConnections => "preferences.agent_connections",
-        }
-    }
-}
-
-/// The Preferences window's working state: the draft [`Settings`] every widget
-/// edits, the selected rail category, a scheduled debounced-flush time, and the
-/// last non-fatal save error. The draft is applied to the live app on every edit
-/// and persisted on the debounce or on close; the on-disk file is only ever
-/// replaced wholesale by a valid draft.
-pub struct SettingsDialog {
-    pub category: SettingsCategory,
-    pub draft: crate::settings::Settings,
-    pub flush_at: Option<f64>,
-    pub last_error: Option<String>,
-}
-
-impl SettingsDialog {
-    pub fn new(settings: crate::settings::Settings) -> Self {
-        Self {
-            category: SettingsCategory::default(),
-            draft: settings,
-            flush_at: None,
-            last_error: None,
-        }
-    }
 }
 
 /// Cached model-editor validation: the parsed definition plus its
@@ -275,6 +210,7 @@ pub struct UiState {
     pub board_viewport_aspect: f32, // Used only to place new import blocks.
     /// Transient Data-browser state. Dataset and Derived-data branches default
     /// open, so only explicit collapses are recorded; Analysis defaults closed.
+    pub canvas_list_compact: bool,
     pub data_browser_filter: String,
     pub data_browser_tag: Option<String>,
     pub data_browser_batch: Option<super::ImportBatchId>,
@@ -512,6 +448,7 @@ impl Default for UiState {
             frame_selection: Vec::new(),
             data_selection: Vec::new(),
             board_viewport_aspect: 1.6,
+            canvas_list_compact: false,
             data_browser_filter: String::new(),
             data_browser_tag: None,
             data_browser_batch: None,

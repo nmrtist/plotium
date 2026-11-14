@@ -90,7 +90,7 @@ pub(super) struct CanvasComposition {
 }
 
 impl PlotIndex {
-    fn build(app: &PlotiumApp) -> Self {
+    pub(super) fn build(app: &PlotiumApp) -> Self {
         let mut result = Self::default();
         let datasets: HashMap<_, _> = app
             .doc

@@ -43,8 +43,10 @@ pub(super) fn select_canvas_range(app: &mut PlotiumApp, clicked: usize, additive
     } else {
         (clicked, anchor)
     };
+    let matches = super::canvas_filter::matching_canvases(app, &super::PlotIndex::build(app));
     let range = app.doc.canvases[start..=end]
         .iter()
+        .filter(|canvas| matches.contains(&canvas.resource_id))
         .map(|canvas| BoardFrameId::Page(canvas.resource_id));
     if !additive {
         app.session.ui.frame_selection.clear();
@@ -245,7 +247,23 @@ pub(crate) fn handle_keyboard_selection(app: &mut PlotiumApp, ctx: &egui::Contex
                 .and_then(|id| app.doc.canvas_index(id))
                 .or(app.session.active_canvas)
                 .unwrap_or(0);
-            let target = keyboard_target(current, app.doc.canvases.len(), input.0, input.1);
+            let matches =
+                super::canvas_filter::matching_canvases(app, &super::PlotIndex::build(app));
+            let visible: Vec<_> = app
+                .doc
+                .canvases
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| matches.contains(&c.resource_id))
+                .map(|(i, _)| i)
+                .collect();
+            if visible.is_empty() {
+                return;
+            }
+            let current_position = visible.iter().position(|&i| i == current).unwrap_or(0);
+            let current = visible[current_position];
+            let target =
+                visible[keyboard_target(current_position, visible.len(), input.0, input.1)];
             if input.3 {
                 plotium_core::state::toggle_frame_selection_synced(
                     app,
@@ -363,6 +381,26 @@ mod tests {
 
         assert_eq!(app.session.ui.frame_selection.len(), 4);
         assert_eq!(app.session.ui.selection_anchors.canvas_lead, Some(ids[2]));
+    }
+
+    #[test]
+    fn filtered_range_does_not_select_hidden_rows() {
+        let mut app = PlotiumApp::new();
+        for name in ["match first", "hidden", "match last"] {
+            app.doc
+                .canvases
+                .push(CanvasDocument::new(name.into(), [100.0, 80.0]));
+        }
+        app.session.ui.selection_anchors.canvas = Some(app.doc.canvases[0].resource_id);
+        app.session.ui.data_browser_filter = "match".into();
+        select_canvas_range(&mut app, 2, false);
+        assert_eq!(app.session.ui.frame_selection.len(), 2);
+        assert!(
+            !app.session
+                .ui
+                .frame_selection
+                .contains(&BoardFrameId::Page(app.doc.canvases[1].resource_id))
+        );
     }
 
     #[test]
