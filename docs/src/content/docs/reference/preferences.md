@@ -17,7 +17,8 @@ saved preferences except your recent-files list. AI connection preferences are d
 - **Object snapping** — snap plots and shapes to page and object guides, and
   snap whole pages and table sheets to nearby frame edges and the standard gap
   between frames. You can also toggle this from the **Arrange** tab. Hold `Alt` to
-  bypass snapping for one drag.
+  bypass snapping for one drag. On macOS, a Force Touch trackpad also gives a
+  light tap when a plot or shape snaps to a guide.
 - **Equal scale for homonuclear 2D imports** — when both axes are frequency
   axes of the same nucleus, start an imported spectrum with equal F1/F2 scale
   if the wider range is no more than twice the narrower range. The imported
@@ -40,10 +41,13 @@ saved preferences except your recent-files list. AI connection preferences are d
 
 - **Chrome theme** — light, dark, or follow the system appearance. This
   styles the application window; the look of your figures is set per canvas
-  with canvas themes.
+  with canvas themes. On macOS and Windows, selections and highlights use the
+  system accent color and update when you return to Plotium after changing it;
+  Linux uses Plotium's default blue.
 - **Canvas accent** — the color of selection outlines and handles, the layout
   grid, margin guides, and drag-to-tile previews. Pick a color, or use **Follow
-  theme** to take it from the chrome theme. Snap guides keep a contrasting
+  theme** to take it from the system accent color (macOS and Windows) or the
+  chrome theme. Snap guides keep a contrasting
   color of their own so they stay distinct, and figure content and exported
   colors are never affected.
 - **UI scale** — the size of all interface text and controls, per display.
