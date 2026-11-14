@@ -83,6 +83,12 @@ including canvases without plotted datasets. A tag or data import filter only
 includes canvases containing a matching dataset. Clear these filters to include
 pure image pages again.
 
+Turn on **View → Spotlight Filter Matches** to reduce canvases that don't match
+to their names and outlines. **Show Matches** fits the board view to matching
+canvases. While spotlight is on, **Show All** also includes visible table sheets.
+Turn off spotlight or clear the filters to restore full content. Spotlight
+leaves canvas positions unchanged and isn't saved in the project.
+
 Choose **Compact rows** for a text-only canvas list. Layers have their own
 scrolling area below the list. Selecting a result locates its existing canvas;
 it does not create a duplicate. Shift-selection and keyboard navigation follow

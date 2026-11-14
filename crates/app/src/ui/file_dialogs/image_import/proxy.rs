@@ -115,7 +115,12 @@ pub(crate) fn poll_rebuilds(app: &mut PlotiumApp, ctx: &egui::Context) {
             )
         });
         let mut demand = std::collections::BTreeMap::new();
-        for canvas in &app.doc.canvases {
+        for (ci, canvas) in app.doc.canvases.iter().enumerate() {
+            let shows_content = plotium_core::state::board_frame_display(
+                app,
+                plotium_core::state::FrameRef::Page(ci),
+            )
+            .shows_content();
             for item in &canvas.objects {
                 if !item.visible {
                     continue;
@@ -154,7 +159,7 @@ pub(crate) fn poll_rebuilds(app: &mut PlotiumApp, ctx: &egui::Context) {
                 ];
                 let edge = if let Some(view) = view
                     .as_ref()
-                    .filter(|view| view.shows(origin, visible_frame.size().into()))
+                    .filter(|view| shows_content && view.shows(origin, visible_frame.size().into()))
                 {
                     view.preview_edge([frame.width, frame.height], image.crop)
                 } else if thumbnails.contains(&canvas.resource_id) {
@@ -464,6 +469,10 @@ mod tests {
         assert_eq!(REBUILDS.with(|state| state.borrow().started), 0);
         assert_eq!(app.session.ui.raster_proxies.len(), 1);
         assert_eq!(app.session.ui.raster_proxies[0].hash, [0; 32]);
+        app.session.ui.board_spotlight = Some(Default::default());
+        poll_rebuilds(&mut app, &ctx);
+        assert!(app.session.ui.raster_proxies.is_empty());
+        assert_eq!(REBUILDS.with(|state| state.borrow().started), 0);
     }
 
     #[test]

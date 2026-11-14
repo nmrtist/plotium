@@ -144,6 +144,8 @@ pub(crate) fn menu_bar_spec() -> Vec<(&'static str, Vec<MenuEntry>)> {
                 Separator,
                 Command(CommandId::ZoomToFit),
                 Command(CommandId::ZoomToSelection),
+                Command(CommandId::ToggleBoardSpotlight),
+                Command(CommandId::ShowBoardMatches),
                 Command(CommandId::FitPlotY),
                 Command(CommandId::FitPlotXY),
                 Command(CommandId::ResetPeakHeight),

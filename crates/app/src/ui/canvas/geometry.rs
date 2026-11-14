@@ -26,10 +26,14 @@ pub(crate) fn object_at_screen(
         canvases.insert(0, active);
     }
     let transform = BoardTransform::from_board(app.session.board, screen);
-    canvases.into_iter().find_map(|canvas| {
-        let page = transform.screen_to_page(&app.doc.canvases[canvas], point);
-        hit_object(&app.doc.canvases[canvas], page, app.session.board.zoom).map(|hit| (canvas, hit))
-    })
+    canvases
+        .into_iter()
+        .filter(|&ci| board_frame_display(app, FrameRef::Page(ci)).shows_content())
+        .find_map(|canvas| {
+            let page = transform.screen_to_page(&app.doc.canvases[canvas], point);
+            hit_object(&app.doc.canvases[canvas], page, app.session.board.zoom)
+                .map(|hit| (canvas, hit))
+        })
 }
 
 /// Topmost Panel under a screen point, including an empty Panel or one placed
@@ -48,14 +52,21 @@ pub(crate) fn panel_at_screen(
         canvases.insert(0, active);
     }
     let transform = BoardTransform::from_board(app.session.board, screen);
-    canvases.into_iter().find_map(|canvas| {
-        let page = transform.screen_to_page(&app.doc.canvases[canvas], point);
-        hit_panel(&app.doc.canvases[canvas], page, app.session.board.zoom).map(|hit| (canvas, hit))
-    })
+    canvases
+        .into_iter()
+        .filter(|&ci| board_frame_display(app, FrameRef::Page(ci)).shows_content())
+        .find_map(|canvas| {
+            let page = transform.screen_to_page(&app.doc.canvases[canvas], point);
+            hit_panel(&app.doc.canvases[canvas], page, app.session.board.zoom)
+                .map(|hit| (canvas, hit))
+        })
 }
 
 pub(crate) fn data_edit_target(app: &PlotiumApp, ci: usize) -> Option<ObjectId> {
-    if !app.session.tool.is_data_tool() || app.session.active_canvas != Some(ci) {
+    if !app.session.tool.is_data_tool()
+        || app.session.active_canvas != Some(ci)
+        || !board_frame_display(app, FrameRef::Page(ci)).shows_content()
+    {
         return None;
     }
     app.doc.canvases.get(ci)?.selected_plot_object_id()
@@ -214,6 +225,9 @@ pub(crate) fn plot_under_cursor(
     screen: egui::Rect,
     p: Pos2,
 ) -> Option<(ObjectId, EguiRect, PlotRect)> {
+    if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+        return None;
+    }
     let canvas = app.doc.canvases.get(ci)?;
     let zoom = app.session.board.zoom;
     for id in canvas.plot_object_ids().into_iter().rev() {

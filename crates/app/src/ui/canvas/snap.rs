@@ -25,6 +25,7 @@ pub(crate) fn snap_dragged_frame(
     let size = [r.right() - r.left, r.bottom() - r.top];
     let others: Vec<PlotRect> = board_frames(app)
         .into_iter()
+        .filter(|&frame| board_frame_display(app, frame).shows_content())
         .filter(|&f| f != frame && board_frame_id(app, f).is_none_or(|id| !moving.contains(&id)))
         .filter_map(|f| frame_board_rect(app, f))
         .collect();

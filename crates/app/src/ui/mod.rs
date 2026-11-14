@@ -110,6 +110,7 @@ pub fn render(
     }
     sync_chrome_theme(&ctx, app.settings.appearance.theme);
     clipboard_table_paste.begin_frame(app, &ctx);
+    canvas::refresh_spotlight(app, &ctx);
     file_dialogs::image_import::poll(app, &ctx);
     file_dialogs::image_import::large_image_consent_window(app, &ctx);
     if let Some(payload) = app.poll_data_export() {

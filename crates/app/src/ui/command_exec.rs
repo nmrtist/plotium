@@ -188,6 +188,8 @@ fn execute_inner(
         CommandId::ToggleSecondarySidebar => {
             app.session.secondary_sidebar_visible = !app.session.secondary_sidebar_visible;
         }
+        CommandId::ToggleBoardSpotlight => super::canvas::toggle_spotlight(app, ctx),
+        CommandId::ShowBoardMatches => super::canvas::show_matches(app, ctx),
         CommandId::ZoomToFit | CommandId::ZoomToSelection => {
             use plotium_core::state::{BoardFitTarget, board_fit_bounds, selected_board_fit};
             let target = if id == CommandId::ZoomToFit {

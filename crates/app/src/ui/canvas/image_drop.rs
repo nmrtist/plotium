@@ -16,7 +16,9 @@ pub(crate) fn image_drop_target(
     let selected = app.session.ui.hierarchical_selection.lead()?;
     let panel_id = selected.panel?;
     let ci = app.doc.canvas_index(selected.canvas)?;
-    if app.session.active_canvas != Some(ci) {
+    if app.session.active_canvas != Some(ci)
+        || !board_frame_display(app, FrameRef::Page(ci)).shows_content()
+    {
         return None;
     }
     let canvas = &app.doc.canvases[ci];

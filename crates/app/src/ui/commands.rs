@@ -22,184 +22,9 @@ pub(crate) use ribbon::stack_row;
 pub use ribbon::{Applicability, RibbonPlacement};
 use roster::command_ids;
 pub(crate) const REPOSITORY_URL: &str = "https://github.com/nmrtist/plotium";
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CommandId {
-    NewProject,
-    OpenProject,
-    CloseProject,
-    #[cfg(target_os = "macos")]
-    CloseWindow,
-    OpenFile,
-    OpenFolder,
-    ImportNmrSampling,
-    ApplyNmrVolumePhase,
-    CancelNmrVolumePhase,
-    PreviousNmrPlane,
-    NextNmrPlane,
-    Peak3DExport,
-    ImportProtein,
-    ProteinAssignments,
-    Peak3DDelete,
-    Peak3DLocate,
-    Peak3DPrevious,
-    Peak3DNext,
-    RunBatchWorkflow,
-    AgentConnections,
-    RunScientificScript,
-    OpenRecent(usize),
-    ClearRecentFiles,
-    HelpManual,
-    ImportTable,
-    ImportResults,
-    EditDatasetMetadata(Option<plotium_core::state::DatasetId>),
-    LocateDatasetPlot(Option<plotium_core::state::DatasetId>),
-    GoToDatasetPlot(super::data_navigation::Destination),
-    RevealDatasetPlot(super::data_navigation::Destination),
-    ViewImportBatch(plotium_core::state::ImportBatchId),
-    RetryImportBatch(plotium_core::state::ImportBatchId),
-    RecomputeScientificTask(plotium_core::state::ActivityId),
-    ImportImage,
-    ImportImageFirstFrame,
-    ImportImageWithoutMetadata,
-    ImportTiffPages,
-    PasteImage,
-    CancelDataImport,
-    CancelImageImport,
-    ReplaceImage,
-    PasteTable,
-    SaveProject,
-    NewTable,
-    NewCanvas(usize),
-    ExportData,
-    Export(ExportFormat),
-    CopyFigure,
-    Quit,
-    Undo,
-    Redo,
-    SelectAll,
-    DeselectAll,
-    Group,
-    Ungroup,
-    CreatePanel,
-    ComposePanel,
-    DissolvePanel,
-    DeletePanel,
-    DuplicatePanel,
-    MergePanels,
-    StackPanelsSharedX,
-    SplitPanel,
-    SetPanelLayout(plotium_core::state::PanelLayout),
-    MoveContentToPanel(Option<plotium_core::state::PanelId>),
-    TogglePrimarySidebar,
-    ToggleSecondarySidebar,
-    ZoomToFit,
-    ZoomToSelection,
-    FitPlotY,
-    FitPlotXY,
-    ResetPeakHeight,
-    UiScaleUp,
-    UiScaleDown,
-    UiScaleReset,
-    Present,
-    ToggleGrid,
-    ToggleSnap,
-    Preferences,
-    CommandPalette,
-    CheckUpdates,
-    OperationHistory,
-    FollowResults,
-    PauseResultFollow,
-    StopResultFollow,
-    ViewLatestResults,
-    DismissPausedResults,
-    DisablePausedResultReminders,
-    About,
-    SaveProcessingTemplate,
-    ApplyProcessingTemplate,
-    XasSummaryFigure,
-    MergeXasScans,
-    Craft,
-    RunCraft,
-    CraftComponentTable,
-    SpectrumArithmetic,
-    AlignSpectra,
-    AlignTraces,
-    StackData,
-    DeleteDataset,
-    ExtractMassSpectrum,
-    SelectRange,
-    ClearRange,
-    Regions,
-    SeriesTable,
-    Dosy,
-    BuildDosy,
-    BuildIlt,
-    CancelDosy,
-    DetectPeaks,
-    PeakList,
-    LineFit,
-    RunPeakFit,
-    CurveFit,
-    RunCurveFit,
-    Statistics,
-    ChartType,
-    FigureTypography,
-    Integrate,
-    Multiplets,
-    TidyBoard,
-    CanvasSettings,
-    SetCanvasSizePreset(&'static str),
-    ArrangeGrid(u32, u32),
-    /// Open the Arrange tab's grid popover, where the user types the rows and
-    /// columns and the result runs as one [`CommandId::ArrangeGrid`]. The
-    /// preset sizes stay in the menus and the palette.
-    ArrangeGridCustom,
-    SimplifyInnerAxes,
-    SetSpacingMode(SpacingMode),
-    SetGutterPreset(GutterPreset),
-    Align(Align),
-    Distribute(Distribute),
-    ZOrder(ZOrder),
-    ApplyTheme(&'static str),
-    SaveCanvasStyle,
-    ManageCanvasStyles,
-    /// Reveal a whole group of catalog properties at its canonical home (§8.5
-    /// channel 2). Registered per declared group, so a group gains a Ribbon
-    /// button, a menu entry and a palette hit by being declared once. It
-    /// navigates and never edits: the panel it opens owns the controls.
-    PropertyGroup(&'static str),
-    /// Move the canvas-steppable property one rung (§8.5 channel 3). The
-    /// property is derived from the catalog, so the binding does not name one.
-    StepProperty(PropertyStep),
-    /// Open the XPS workbench in the right sidebar on one of its pages.
-    /// Navigation only: the workbench owns the controls.
-    XpsWorkbench(plotium_core::state::XpsWorkbenchTab),
-    CycleCursor,
-    Tool(Tool),
-}
-/// Architectural ownership for commands that expose or consume results. New
-/// commands must choose a class instead of bypassing the automation registry
-/// with an arbitrary Action.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CommandExecutionClass {
-    UiOnly,
-    ToolEditor,
-    ToolBacked,
-}
-pub struct CommandDescriptor {
-    pub id: CommandId,
-    pub execution_class: CommandExecutionClass,
-    pub label: String,
-    pub icon: Option<&'static str>,
-    pub enabled: bool,
-    /// `Some(state)` for toggle commands, `None` for plain actions. Every
-    /// surface derives "renders as a check item" from `is_some()`, so a new
-    /// toggle needs no per-surface registration.
-    pub checked: Option<bool>,
-    pub disabled_reason: Option<&'static str>,
-    pub shortcut: Option<String>,
-    pub ribbon: Option<RibbonPlacement>,
-}
+mod types;
+pub use types::{CommandDescriptor, CommandExecutionClass, CommandId};
+
 pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
     command_ids(app.session.recent_files.len())
         .into_iter()
@@ -426,6 +251,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
                 && selected_paths_unlocked(app),
             "Select unlocked content inside an unlocked panel before splitting it.",
         ),
+        CommandId::ToggleBoardSpotlight | CommandId::ShowBoardMatches => helpers::spotlight_gate(app, id),
         CommandId::ZoomToFit => requires(
             plotium_core::state::board_fit_bounds(app, &plotium_core::state::BoardFitTarget::AllFrames).is_some(),
             "Add a page or visible table to the board before showing all content.",
@@ -733,7 +559,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         CommandId::Tool(_) => requires(has_canvas, "Open a canvas before using this tool."),
         _ => Ok(()),
     };
-    let gate = super::nmr_volume::editing_gate(app, id).and(gate);
+    let gate = helpers::editing_gate(app, id).and(gate);
     // The palette cannot be opened over a modal or active gesture. Those states
     // hide every surface that could display its disabled tooltip, so this is the
     // one intentional disabled-without-reason path.

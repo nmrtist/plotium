@@ -84,7 +84,12 @@ fn seed_board_fit_springs(app: &mut PlotiumApp, ctx: &egui::Context) {
 
 pub(crate) fn frame_zoom_menu(app: &mut PlotiumApp, ui: &mut Ui) {
     use crate::ui::commands::{self, CommandId};
-    for id in [CommandId::ZoomToFit, CommandId::ZoomToSelection] {
+    for id in [
+        CommandId::ZoomToFit,
+        CommandId::ZoomToSelection,
+        CommandId::ToggleBoardSpotlight,
+        CommandId::ShowBoardMatches,
+    ] {
         if crate::ui::menus::command_row(app, ui, id, None) {
             commands::execute_without_clipboard(id, app, ui.ctx());
             ui.close();
@@ -241,6 +246,7 @@ pub(crate) fn frame_screen_rect(
 /// pages by descending index, with the active page bumped to the very front.
 fn frame_hit_order(app: &PlotiumApp) -> Vec<FrameRef> {
     let mut order = board_frames(app);
+    order.retain(|&frame| board_frame_display(app, frame).shows_content());
     order.reverse();
     if let Some(active) = app.session.active_canvas.map(FrameRef::Page)
         && order.contains(&active)
@@ -277,7 +283,9 @@ pub(crate) fn paint_frame_headers(
         if !screen.intersects(header) {
             continue;
         }
-        let selected = frame_is_selected(app, FrameRef::Page(ci));
+        let frame = FrameRef::Page(ci);
+        let selected =
+            board_frame_display(app, frame).shows_content() && frame_is_selected(app, frame);
         paint_header_strip(header, &canvas.name, selected, ui, painter);
     }
 }
@@ -326,7 +334,8 @@ pub(crate) fn paint_frame_captions(
     let bt = BoardTransform::from_board(app.session.board, screen);
     let color = ui.visuals().text_color();
     for (ci, canvas) in app.doc.canvases.iter().enumerate() {
-        if !canvas.caption_visible {
+        if !canvas.caption_visible || !board_frame_display(app, FrameRef::Page(ci)).shows_content()
+        {
             continue;
         }
         let lines = frame_caption_lines(app, ci);
@@ -525,7 +534,9 @@ fn handle_frame_drag(app: &mut PlotiumApp, rect: egui::Rect, ui: &Ui) -> bool {
             .frame_selection
             .iter()
             .filter_map(|id| {
-                board_frame_ref(app, *id).and_then(|f| frame_board_pos(app, f).map(|p| (*id, p)))
+                board_frame_ref(app, *id)
+                    .filter(|&f| board_frame_display(app, f).shows_content())
+                    .and_then(|f| frame_board_pos(app, f).map(|p| (*id, p)))
             })
             .collect::<Vec<_>>();
         if !before.is_empty() {

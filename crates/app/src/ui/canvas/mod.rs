@@ -11,8 +11,8 @@ use plotium_core::state::{
     PlotiumApp, Region, RegionDrag, RegionDragKind, RegionId, RegionSelection, ResizeHandle,
     SHEET_COL_W_PT, SHEET_HEADER_H_PT, SHEET_MAX_ROWS, SHEET_ROW_H_PT, Selection, SelectionDrag,
     TableDataset, TextEditState, TileDropCacheKey, TileDropPreview, Tool, ViewportMode, ZoomAxis,
-    ZoomDrag, board_frame_id, board_frame_ref, board_frames, frame_board_pos, frame_board_rect,
-    set_frame_board_pos, toggle_frame_selection_synced,
+    ZoomDrag, board_frame_display, board_frame_id, board_frame_ref, board_frames, frame_board_pos,
+    frame_board_rect, set_frame_board_pos, toggle_frame_selection_synced,
 };
 use plotium_core::{Integral2D, IntegralResult};
 use plotium_render::Rect as PlotRect;
@@ -70,9 +70,13 @@ mod regions;
 mod render_detail;
 mod slices;
 mod snap;
+mod spotlight;
 mod symmetry;
 mod tiling;
 mod view_fit;
+pub(crate) use spotlight::{
+    active_canvas_is_placeholder, refresh_spotlight, show_matches, toggle_spotlight,
+};
 mod workspace;
 
 pub(crate) use authoring::*;
@@ -141,6 +145,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     if viewport.x > 0.0 && viewport.y > 0.0 {
         app.session.ui.board_viewport_aspect = viewport.x / viewport.y;
     }
+    refresh_spotlight(app, ui.ctx());
     let Some(ci) = app.session.active_canvas else {
         if app.doc.canvases.is_empty() && !board_frames(app).is_empty() {
             board::render_sheets_only(app, ui);
@@ -149,11 +154,13 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         }
         return;
     };
-    canvas_breadcrumb(app, ci, ui);
-    phase::phase_axis_picker(app, ui);
-    super::nmr_volume::navigation(app, ui);
-    super::nmr_phase_preview::update(app, ui.ctx());
-    phase::validate_volume_drag(app, ui.ctx());
+    if board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+        canvas_breadcrumb(app, ci, ui);
+        phase::phase_axis_picker(app, ui);
+        super::nmr_volume::navigation(app, ui);
+        super::nmr_phase_preview::update(app, ui.ctx());
+        phase::validate_volume_drag(app, ui.ctx());
+    }
     let avail = ui.available_rect_before_wrap();
     let (resp, painter) = ui.allocate_painter(avail.size(), Sense::click_and_drag());
     let geometry = super::workspace_geometry(app, resp.rect, ui.ctx());
@@ -172,14 +179,20 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         || (ui.rect_contains_pointer(rect) && pointer_hits_canvas_layer);
 
     sync_macos_trackpad_gesture(ui.ctx(), &ui.input(|i| i.events.clone()), pointer_owned);
-    let view_consumed = pointer_owned && handle_navigation(app, ci, rect, ui);
+    let active_content = board_frame_display(app, FrameRef::Page(ci)).shows_content();
+    let view_consumed = pointer_owned
+        && if active_content {
+            handle_navigation(app, ci, rect, ui)
+        } else {
+            handle_board_navigation(app, rect, ui)
+        };
 
     // An armed Reference pick owns the pointer over its plot: a click there
     // sets the step's source position instead of starting any other gesture.
     // Navigation stays ahead of it so wheel and trackpad zoom keep working
     // while aiming at a peak.
-    let view_consumed =
-        view_consumed || handle_reference_pick(app, ci, rect, ui, pointer_owned && !view_consumed);
+    let view_consumed = view_consumed
+        || (active_content && handle_reference_pick(app, ci, rect, ui, pointer_owned));
 
     let frame_consumed =
         if pointer_owned && !view_consumed && app.session.ui.interaction.allows_frame_dispatch() {
@@ -190,56 +203,61 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     // `dispatch_frame_gesture` may have switched the active frame.
     let ci = app.session.active_canvas.unwrap_or(ci);
 
-    super::phase_context::reconcile(app, ui.ctx());
+    let active_content = board_frame_display(app, FrameRef::Page(ci)).shows_content();
+    let pointer_owned = pointer_owned && active_content;
+    let mut furniture_consumed = false;
+    if active_content {
+        super::phase_context::reconcile(app, ui.ctx());
 
-    // Processing direct manipulation must update the document before its plots
-    // are painted, so the changed spectrum is visible in this same frame.
-    if pointer_owned && app.session.tool == Tool::ManualPhase {
-        handle_phase_before_paint(app, ci, rect, ui);
-    }
+        // Processing direct manipulation must update the document before its plots
+        // are painted, so the changed spectrum is visible in this same frame.
+        if pointer_owned && app.session.tool == Tool::ManualPhase {
+            handle_phase_before_paint(app, ci, rect, ui);
+        }
 
-    plot_parts::handle_nudge_keys(app, ci, rect, ui);
-    let author_active = app.session.tool.creates_object();
-    if pointer_owned && author_active && !view_consumed && !frame_consumed {
-        handle_author_create(app, ci, rect, ui);
-    }
-    let label_consumed = if !pointer_owned || view_consumed || frame_consumed || author_active {
-        false
-    } else {
-        handle_panel_label_interactions(app, ci, rect, ui)
-    };
-    let caption_consumed =
-        if !pointer_owned || view_consumed || frame_consumed || author_active || label_consumed {
+        plot_parts::handle_nudge_keys(app, ci, rect, ui);
+        let author_active = app.session.tool.creates_object();
+        if pointer_owned && author_active && !view_consumed && !frame_consumed {
+            handle_author_create(app, ci, rect, ui);
+        }
+        let label_consumed = if !pointer_owned || view_consumed || frame_consumed || author_active {
             false
         } else {
-            handle_frame_caption_interactions(app, rect, ui)
+            handle_panel_label_interactions(app, ci, rect, ui)
         };
-    let furniture_consumed = if !pointer_owned
-        || view_consumed
-        || frame_consumed
-        || author_active
-        || label_consumed
-        || caption_consumed
-    {
-        false
-    } else {
-        handle_furniture_interactions(app, ci, rect, ui)
-    };
-    if pointer_owned
-        && !view_consumed
-        && !frame_consumed
-        && !author_active
-        && !label_consumed
-        && !caption_consumed
-        && !furniture_consumed
-    {
-        if app.session.tool.is_layout_tool() {
-            handle_object_interactions(app, ci, rect, ui, &resp);
-        } else if app.session.tool.is_data_tool() {
-            handle_data_tool_target(app, ci, rect, ui, &resp);
+        let caption_consumed =
+            if !pointer_owned || view_consumed || frame_consumed || author_active || label_consumed
+            {
+                false
+            } else {
+                handle_frame_caption_interactions(app, rect, ui)
+            };
+        furniture_consumed = if !pointer_owned
+            || view_consumed
+            || frame_consumed
+            || author_active
+            || label_consumed
+            || caption_consumed
+        {
+            false
+        } else {
+            handle_furniture_interactions(app, ci, rect, ui)
+        };
+        if pointer_owned
+            && !view_consumed
+            && !frame_consumed
+            && !author_active
+            && !label_consumed
+            && !caption_consumed
+            && !furniture_consumed
+        {
+            if app.session.tool.is_layout_tool() {
+                handle_object_interactions(app, ci, rect, ui, &resp);
+            } else if app.session.tool.is_data_tool() {
+                handle_data_tool_target(app, ci, rect, ui, &resp);
+            }
         }
     }
-
     // A tile drop may remove the now-empty source canvas and switch focus to the
     // target in the same UI pass. Refresh both values before any post-interaction
     // painting; the old index can otherwise refer to a different canvas or be out
@@ -265,6 +283,12 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
         .chain(std::iter::once(ci))
     {
         let other_page = page_screen_rect(app.session.board, &app.doc.canvases[other], rect);
+        if !board_frame_display(app, FrameRef::Page(other)).shows_content() {
+            if finite_rect_intersects(other_page, clip) {
+                painter.rect_stroke(other_page, 0.0, frame_stroke, StrokeKind::Inside);
+            }
+            continue;
+        }
         let card = frame_card_rect(other_page);
         if finite_rect_intersects(card.expand(12.0), clip) {
             painter.add(page_shadow.as_shape(card, header_corner_radius()));
@@ -282,6 +306,10 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     paint_frame_captions(app, rect, ui, &painter);
     render_inline_panel_note_editor(app, rect, ui);
     paint_sheet_frames(app, rect, ui, &painter);
+    if !board_frame_display(app, FrameRef::Page(ci)).shows_content() {
+        resp.context_menu(|ui| frame_zoom_menu(app, ui));
+        return;
+    }
     paint_layout_overlay(app, ci, rect, &painter, chrome);
     paint_axis_zoom(app, ci, rect, &painter, chrome);
     paint_author_drag(app, ci, rect, &painter, chrome);
