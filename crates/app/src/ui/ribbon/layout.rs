@@ -16,6 +16,13 @@ use super::buttons::short_label;
 pub(super) const TILE_HEIGHT: f32 = 46.0;
 pub(super) const STACK_ROW_HEIGHT: f32 = 22.0;
 pub(super) const STACK_GAP: f32 = 2.0;
+/// Height below the tiles for the group caption, with room for fallback fonts
+/// whose line height exceeds the system UI font's.
+pub(super) const CAPTION_BAND: f32 = 18.0;
+/// Bounds of a Large or Collapsed tile; the cap holds the longest short label
+/// at the subheadline size without letting one label widen a whole group.
+pub(super) const MIN_TILE_WIDTH: f32 = 58.0;
+pub(super) const MAX_TILE_WIDTH: f32 = 122.0;
 /// The command row's gap on either side of a group separator, and the
 /// separator's own width; together they are what one group costs beyond
 /// its measured width.
@@ -225,7 +232,7 @@ pub(super) fn collapsed_width(title: &str, measure: Measure) -> f32 {
         &collapsed_label(title),
         crate::typography::subheadline_font(),
     ) + 18.0)
-        .clamp(58.0, 112.0)
+        .clamp(MIN_TILE_WIDTH, MAX_TILE_WIDTH)
 }
 
 pub(super) fn collapsed_label(title: &str) -> String {
@@ -339,8 +346,8 @@ pub(super) fn tile_width(entries: &[&CommandDescriptor], measure: Measure) -> f3
     entries
         .iter()
         .map(|command| measure(&short_label(command), crate::typography::subheadline_font()) + 18.0)
-        .fold(58.0, f32::max)
-        .min(112.0)
+        .fold(MIN_TILE_WIDTH, f32::max)
+        .min(MAX_TILE_WIDTH)
 }
 
 /// A Medium row: the glyph, a two-space gap, and the short label.

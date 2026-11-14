@@ -119,13 +119,13 @@ pub(super) fn ribbon_button(
         (GroupScale::Medium | GroupScale::Small | GroupScale::Collapsed, icon) => {
             let mut job = LayoutJob::default();
             if let Some(icon) = icon {
-                // The glyph matches the 12 pt label so a row stays within
-                // its 22 px stack slot.
+                // The glyph matches the label size so a row stays within
+                // its stack slot.
                 job.append(
                     icon,
                     0.0,
                     TextFormat {
-                        font_id: FontId::proportional(12.0),
+                        font_id: crate::typography::callout_font(),
                         color: paint.icon_color,
                         ..Default::default()
                     },

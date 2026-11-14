@@ -78,7 +78,11 @@ pub(super) fn controls_need_compacting(
     leading: f32,
     row_width: f32,
 ) -> bool {
-    leading + task_tabs_width(ui) + controls_width(app, ui, false) + 16.0 > row_width
+    task_row_width(app, ui, leading, false) > row_width
+}
+
+fn task_row_width(app: &PlotiumApp, ui: &Ui, leading: f32, compact: bool) -> f32 {
+    leading + task_tabs_width(ui) + controls_width(app, ui, compact) + 16.0
 }
 
 pub(super) fn available_title_width(
@@ -282,6 +286,22 @@ mod tests {
 
             assert_eq!(task_tabs_width(ui), labels_width + gaps * 8.0);
             assert_eq!(TASK_TAB_SPACING, 8.0);
+        });
+    }
+
+    #[test]
+    fn task_row_fits_the_minimum_window_width() {
+        let app = app();
+        let frame = frame(false);
+        let row_width =
+            crate::MIN_WINDOW_PT[0] - frame.outer_margin.sum().x - frame.inner_margin.sum().x;
+        let ctx = crate::typography::test_context();
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            // No leading inset on Windows and Linux; the macOS traffic lights.
+            for leading in [0.0, 80.0] {
+                let compact = controls_need_compacting(&app, ui, leading, row_width);
+                assert!(task_row_width(&app, ui, leading, compact) <= row_width);
+            }
         });
     }
 }
