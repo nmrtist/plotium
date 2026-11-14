@@ -123,11 +123,12 @@ pub(crate) fn sync_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
 pub(super) fn rail_row(ui: &mut Ui, cat: SettingsCategory, selected: bool) -> Response {
     let width = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 30.0), Sense::click());
+    let hover = crate::ui::motion::hover(ui.ctx(), resp.id, resp.hovered() && !selected);
     let visuals = ui.visuals();
-    let color = if selected || resp.hovered() {
+    let color = if selected {
         visuals.strong_text_color()
     } else {
-        visuals.text_color()
+        crate::ui::motion::lerp_color(visuals.text_color(), visuals.strong_text_color(), hover)
     };
     if selected {
         ui.painter().rect_filled(
@@ -135,11 +136,11 @@ pub(super) fn rail_row(ui: &mut Ui, cat: SettingsCategory, selected: bool) -> Re
             visuals.widgets.active.corner_radius,
             visuals.selection.bg_fill,
         );
-    } else if resp.hovered() {
+    } else if hover > 0.0 {
         ui.painter().rect_filled(
             rect,
             visuals.widgets.hovered.corner_radius,
-            visuals.widgets.hovered.bg_fill,
+            visuals.widgets.hovered.bg_fill.gamma_multiply(hover),
         );
     }
     let cy = rect.center().y;

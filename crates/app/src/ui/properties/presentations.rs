@@ -724,6 +724,12 @@ const OTHERS: &[PropertyPresentation] = &[
         APPEARANCE_PREFERENCES_HOME,
     ),
     preference_entry(
+        app_preferences::REDUCE_MOTION,
+        "Reduce motion",
+        &[LocalizedText("animations")],
+        APPEARANCE_PREFERENCES_HOME,
+    ),
+    preference_entry(
         app_preferences::INCLUDE_VIEW_SNAPSHOTS,
         "Embed view snapshots",
         &[LocalizedText("save view snapshots")],

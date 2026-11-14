@@ -183,11 +183,87 @@ fn titlebar_interaction(response: &egui::Response) {
 
 fn task_tab_buttons(ui: &mut Ui, selected: WorkflowTab) -> [(WorkflowTab, egui::Response); 6] {
     ui.spacing_mut().item_spacing.x = super::ribbon_chrome::TASK_TAB_SPACING;
-    WorkflowTab::ALL.map(|tab| {
-        let response =
-            ui.selectable_label(selected == tab, crate::typography::headline(tab.label()));
-        (tab, response)
-    })
+    let ctx = ui.ctx().clone();
+    let selected_index = tab_index(selected);
+    let dt = ui.input(|input| input.stable_dt);
+    let pill = super::motion::spring(
+        &ctx,
+        super::viewport_local_id(&ctx, "ribbon_task_tab_pill"),
+        selected_index as f32,
+        dt,
+    );
+    // Backgrounds are painted under the labels once every tab rect is known.
+    let background = ui.painter().add(egui::Shape::Noop);
+    let visuals = ui.visuals().clone();
+    // Hide the frame stroke but keep its width: egui sizes button padding
+    // around the stroke, so dropping it would resize a hovered tab.
+    let widgets = &mut ui.visuals_mut().widgets;
+    for state in [
+        &mut widgets.inactive,
+        &mut widgets.hovered,
+        &mut widgets.active,
+        &mut widgets.open,
+    ] {
+        state.bg_stroke.color = egui::Color32::TRANSPARENT;
+    }
+    let tabs = WorkflowTab::ALL.map(|tab| {
+        let emphasis = (1.0 - (pill - tab_index(tab) as f32).abs()).clamp(0.0, 1.0);
+        let next_id = ui.next_auto_id();
+        let hovered = ui
+            .ctx()
+            .read_response(next_id)
+            .is_some_and(|response| response.hovered());
+        let hover = super::motion::hover(&ctx, next_id, hovered && tab != selected);
+        let idle = super::motion::lerp_color(
+            visuals.widgets.inactive.text_color(),
+            visuals.widgets.hovered.text_color(),
+            hover,
+        );
+        let color = super::motion::lerp_color(idle, visuals.selection.stroke.color, emphasis);
+        let response = ui.add(
+            Button::new(crate::typography::headline(tab.label()).color(color))
+                .selected(selected == tab)
+                .fill(egui::Color32::TRANSPARENT),
+        );
+        (tab, response, hover)
+    });
+    ui.visuals_mut().widgets = visuals.widgets.clone();
+
+    let mut shapes = Vec::new();
+    let radius = visuals.widgets.inactive.corner_radius;
+    for (tab, response, hover) in &tabs {
+        if *tab != selected && *hover > 0.0 {
+            shapes.push(egui::Shape::rect_filled(
+                response.rect,
+                radius,
+                visuals.widgets.hovered.weak_bg_fill.gamma_multiply(*hover),
+            ));
+        }
+    }
+    let last = (tabs.len() - 1) as f32;
+    let lower = pill.floor().clamp(0.0, last) as usize;
+    let upper = pill.ceil().clamp(0.0, last) as usize;
+    let blend = (pill - lower as f32).clamp(0.0, 1.0);
+    let from = tabs[lower].1.rect;
+    let to = tabs[upper].1.rect;
+    let pill_rect = egui::Rect::from_min_max(
+        egui::pos2(egui::lerp(from.left()..=to.left(), blend), from.top()),
+        egui::pos2(egui::lerp(from.right()..=to.right(), blend), from.bottom()),
+    );
+    shapes.push(egui::Shape::rect_filled(
+        pill_rect,
+        radius,
+        visuals.selection.bg_fill,
+    ));
+    ui.painter().set(background, egui::Shape::Vec(shapes));
+    tabs.map(|(tab, response, _)| (tab, response))
+}
+
+fn tab_index(tab: WorkflowTab) -> usize {
+    WorkflowTab::ALL
+        .iter()
+        .position(|candidate| *candidate == tab)
+        .unwrap_or(0)
 }
 
 fn render_chrome_controls(
@@ -549,6 +625,37 @@ mod tests {
             },
         );
         rects.expect("the task tab row was rendered")
+    }
+
+    #[test]
+    fn hovering_a_task_tab_keeps_every_tab_in_place() {
+        let ctx = crate::typography::test_context();
+        let expected = task_tab_rects(&ctx, WorkflowTab::Data, RibbonDensity::Full);
+        for (index, rect) in expected.iter().enumerate() {
+            let mut rects = None;
+            for _ in 0..2 {
+                let _ = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            vec2(900.0, 120.0),
+                        )),
+                        events: vec![egui::Event::PointerMoved(rect.center())],
+                        ..Default::default()
+                    },
+                    |ui| {
+                        rects = Some(
+                            ui.horizontal(|ui| {
+                                task_tab_buttons(ui, WorkflowTab::Data)
+                                    .map(|(_, response)| response.rect)
+                            })
+                            .inner,
+                        );
+                    },
+                );
+            }
+            assert_eq!(rects, Some(expected), "hovering tab {index}");
+        }
     }
 
     #[test]

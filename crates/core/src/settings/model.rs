@@ -97,6 +97,20 @@ pub struct AppearanceSettings {
     /// Optional editor-chrome accent. Figure colours and exports are unaffected.
     #[serde(default)]
     pub canvas_accent: Option<[u8; 3]>,
+    #[serde(default)]
+    pub reduce_motion: ReduceMotion,
+}
+
+/// Whether interface animations are replaced by immediate changes. `System`
+/// follows the platform accessibility setting where one can be read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ReduceMotion {
+    On,
+    Off,
+    #[serde(other)]
+    #[default]
+    System,
 }
 
 /// Graphics policy applied at the next application start. Platform-specific

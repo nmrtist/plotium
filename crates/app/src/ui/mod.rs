@@ -31,6 +31,7 @@ pub(crate) mod file_dialogs;
 pub(crate) mod file_drop;
 pub(crate) mod import_feedback;
 mod menus;
+pub(crate) mod motion;
 #[cfg(target_os = "macos")]
 pub(crate) mod native_documents;
 #[cfg(target_os = "macos")]
@@ -117,6 +118,7 @@ pub fn render(
         *last_window_title = Some(title);
     }
     sync_chrome_theme(&ctx, app.settings.appearance.theme);
+    motion::sync(&ctx, app.settings.appearance.reduce_motion);
     clipboard_table_paste.begin_frame(app, &ctx);
     canvas::refresh_spotlight(app, &ctx);
     file_dialogs::image_import::poll(app, &ctx);
@@ -553,25 +555,85 @@ pub(super) enum ModalKind {
     Dialog,
 }
 
-/// Every modal goes through here so backdrop depth, anchoring, and future
-/// theming decisions live in one place instead of at each call site.
-pub(super) fn modal(ctx: &egui::Context, id: &str, kind: ModalKind) -> egui::Modal {
+/// Every modal goes through here so backdrop depth, anchoring, and the
+/// opening animation live in one place instead of at each call site.
+pub(super) fn modal(ctx: &egui::Context, id: &str, kind: ModalKind) -> ChromeModal {
     let id = egui::Id::new(id);
-    match kind {
-        ModalKind::Palette => egui::Modal::new(id)
-            .backdrop_color(Color32::TRANSPARENT)
-            .area(
+    let (modal, backdrop) = match kind {
+        ModalKind::Palette => (
+            egui::Modal::new(id).area(
                 egui::Modal::default_area(id)
                     .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 96.0)),
             ),
+            Color32::TRANSPARENT,
+        ),
         ModalKind::Dialog => {
             let alpha = if ctx.theme() == egui::Theme::Dark {
                 100
             } else {
                 48
             };
-            egui::Modal::new(id).backdrop_color(Color32::from_black_alpha(alpha))
+            (egui::Modal::new(id), Color32::from_black_alpha(alpha))
         }
+    };
+    ChromeModal {
+        id,
+        modal: modal
+            .backdrop_color(Color32::TRANSPARENT)
+            .frame(egui::Frame::NONE),
+        backdrop,
+    }
+}
+
+/// An `egui::Modal` that fades in and grows slightly from its centre when it
+/// opens. The backdrop is painted here rather than by egui so it still covers
+/// the window while the layer is scaled.
+pub(super) struct ChromeModal {
+    id: egui::Id,
+    modal: egui::Modal,
+    backdrop: Color32,
+}
+
+impl ChromeModal {
+    pub(super) fn show<T>(
+        self,
+        ctx: &egui::Context,
+        content: impl FnOnce(&mut Ui) -> T,
+    ) -> egui::ModalResponse<T> {
+        let Self {
+            id,
+            mut modal,
+            backdrop,
+        } = self;
+        modal.area = modal.area.fade_in(false);
+        let layer = modal.area.layer();
+        let t = motion::appear(ctx, id);
+        let rect_id = viewport_local_id(ctx, "modal_rect").with(id);
+        let pivot = ctx
+            .data(|data| data.get_temp::<Rect>(rect_id))
+            .map(|rect| rect.center());
+        let transform = match pivot {
+            Some(pivot) if t < 1.0 => {
+                motion::scale_about(pivot, egui::lerp(motion::APPEAR_SCALE_FROM..=1.0, t))
+            }
+            _ => egui::emath::TSTransform::IDENTITY,
+        };
+        ctx.set_transform_layer(layer, transform);
+        modal.show(ctx, |ui| {
+            if backdrop.a() > 0 {
+                let cover = transform.inverse() * ui.ctx().content_rect();
+                egui::Painter::new(ui.ctx().clone(), layer, cover).rect_filled(
+                    cover,
+                    0.0,
+                    backdrop.gamma_multiply(t),
+                );
+            }
+            ui.multiply_opacity(t);
+            let shown = egui::Frame::popup(ui.style()).show(ui, content);
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(rect_id, shown.response.rect));
+            shown.inner
+        })
     }
 }
 
