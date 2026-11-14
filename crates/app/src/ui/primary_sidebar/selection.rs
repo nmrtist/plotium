@@ -224,8 +224,7 @@ pub(crate) fn handle_keyboard_selection(app: &mut PlotiumApp, ctx: &egui::Contex
         )
     });
     if input.3 {
-        let canvas_rect =
-            ctx.data(|data| data.get_temp::<egui::Rect>(Id::new("plotium.canvas.navigation_rect")));
+        let canvas_rect = crate::ui::canvas::navigation_rect(ctx);
         let pointer_over_canvas = ctx
             .pointer_hover_pos()
             .zip(canvas_rect)

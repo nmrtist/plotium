@@ -40,6 +40,9 @@ introduces the same regions in walkthrough form.
   [Navigation](/reference/shortcuts/#navigation) for fitting and moving the view.
   Screen plots adapt line and contour detail to their displayed size. Zoom in
   to inspect fine detail; figure exports are unaffected by this screen simplification.
+  Right-click a page header or its row in the **Canvas** sidebar and choose
+  **Open in New Window** to preview that page. Edits in the main window update
+  the preview, which has its own pan, zoom, and **Fit Canvas** controls.
 - **Data sheet** — the panel docked below the board where a table is edited.
   The board shrinks to make room. Drag its top edge to resize it; its header
   collapses, maximizes, or closes it. See [Tables](/guides/tables/#editing).

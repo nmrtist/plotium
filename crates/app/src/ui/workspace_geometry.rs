@@ -1,4 +1,4 @@
-use egui::{Id, Rect};
+use egui::Rect;
 use plotium_core::state::PlotiumApp;
 
 const GEOMETRY_ID: &str = "plotium.workspace_geometry";
@@ -52,17 +52,16 @@ pub(crate) fn set_sidebar_rects(
     primary: Option<Rect>,
     secondary: Option<Rect>,
 ) {
+    let id = super::viewport_local_id(ctx, SIDEBAR_RECTS_ID);
     ctx.data_mut(|data| {
-        data.insert_temp(
-            Id::new(SIDEBAR_RECTS_ID),
-            SidebarRects { primary, secondary },
-        );
+        data.insert_temp(id, SidebarRects { primary, secondary });
     });
 }
 
 pub(super) fn resolve(app: &PlotiumApp, host_rect: Rect, ctx: &egui::Context) -> WorkspaceGeometry {
+    let sidebar_id = super::viewport_local_id(ctx, SIDEBAR_RECTS_ID);
     let sidebars = ctx
-        .data(|data| data.get_temp::<SidebarRects>(Id::new(SIDEBAR_RECTS_ID)))
+        .data(|data| data.get_temp::<SidebarRects>(sidebar_id))
         .unwrap_or_default();
     let mut board_rect = host_rect;
     if let Some(primary) = sidebars.primary {
@@ -88,8 +87,8 @@ pub(super) fn resolve(app: &PlotiumApp, host_rect: Rect, ctx: &egui::Context) ->
         .filter(|rect| rect.width() > 1.0 && rect.height() > 1.0)
         .into_iter()
         .collect();
-    let id = Id::new(GEOMETRY_ID);
-    let previous = ctx.data(|data| data.get_temp::<WorkspaceGeometry>(id));
+    let id = super::viewport_local_id(ctx, GEOMETRY_ID);
+    let previous = current(ctx);
     let changed = previous.as_ref().is_none_or(|old| {
         old.board_rect != board_rect
             || old.task_card_bounds != task_card_bounds
@@ -109,10 +108,12 @@ pub(super) fn resolve(app: &PlotiumApp, host_rect: Rect, ctx: &egui::Context) ->
 }
 
 pub(crate) fn task_card_bounds(ctx: &egui::Context) -> Option<Rect> {
-    ctx.data(|data| {
-        data.get_temp::<WorkspaceGeometry>(Id::new(GEOMETRY_ID))
-            .map(|geometry| geometry.task_card_bounds)
-    })
+    current(ctx).map(|geometry| geometry.task_card_bounds)
+}
+
+pub(super) fn current(ctx: &egui::Context) -> Option<WorkspaceGeometry> {
+    let id = super::viewport_local_id(ctx, GEOMETRY_ID);
+    ctx.data(|data| data.get_temp(id))
 }
 
 #[cfg(test)]

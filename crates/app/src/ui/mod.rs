@@ -51,6 +51,8 @@ mod scientific_task_feedback;
 mod secondary_sidebar;
 mod settings_dialog;
 mod shortcuts;
+#[cfg(not(target_os = "macos"))]
+pub(crate) use shortcuts::handle_preview_shortcut;
 mod sidebars;
 mod switcher;
 #[cfg(not(target_os = "macos"))]
@@ -82,6 +84,11 @@ use shortcuts::*;
 pub(crate) use windows::handle_close_request;
 use windows::*;
 use workspace_geometry::resolve as workspace_geometry;
+
+// egui's temporary data map is shared across native windows.
+fn viewport_local_id(ctx: &egui::Context, key: &str) -> Id {
+    Id::new((ctx.viewport_id(), key))
+}
 
 #[allow(clippy::too_many_arguments)] // Desktop-owned services stay outside PlotiumApp.
 pub fn render(

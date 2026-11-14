@@ -10,9 +10,10 @@ struct InteractiveRenderState {
 }
 
 pub(super) fn mark_workspace_navigation(ctx: &egui::Context, now: f64) {
+    let id = crate::ui::viewport_local_id(ctx, STATE_ID);
     ctx.data_mut(|data| {
         data.insert_temp(
-            egui::Id::new(STATE_ID),
+            id,
             InteractiveRenderState {
                 until: now + INTERACTIVE_SECONDS,
             },
@@ -22,7 +23,7 @@ pub(super) fn mark_workspace_navigation(ctx: &egui::Context, now: f64) {
 }
 
 pub(super) fn workspace_render_detail(ctx: &egui::Context, now: f64) -> ScreenRenderDetail {
-    let id = egui::Id::new(STATE_ID);
+    let id = crate::ui::viewport_local_id(ctx, STATE_ID);
     let state = ctx.data_mut(|data| data.get_temp::<InteractiveRenderState>(id));
     let Some(state) = state else {
         return ScreenRenderDetail::Full;
@@ -80,5 +81,39 @@ mod tests {
             workspace_font_size(&ctx, 12.3),
             plotium_render::rich_text::navigation_font_size(12.3)
         );
+    }
+
+    #[test]
+    fn navigating_one_viewport_keeps_the_other_at_full_detail() {
+        let ctx = egui::Context::default();
+        let child = egui::ViewportId::from_hash_of("preview");
+        ctx.set_embed_viewports(false);
+        let mut input = egui::RawInput::default();
+        input.viewports.insert(
+            child,
+            egui::ViewportInfo {
+                parent: Some(egui::ViewportId::ROOT),
+                ..Default::default()
+            },
+        );
+        let _ = ctx.run_ui(input.clone(), |ui| {
+            mark_workspace_navigation(ui.ctx(), 10.0);
+            ui.ctx()
+                .show_viewport_deferred(child, egui::ViewportBuilder::default(), |_, _| {});
+        });
+        input.viewport_id = child;
+        let _ = ctx.run_ui(input.clone(), |ui| {
+            assert_eq!(
+                workspace_render_detail(ui.ctx(), 10.1),
+                ScreenRenderDetail::Full
+            );
+        });
+        input.viewport_id = egui::ViewportId::ROOT;
+        let _ = ctx.run_ui(input, |ui| {
+            assert_eq!(
+                workspace_render_detail(ui.ctx(), 10.1),
+                ScreenRenderDetail::Interactive
+            );
+        });
     }
 }

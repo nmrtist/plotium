@@ -119,12 +119,7 @@ impl Workspace {
     }
 
     fn board(&self) -> Rect {
-        self.ctx
-            .data(|data| {
-                data.get_temp::<super::super::workspace_geometry::WorkspaceGeometry>(egui::Id::new(
-                    "plotium.workspace_geometry",
-                ))
-            })
+        crate::ui::workspace_geometry::current(&self.ctx)
             .expect("the board was laid out")
             .board_rect
     }

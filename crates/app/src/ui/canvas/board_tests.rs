@@ -246,8 +246,9 @@ fn fit_uses_the_open_space_below_a_floating_task_card_when_it_is_better() {
 
     let _ = fit_bbox_around_occluders((0.0, 0.0, 800.0, 100.0), &geometry, &ctx);
 
+    let id = crate::ui::viewport_local_id(&ctx, FIT_CANDIDATE_ID);
     assert_eq!(
-        ctx.data(|data| data.get_temp::<usize>(egui::Id::new(FIT_CANDIDATE_ID))),
+        ctx.data(|data| data.get_temp::<usize>(id)),
         Some(1),
         "a wide target should use the full-width space below the card"
     );

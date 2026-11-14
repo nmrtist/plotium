@@ -86,6 +86,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::UiScaleDown,
         CommandId::UiScaleReset,
         CommandId::Present,
+        CommandId::DetachedPreview(None),
         CommandId::ToggleGrid,
         CommandId::ToggleSnap,
         CommandId::Preferences,
