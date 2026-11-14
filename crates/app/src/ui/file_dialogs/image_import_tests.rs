@@ -44,6 +44,7 @@ fn ready_job(app: &mut PlotiumApp, target: ImportImageTarget) -> ImportJob {
     let (_events, receiver) = mpsc::channel();
     let (consent, _worker_consent) = mpsc::channel();
     ImportJob {
+        project_context: app.session.project_context,
         request: ImportImageRequest {
             paths: Vec::new(),
             payloads: Vec::new(),
@@ -57,12 +58,13 @@ fn ready_job(app: &mut PlotiumApp, target: ImportImageTarget) -> ImportJob {
         receiver,
         cancelled: Arc::new(AtomicBool::new(false)),
         consent,
+        staged: Vec::new(),
     }
 }
 
 #[test]
 fn worker_reports_ordered_states_and_a_ready_candidate() {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(32);
     let (_consent_sender, consent) = mpsc::channel();
     worker(
         Vec::new(),
@@ -80,21 +82,21 @@ fn worker_reports_ordered_states_and_a_ready_candidate() {
         receiver.recv().unwrap(),
         WorkerEvent::State(ImportImageState::Probing)
     ));
+    let WorkerEvent::Candidate(Ok(candidate)) = receiver.recv().unwrap() else {
+        panic!("expected candidate");
+    };
     assert!(matches!(
         receiver.recv().unwrap(),
         WorkerEvent::State(ImportImageState::ReadyToCommit)
     ));
-    let WorkerEvent::Finished(results) = receiver.recv().unwrap() else {
-        panic!("expected finished event")
-    };
-    let candidate = results.into_iter().next().unwrap().ok().unwrap();
+    assert!(matches!(receiver.recv().unwrap(), WorkerEvent::Finished));
     assert_eq!(candidate.pixel_size, [2, 2]);
     assert_eq!(candidate.format, "png");
 }
 
 #[test]
 fn cancelled_worker_releases_payload_without_a_commit_event() {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(32);
     let (_consent_sender, consent) = mpsc::channel();
     worker(
         Vec::new(),
@@ -146,8 +148,8 @@ fn disconnected_worker_is_removed_and_reported() {
 #[test]
 fn all_tiff_pages_share_original_bytes_and_keep_distinct_page_indices() {
     let (_sender_guard, sender) = mpsc::channel::<bool>();
-    let (events, _receiver) = mpsc::channel();
-    let candidates = prepare_bytes(
+    let (events, receiver) = mpsc::sync_channel(32);
+    prepare_bytes(
         "stack.tiff".to_owned(),
         multipage_tiff_payload(),
         &events,
@@ -160,10 +162,19 @@ fn all_tiff_pages_share_original_bytes_and_keep_distinct_page_indices() {
         },
     )
     .unwrap();
+    let candidates: Vec<_> = receiver
+        .try_iter()
+        .filter_map(|e| match e {
+            WorkerEvent::Candidate(Ok(c)) => Some(c),
+            _ => None,
+        })
+        .collect();
     assert_eq!(candidates.len(), 2);
     assert_eq!(candidates[0].page_index, 0);
     assert_eq!(candidates[1].page_index, 1);
     assert_eq!(candidates[1].pixel_size, [1, 2]);
+    assert_eq!(candidates[1].preview.pixel_size, [1, 2]);
+    assert_eq!(candidates[1].preview.rgba8, [1, 2, 3, 255, 4, 5, 6, 255]);
     assert!(Arc::ptr_eq(&candidates[0].bytes, &candidates[1].bytes));
 }
 
@@ -187,6 +198,7 @@ fn successful_import_into_empty_project_creates_one_undoable_page() {
     let (_events, receiver) = mpsc::channel();
     let (consent, _worker_consent) = mpsc::channel();
     let mut job = ImportJob {
+        project_context: app.session.project_context,
         request: ImportImageRequest {
             paths: Vec::new(),
             payloads: Vec::new(),
@@ -200,6 +212,7 @@ fn successful_import_into_empty_project_creates_one_undoable_page() {
         receiver,
         cancelled: Arc::new(AtomicBool::new(false)),
         consent,
+        staged: Vec::new(),
     };
 
     commit(&mut app, &mut job, vec![Ok(candidate)]);
@@ -259,6 +272,7 @@ fn multiple_images_into_empty_project_create_distinct_pages_in_source_order() {
     let (_events, receiver) = mpsc::channel();
     let (consent, _worker_consent) = mpsc::channel();
     let mut job = ImportJob {
+        project_context: app.session.project_context,
         request: ImportImageRequest {
             paths: Vec::new(),
             payloads: Vec::new(),
@@ -272,6 +286,7 @@ fn multiple_images_into_empty_project_create_distinct_pages_in_source_order() {
         receiver,
         cancelled: Arc::new(AtomicBool::new(false)),
         consent,
+        staged: Vec::new(),
     };
     commit(
         &mut app,
@@ -385,6 +400,7 @@ fn failed_import_into_empty_project_does_not_create_a_page_or_undo_step() {
     let (_events, receiver) = mpsc::channel();
     let (consent, _worker_consent) = mpsc::channel();
     let mut job = ImportJob {
+        project_context: app.session.project_context,
         request: ImportImageRequest {
             paths: Vec::new(),
             payloads: Vec::new(),
@@ -398,6 +414,7 @@ fn failed_import_into_empty_project_does_not_create_a_page_or_undo_step() {
         receiver,
         cancelled: Arc::new(AtomicBool::new(false)),
         consent,
+        staged: Vec::new(),
     };
     commit(
         &mut app,
@@ -529,4 +546,88 @@ fn automatic_page_uses_physical_size_and_caps_width_at_nature_single_column() {
     let portrait = physical_image_size_mm([1200, 2400], None);
     assert!((portrait[0] - 89.0).abs() < 1e-4);
     assert!((portrait[1] - 178.0).abs() < 1e-4);
+}
+
+#[test]
+fn cancelled_batch_commits_prepared_images_as_one_undo_step() {
+    let mut app = PlotiumApp::default();
+    let mut job = ready_job(&mut app, ImportImageTarget::NewPages);
+    let (sender, receiver) = mpsc::sync_channel(4);
+    job.receiver = receiver;
+    sender
+        .send(WorkerEvent::Candidate(Ok(candidate(
+            "prepared.png",
+            [2, 2],
+        ))))
+        .unwrap_or_else(|_| panic!("test receiver must remain open"));
+    sender
+        .send(WorkerEvent::State(ImportImageState::Cancelled))
+        .unwrap_or_else(|_| panic!("test receiver must remain open"));
+    MANAGER.with(|manager| manager.borrow_mut().jobs.push(job));
+    poll(&mut app, &egui::Context::default());
+    assert_eq!(app.doc.canvases.len(), 1);
+    assert_eq!(app.doc.canvases[0].objects[0].name, "prepared");
+    assert!(!has_active_jobs());
+    app.undo();
+    assert!(app.doc.canvases.is_empty());
+    assert!(app.doc.assets.is_empty());
+}
+
+#[test]
+fn staged_candidates_release_decoded_allocations_before_commit() {
+    let mut app = PlotiumApp::default();
+    let mut job = ready_job(&mut app, ImportImageTarget::NewPages);
+    let (sender, receiver) = mpsc::sync_channel(2);
+    job.receiver = receiver;
+    sender
+        .send(WorkerEvent::Candidate(Ok(candidate(
+            "prepared.png",
+            [2, 2],
+        ))))
+        .unwrap_or_else(|_| panic!("test receiver must remain open"));
+    MANAGER.with(|manager| manager.borrow_mut().jobs.push(job));
+    poll(&mut app, &egui::Context::default());
+    MANAGER.with(|manager| {
+        let mut manager = manager.borrow_mut();
+        let candidate = manager.jobs[0].staged[0].as_ref().ok().unwrap();
+        assert_eq!(candidate.preview.rgba8.capacity(), 0);
+        assert!(!candidate.bytes.is_empty());
+        manager.jobs.clear();
+    });
+    assert!(app.doc.canvases.is_empty());
+}
+
+#[test]
+fn project_switch_discards_prepared_image_batch() {
+    let mut original = PlotiumApp::default();
+    let mut job = ready_job(&mut original, ImportImageTarget::NewPages);
+    job.staged.push(Ok(candidate("old-project.png", [2, 2])));
+    let cancelled = Arc::clone(&job.cancelled);
+    MANAGER.with(|manager| manager.borrow_mut().jobs.push(job));
+    let mut other = PlotiumApp::default();
+    poll(&mut other, &egui::Context::default());
+    assert!(cancelled.load(Ordering::Relaxed));
+    assert!(!has_active_jobs());
+    assert!(other.doc.canvases.is_empty());
+    assert!(other.session.undo_stack.is_empty());
+}
+
+#[test]
+fn disconnected_worker_reports_and_keeps_prepared_images_once() {
+    let mut app = PlotiumApp::default();
+    let mut job = ready_job(&mut app, ImportImageTarget::NewPages);
+    let (sender, receiver) = mpsc::sync_channel(2);
+    job.receiver = receiver;
+    sender
+        .send(WorkerEvent::Candidate(Ok(candidate("ready.png", [2, 2]))))
+        .unwrap_or_else(|_| panic!("test receiver remains open"));
+    drop(sender);
+    MANAGER.with(|manager| manager.borrow_mut().jobs.push(job));
+    poll(&mut app, &egui::Context::default());
+    assert_eq!(app.doc.canvases.len(), 1);
+    assert_eq!(app.session.status, "Imported 1 image(s); 1 failed.");
+    assert_eq!(app.session.undo_stack.len(), 1);
+    assert!(!has_active_jobs());
+    app.undo();
+    assert!(app.doc.canvases.is_empty());
 }

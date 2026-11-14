@@ -32,6 +32,10 @@ pub(super) fn canvas_row(
     if !ui.is_rect_visible(rect) {
         return response;
     }
+    crate::ui::file_dialogs::image_import::request_thumbnail(
+        ui.ctx(),
+        app.doc.canvases[ci].resource_id,
+    );
     let visuals = ui.style().interact_selectable(&response, selected);
     let painter = ui.painter_at(rect);
     if selected || response.hovered() || response.has_focus() {

@@ -206,6 +206,7 @@ pub fn render(
     app.sync_reference_pick();
     dataset_editor::window(app, ui.ctx());
     data_sheet_dock(app, ui, dark);
+    canvas::clear_navigation_rect(&ctx);
     egui::CentralPanel::default()
         .frame(egui::Frame::new().fill(workspace_fill(dark)).inner_margin(
             central_workspace_margin(
@@ -231,6 +232,9 @@ pub fn render(
                 },
             );
         });
+
+    // Collect sidebar demand and the final board camera before scheduling previews.
+    file_dialogs::image_import::poll_rebuilds(app, &ctx);
 
     canvas_settings_window(app, &ctx);
     figure_typography::figure_typography_window(app, &ctx);

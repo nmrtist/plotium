@@ -19,6 +19,10 @@ mod geometry;
 use geometry::{image_frame, physical_image_size_mm};
 #[cfg(test)]
 use geometry::{initial_image_size, natural_vector_size};
+mod prepare;
+#[cfg(test)]
+use prepare::prepare_bytes;
+use prepare::worker;
 mod jobs;
 pub(crate) use jobs::poll;
 mod new_pages;
@@ -29,6 +33,7 @@ pub(crate) use picker::{
 };
 mod proxy;
 use proxy::{insert_proxy, rebuild_preview};
+pub(crate) use proxy::{poll_rebuilds, request_thumbnail};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ImportImageState {
@@ -82,6 +87,19 @@ struct Candidate {
     preview: plotium_io::image::ProxyImage,
 }
 
+impl Candidate {
+    fn display_name(&self) -> &str {
+        if self.page_index > 0 {
+            &self.basename
+        } else {
+            Path::new(&self.basename)
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .unwrap_or("Image")
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct ImportOptions {
     allow_first_frame: bool,
@@ -100,16 +118,19 @@ struct Failure {
 
 enum WorkerEvent {
     State(ImportImageState),
-    Finished(Vec<Result<Candidate, Failure>>),
+    Candidate(Result<Candidate, Failure>),
+    Finished,
 }
 
 struct ImportJob {
+    project_context: plotium_core::state::ProjectContextId,
     request: ImportImageRequest,
     operation: OperationId,
     state: ImportImageState,
     receiver: mpsc::Receiver<WorkerEvent>,
     cancelled: Arc<AtomicBool>,
     consent: mpsc::Sender<bool>,
+    staged: Vec<Result<Candidate, Failure>>,
 }
 
 #[derive(Default)]
@@ -121,14 +142,14 @@ thread_local! {
     static MANAGER: RefCell<ImageImportManager> = RefCell::new(ImageImportManager::default());
 }
 
-pub(crate) fn enqueue(app: &mut PlotiumApp, request: ImportImageRequest) {
+pub(crate) fn enqueue(app: &mut PlotiumApp, mut request: ImportImageRequest) {
     let operation = app.session.begin_operation();
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(2);
     let (consent, worker_consent) = mpsc::channel();
     let cancelled = Arc::new(AtomicBool::new(false));
     let worker_cancelled = Arc::clone(&cancelled);
-    let paths = request.paths.clone();
-    let payloads = request.payloads.clone();
+    let paths = std::mem::take(&mut request.paths);
+    let payloads = std::mem::take(&mut request.payloads);
     let options = ImportOptions {
         allow_first_frame: request.allow_first_frame,
         strip_metadata: request.strip_metadata,
@@ -146,12 +167,14 @@ pub(crate) fn enqueue(app: &mut PlotiumApp, request: ImportImageRequest) {
     });
     MANAGER.with(|manager| {
         manager.borrow_mut().jobs.push(ImportJob {
+            project_context: app.session.project_context,
             request,
             operation,
             state: ImportImageState::Queued,
             receiver,
             cancelled,
             consent,
+            staged: Vec::new(),
         });
     });
     app.session.status = "Image import queued.".to_owned();
@@ -172,316 +195,7 @@ pub(crate) fn cancel_all(app: &mut PlotiumApp) {
     app.session.status = "Cancelling image import…".to_owned();
 }
 
-fn worker(
-    paths: Vec<PathBuf>,
-    payloads: Vec<(String, Vec<u8>)>,
-    cancelled: Arc<AtomicBool>,
-    sender: mpsc::Sender<WorkerEvent>,
-    consent: mpsc::Receiver<bool>,
-    options: ImportOptions,
-) {
-    let _ = sender.send(WorkerEvent::State(ImportImageState::Probing));
-    let mut results = Vec::with_capacity(paths.len());
-    for path in paths {
-        if cancelled.load(Ordering::Relaxed) {
-            let _ = sender.send(WorkerEvent::State(ImportImageState::Cancelled));
-            return;
-        }
-        match prepare_path(&path, &sender, &consent, &cancelled, options) {
-            Ok(candidates) => results.extend(candidates.into_iter().map(Ok)),
-            Err(error) => results.push(Err(error)),
-        }
-        if cancelled.load(Ordering::Relaxed) {
-            let _ = sender.send(WorkerEvent::State(ImportImageState::Cancelled));
-            return;
-        }
-    }
-    for (name, bytes) in payloads {
-        if cancelled.load(Ordering::Relaxed) {
-            let _ = sender.send(WorkerEvent::State(ImportImageState::Cancelled));
-            return;
-        }
-        match prepare_bytes(name, bytes, &sender, &consent, &cancelled, options) {
-            Ok(candidates) => results.extend(candidates.into_iter().map(Ok)),
-            Err(error) => results.push(Err(error)),
-        }
-        if cancelled.load(Ordering::Relaxed) {
-            let _ = sender.send(WorkerEvent::State(ImportImageState::Cancelled));
-            return;
-        }
-    }
-    let _ = sender.send(WorkerEvent::State(ImportImageState::ReadyToCommit));
-    let _ = sender.send(WorkerEvent::Finished(results));
-}
-
-fn prepare_path(
-    path: &Path,
-    sender: &mpsc::Sender<WorkerEvent>,
-    consent: &mpsc::Receiver<bool>,
-    cancelled: &AtomicBool,
-    options: ImportOptions,
-) -> Result<Vec<Candidate>, Failure> {
-    let basename = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("<unnamed>")
-        .to_owned();
-    let bytes = std::fs::read(path).map_err(|error| {
-        failure(
-            &basename,
-            "unknown",
-            "read",
-            error.to_string(),
-            "Check file permissions and retry.",
-        )
-    })?;
-    prepare_bytes(basename, bytes, sender, consent, cancelled, options)
-}
-
-fn prepare_bytes(
-    basename: String,
-    bytes: Vec<u8>,
-    sender: &mpsc::Sender<WorkerEvent>,
-    consent: &mpsc::Receiver<bool>,
-    cancelled: &AtomicBool,
-    options: ImportOptions,
-) -> Result<Vec<Candidate>, Failure> {
-    let detected = plotium_io::image::sniff(&bytes).name().to_owned();
-    if plotium_io::image::sniff(&bytes) == plotium_io::image::RasterFormat::Svg {
-        return prepare_svg(basename, &bytes, &detected, options).map(|candidate| vec![candidate]);
-    }
-    let source_dpi = plotium_io::image::metadata_dpi(&bytes);
-    let probe = plotium_io::image::probe(&bytes).map_err(|error| {
-        failure(
-            &basename,
-            &detected,
-            "probe",
-            error.to_string(),
-            "Choose a supported PNG, JPEG, TIFF, WebP, BMP, or SVG file.",
-        )
-    })?;
-    if options.import_all_tiff_pages && probe.format != plotium_io::image::RasterFormat::Tiff {
-        return Err(failure(
-            &basename,
-            &detected,
-            "probe_pages",
-            "the all-pages command accepts TIFF sources only".to_owned(),
-            "Choose Add Images… for PNG, JPEG, WebP, BMP, or SVG sources.",
-        ));
-    }
-    if probe.animated && !options.allow_first_frame {
-        return Err(failure(
-            &basename,
-            &detected,
-            "probe",
-            "animated images are not supported by this import path".to_owned(),
-            "Export the intended frame as a static PNG, JPEG, TIFF, WebP, or BMP and retry.",
-        ));
-    }
-    if probe.class == plotium_io::image::ResourceClass::Rejected {
-        return Err(failure(
-            &basename,
-            &detected,
-            "limits",
-            format!(
-                "{} × {} pixels and {} decoded bytes exceed the hard limit",
-                probe.width, probe.height, probe.decoded_bytes
-            ),
-            "Reduce the image dimensions before importing.",
-        ));
-    }
-    let bytes = if options.strip_metadata {
-        plotium_io::image::strip_metadata_to_png(&bytes, options.allow_first_frame).map_err(
-            |error| {
-                failure(
-                    &basename,
-                    &detected,
-                    "strip_metadata",
-                    error.to_string(),
-                    "Use the normal import path for a large image, or reduce its dimensions first.",
-                )
-            },
-        )?
-    } else {
-        bytes
-    };
-    let mut notices = Vec::new();
-    if options.strip_metadata {
-        notices.push(
-            "Metadata was removed explicitly and the embedded pixels were re-encoded as PNG.",
-        );
-    }
-    if probe.animated {
-        notices.push(
-            "Only the first animation frame is displayed; original animated bytes remain embedded.",
-        );
-    }
-    if probe.high_precision {
-        notices.push(
-            "High-precision source is displayed as RGBA8 sRGB; original bytes remain embedded.",
-        );
-    }
-    if probe.has_icc || probe.has_exif {
-        notices.push("ICC/EXIF metadata is preserved in the embedded original bytes.");
-    }
-    if probe.pages > 1 && !options.import_all_tiff_pages {
-        notices.push("Multi-page TIFF detected; only page one is imported by this command. Use Add All TIFF Pages… to create one image per page.");
-    }
-    let preview = if probe.class == plotium_io::image::ResourceClass::ProxyRequired {
-        let _ = sender.send(WorkerEvent::State(
-            ImportImageState::AwaitingLargeImageConsent,
-        ));
-        match consent.recv() {
-            Ok(true) => {}
-            Ok(false) | Err(_) => {
-                cancelled.store(true, Ordering::Relaxed);
-                return Err(failure(
-                    &basename,
-                    &detected,
-                    "consent",
-                    "large-image import was cancelled".to_owned(),
-                    "Choose the image again if you want to import it.",
-                ));
-            }
-        }
-        let _ = sender.send(WorkerEvent::State(ImportImageState::DecodingProxy));
-        let proxy = plotium_io::image::decode_proxy_rgba8(&bytes, 2048).map_err(|error| {
-            failure(
-                &basename,
-                &detected,
-                "proxy_decode",
-                error.to_string(),
-                "Reduce the image dimensions below the 500 megapixel hard limit and retry.",
-            )
-        })?;
-        notices.push("Large image embedded; a bounded proxy is used for interactive preview.");
-        proxy
-    } else {
-        rebuild_preview(&bytes, 0).map_err(|error| {
-            failure(
-                &basename,
-                &detected,
-                "decode",
-                error.to_string(),
-                "Retry or re-encode the image in a supported format.",
-            )
-        })?
-    };
-    let warning = (!notices.is_empty()).then(|| notices.join(" "));
-    let sha256 = plotium_io::image::sha256(&bytes);
-    let bytes = Arc::new(bytes);
-    let format = if options.strip_metadata {
-        "png".to_owned()
-    } else {
-        probe.format.name().to_ascii_lowercase()
-    };
-    let mut candidates = vec![Candidate {
-        basename,
-        bytes,
-        sha256,
-        format,
-        pixel_size: [probe.width, probe.height],
-        auto_page_size_mm: physical_image_size_mm([probe.width, probe.height], source_dpi),
-        page_index: 0,
-        warning,
-        preview,
-    }];
-    if options.import_all_tiff_pages && probe.format == plotium_io::image::RasterFormat::Tiff {
-        for page_index in 1..probe.pages {
-            let decoded = plotium_io::image::decode_rgba8_page(
-                candidates[0].bytes.as_slice(),
-                page_index,
-                false,
-            )
-            .map_err(|error| {
-                failure(
-                    &candidates[0].basename,
-                    "TIFF",
-                    "decode_page",
-                    error.to_string(),
-                    "Re-encode the failing TIFF page as a standalone PNG and retry.",
-                )
-            })?;
-            candidates.push(Candidate {
-                basename: format!(
-                    "{} — page {}",
-                    Path::new(&candidates[0].basename)
-                        .file_stem()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or("Image"),
-                    page_index + 1
-                ),
-                bytes: Arc::clone(&candidates[0].bytes),
-                sha256,
-                format: "tiff".to_owned(),
-                pixel_size: [decoded.probe.width, decoded.probe.height],
-                auto_page_size_mm: physical_image_size_mm(
-                    [decoded.probe.width, decoded.probe.height],
-                    source_dpi,
-                ),
-                page_index,
-                warning: decoded.probe.high_precision.then(|| {
-                    "High-precision TIFF page is displayed as RGBA8 sRGB; original bytes remain embedded."
-                        .to_owned()
-                }),
-                preview: rebuild_preview(candidates[0].bytes.as_slice(), page_index).map_err(
-                    |error| {
-                        failure(
-                            &candidates[0].basename,
-                            "TIFF",
-                            "preview_page",
-                            error.to_string(),
-                            "Re-encode the failing TIFF page as a standalone PNG and retry.",
-                        )
-                    },
-                )?,
-            });
-        }
-    }
-    Ok(candidates)
-}
-
-/// Embeds the normalized form, which already carries no source metadata.
-fn prepare_svg(
-    basename: String,
-    source: &[u8],
-    detected: &str,
-    options: ImportOptions,
-) -> Result<Candidate, Failure> {
-    if options.import_all_tiff_pages {
-        return Err(failure(
-            &basename,
-            detected,
-            "probe_pages",
-            "the all-pages command accepts TIFF sources only".to_owned(),
-            "Choose Add Images… for PNG, JPEG, WebP, BMP, or SVG sources.",
-        ));
-    }
-    let remedy = "Re-export the SVG from its source application and retry.";
-    let bytes = plotium_core::export::normalize_svg_asset(source)
-        .map_err(|error| failure(&basename, detected, "normalize", error.to_string(), remedy))?;
-    let probe = plotium_io::image::probe(&bytes)
-        .map_err(|error| failure(&basename, detected, "probe", error.to_string(), remedy))?;
-    let preview = rebuild_preview(&bytes, 0)
-        .map_err(|error| failure(&basename, detected, "decode", error.to_string(), remedy))?;
-    Ok(Candidate {
-        basename,
-        sha256: plotium_io::image::sha256(&bytes),
-        bytes: Arc::new(bytes),
-        format: probe.format.name().to_ascii_lowercase(),
-        pixel_size: [probe.width, probe.height],
-        auto_page_size_mm: physical_image_size_mm([probe.width, probe.height], None),
-        page_index: 0,
-        warning: None,
-        preview,
-    })
-}
-
 fn commit(app: &mut PlotiumApp, job: &mut ImportJob, results: Vec<Result<Candidate, Failure>>) {
-    if job.cancelled.load(Ordering::Relaxed) {
-        job.state = ImportImageState::Cancelled;
-        return;
-    }
     if job.request.target == ImportImageTarget::NewPages {
         new_pages::commit(app, job, results);
         return;
@@ -598,11 +312,7 @@ fn commit(app: &mut PlotiumApp, job: &mut ImportJob, results: Vec<Result<Candida
         let frame = image_frame(&page, target_panel, &candidate, position);
         page.objects.push(CanvasObject {
             id,
-            name: Path::new(&candidate.basename)
-                .file_stem()
-                .and_then(|name| name.to_str())
-                .unwrap_or("Image")
-                .to_owned(),
+            name: candidate.display_name().to_owned(),
             frame,
             locked: false,
             visible: true,
