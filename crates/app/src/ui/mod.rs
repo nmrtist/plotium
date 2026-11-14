@@ -55,6 +55,7 @@ mod shortcuts;
 pub(crate) use shortcuts::handle_preview_shortcut;
 mod sidebars;
 mod switcher;
+mod system_accent;
 #[cfg(not(target_os = "macos"))]
 mod title_bar;
 pub(crate) mod tools;

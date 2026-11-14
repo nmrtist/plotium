@@ -40,7 +40,7 @@ mod board_marquee;
 mod board_notes;
 mod board_sheet;
 mod breadcrumb;
-mod chrome;
+pub(super) mod chrome;
 mod craft_regions;
 mod craft_results;
 mod cursors;
@@ -73,6 +73,7 @@ mod regions;
 mod render_detail;
 mod slices;
 mod snap;
+mod snap_feedback;
 mod spotlight;
 mod symmetry;
 mod tiling;
@@ -170,7 +171,11 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     let rect = geometry.board_rect;
     let painter = painter.with_clip_rect(rect);
     store_navigation_rect(ui.ctx(), rect);
-    let chrome = ChromeStyle::from_visuals(ui.visuals(), app.settings.appearance.canvas_accent);
+    let accent = app.settings.appearance.canvas_accent.unwrap_or_else(|| {
+        let accent = super::system_accent::canvas_default(ui.ctx(), ui.visuals());
+        [accent.r(), accent.g(), accent.b()]
+    });
+    let chrome = ChromeStyle::from_visuals(ui.visuals(), Some(accent));
     consume_board_reveal(app, ui.ctx());
     drive_board_fit(app, ui, &geometry);
 
@@ -261,6 +266,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
             }
         }
     }
+    snap_feedback::update(ui.ctx(), &app.session.ui.snap_guides);
     // A tile drop may remove the now-empty source canvas and switch focus to the
     // target in the same UI pass. Refresh both values before any post-interaction
     // painting; the old index can otherwise refer to a different canvas or be out

@@ -71,7 +71,7 @@ fn with_alpha(color: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
 }
 
-fn blend(foreground: Color32, background: Color32, amount: f32) -> Color32 {
+pub(crate) fn blend(foreground: Color32, background: Color32, amount: f32) -> Color32 {
     let mix = |a: u8, b: u8| (a as f32 * (1.0 - amount) + b as f32 * amount).round() as u8;
     Color32::from_rgb(
         mix(foreground.r(), background.r()),
@@ -80,7 +80,7 @@ fn blend(foreground: Color32, background: Color32, amount: f32) -> Color32 {
     )
 }
 
-fn contrast_adjusted(mut color: Color32, background: Color32, minimum: f32) -> Color32 {
+pub(crate) fn contrast_adjusted(mut color: Color32, background: Color32, minimum: f32) -> Color32 {
     let target = if relative_luminance(background) > 0.45 {
         Color32::BLACK
     } else {
@@ -95,7 +95,7 @@ fn contrast_adjusted(mut color: Color32, background: Color32, minimum: f32) -> C
     color
 }
 
-fn contrast_ratio(a: Color32, b: Color32) -> f32 {
+pub(crate) fn contrast_ratio(a: Color32, b: Color32) -> f32 {
     let (lighter, darker) = if relative_luminance(a) >= relative_luminance(b) {
         (relative_luminance(a), relative_luminance(b))
     } else {

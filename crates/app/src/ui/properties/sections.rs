@@ -511,7 +511,7 @@ fn render_section(
             .iter_mut()
             .find(|row| row.presentation.id == app_preferences::ACCENT_COLOR)
     {
-        let theme = ui.visuals().selection.bg_fill;
+        let theme = crate::ui::system_accent::canvas_default(ui.ctx(), ui.visuals());
         let color =
             PropertyValue::Color(plotium_figure::Color::rgb(theme.r(), theme.g(), theme.b()));
         row.set.value = AggregateValue::Uniform(color.clone());

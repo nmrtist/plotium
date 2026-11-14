@@ -7,6 +7,8 @@ use egui_phosphor::regular as icon;
 use plotium_core::settings::ThemeMode;
 use plotium_core::state::{SettingsCategory, SettingsDialog};
 
+use crate::ui::system_accent;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ChromeGeometry {
     control: u8,
@@ -88,9 +90,11 @@ pub(crate) fn apply_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
         ThemeMode::Dark => egui::ThemePreference::Dark,
     };
     ctx.set_theme(pref);
+    let accent = system_accent::read();
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
         ctx.style_mut_of(theme, |style| {
             apply_chrome_geometry(style, ChromeGeometry::current());
+            system_accent::apply(&mut style.visuals, accent);
             // Disabled widgets keep the normal button fill and fade only via
             // `disabled_alpha`. Stock egui swaps in the near-panel
             // `noninteractive` fill, which makes light-theme buttons *brighten*
@@ -103,12 +107,15 @@ pub(crate) fn apply_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
     ctx.data_mut(|data| {
         data.insert_temp(egui::Id::new("plotium_applied_chrome_theme"), mode);
     });
+    system_accent::record(ctx, accent);
 }
 
 pub(crate) fn sync_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
     let applied =
         ctx.data(|data| data.get_temp::<ThemeMode>(egui::Id::new("plotium_applied_chrome_theme")));
-    if applied != Some(mode) {
+    let accent_changed =
+        system_accent::regained_focus(ctx) && system_accent::read() != system_accent::applied(ctx);
+    if applied != Some(mode) || accent_changed {
         apply_chrome_theme(ctx, mode);
     }
 }
