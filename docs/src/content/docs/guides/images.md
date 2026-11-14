@@ -41,6 +41,9 @@ For formats that need special handling, use these commands:
   cannot be read, earlier pages are kept and the remaining pages of that TIFF
   are skipped. The standard **Add Images…** command adds only the first page.
 
+Use the **Canvas** sidebar search to find image pages by their names or image
+layer names. **Compact rows** switches to a text list.
+
 Preview detail adapts to the visible size and available memory; publication
 export still uses the source.
 

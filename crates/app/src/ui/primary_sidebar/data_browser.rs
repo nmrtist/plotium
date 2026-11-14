@@ -360,7 +360,11 @@ pub(super) fn filtering(app: &PlotiumApp) -> bool {
         || app.session.ui.data_browser_batch.is_some()
 }
 
-fn matches_dataset(dataset: &Dataset, terms: &[String], import_path: Option<&str>) -> bool {
+pub(super) fn matches_dataset(
+    dataset: &Dataset,
+    terms: &[String],
+    import_path: Option<&str>,
+) -> bool {
     if terms.is_empty() {
         return true;
     }

@@ -6,6 +6,7 @@ use plotium_core::state::{
     FrameRef, PlotiumApp, PrimaryView, RegionSelection, RenameState, RenameTarget,
 };
 mod board_views;
+pub(crate) mod canvas_filter;
 mod data_browser;
 mod dataset_rows;
 mod layer_controls;
@@ -23,22 +24,52 @@ pub fn render(app: &mut PlotiumApp, ui: &mut Ui) {
     ui.add_space(8.0);
     ui.separator();
     ui.add_space(4.0);
-    if app.session.view == PrimaryView::Data {
+    {
+        let hint = if app.session.view == PrimaryView::Data {
+            "Search data and analysis"
+        } else {
+            "Search canvases and images"
+        };
         ui.add(
             egui::TextEdit::singleline(&mut app.session.ui.data_browser_filter)
-                .hint_text(format!(
-                    "{} Search data and analysis",
-                    icon::MAGNIFYING_GLASS
-                ))
+                .hint_text(format!("{} {hint}", icon::MAGNIFYING_GLASS))
                 .desired_width(f32::INFINITY),
         );
         dataset_rows::filters(app, ui);
         ui.add_space(4.0);
     }
+    if app.session.view == PrimaryView::Canvas {
+        ui.checkbox(&mut app.session.ui.canvas_list_compact, "Compact rows");
+    }
     if app.session.view == PrimaryView::Canvas && !app.doc.canvases.is_empty() {
         egui::Panel::bottom("board_views")
             .resizable(false)
             .show_inside(ui, |ui| board_views_section(app, ui));
+        egui::Panel::bottom("canvas_layers")
+            .resizable(true)
+            .default_size(180.0)
+            .show_inside(ui, |ui| {
+                ui.label(crate::typography::headline("Layers"));
+                egui::ScrollArea::vertical()
+                    .id_salt("canvas_layers_scroll")
+                    .show(ui, |ui| {
+                        if let Some(ci) = app
+                            .session
+                            .active_canvas
+                            .filter(|&ci| ci < app.doc.canvases.len())
+                        {
+                            if app.doc.canvases[ci].objects.is_empty()
+                                && app.doc.canvases[ci].panels.is_empty()
+                            {
+                                ui.weak("No layers. Add an image or plot to this canvas.");
+                            } else {
+                                layers_tree::object_list(app, ci, ui);
+                            }
+                        } else {
+                            ui.weak("No active canvas. Select a canvas to inspect its layers.");
+                        }
+                    });
+            });
     }
     egui::ScrollArea::vertical()
         .id_salt((
@@ -104,7 +135,14 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
     let mut start_rename: Option<usize> = None;
     let mut commit: Option<(usize, String)> = None;
     let mut cancel = false;
+    let matches = canvas_filter::matching_canvases(app, &index);
+    if matches.is_empty() {
+        ui.weak("No matching canvases. Clear or change the filters.");
+    }
     for ci in 0..app.doc.canvases.len() {
+        if !matches.contains(&app.doc.canvases[ci].resource_id) {
+            continue;
+        }
         let renaming = matches!(
             &app.session.ui.rename,
             Some(RenameState { target: RenameTarget::Canvas(i), .. }) if *i == ci
@@ -125,7 +163,12 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
         let name = app.doc.canvases[ci].name.clone();
         let selected = crate::ui::canvas::frame_is_selected(app, FrameRef::Page(ci));
         let summary = index.summaries.get(&app.doc.canvases[ci].resource_id);
-        let resp = thumbnails::canvas_row(app, ci, ui, selected, &name, summary);
+        let resp = if app.session.ui.canvas_list_compact {
+            ui.selectable_label(selected, &name)
+                .on_hover_text(summary.map_or("", |s| s.details.as_str()))
+        } else {
+            thumbnails::canvas_row(app, ci, ui, selected, &name, summary)
+        };
         if resp.clicked() {
             claim_list_keyboard_focus(ui, &resp);
             select = Some((ci, select_modifiers(ui)));
@@ -150,16 +193,6 @@ fn canvas_list(app: &mut PlotiumApp, ui: &mut Ui) {
                 ui.close();
             }
         });
-    }
-    if let Some(ci) = app.session.active_canvas
-        && ci < app.doc.canvases.len()
-        && !app.doc.canvases[ci].objects.is_empty()
-    {
-        ui.add_space(8.0);
-        ui.separator();
-        ui.add_space(4.0);
-        ui.label(crate::typography::headline("Layers"));
-        layers_tree::object_list(app, ci, ui);
     }
     if let Some((ci, name)) = commit {
         let trimmed = name.trim();
