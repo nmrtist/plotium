@@ -11,7 +11,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 uuid.workspace = true
-rmcp = { version = "3.5.1", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-client-reqwest", "transport-streamable-http-server"] }
+rmcp = { version = "3.9.0", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-client-reqwest", "transport-streamable-http-server"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 tokio = { workspace = true, features = ["net", "sync", "time", "io-std"] }
 tokio-util = "0.7"
@@ -23,7 +23,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json"] }
 windows-sys = { workspace = true, features = ["Win32_Security", "Win32_Security_Authorization"] }
 
 [dev-dependencies]
-rmcp = { version = "3.5.1", default-features = false, features = ["client", "transport-streamable-http-client-reqwest"] }
+rmcp = { version = "3.9.0", default-features = false, features = ["client", "transport-streamable-http-client-reqwest"] }
 reqwest = { version = "0.13", default-features = false }
 plotium-io.workspace = true
 num-complex.workspace = true
