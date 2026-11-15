@@ -277,8 +277,7 @@ pub fn render_central(app: &mut PlotiumApp, ui: &mut Ui) {
     let page = page_screen_rect(app.session.board, &app.doc.canvases[ci], rect);
 
     let frame_stroke = Stroke::new(1.0_f32, ui.visuals().widgets.noninteractive.bg_stroke.color);
-    // Pages float on the board the way chrome cards float on the workspace: a
-    // soft shadow keeps a white page legible on the light workspace fill.
+    // A soft shadow keeps a white page legible on the light workspace fill.
     let page_shadow = egui::epaint::Shadow {
         offset: [0, 2],
         blur: 10,

@@ -500,7 +500,7 @@ fn main() -> eframe::Result<()> {
         .with_min_inner_size(MIN_WINDOW_PT)
         .with_title("Plotium")
         .with_icon(application_icon());
-    let viewport = ui::configure_ribbon_viewport(viewport);
+    let viewport = ui::window_shell::configure_viewport(viewport);
     let mut wgpu_options = eframe::egui_wgpu::WgpuConfiguration {
         desired_maximum_frame_latency: desired_maximum_frame_latency(),
         ..Default::default()

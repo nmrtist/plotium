@@ -211,9 +211,8 @@ pub(super) fn resize_zones(ctx: &egui::Context) {
     if maximized || fullscreen {
         return;
     }
+    use super::window_shell::{RESIZE_CORNER as CORNER, RESIZE_EDGE as EDGE};
     use egui::ResizeDirection as Dir;
-    const EDGE: f32 = 5.0;
-    const CORNER: f32 = 12.0;
     let rect = ctx.content_rect();
     let (left, right, top, bottom) = (rect.left(), rect.right(), rect.top(), rect.bottom());
     let zones = [

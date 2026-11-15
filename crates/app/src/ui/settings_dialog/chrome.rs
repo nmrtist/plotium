@@ -26,16 +26,16 @@ impl ChromeGeometry {
     const fn for_platform(platform: DesktopPlatform) -> Self {
         match platform {
             DesktopPlatform::MacOs => Self {
-                control: 6,
-                surface: 10,
+                control: 8,
+                surface: 12,
             },
             DesktopPlatform::Windows => Self {
                 control: 4,
                 surface: 8,
             },
             DesktopPlatform::Linux => Self {
-                control: 6,
-                surface: 10,
+                control: 8,
+                surface: 12,
             },
         }
     }
@@ -206,8 +206,8 @@ mod tests {
         assert_eq!(
             ChromeGeometry::for_platform(DesktopPlatform::MacOs),
             ChromeGeometry {
-                control: 6,
-                surface: 10,
+                control: 8,
+                surface: 12,
             }
         );
         assert_eq!(
@@ -220,8 +220,8 @@ mod tests {
         assert_eq!(
             ChromeGeometry::for_platform(DesktopPlatform::Linux),
             ChromeGeometry {
-                control: 6,
-                surface: 10,
+                control: 8,
+                surface: 12,
             }
         );
     }
