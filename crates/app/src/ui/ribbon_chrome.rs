@@ -86,7 +86,7 @@ pub(super) fn available_title_width(
     (remaining >= INLINE_TITLE_MIN_WIDTH).then(|| remaining.min(INLINE_TITLE_MAX_WIDTH))
 }
 
-fn task_tabs_width(ui: &Ui) -> f32 {
+pub(super) fn task_tabs_width(ui: &Ui) -> f32 {
     WorkflowTab::ALL
         .iter()
         .map(|tab| {
@@ -101,6 +101,17 @@ fn task_tabs_width(ui: &Ui) -> f32 {
 }
 
 fn controls_width(app: &PlotiumApp, ui: &Ui, compact: bool) -> f32 {
+    let (search, update) = control_labels(app, compact);
+    [search, update]
+        .into_iter()
+        .filter(|text| !text.is_empty())
+        .map(|text| text_width(ui, text, TextStyle::Button))
+        .sum::<f32>()
+        + fixed_controls_width()
+        + 8.0 * CONTROL_SPACING
+}
+
+fn control_labels(app: &PlotiumApp, compact: bool) -> (String, String) {
     use plotium_core::update::UpdateStatus;
 
     let search = if compact {
@@ -121,19 +132,37 @@ fn controls_width(app: &PlotiumApp, ui: &Ui, compact: bool) -> f32 {
         }
         _ => String::new(),
     };
-    let spacing = CONTROL_SPACING;
-    [search, update]
-        .into_iter()
-        .filter(|text| !text.is_empty())
-        .map(|text| text_width(ui, text, TextStyle::Button))
-        .sum::<f32>()
-        // The two sidebar toggles, Ribbon toggle, separator, and
-        // their share of the item spacing.
-        + 3.0 * SIDEBAR_TOGGLE_WIDTH
-        + 6.0
-        + 5.0 * spacing
-        // The follow, history, and AI connection buttons and their gaps.
-        + 3.0 * (SIDEBAR_TOGGLE_WIDTH + CONTROL_SPACING)
+    (search, update)
+}
+
+pub(super) fn windows_compact_controls_width(app: &PlotiumApp, ui: &Ui) -> f32 {
+    let (search, update) = control_labels(app, true);
+    // Six fixed buttons, search, and the separator have seven internal gaps.
+    let update_width = match app.session.updates.status() {
+        plotium_core::update::UpdateStatus::Downloading { .. } => {
+            WidgetText::from(egui::RichText::new(update).small())
+                .into_galley(
+                    ui,
+                    Some(TextWrapMode::Extend),
+                    f32::INFINITY,
+                    TextStyle::Small,
+                )
+                .size()
+                .x
+                + CONTROL_SPACING
+        }
+        _ if !update.is_empty() => text_width(ui, update, TextStyle::Button) + CONTROL_SPACING,
+        _ => 0.0,
+    };
+    fixed_controls_width()
+        + text_width(ui, search, TextStyle::Button)
+        + 7.0 * CONTROL_SPACING
+        + update_width
+}
+
+fn fixed_controls_width() -> f32 {
+    // Sidebar toggles, Ribbon toggle, separator, follow, history, and AI.
+    6.0 * SIDEBAR_TOGGLE_WIDTH + 6.0
 }
 
 /// Fixed width of one sidebar layout toggle; shared with the width estimate

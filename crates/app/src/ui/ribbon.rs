@@ -14,6 +14,7 @@ use plotium_core::state::{ArrangeGridDraft, PlotiumApp, ToolGroup, WorkflowTab};
 
 use super::clipboard_table::ClipboardTablePaste;
 use super::commands::{self, CommandDescriptor, CommandId};
+use super::ribbon_chrome as chrome_layout;
 use buttons::{collapsed_tile, overflow_item, ribbon_button};
 use layout::{CAPTION_BAND, GroupScale, STACK_GAP, TILE_HEIGHT, TabPlan};
 
@@ -62,11 +63,12 @@ fn task_row(
     chrome: super::RibbonChrome,
 ) {
     let Some(traffic_lights) = chrome.macos_traffic_lights else {
-        // Windows and Linux: the separate custom title bar owns window chrome
-        // and dragging, so the row only compacts its controls to fit.
+        if cfg!(target_os = "windows") && render_narrow_windows_task_row(app, clipboard, ui) {
+            return;
+        }
         ui.horizontal(|ui| {
             let compact =
-                super::ribbon_chrome::controls_need_compacting(app, ui, 0.0, ui.available_width());
+                chrome_layout::controls_need_compacting(app, ui, 0.0, ui.available_width());
             render_task_row_contents(app, clipboard, ui, compact, None);
         });
         return;
@@ -98,22 +100,46 @@ fn task_row(
     );
     let leading = traffic_lights.x + 4.0;
     ui.add_space(leading);
-    let compact_controls =
-        super::ribbon_chrome::controls_need_compacting(app, &ui, leading, row_rect.width());
-    let inline_title_width = super::ribbon_chrome::available_title_width(
-        app,
-        &ui,
-        leading,
-        row_rect.width(),
-        compact_controls,
-    );
-    render_task_row_contents(
-        app,
-        clipboard,
-        &mut ui,
-        compact_controls,
-        inline_title_width,
-    );
+    let compact = chrome_layout::controls_need_compacting(app, &ui, leading, row_rect.width());
+    let title_width =
+        chrome_layout::available_title_width(app, &ui, leading, row_rect.width(), compact);
+    render_task_row_contents(app, clipboard, &mut ui, compact, title_width);
+}
+
+fn render_narrow_windows_task_row(
+    app: &mut PlotiumApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+) -> bool {
+    let width = ui.available_width();
+    let tabs = chrome_layout::task_tabs_width(ui);
+    let controls = chrome_layout::windows_compact_controls_width(app, ui);
+    // The native minimum size does not track later changes to egui's zoom.
+    if tabs + controls + chrome_layout::TASK_TAB_SPACING <= width {
+        return false;
+    }
+
+    task_strip(ui, "ribbon_task_tabs", tabs, |ui| {
+        ui.horizontal(|ui| render_task_tabs(app, ui));
+    });
+    task_strip(ui, "ribbon_split_controls", controls, |ui| {
+        ui.horizontal(move |ui| render_task_controls(app, clipboard, ui, true));
+    });
+    true
+}
+
+fn task_strip(ui: &mut Ui, id: &str, needed: f32, contents: impl FnOnce(&mut Ui)) {
+    if needed > ui.available_width() {
+        egui::ScrollArea::horizontal()
+            .id_salt(id)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                ui.set_min_width(needed);
+                contents(ui);
+            });
+    } else {
+        contents(ui);
+    }
 }
 
 fn render_task_row_contents(
@@ -121,8 +147,14 @@ fn render_task_row_contents(
     clipboard: &mut ClipboardTablePaste,
     ui: &mut Ui,
     compact_controls: bool,
-    inline_title_width: Option<f32>,
+    title_width: Option<f32>,
 ) {
+    render_task_tabs(app, ui);
+    render_inline_title(app, ui, title_width);
+    render_task_controls(app, clipboard, ui, compact_controls);
+}
+
+fn render_task_tabs(app: &mut PlotiumApp, ui: &mut Ui) {
     for (tab, response) in task_tab_buttons(ui, app.session.ui.ribbon_tab) {
         if response.clicked() {
             select_workflow_tab(app, tab);
@@ -130,7 +162,9 @@ fn render_task_row_contents(
             app.session.ui.ribbon_expanded = true;
         }
     }
+}
 
+fn render_inline_title(app: &PlotiumApp, ui: &mut Ui, inline_title_width: Option<f32>) {
     if let Some(width) = inline_title_width {
         let title = super::ribbon_chrome::inline_project_title(app);
         ui.separator();
@@ -144,7 +178,14 @@ fn render_task_row_contents(
         );
         titlebar_interaction(&title);
     }
+}
 
+fn render_task_controls(
+    app: &mut PlotiumApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+    compact_controls: bool,
+) {
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         // The controls keep their own spacing instead of inheriting the tab
         // strip's gap.
