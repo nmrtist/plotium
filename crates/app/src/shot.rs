@@ -228,7 +228,11 @@ impl ShotDriver {
         if !self.pass_primed {
             // Replay from an identical clean slate so a scene's light and dark
             // captures differ only in palette, never in accumulated state.
-            *app = PlotiumApp::new_with_settings(Settings::default());
+            let mut settings = Settings::default();
+            // Captures land a fixed number of frames after each step, so
+            // sidebars and dialogs must not be caught mid-animation.
+            settings.appearance.reduce_motion = plotium_core::settings::ReduceMotion::On;
+            *app = PlotiumApp::new_with_settings(settings);
             ctx.set_theme(self.themes[self.theme_idx].preference());
             self.scene_idx = 0;
             self.wait = SCENES[0].settle;

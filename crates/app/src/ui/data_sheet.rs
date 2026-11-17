@@ -58,14 +58,14 @@ pub(super) fn dock_rect(ctx: &egui::Context) -> Option<egui::Rect> {
     ctx.data(|data| data.get_temp::<egui::Rect>(dock_rect_id()))
 }
 
-fn dock_margin(app: &PlotiumApp) -> egui::Margin {
+fn dock_margin(ctx: &egui::Context) -> egui::Margin {
     egui::Margin {
-        left: if app.session.primary_sidebar_visible {
+        left: if super::sidebars::reserves_space(ctx, true) {
             8
         } else {
             4
         },
-        right: if app.session.secondary_sidebar_visible {
+        right: if super::sidebars::reserves_space(ctx, false) {
             8
         } else {
             4
@@ -119,7 +119,7 @@ fn dock_sheet(
                 derived_from: None,
             };
             let mut panel = shown_panel(app, ui.ctx(), was_shown, None);
-            let margin = dock_margin(app);
+            let margin = dock_margin(ui.ctx());
             let response = dock::show(ui, &mut panel, margin, dark, &header, |ui| {
                 draft::controls(ui, &mut app.session.ui.table_cell_edit, None);
             });
@@ -184,7 +184,7 @@ fn dock_sheet(
         was_shown,
         Some(app.doc.datasets[di].resource_id()),
     );
-    let margin = dock_margin(app);
+    let margin = dock_margin(ui.ctx());
     let response = dock::show(ui, &mut panel, margin, dark, &header, |ui| {
         if matches!(
             freshness.status,

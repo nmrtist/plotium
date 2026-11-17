@@ -50,8 +50,9 @@ saved preferences except your recent-files list. AI connection preferences are d
   chrome theme. Snap guides keep a contrasting
   color of their own so they stay distinct, and figure content and exported
   colors are never affected.
-- **Reduce motion** — replaces interface animations, such as sliding tab
-  highlights, dialog fades, and zoom-to-fit glides, with immediate changes.
+- **Reduce motion** — replaces interface animations, such as sidebars sliding
+  open and closed, sliding tab highlights, dialog fades, and zoom-to-fit
+  glides, with immediate changes.
   **Follow system** uses the macOS or Windows accessibility setting. On Linux,
   where no system setting can be read, the default keeps animations on.
 - **UI scale** — the size of all interface text and controls, per display.
