@@ -13,6 +13,8 @@ pub(crate) const HOVER_SECONDS: f32 = 0.10;
 pub(crate) const APPEAR_SECONDS: f32 = 0.16;
 /// Scale a dialog grows from while it fades in.
 pub(crate) const APPEAR_SCALE_FROM: f32 = 0.96;
+/// Sidebars sliding in and out.
+pub(crate) const SLIDE_SECONDS: f32 = 0.20;
 /// Spring period in seconds and damping ratio for sliding selections and
 /// board camera glides.
 const SPRING_RESPONSE: f32 = 0.34;
@@ -169,6 +171,29 @@ pub(crate) fn seed_spring(ctx: &egui::Context, id: Id, pos: f32) {
 pub(crate) fn hover(ctx: &egui::Context, id: Id, hovered: bool) -> f32 {
     let seconds = if reduced(ctx) { 0.0 } else { HOVER_SECONDS };
     ctx.animate_bool_with_time(id.with("hover").with(ctx.viewport_id()), hovered, seconds)
+}
+
+/// Eased fraction of a sliding surface that is shown, from 0 (closed) to 1
+/// (open). The first call for `id` lands on `open` without moving. The easing
+/// is symmetric, so reversing mid-slide continues from the current position.
+pub(crate) fn slide(ctx: &egui::Context, id: Id, open: bool) -> f32 {
+    let seconds = if reduced(ctx) { 0.0 } else { SLIDE_SECONDS };
+    ctx.animate_bool_with_time_and_easing(
+        slide_key(ctx, id),
+        open,
+        seconds,
+        egui::emath::easing::cubic_in_out,
+    )
+}
+
+/// Lands a slide on `open` at once, for a surface the user already moved
+/// there directly.
+pub(crate) fn land_slide(ctx: &egui::Context, id: Id, open: bool) {
+    ctx.animate_bool_with_time(slide_key(ctx, id), open, 0.0);
+}
+
+fn slide_key(ctx: &egui::Context, id: Id) -> Id {
+    id.with("slide").with(ctx.viewport_id())
 }
 
 /// Eased progress from 0 to 1 since the surface `id` started showing. A

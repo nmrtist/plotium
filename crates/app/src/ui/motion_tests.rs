@@ -76,3 +76,27 @@ fn scale_about_keeps_the_pivot_fixed() {
     assert_eq!(transform * pivot, pivot);
     assert_eq!(transform * egui::pos2(200.0, 50.0), egui::pos2(150.0, 50.0));
 }
+
+#[test]
+fn reversing_a_slide_continues_from_where_it_is() {
+    let ctx = egui::Context::default();
+    let id = Id::new("test_slide");
+    let mut time = 0.0;
+    let mut step = |open: bool| {
+        time += 1.0 / 60.0;
+        let mut shown = 0.0;
+        pass(&ctx, time, |ctx| shown = slide(ctx, id, open));
+        shown
+    };
+    step(false);
+    let mut last = step(true);
+    for _ in 0..4 {
+        last = step(true);
+    }
+    assert!(last > 0.0 && last < 1.0, "{last}");
+    let reversed = step(false);
+    assert!(
+        reversed < last && last - reversed < 0.2,
+        "{last} -> {reversed}"
+    );
+}
