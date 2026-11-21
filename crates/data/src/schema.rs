@@ -271,7 +271,7 @@ fn validate_logical_type(logical_type: &LogicalType) -> Result<()> {
             }
         }
         LogicalType::Timestamp { display_timezone }
-            if display_timezone.parse::<chrono_tz::Tz>().is_err() =>
+            if !tzdb::TZ_NAMES.contains(&display_timezone.as_str()) =>
         {
             return Err(DataError::InvalidSchema(format!(
                 "timestamp display timezone {display_timezone:?} is not an IANA name"
