@@ -1,6 +1,56 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AfmFitCommand {
+    Run,
+    ToggleOverlay,
+    ZoomRange,
+    Duplicate,
+    ResidualPlot,
+    DataSheet,
+    ShowSource,
+}
+
+impl AfmFitCommand {
+    pub(super) const fn identity(self) -> (&'static str, &'static str, &'static str) {
+        use egui_phosphor::regular as icon;
+        match self {
+            Self::Run => ("Run AFM Fit", "analysis.afm_fit_run", icon::PLAY),
+            Self::ToggleOverlay => (
+                "Show Fit on Source Plot",
+                "analysis.afm_fit_overlay",
+                icon::EYE,
+            ),
+            Self::ZoomRange => (
+                "Zoom to Fit Range",
+                "analysis.afm_fit_zoom",
+                icon::MAGNIFYING_GLASS_PLUS,
+            ),
+            Self::Duplicate => (
+                "Duplicate Plot with Fit",
+                "analysis.afm_fit_duplicate",
+                icon::COPY,
+            ),
+            Self::ResidualPlot => (
+                "Create Residual Plot",
+                "analysis.afm_fit_residual",
+                icon::CHART_LINE,
+            ),
+            Self::DataSheet => (
+                "Create Fit Data Sheet",
+                "analysis.afm_fit_sheet",
+                icon::TABLE,
+            ),
+            Self::ShowSource => (
+                "Show AFM Source Plot",
+                "analysis.afm_fit_source",
+                icon::ARROW_LEFT,
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandId {
     NewProject,
     OpenProject,
@@ -121,6 +171,8 @@ pub enum CommandId {
     LineFit,
     RunPeakFit,
     CurveFit,
+    FitAfmForce(AfmForceBranch),
+    AfmFit(AfmFitCommand),
     RunCurveFit,
     Statistics,
     ChartType,

@@ -115,7 +115,7 @@ fn card_width(host: egui::Rect, tab: TaskDockTab, preferred_width: f32) -> f32 {
         .min(canvas_preserving_maximum)
 }
 
-fn area_id(tab: TaskDockTab) -> Id {
+pub(super) fn area_id(tab: TaskDockTab) -> Id {
     match tab {
         TaskDockTab::Dosy => Id::new("dosy_task_card"),
         TaskDockTab::Processing => Id::new("processing_task_card"),
@@ -195,7 +195,14 @@ pub(crate) fn visible_area_id(app: &PlotiumApp) -> Option<Id> {
             .ui
             .curve_fit_task_dataset
             .filter(|dataset| Some(*dataset) == active)
-            .map(|_| Id::new("curve_fit_task_card")),
+            .map(|_| area_id(TaskDockTab::CurveFit))
+            .or_else(|| {
+                app.session
+                    .ui
+                    .afm_fit_task
+                    .as_ref()
+                    .map(|_| area_id(TaskDockTab::CurveFit))
+            }),
         TaskDockTab::Statistics => app
             .session
             .ui

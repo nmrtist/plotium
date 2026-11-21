@@ -1,8 +1,9 @@
 use super::{
-    AxisOverrides, AxisProjections, CanvasViewport, ChartSpec, DataBinding, DatasetId, DerivedAxes,
-    PlotIntent, SeriesId, StackSpec,
+    AfmForceFit, AxisOverrides, AxisProjections, CanvasViewport, ChartSpec, DataBinding, DatasetId,
+    DerivedAxes, PlotIntent, SeriesId, StackSpec,
 };
 use plotium_figure::{Figure, FigureTypography};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIGURE_GEOMETRY_GENERATION: AtomicU64 = AtomicU64::new(1);
@@ -34,6 +35,8 @@ pub struct PlotObject {
     pub axis_overrides: AxisOverrides,
     /// What the author wants the plot to show; never read while drawing.
     pub intent: PlotIntent,
+    afm_force_fits: Vec<Arc<AfmForceFit>>,
+    afm_overlay_count: usize,
     /// Axis presentation emitted by the latest figure build, before author
     /// overrides are applied. Derived property defaults read this artifact.
     derived_axes: DerivedAxes,
@@ -76,6 +79,8 @@ impl PlotObject {
             projections,
             axis_overrides,
             intent: PlotIntent::default(),
+            afm_force_fits: Vec::new(),
+            afm_overlay_count: 0,
             derived_axes,
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),
@@ -119,6 +124,8 @@ impl PlotObject {
             projections,
             axis_overrides,
             intent: PlotIntent::default(),
+            afm_force_fits: Vec::new(),
+            afm_overlay_count: 0,
             derived_axes,
             figure,
             figure_geometry_generation: next_figure_geometry_generation(),
@@ -148,6 +155,55 @@ impl PlotObject {
 
     pub fn figure(&self) -> &Figure {
         &self.figure
+    }
+
+    pub fn afm_force_fits(&self) -> &[Arc<AfmForceFit>] {
+        &self.afm_force_fits
+    }
+
+    pub(crate) fn set_afm_force_fits(&mut self, fits: Vec<Arc<AfmForceFit>>) {
+        self.afm_force_fits = fits;
+        self.refresh_afm_overlays();
+        self.figure_geometry_generation = next_figure_geometry_generation();
+    }
+
+    fn refresh_afm_overlays(&mut self) {
+        use plotium_figure::{Color, LineStyle, Series};
+        let base_len = self
+            .figure
+            .series
+            .len()
+            .saturating_sub(self.afm_overlay_count);
+        self.figure.series.truncate(base_len);
+        self.afm_overlay_count = 0;
+        if self.chart.type_id != "afm_force_curve" {
+            return;
+        }
+        let source = self.primary_dataset();
+        for fit in self
+            .afm_force_fits
+            .iter()
+            .filter(|fit| fit.converged && fit.shown && Some(fit.source) == source)
+        {
+            let color = match fit.branch {
+                super::AfmForceBranch::Approach => Color::rgb(0x00, 0x87, 0x72),
+                super::AfmForceBranch::Retract => Color::rgb(0xaf, 0x68, 0x17),
+            };
+            let mut overlay = Series::line(
+                format!("{} fit", fit.branch.name()),
+                fit.rows
+                    .iter()
+                    .map(|[x, _, predicted]| [*x, *predicted])
+                    .collect(),
+            )
+            .colored(color);
+            overlay.width = 1.5;
+            overlay.appearance.line_style = LineStyle::Dashed;
+            match self.figure.push_unamplified_series(overlay) {
+                Ok(()) => self.afm_overlay_count += 1,
+                Err(error) => eprintln!("Could not draw the AFM fit overlay: {error}"),
+            }
+        }
     }
 
     /// The x direction this plot draws outside a shared-x stack.
@@ -262,6 +318,8 @@ impl PlotObject {
             figure.x.reversed = reversed;
         }
         self.figure = figure;
+        self.afm_overlay_count = 0;
+        self.refresh_afm_overlays();
         self.make_legend_room();
         self.figure_geometry_generation = next_figure_geometry_generation();
     }

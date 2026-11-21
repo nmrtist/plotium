@@ -33,6 +33,7 @@ impl UiState {
             }
             TaskDockTab::CurveFit => {
                 self.curve_fit_task_dataset = None;
+                self.afm_fit_task = None;
                 self.curve_fit_task_collapsed = false;
             }
             TaskDockTab::Statistics => {
@@ -59,7 +60,10 @@ impl UiState {
                     self.processing_task_dataset.is_some(),
                 ),
                 (TaskDockTab::Regions, self.region_task_dataset.is_some()),
-                (TaskDockTab::CurveFit, self.curve_fit_task_dataset.is_some()),
+                (
+                    TaskDockTab::CurveFit,
+                    self.curve_fit_task_dataset.is_some() || self.afm_fit_task.is_some(),
+                ),
                 (TaskDockTab::Statistics, self.stat_task_dataset.is_some()),
                 (TaskDockTab::Protein, self.protein_open),
                 (TaskDockTab::Craft, self.craft_task_dataset.is_some()),
@@ -78,6 +82,7 @@ impl UiState {
         self.region_task_dataset = None;
         self.region_task_collapsed = false;
         self.curve_fit_task_dataset = None;
+        self.afm_fit_task = None;
         self.curve_fit_task_collapsed = false;
         self.stat_task_dataset = None;
         self.stat_task_collapsed = false;

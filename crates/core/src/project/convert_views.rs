@@ -130,6 +130,7 @@ pub fn canvas_to_view(
                 viewport: None,
                 axis_overrides: None,
                 intent: None,
+                afm_force_fits: Vec::new(),
                 text: None,
                 shape: None,
                 image: None,
@@ -162,6 +163,7 @@ pub fn canvas_to_view(
                         },
                         Dataset::Table(_) => "line_plot",
                         Dataset::Electrophysiology(_) => "line_plot",
+                        Dataset::Afm(_) if plot.chart.type_id == "afm_force_curve" => "line_plot",
                         Dataset::Afm(_) => "heatmap",
                         Dataset::MassSpec(_) => "line_plot",
                         Dataset::Xrd(_) => "line_plot",
@@ -199,6 +201,7 @@ pub fn canvas_to_view(
                         viewport: Some(ViewportDto::from_viewport(&plot.viewport)),
                         axis_overrides: AxisOverridesDto::from_overrides(&plot.axis_overrides),
                         intent: (!plot.intent.is_empty()).then(|| plot.intent.clone()),
+                        afm_force_fits: plot.afm_force_fits().to_vec(),
                         ..base(kind)
                     })
                 }
@@ -428,7 +431,7 @@ pub fn view_to_canvas(
                     preserve_aspect: image.preserve_aspect,
                 })
             }
-            "line_plot" | "contour_plot" | "stack_plot" | "plot" => {
+            "line_plot" | "contour_plot" | "stack_plot" | "heatmap" | "plot" => {
                 let resolve = |input: &str| {
                     recipe_to_dataset.get(input).copied().ok_or_else(|| {
                         ProjectError::Invalid(format!(
@@ -548,18 +551,14 @@ pub fn view_to_canvas(
                     .as_ref()
                     .map(|dto| projections_from_dto(dto, recipe_to_dataset, &app.doc.datasets))
                     .unwrap_or_default();
-                // A snapshot is a picture of a figure the document could still
-                // produce. When the dataset's selected DOSY map did not survive
-                // the load, it no longer can: replaying the snapshot would leave
-                // the saved contours on the canvas while the load report says the
-                // stack is being shown. Rebuild from the restored document
-                // instead, so what is drawn and what is reported agree.
+                // Missing DOSY maps invalidate snapshots; AFM overlays are restored from fit results.
                 let map_unavailable = app.doc.datasets[di]
                     .as_nmr2d()
                     .is_some_and(|dataset| dataset.missing_selected_map_note().is_some());
+                let rebuild = map_unavailable || !view_object.afm_force_fits.is_empty();
                 let mut figure = match &view_object.snapshot {
-                    Some(snapshot) if !map_unavailable => read_json(zip, &snapshot.figure)
-                        .unwrap_or_else(|_| {
+                    Some(snapshot) if !rebuild => {
+                        read_json(zip, &snapshot.figure).unwrap_or_else(|_| {
                             app.build_object_figure(
                                 display_owner,
                                 &binding,
@@ -568,7 +567,8 @@ pub fn view_to_canvas(
                                 &projections,
                                 size_mm,
                             )
-                        }),
+                        })
+                    }
                     _ => app.build_object_figure(
                         display_owner,
                         &binding,
@@ -592,11 +592,8 @@ pub fn view_to_canvas(
                 axis_overrides.annotations.validate().map_err(|e| {
                     ProjectError::Invalid(format!("view {view_id} object {}: {e}", view_object.id))
                 })?;
-                // Must track the branch actually taken above: a snapshot has axis
-                // overrides and the viewport already baked in, a rebuilt figure
-                // does not, so a bypassed snapshot has to be treated as absent
-                // here or the rebuilt figure would lose both.
-                let snapshot_backed = view_object.snapshot.is_some() && !map_unavailable;
+                // Only a replayed snapshot has axis overrides baked in.
+                let snapshot_backed = view_object.snapshot.is_some() && !rebuild;
                 let derived_axes = if snapshot_backed {
                     let derived = app.build_object_figure(
                         display_owner,
@@ -644,6 +641,7 @@ pub fn view_to_canvas(
                         ))
                     })?;
                 }
+                plot.set_afm_force_fits(view_object.afm_force_fits.clone());
                 CanvasObjectKind::Plot(Box::new(plot))
             }
             other => {

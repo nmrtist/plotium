@@ -19,6 +19,8 @@ use plotium_processing::{
 };
 
 mod afm;
+mod afm_fit;
+mod afm_fit_output;
 mod app_impl;
 mod app_impl_align;
 mod app_impl_analysis;
@@ -204,6 +206,7 @@ mod xrd;
 mod xrd_axis;
 
 pub use afm::*;
+pub use afm_fit::*;
 pub use app_impl::*;
 pub use app_impl_align::*;
 pub use app_impl_analysis::validate_ilt_params;

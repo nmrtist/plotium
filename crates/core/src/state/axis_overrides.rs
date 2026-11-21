@@ -223,7 +223,7 @@ impl CanvasViewport {
         }
     }
 
-    fn refresh_auto_y(&mut self, fig: &Figure) {
+    pub(super) fn refresh_auto_y(&mut self, fig: &Figure) {
         self.view_y = visible_y_range_on(fig, self.view_x, YAxisSide::Left).unwrap_or(self.full_y);
         self.view_y2 = if self.auto_y2 {
             self.full_y2

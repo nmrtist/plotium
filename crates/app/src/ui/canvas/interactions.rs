@@ -33,6 +33,11 @@ pub(crate) fn handle_selection_drag(
     plot: PlotRect,
     ui: &Ui,
 ) {
+    if app.doc.datasets[dataset].as_afm().is_some()
+        && app.afm_force_plot_dataset(ci, object_id).is_none()
+    {
+        return;
+    }
     if app.plot_rejects_legacy_selection(ci, object_id)
         && app.plot_interaction_descriptor(ci, object_id).is_none()
     {
@@ -138,7 +143,10 @@ pub(crate) fn finish_selection_drag(
         unit: None,
         source_stream: None,
     });
-    let unit = if app.doc.datasets[dataset].as_mass_spec().is_some() {
+    let unit = if app.doc.datasets[dataset].as_afm().is_some() {
+        app.session.status = format!("Selected AFM X range: {:.3}-{:.3}.", x.min, x.max);
+        return;
+    } else if app.doc.datasets[dataset].as_mass_spec().is_some() {
         "min"
     } else {
         "ppm"

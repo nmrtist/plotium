@@ -253,11 +253,27 @@ See [XPS](/guides/xps/) for energy conversion, processing, and fitting.
 Plotium imports NanoScope `.spm` images, force curves, and force-volume grids,
 plus PeakForce Capture `.pfc` data cubes. Image channels plot as maps at the
 recorded scan size, in the file's physical units, with the aspect ratio locked.
-Force curves plot as separate approach and retract branches; when the file
-records a deflection sensitivity, the vertical axis is deflection in
-nanometres, otherwise the curve stays in the unit stored in the file. Plotium
-shows the acquired data as is — it does not infer a contact point, indentation,
-or modulus, and does not fit a contact-mechanics model.
+Force curves plot as separate Approach and Retract branches. With calibrated
+deflection and a spring constant, the vertical axis is force in nanonewtons;
+without the spring constant it is deflection in nanometres. If the signal
+cannot be converted to deflection, it stays in its stored unit. For standalone
+ramps, Plotium uses the calibrated relative Z ramp when available, then
+recorded sample time, then sample index.
+
+Use **Analyze → AFM Force Fit → Fit Approach** or **Fit Retract**. To fit
+part of a branch, use **Analyze → Analysis Range** and drag across the force
+plot. The default model is **Linear**. **Run AFM Fit** overlays the prediction
+within the fitted interval on the source plot without opening a new page or
+sheet. The fitted points, parameters, and convergence status stay with the
+plot when you save the project.
+
+Clear **Overlay on source plot** to run a fit without changing what the plot
+shows. After fitting, **Output** lets you toggle the overlay, duplicate the
+plot with the fit, create a residual plot, or open a new sheet containing
+observed, predicted, and residual values. **Zoom to Fit Range** magnifies
+the fitted interval on the source plot. Z is piezo displacement, not
+tip-sample separation or indentation; this fit does not infer a contact
+point or calculate a modulus.
 
 A PeakForce Capture file usually has an AllImages `.spm` export saved beside
 it. Plotium finds that companion, checks that its image grid matches the force

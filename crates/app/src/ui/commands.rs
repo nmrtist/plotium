@@ -5,7 +5,7 @@ use plotium_core::layout::{Align, Distribute, GutterPreset, SpacingMode};
 use plotium_core::properties::PropertyStep;
 #[cfg(test)]
 use plotium_core::state::WorkflowTab;
-use plotium_core::state::{Dataset, PlotiumApp, Tool, ToolGroup};
+use plotium_core::state::{AfmForceBranch, Dataset, PlotiumApp, Tool, ToolGroup};
 mod craft;
 mod identity;
 use identity::command_identity;
@@ -23,7 +23,7 @@ pub use ribbon::{Applicability, RibbonPlacement};
 use roster::command_ids;
 pub(crate) const REPOSITORY_URL: &str = "https://github.com/nmrtist/plotium";
 mod types;
-pub use types::{CommandDescriptor, CommandExecutionClass, CommandId};
+pub use types::{AfmFitCommand, CommandDescriptor, CommandExecutionClass, CommandId};
 
 pub fn catalog(app: &PlotiumApp) -> Vec<CommandDescriptor> {
     command_ids(app.session.recent_files.len())
@@ -70,6 +70,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         })
     };
     let has_selectable_analysis_trace = || has_trace() && !is_time_nmr();
+    let afm = || dataset().and_then(Dataset::as_afm);
     let has_generic_peak_fit_trace = || has_trace() && (is_frequency_nmr() || is_table());
     let range = || active_dataset.and_then(|di| app.analysis_range_for(di));
     let is_series = || dataset().is_some_and(Dataset::supports_region_analysis);
@@ -329,6 +330,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         ),
         CommandId::SelectRange => requires(
             has_selectable_analysis_trace()
+                || afm().is_some_and(|afm| afm.data.forces.is_some())
                 || dataset().is_some_and(|dataset| {
                     dataset.tool_groups().contains(&ToolGroup::MassSpectrometry)
                 }),
@@ -443,6 +445,26 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
             )
         }),
         CommandId::CurveFit => requires(is_table(), "Select a data table before fitting curves."),
+        CommandId::AfmFit(command) => super::tools::afm_fit_gate(app, command),
+        CommandId::FitAfmForce(branch) => requires(
+            afm().is_some(),
+            "Select an AFM dataset before fitting a force curve.",
+        ).and_then(|()| {
+            requires(
+                afm().is_some_and(|afm| afm.data.forces.is_some()),
+                "Import an AFM dataset containing force curves.",
+            )
+        }).and_then(|()| {
+            requires(
+                afm().is_some_and(|afm| afm.force_branch_sample_count(branch) >= 3),
+                "Select an AFM dataset with at least three samples in this branch.",
+            )
+        }).and_then(|()| {
+            requires(
+                afm().and_then(|data| app.afm_fit_target(data.resource_id, branch)).is_some(),
+                "Show an AFM force plot before fitting.",
+            )
+        }),
         CommandId::RunCurveFit => {
             requires(is_table(), "Select a data table before running Curve Fit.").and_then(|()| {
                 requires(
@@ -585,6 +607,7 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         Applicability::Always => true,
         Applicability::LineAlignmentOnly => app.trace_alignment_target().is_some(),
         Applicability::TableOnly => is_table(),
+        Applicability::AfmOnly => afm().is_some(),
         Applicability::XasOnly => dataset().and_then(Dataset::as_xas).is_some(),
         Applicability::SeriesOnly => is_series(),
         Applicability::Homonuclear2dOnly => dataset()
@@ -606,6 +629,9 @@ pub fn describe(app: &PlotiumApp, id: CommandId) -> CommandDescriptor {
         ribbon,
     }
 }
+#[cfg(test)]
+#[path = "commands_afm_tests.rs"]
+mod afm_tests;
 #[cfg(test)]
 #[path = "commands_alignment_tests.rs"]
 mod alignment_tests;

@@ -1,6 +1,7 @@
 //! Renders a single `ToolGroup` for the active dataset; new data domains plug
 //! in here without touching the sidebar or the toolbar.
 
+mod afm_fit;
 mod craft;
 mod cursors;
 mod curve_fit;
@@ -35,6 +36,10 @@ use slice::slice_group;
 use symmetry::symmetry_group;
 
 pub(super) use line_fit::line_fit_shape_id;
+
+pub(super) use afm_fit::{
+    afm_fit_gate, open_task as open_afm_force_fit_task, run_command as run_afm_fit_command,
+};
 pub(super) use xps::open_workbench as open_xps_workbench;
 
 #[derive(Clone, Copy, Default)]
@@ -76,7 +81,11 @@ pub(crate) fn render_region_task(app: &mut PlotiumApp, ui: &mut Ui) {
 }
 
 pub(crate) fn render_curve_fit_task(app: &mut PlotiumApp, ui: &mut Ui) {
-    curve_fit::render_task(app, ui);
+    if app.session.ui.afm_fit_task.is_some() {
+        afm_fit::render_task(app, ui);
+    } else {
+        curve_fit::render_task(app, ui);
+    }
 }
 
 pub(crate) fn render_statistics_task(app: &mut PlotiumApp, ui: &mut Ui) {

@@ -22,8 +22,11 @@ use companion::{companion_candidates, geometries_match};
 mod calibration;
 use calibration::{
     calibrated_si_value, first_number, is_physical_deflection_unit, normalize_afm_unit,
-    physical_unit, sensitivity_scale, value_with_si,
+    physical_unit, sensitivity_scale,
 };
+#[path = "nanoscope_force_axis.rs"]
+mod force_axis_details;
+use force_axis_details::standalone_force_axis;
 
 #[derive(Debug, Clone)]
 struct Entry {
@@ -69,7 +72,7 @@ pub fn is_nanoscope(path: &Path) -> bool {
         return false;
     };
     let text = String::from_utf8_lossy(&prefix[..read]).to_ascii_lowercase();
-    text.contains("\\*file list") || text.contains("\\*ciao")
+    text.contains("\\*file list") || text.contains("\\*force file list") || text.contains("\\*ciao")
 }
 
 pub fn load(path: &Path) -> Result<LoadResult, IoError> {
@@ -211,7 +214,14 @@ fn parse(
         }
     }
 
-    let forces = if let Some(candidate) = force_candidates.into_iter().max_by_key(|v| v.2) {
+    let forces = if let Some(candidate) = force_candidates.into_iter().max_by_key(|v| {
+        // Standalone ramps can store the same signal twice, once per X view.
+        let ramp = format == DataFormat::Afm(AfmFormat::BrukerNanoScopeSpm)
+            && v.0
+                .value(&["X Data Type"])
+                .is_some_and(|axis| axis.eq_ignore_ascii_case("Ramp"));
+        (v.2, ramp)
+    }) {
         match parse_force(bytes, candidate, &globals, format) {
             Ok(force) => Some(force),
             Err(error)
@@ -356,7 +366,7 @@ fn parse_force(
         .checked_mul(samples_per_curve)
         .and_then(|value| value.checked_mul(word))
         .ok_or_else(|| invalid("force block dimensions overflow"))?;
-    if expected != length {
+    if samples_per_curve == 0 || expected != length {
         return Err(invalid(
             "force block length does not match curve dimensions",
         ));
@@ -372,13 +382,17 @@ fn parse_force(
         samples_per_curve,
         frame_direction(section),
     );
-    let sample_period_s = global_number(globals, &["Sample period", "PeakForce period"])
-        .map(|value| value_with_si(value, "s"));
+    let sample_period_s = global_value(globals, &["Sample period", "PeakForce period"])
+        .and_then(calibration::sample_period_seconds);
     let frequency = global_number(globals, &["Peak Force Frequency", "PeakForce Frequency"]);
     let amplitude = global_number(globals, &["Peak Force Amplitude", "PeakForce Amplitude"]);
     let sync = global_number(globals, &["Sync Distance QNM"]).unwrap_or(0.0);
     let (display_order, approach_samples, z_positions) =
-        force_axis(samples_per_curve, format, frequency, amplitude, sync);
+        if format == DataFormat::Afm(AfmFormat::BrukerNanoScopeSpm) && pixels == 1 {
+            standalone_force_axis(section, globals, samples_per_curve)?
+        } else {
+            force_axis(samples_per_curve, format, frequency, amplitude, sync)
+        };
     let deflection_sensitivity_m_per_v = global_value(
         globals,
         &[
@@ -389,8 +403,10 @@ fn parse_force(
         ],
     )
     .and_then(|value| calibrated_si_value(value, "m/v"));
-    let spring_constant_n_per_m =
-        global_number(globals, &["Spring Constant"]).filter(|value| *value > 0.0);
+    let spring_constant_n_per_m = section
+        .number(&["Spring Constant"])
+        .or_else(|| global_number(globals, &["Spring Constant"]))
+        .filter(|value| value.is_finite() && *value > 0.0);
     Ok(AfmForceSet {
         grid_width,
         grid_height,
@@ -405,6 +421,8 @@ fn parse_force(
         spring_constant_n_per_m,
     })
 }
+
+type ForceAxis = (Vec<usize>, usize, Option<Vec<f64>>);
 
 fn replace_force_sentinels(raw: &mut [i32], samples_per_curve: usize) {
     if samples_per_curve < 2 {
@@ -477,7 +495,7 @@ fn force_axis(
     frequency: Option<f64>,
     amplitude: Option<f64>,
     sync: f64,
-) -> (Vec<usize>, usize, Option<Vec<f64>>) {
+) -> ForceAxis {
     if format != DataFormat::Afm(AfmFormat::BrukerPeakForceCapture)
         || frequency.is_none()
         || amplitude.is_none()

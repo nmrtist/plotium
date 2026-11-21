@@ -51,6 +51,52 @@ fn deflection_error_raster_remains_an_image_channel() {
     assert!(data.forces.is_none());
 }
 
+fn standalone_force_views() -> Vec<u8> {
+    let mut header = String::from(
+        "\\*Force file list\n\\*Scanner list\n\\@Sens. Zsens: V 10.0 nm/V\n\\@Sens. DeflSens: V 20.0 nm/V\n\\*Ciao force list\n\\@Sample Period: V (0.1 us/LSB) 6.0 us\n",
+    );
+    for (axis, offset) in [("Ramp", 1024), ("Time", 1052)] {
+        header.push_str(&format!(
+            "\\*Ciao force image list\n\\Data offset: {offset}\n\\Data length: 28\n\\Bytes/pixel: 4\n\\Samps/line: 3 4\n\\Spring Constant: 0.7\n\\X Data Type: {axis}\n\\@4:Image Data: S [DeflectionError] \"Deflection Error\"\n\\@4:Z scale: V [Sens. DeflSens] (0.01 V/LSB) 2.5 V\n\\@4:Ramp Size: V [Sens. Zsens] (0.005 V/LSB) 9.0 V\n",
+        ));
+    }
+    header.push_str("\\*File list end\n\u{1a}");
+    let mut bytes = header.into_bytes();
+    assert!(bytes.len() <= 1024);
+    bytes.resize(1024, 0);
+    for value in 1_i32..=14 {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
+#[test]
+fn standalone_ramp_prefers_z_view_and_calibrates_both_branches() {
+    let bytes = standalone_force_views();
+    let (data, warnings) = parse(
+        &bytes,
+        Path::new("ramp.spm"),
+        DataFormat::Afm(AfmFormat::BrukerNanoScopeSpm),
+    )
+    .unwrap();
+    assert!(warnings.is_empty());
+    assert!(data.images.is_empty());
+    let force = data.forces.unwrap();
+    assert_eq!(
+        force.curve_raw(0, 0),
+        Some([1, 2, 3, 4, 5, 6, 7].as_slice())
+    );
+    assert_eq!(force.approach_samples, 4);
+    assert_eq!(
+        force.z_positions.as_deref(),
+        Some([0.0, 30.0, 60.0, 90.0, 0.0, 45.0, 90.0].as_slice()),
+    );
+    assert_eq!(force.sample_period_s, Some(6.0e-6));
+    assert_eq!(force.spring_constant_n_per_m, Some(0.7));
+    assert_eq!(force.signal_scale.unit, "nm");
+    assert!((force.signal_scale.apply(5) - 1.0).abs() < 1e-12);
+}
+
 #[test]
 fn malformed_optional_force_block_does_not_abort_valid_images() {
     let mut header = "\\*File list

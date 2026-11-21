@@ -21,6 +21,7 @@ pub enum DerivationKind {
     IvTable,
     StatisticsTable,
     RelationalTransform,
+    AfmForceBranchTable,
 }
 
 impl DerivationKind {
@@ -39,6 +40,7 @@ impl DerivationKind {
             Self::IvTable => "IV table",
             Self::StatisticsTable => "Statistics table",
             Self::RelationalTransform => "Table transform",
+            Self::AfmForceBranchTable => "AFM force branch",
         }
     }
 }
