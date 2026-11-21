@@ -8,7 +8,7 @@ use egui_phosphor::regular as icon;
 use plotium_core::actions::ZOrder;
 use plotium_core::layout::{Align, Distribute, GutterPreset, SpacingMode};
 use plotium_core::properties::PropertyStep;
-use plotium_core::state::{PanelLayout, PlotiumApp, Tool};
+use plotium_core::state::{AfmForceBranch, PanelLayout, PlotiumApp, Tool};
 
 use super::CommandId;
 
@@ -290,7 +290,26 @@ pub(super) fn command_identity(
         ),
         CommandId::RunPeakFit => plain("Run Peak Fit", Some(icon::PLAY)),
         CommandId::CurveFit => plain("Fit Curves", Some(icon::FUNCTION)),
+        CommandId::FitAfmForce(branch) => plain(
+            match branch {
+                AfmForceBranch::Approach => "Fit Approach",
+                AfmForceBranch::Retract => "Fit Retract",
+            },
+            Some(icon::FUNCTION),
+        ),
         CommandId::RunCurveFit => plain("Run Fit", Some(icon::PLAY)),
+        CommandId::AfmFit(command) => {
+            let (label, _, icon) = command.identity();
+            let checked = (command == super::AfmFitCommand::ToggleOverlay).then(|| {
+                app.session
+                    .ui
+                    .afm_fit_task
+                    .as_ref()
+                    .and_then(|draft| app.afm_fit_result(draft.target))
+                    .is_some_and(|fit| fit.shown)
+            });
+            (label.into(), Some(icon), checked)
+        }
         CommandId::Statistics => plain("Statistics", Some(icon::CHART_BAR)),
         CommandId::ChartType => plain("Chart Type…", Some(icon::CHART_SCATTER)),
         CommandId::FigureTypography => plain("Figure Typography…", Some(icon::TEXT_AA)),
@@ -599,7 +618,10 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::LineFit => "analysis.line_fit",
         CommandId::RunPeakFit => "analysis.run_peak_fit",
         CommandId::CurveFit => "analysis.curve_fit",
+        CommandId::FitAfmForce(AfmForceBranch::Approach) => "analysis.afm_fit_approach",
+        CommandId::FitAfmForce(AfmForceBranch::Retract) => "analysis.afm_fit_retract",
         CommandId::RunCurveFit => "analysis.run_curve_fit",
+        CommandId::AfmFit(command) => command.identity().1,
         CommandId::Statistics => "analysis.statistics",
         CommandId::ChartType => "figure.chart_type",
         CommandId::FigureTypography => "figure.typography",

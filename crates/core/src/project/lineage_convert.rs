@@ -16,6 +16,7 @@ pub(super) fn derivation_kind_to_str(kind: DerivationKind) -> &'static str {
         DerivationKind::IvTable => "iv_table",
         DerivationKind::StatisticsTable => "statistics_table",
         DerivationKind::RelationalTransform => "relational_transform",
+        DerivationKind::AfmForceBranchTable => "afm_force_branch_table",
     }
 }
 
@@ -34,6 +35,7 @@ fn derivation_kind_from_str(value: &str) -> Result<DerivationKind> {
         "iv_table" => Ok(DerivationKind::IvTable),
         "statistics_table" => Ok(DerivationKind::StatisticsTable),
         "relational_transform" => Ok(DerivationKind::RelationalTransform),
+        "afm_force_branch_table" => Ok(DerivationKind::AfmForceBranchTable),
         other => Err(ProjectError::Invalid(format!(
             "unknown dataset derivation kind {other}"
         ))),

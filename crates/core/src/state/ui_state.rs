@@ -246,6 +246,7 @@ pub struct UiState {
     pub region_task_collapsed: bool,
     /// Data table whose Curve Fit workflow is shown in the canvas task card.
     pub curve_fit_task_dataset: Option<usize>,
+    pub afm_fit_task: Option<super::AfmFitDraft>,
     /// Whether the Curve Fit task card is reduced to its one-line summary.
     pub curve_fit_task_collapsed: bool,
     /// Data table whose Statistics workflow is shown in the canvas task card.
@@ -470,6 +471,7 @@ impl Default for UiState {
             region_task_dataset: None,
             region_task_collapsed: false,
             curve_fit_task_dataset: None,
+            afm_fit_task: None,
             curve_fit_task_collapsed: false,
             stat_task_dataset: None,
             stat_task_collapsed: false,

@@ -409,6 +409,8 @@ pub struct ViewCanvasObject {
     /// The author's stated purpose and claim of a plot; absent when unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<crate::state::PlotIntent>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub afm_force_fits: Vec<std::sync::Arc<crate::state::AfmForceFit>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<TextBoxDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

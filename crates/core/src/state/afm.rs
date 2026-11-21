@@ -2,6 +2,22 @@ use super::*;
 use plotium_figure::{AxisFrame, ColormapId, Contour, ContourStyle, HeatmapGrid, Series};
 use std::sync::Arc;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AfmForceBranch {
+    Approach,
+    Retract,
+}
+
+impl AfmForceBranch {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Approach => "Approach",
+            Self::Retract => "Retract",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AfmDataset {
     pub resource_id: DatasetId,
@@ -140,8 +156,7 @@ impl AfmDataset {
                     }
                 })
         };
-        let displacement_factor = physical_length_factor(&forces.signal_scale.unit)
-            .or(forces.deflection_sensitivity_m_per_v);
+        let displacement_factor = deflection_length_factor(forces);
         let spring_constant = forces
             .spring_constant_n_per_m
             .filter(|value| value.is_finite() && *value > 0.0);
@@ -164,11 +179,8 @@ impl AfmDataset {
             })
             .collect();
         let split = forces.approach_samples.min(ordered.len());
-        let x_label = if forces.z_positions.is_some() {
-            "Z"
-        } else {
-            "Time"
-        };
+        let (x_name, x_unit) = force_x_quantity(forces);
+        let x_label = axis_label(x_name, x_unit);
         let y_label = if displacement_factor.is_some() && spring_constant.is_some() {
             "Force (nN)"
         } else if displacement_factor.is_some() {
@@ -191,14 +203,26 @@ impl AfmDataset {
             Axis::new(x_label, x_min, x_max),
             Axis::new(y_label, y_min, y_max),
         );
-        figure
-            .series
-            .push(Series::line("Approach", ordered[..split].to_vec()));
+        figure.series.push(Series::line(
+            AfmForceBranch::Approach.name(),
+            ordered[..split].to_vec(),
+        ));
         figure.series.push(
-            Series::line("Retract", ordered[split..].to_vec())
+            Series::line(AfmForceBranch::Retract.name(), ordered[split..].to_vec())
                 .colored(Color::rgb(0xd1, 0x24, 0x2a)),
         );
         Some(figure)
+    }
+
+    pub fn force_branch_sample_count(&self, branch: AfmForceBranch) -> usize {
+        let Some(forces) = &self.data.forces else {
+            return 0;
+        };
+        let approach = forces.approach_samples.min(forces.samples_per_curve);
+        match branch {
+            AfmForceBranch::Approach => approach,
+            AfmForceBranch::Retract => forces.samples_per_curve - approach,
+        }
     }
 
     fn image_for_field(&self, field: FieldId) -> Option<&plotium_io::AfmImageChannel> {
@@ -209,6 +233,58 @@ impl AfmDataset {
             .find(|(_, key)| self.field_catalog.id_for_key(key) == Some(field))
             .map(|(channel, _)| channel)
     }
+}
+
+impl PlotiumApp {
+    pub fn afm_force_plot_dataset(&self, canvas: usize, object: ObjectId) -> Option<DatasetId> {
+        let plot = self.doc.canvases.get(canvas)?.object(object)?.plot()?;
+        let dataset = plot.primary_dataset()?;
+        (plot.chart.type_id == "afm_force_curve"
+            && self.doc.dataset_by_id(dataset)?.as_afm().is_some())
+        .then_some(dataset)
+    }
+}
+
+fn axis_label(name: &str, unit: &str) -> String {
+    if unit.is_empty() {
+        name.into()
+    } else {
+        format!("{name} ({unit})")
+    }
+}
+
+pub(super) fn force_x_quantity(forces: &plotium_io::AfmForceSet) -> (&'static str, &'static str) {
+    if forces.z_positions.is_some() {
+        ("Z", "nm")
+    } else if forces.sample_period_s.is_some() {
+        ("Time", "s")
+    } else {
+        ("Sample index", "")
+    }
+}
+
+pub(super) fn force_y_quantity(forces: &plotium_io::AfmForceSet) -> (&'static str, &str) {
+    if deflection_length_factor(forces).is_none() {
+        ("Signal", &forces.signal_scale.unit)
+    } else if forces
+        .spring_constant_n_per_m
+        .is_some_and(|v| v.is_finite() && v > 0.0)
+    {
+        ("Force", "nN")
+    } else {
+        ("Deflection", "nm")
+    }
+}
+
+fn deflection_length_factor(forces: &plotium_io::AfmForceSet) -> Option<f64> {
+    let unit = forces.signal_scale.unit.split('/').next()?.trim();
+    physical_length_factor(unit)
+        .or_else(|| {
+            unit.eq_ignore_ascii_case("V")
+                .then_some(forces.deflection_sensitivity_m_per_v)
+                .flatten()
+        })
+        .filter(|value| value.is_finite() && *value > 0.0)
 }
 
 fn physical_length_factor(unit: &str) -> Option<f64> {

@@ -405,6 +405,7 @@ pub(super) fn group_order(tab: WorkflowTab, group: &str) -> u8 {
             "Overlay",
             "Peak Fit",
             "Curve Fit",
+            "AFM Force Fit",
             "Statistics",
             "Interpret",
         ],

@@ -350,6 +350,12 @@ pub(super) fn validate_action(
                 }
             }
         }
+        Action::SetAfmForceFits { target, .. } if app.afm_fit_plot(*target).is_none() => {
+            return Err(ActionApplyError::StaleTarget(format!(
+                "AFM plot {}",
+                target.object
+            )));
+        }
         Action::SetCurveBinding { canvas, object, .. } => {
             if app
                 .doc

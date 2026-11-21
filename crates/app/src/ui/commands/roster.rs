@@ -5,9 +5,10 @@
 use plotium_core::export::ExportFormat;
 use plotium_core::layout::{Align, Distribute, GutterPreset, SpacingMode};
 use plotium_core::properties::PropertyStep;
+use plotium_core::state::AfmForceBranch;
 
 use super::helpers::tool_commands;
-use super::{CommandId, ZOrder};
+use super::{AfmFitCommand, CommandId, ZOrder};
 
 /// The full command roster; only the recent-files arm depends on app state.
 pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
@@ -126,6 +127,15 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::LineFit,
         CommandId::RunPeakFit,
         CommandId::CurveFit,
+        CommandId::FitAfmForce(AfmForceBranch::Approach),
+        CommandId::FitAfmForce(AfmForceBranch::Retract),
+        CommandId::AfmFit(AfmFitCommand::Run),
+        CommandId::AfmFit(AfmFitCommand::ToggleOverlay),
+        CommandId::AfmFit(AfmFitCommand::ZoomRange),
+        CommandId::AfmFit(AfmFitCommand::Duplicate),
+        CommandId::AfmFit(AfmFitCommand::ResidualPlot),
+        CommandId::AfmFit(AfmFitCommand::DataSheet),
+        CommandId::AfmFit(AfmFitCommand::ShowSource),
         CommandId::RunCurveFit,
         CommandId::Statistics,
         CommandId::ChartType,

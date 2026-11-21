@@ -322,6 +322,8 @@ fn execute_inner(
         CommandId::LineFit => reveal_tool_group(app, Tool::LineFit, ToolGroup::LineFit),
         CommandId::RunPeakFit => run_peak_fit(app, ctx),
         CommandId::CurveFit => open_curve_fit(app),
+        CommandId::FitAfmForce(branch) => super::tools::open_afm_force_fit_task(app, branch),
+        CommandId::AfmFit(command) => super::tools::run_afm_fit_command(app, command),
         CommandId::RunCurveFit => run_curve_fit(app),
         CommandId::Statistics => open_statistics(app),
         CommandId::ChartType => open_chart_type(app),

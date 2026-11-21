@@ -79,6 +79,21 @@ fn force_only_gui_insertion_builds_a_nonempty_force_curve() {
 }
 
 #[test]
+fn map_and_force_plots_survive_project_roundtrip() {
+    let app = insert(afm_dataset(true));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("afm.plotium");
+    plotium_core::project::save_project(&app, &path, false).unwrap();
+    let reopened = plotium_core::project::load_project(&path).unwrap();
+    let objects = &reopened.doc.canvases[0].objects;
+    let map = objects[0].plot().unwrap();
+    let force = objects[1].plot().unwrap();
+    assert!(map.figure().heatmap.is_some());
+    assert_eq!(force.figure().series.len(), 2);
+    assert_eq!(force.figure().x.label, "Z (nm)");
+}
+
+#[test]
 fn map_and_force_gui_insertion_builds_side_by_side_plots() {
     let app = insert(afm_dataset(true));
     let objects = &app.doc.canvases[0].objects;

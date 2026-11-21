@@ -30,6 +30,7 @@ pub(crate) fn open_task(app: &mut PlotiumApp, di: usize) {
         return;
     }
     ensure_curve_fit_state(app, di);
+    app.session.ui.afm_fit_task = None;
     app.session.ui.curve_fit_task_dataset = Some(di);
     app.session.ui.open_task_tab(TaskDockTab::CurveFit);
 }
@@ -750,10 +751,13 @@ pub(super) fn run_curve_fit(app: &mut PlotiumApp, di: usize) {
     }
 }
 
-/// Captured b encoding takes priority over acquisition gradient constants;
-/// delay rulers use inversion recovery, other tables a mono-exponential.
 fn default_fit_model(table: &TableDataset) -> &'static str {
     use plotium_analysis::models;
+    if table.lineage.as_ref().is_some_and(|lineage| {
+        lineage.kind == plotium_core::state::DerivationKind::AfmForceBranchTable
+    }) {
+        return models::LINEAR_ID;
+    }
     if table.meta.diffusion_input.is_some() {
         return models::DIFFUSION_B_ID;
     }

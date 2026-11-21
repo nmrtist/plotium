@@ -50,9 +50,41 @@ pub(super) fn is_physical_deflection_unit(unit: &str) -> bool {
         .any(|physical| lower == *physical || lower.starts_with(&format!("{physical}/")))
 }
 
-pub(super) fn value_with_si(value: f64, unit: &str) -> f64 {
-    let _ = unit;
-    value
+/// The quantity after the hard scale is the display value, not the units/LSB.
+pub(super) fn display_quantity(value: &str) -> Option<(f64, &str)> {
+    let mut quantity = value
+        .rsplit_once(')')
+        .map_or(value, |(_, tail)| tail)
+        .split_whitespace();
+    Some((quantity.next()?.parse().ok()?, quantity.next()?))
+}
+
+pub(super) fn sample_period_seconds(value: &str) -> Option<f64> {
+    let (magnitude, unit) = display_quantity(value).or_else(|| Some((value.parse().ok()?, "s")))?;
+    let factor = match unit.to_ascii_lowercase().replace(['µ', 'μ'], "u").as_str() {
+        "s" => 1.0,
+        "ms" => 1e-3,
+        "us" => 1e-6,
+        "ns" => 1e-9,
+        _ => return None,
+    };
+    let period = magnitude * factor;
+    (period.is_finite() && period > 0.0).then_some(period)
+}
+
+pub(super) fn length_factor_nm(unit: &str) -> Option<f64> {
+    match unit
+        .to_ascii_lowercase()
+        .replace(['µ', 'μ', '~'], "u")
+        .as_str()
+    {
+        "m" => Some(1e9),
+        "mm" => Some(1e6),
+        "um" => Some(1e3),
+        "nm" => Some(1.0),
+        "pm" => Some(1e-3),
+        _ => None,
+    }
 }
 
 fn parenthesized(value: &str) -> Option<&str> {

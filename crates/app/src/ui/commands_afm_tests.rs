@@ -1,0 +1,163 @@
+use super::*;
+use plotium_core::actions::Action;
+use plotium_core::state::{
+    AfmDataset, AnalysisSelection, AxisRange, DEFAULT_CANVAS_SIZE_MM, TaskDockTab,
+};
+use plotium_io::{AfmData, AfmForceSet, AfmScale};
+use std::sync::Arc;
+
+fn insert_afm(forces: Option<AfmForceSet>) -> PlotiumApp {
+    let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+    let data = AfmDataset::load(AfmData {
+        images: Vec::new(),
+        forces,
+        source: "synthetic.spm".into(),
+        import_warnings: Vec::new(),
+    });
+    app.execute_action(Action::insert_dataset_with_default_canvas(
+        &app,
+        Dataset::Afm(Box::new(data)),
+        "AFM".into(),
+        DEFAULT_CANVAS_SIZE_MM,
+    ));
+    app
+}
+
+#[test]
+fn afm_fit_group_is_visible_but_disabled_without_force_data() {
+    let app = insert_afm(None);
+    for branch in [AfmForceBranch::Approach, AfmForceBranch::Retract] {
+        let command = describe(&app, CommandId::FitAfmForce(branch));
+        assert!(!command.enabled);
+        assert!(command.disabled_reason.unwrap().contains("force curves"));
+        assert_eq!(command.ribbon.unwrap().group, "AFM Force Fit");
+    }
+}
+
+#[test]
+fn afm_fit_command_uses_the_selected_branch_and_range() {
+    let mut app = insert_afm(Some(AfmForceSet {
+        grid_width: 1,
+        grid_height: 1,
+        samples_per_curve: 12,
+        raw: Arc::from([5, 7, 9, 11, 13, 15, 20, 17, 14, 11, 8, 5]),
+        signal_scale: AfmScale {
+            multiplier: 1.0,
+            offset: 0.0,
+            unit: "nm".into(),
+        },
+        sample_period_s: None,
+        z_positions: Some(Arc::from([0., 1., 2., 3., 4., 5., 0., 1., 2., 3., 4., 5.])),
+        display_order: Arc::from((0..12).collect::<Vec<_>>()),
+        approach_samples: 6,
+        deflection_sensitivity_m_per_v: None,
+        spring_constant_n_per_m: Some(1.0),
+    }));
+    let source = app.doc.datasets[0].resource_id();
+    let canvas = &app.doc.canvases[0];
+    app.session.ui.analysis_selection = Some(AnalysisSelection {
+        dataset: source,
+        canvas: canvas.resource_id,
+        object: canvas.objects[0].id,
+        x_range: AxisRange::new(1.0, 4.0),
+        y_range: None,
+        field: None,
+        unit: None,
+        source_stream: None,
+    });
+
+    let ctx = egui::Context::default();
+    assert!(describe(&app, CommandId::SelectRange).enabled);
+    let command = CommandId::FitAfmForce(AfmForceBranch::Retract);
+    assert!(
+        catalog(&app)
+            .iter()
+            .any(|entry| entry.id == command && entry.enabled)
+    );
+    execute_without_clipboard(command, &mut app, &ctx);
+    assert_eq!(app.active_dataset(), Some(0));
+    assert_eq!(app.session.ui.task_dock_active, Some(TaskDockTab::CurveFit));
+    let draft = app.session.ui.afm_fit_task.as_ref().unwrap();
+    assert_eq!(draft.model, plotium_analysis::models::LINEAR_ID);
+    let target = draft.target;
+    let viewport = app.afm_fit_plot(target).unwrap().viewport.clone();
+    let active = app.session.active_canvas;
+    let run = |app: &mut PlotiumApp, command| {
+        execute_without_clipboard(CommandId::AfmFit(command), app, &ctx);
+    };
+    run(&mut app, AfmFitCommand::Run);
+    let result = app.afm_fit_result(target).unwrap();
+    assert!(result.converged);
+    assert_eq!(result.rows.len(), 4);
+    for ([x, y, predicted], [expected_x, expected_y]) in
+        result
+            .rows
+            .iter()
+            .zip([[1., 17.], [2., 14.], [3., 11.], [4., 8.]])
+    {
+        assert_eq!(*x, expected_x);
+        assert!((y - expected_y).abs() < 1e-12);
+        assert!((predicted - y).abs() < 1e-6);
+    }
+    assert_eq!(app.doc.datasets.len(), 1);
+    assert_eq!(app.doc.canvases.len(), 1);
+    assert_eq!(app.session.active_canvas, active);
+    assert!(app.session.ui.sheet_open.is_none());
+    let plot = app.afm_fit_plot(target).unwrap();
+    assert_eq!(plot.viewport, viewport);
+    assert_eq!(plot.figure().series.len(), 3);
+    assert_eq!(plot.figure().series[2].name, "Retract fit");
+    app.undo();
+    assert!(app.afm_fit_result(target).is_none());
+    assert_eq!(app.afm_fit_plot(target).unwrap().figure().series.len(), 2);
+    app.redo();
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("afm.plotium");
+    plotium_core::project::save_project(&app, &path, true).unwrap();
+    let reopened = plotium_core::project::load_project(&path).unwrap();
+    assert!(reopened.afm_fit_result(target).unwrap().converged);
+    assert_eq!(
+        reopened.afm_fit_plot(target).unwrap().figure().series.len(),
+        3
+    );
+
+    run(&mut app, AfmFitCommand::ToggleOverlay);
+    assert_eq!(app.afm_fit_plot(target).unwrap().figure().series.len(), 2);
+    run(&mut app, AfmFitCommand::Duplicate);
+    assert_eq!(app.doc.datasets.len(), 1);
+    assert_eq!(app.session.active_canvas, Some(1));
+    assert_eq!(
+        app.doc.canvases[1].objects[0]
+            .plot()
+            .unwrap()
+            .figure()
+            .series
+            .len(),
+        3
+    );
+    assert!(!app.afm_fit_result(target).unwrap().shown);
+    run(&mut app, AfmFitCommand::ResidualPlot);
+    assert_eq!(app.session.active_canvas, Some(2));
+    assert_eq!(
+        app.doc.canvases[2].objects[0]
+            .plot()
+            .unwrap()
+            .figure()
+            .series[0]
+            .name,
+        "Residual"
+    );
+    assert!(app.session.ui.sheet_open.is_none());
+    run(&mut app, AfmFitCommand::DataSheet);
+    assert_eq!(app.doc.canvases.len(), 3);
+    assert_eq!(app.session.ui.sheet_open, Some(2));
+    assert_eq!(
+        app.doc.datasets[2]
+            .as_table()
+            .unwrap()
+            .series_bindings
+            .len(),
+        3
+    );
+}

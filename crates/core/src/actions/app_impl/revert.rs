@@ -30,6 +30,11 @@ impl PlotiumApp {
                 }
             }
             Action::SetProtein { before, .. } => self.doc.protein = before.clone(),
+            Action::SetAfmForceFits { target, before, .. } => {
+                if let Err(error) = self.apply_afm_force_fits(*target, before) {
+                    self.session.status = error.to_string();
+                }
+            }
             Action::InstallScientificState { before, .. } => {
                 if let Err(error) = self.install_processing_snapshots(before) {
                     self.session.status = error.to_string();

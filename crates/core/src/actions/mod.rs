@@ -14,6 +14,7 @@ use plotium_processing::xrd::XrdProcessing;
 use plotium_processing::{AxisPipeline, Params2D, Preset2D};
 
 mod app_impl;
+pub(crate) use app_impl::ActionApplyError;
 pub(crate) mod deletion;
 pub use deletion::DeletionChange;
 mod arrange;
@@ -241,6 +242,11 @@ pub enum Action {
         object: ObjectId,
         before: CanvasViewport,
         after: CanvasViewport,
+    },
+    SetAfmForceFits {
+        target: crate::state::AfmFitTarget,
+        before: Vec<std::sync::Arc<crate::state::AfmForceFit>>,
+        after: Vec<std::sync::Arc<crate::state::AfmForceFit>>,
     },
     SetXViewportLinks {
         canvas: usize,
@@ -695,6 +701,7 @@ impl Action {
             Self::SetChartType { .. } => "chart type",
             Self::SetStackSpec { .. } => "stack setting",
             Self::SetPlotIntent { .. } => "plot intent",
+            Self::SetAfmForceFits { .. } => "AFM force fit",
             Self::SetCanvasSize { .. } | Self::SetPageLayout { .. } => "page layout",
             _ => "edit",
         }
@@ -730,6 +737,7 @@ impl Action {
             Self::SetPanelMeta { before, after, .. } => before == after,
             Self::SetObjectFlags { before, after, .. } => before == after,
             Self::SetPlotIntent { before, after, .. } => before == after,
+            Self::SetAfmForceFits { before, after, .. } => before == after,
             // Inserting or removing a bookmark always changes the list.
             Self::BoardViewInsert { .. } | Self::BoardViewRemove { .. } => false,
             Self::SetCurveBinding { before, after, .. } => before.binding == after.binding,

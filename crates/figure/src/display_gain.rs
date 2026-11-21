@@ -9,6 +9,23 @@ pub(crate) fn unit_gain() -> f64 {
 }
 
 impl Figure {
+    /// Append a scientific series to a figure that may already be amplified.
+    pub fn push_unamplified_series(&mut self, mut series: Series) -> Result<(), &'static str> {
+        let gain = self.display_gain;
+        if gain != 1.0 {
+            let source: Vec<_> = series.points.iter().map(|point| point[1]).collect();
+            for (point, &original) in series.points.iter_mut().zip(&source) {
+                point[1] = amplify(original, series.display_baseline, gain);
+                if original.is_finite() && !point[1].is_finite() {
+                    return Err("This display gain would exceed the numeric range.");
+                }
+            }
+            series.unamplified_y = Some(std::sync::Arc::new(source));
+        }
+        self.series.push(series);
+        Ok(())
+    }
+
     /// Recover runtime source coordinates only after complete geometry equality.
     /// Project snapshots carry the materialized geometry, not this cache.
     pub fn inherit_display_gain_sources(&mut self, reference: &Self) {

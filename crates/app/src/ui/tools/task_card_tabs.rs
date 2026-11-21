@@ -52,7 +52,11 @@ pub(in crate::ui::tools) fn tab_bar(
             TaskDockTab::CurveFit,
             icon::CHART_LINE_UP,
             "Fit",
-            app.session.ui.curve_fit_task_dataset,
+            app.session.ui.curve_fit_task_dataset.or_else(|| {
+                let target = app.session.ui.afm_fit_task.as_ref()?.target;
+                app.doc
+                    .dataset_index(app.afm_fit_plot(target)?.primary_dataset()?)
+            }),
         ),
         (
             TaskDockTab::Statistics,

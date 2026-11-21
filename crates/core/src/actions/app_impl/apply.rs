@@ -67,6 +67,9 @@ impl PlotiumApp {
                 }
             }
             Action::SetProtein { after, .. } => self.doc.protein = after.clone(),
+            Action::SetAfmForceFits { target, after, .. } => {
+                self.apply_afm_force_fits(*target, after)?;
+            }
             Action::InstallScientificState { after, .. } => {
                 self.install_processing_snapshots(after)?
             }
