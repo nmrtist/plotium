@@ -4533,11 +4533,11 @@ name = "plotium-data"
 version = "0.2.0"
 dependencies = [
  "arrow",
- "chrono-tz",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "thiserror 2.0.18",
+ "tzdb",
  "uuid",
 ]
 
@@ -6534,6 +6534,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "tz-rs"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fc6c929ffa10fb34f4a3c7e9a73620a83ef2e85e47f9ec3381b8289e6762f42"
+
+[[package]]
+name = "tzdb"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56d4e985b6dda743ae7fd4140c28105316ffd75bc58258ee6cc12934e3eb7a0c"
+dependencies = [
+ "tz-rs",
+ "tzdb_data",
+]
+
+[[package]]
+name = "tzdb_data"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "febaa995f6852367564e16c3369988b99d471d43ed12b1255b8d294661797f1c"
+dependencies = [
+ "tz-rs",
+]
+
+[[package]]
 name = "uds_windows"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7885,9 +7910,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.0.4"
+version = "9.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a954114b47a54df49f83d2722814e86b23d4bb1b54a1b90fb7d92b41619ddc22"
+checksum = "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
 dependencies = [
  "crc32fast",
  "flate2",

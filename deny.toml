@@ -20,10 +20,9 @@ multiple-versions = "warn"
 wildcards = "allow"
 highlight = "simplest-path"
 deny = [
-    # calamine >=0.37 and rust_xlsxwriter >=0.100 now use zip >=9 too. Prevent
-    # reintroducing the extraction vulnerabilities RUSTSEC-2026-0367/0368/0369
-    # through any consumer, including dependencies that only read ZIP streams.
-    { name = "zip", version = "<9.0.0", reason = "All ZIP consumers must use the patched extraction implementation" },
+    # Keep all ZIP consumers above the fixes for RUSTSEC-2026-0367/0368/0369
+    # and RUSTSEC-2026-0548, including readers that never extract to disk.
+    { name = "zip", version = "<9.0.5", reason = "All ZIP consumers must use the patched extraction implementation" },
 ]
 
 [sources]

@@ -12,9 +12,9 @@ path = "src/lib.rs"
 
 [dependencies]
 arrow.workspace = true
-chrono-tz.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+tzdb.workspace = true
 uuid.workspace = true
