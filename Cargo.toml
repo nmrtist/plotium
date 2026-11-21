@@ -35,9 +35,7 @@ default-members = [
 version = "0.2.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
-authors = ["Jiekang Tian <jiekangtian@gmail.com>"]
 publish = false
-repository = "https://github.com/nmrtist/plotium"
 
 [workspace.dependencies]
 nmr = "=0.1.3"
@@ -110,7 +108,6 @@ windows-sys = { version = "0.61", features = [
 plotium-io = { path = "crates/io" }
 plotium-data = { path = "crates/data" }
 plotium-datafusion = { path = "crates/datafusion" }
-plotium-substrait = { path = "crates/substrait" }
 plotium-analysis = { path = "crates/analysis" }
 plotium-processing = { path = "crates/processing" }
 plotium-figure = { path = "crates/figure" }
