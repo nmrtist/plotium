@@ -22,6 +22,7 @@ pub enum DerivationKind {
     StatisticsTable,
     RelationalTransform,
     AfmForceBranchTable,
+    AfmHertzFitTable,
 }
 
 impl DerivationKind {
@@ -41,6 +42,7 @@ impl DerivationKind {
             Self::StatisticsTable => "Statistics table",
             Self::RelationalTransform => "Table transform",
             Self::AfmForceBranchTable => "AFM force branch",
+            Self::AfmHertzFitTable => "AFM Hertz fit",
         }
     }
 }

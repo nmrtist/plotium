@@ -32,6 +32,107 @@ fn afm_fit_group_is_visible_but_disabled_without_force_data() {
         assert!(command.disabled_reason.unwrap().contains("force curves"));
         assert_eq!(command.ribbon.unwrap().group, "AFM Force Fit");
     }
+    let hertz = describe(&app, CommandId::AfmFit(AfmFitCommand::OpenHertz));
+    assert!(!hertz.enabled);
+    assert_eq!(hertz.ribbon.unwrap().group, "AFM Force Fit");
+}
+
+#[test]
+fn manual_hertz_calculates_and_only_exports_current_inputs() {
+    // At E* = 50 MPa and R = 225 nm, F(nN) = indentation(nm)^1.5.
+    let z = [64, 88, 98, 100, 104, 110, 116, 120];
+    let corrected_force = [27, 8, 1, 0, 0, 0, 0, 0];
+    let raw = z
+        .into_iter()
+        .zip(corrected_force)
+        .map(|(z, force)| 100 * force + 2 * z + 100)
+        .collect::<Vec<_>>();
+    let samples = z.len();
+    let mut app = insert_afm(Some(AfmForceSet {
+        grid_width: 1,
+        grid_height: 1,
+        samples_per_curve: samples * 2,
+        raw: Arc::from(raw.repeat(2)),
+        signal_scale: AfmScale {
+            multiplier: 0.01,
+            offset: 0.0,
+            unit: "nm".into(),
+        },
+        sample_period_s: None,
+        z_positions: Some(Arc::from(z.map(f64::from).repeat(2))),
+        display_order: Arc::from((0..samples * 2).collect::<Vec<_>>()),
+        approach_samples: samples,
+        deflection_sensitivity_m_per_v: None,
+        spring_constant_n_per_m: Some(1.0),
+    }));
+    let ctx = crate::typography::test_context();
+    let open = CommandId::AfmFit(AfmFitCommand::OpenHertz);
+    let run = CommandId::AfmFit(AfmFitCommand::RunHertz);
+    let output = CommandId::AfmFit(AfmFitCommand::HertzDataSheet);
+    assert!(
+        catalog(&app)
+            .iter()
+            .any(|entry| entry.id == open && entry.enabled)
+    );
+    execute_without_clipboard(open, &mut app, &ctx);
+    assert_eq!(app.session.ui.task_dock_active, Some(TaskDockTab::CurveFit));
+    assert!(!describe(&app, run).enabled);
+    assert!(!describe(&app, output).enabled);
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    assert_eq!(draft.target.branch, AfmForceBranch::Approach);
+    draft.spring_confirmed = true;
+    draft.radius_nm = "225".into();
+    draft.contact_z_nm = "100".into();
+    draft.baseline_z_nm = ["104".into(), "120".into()];
+    draft.fit_z_nm = ["64".into(), "98".into()];
+    assert!(describe(&app, run).enabled);
+    execute_without_clipboard(run, &mut app, &ctx);
+    let result = app.afm_hertz_result().expect("Hertz result");
+    assert!((result.reduced_modulus_mpa - 50.0).abs() < 1.0e-10);
+    let frame = |app: &mut PlotiumApp, events| {
+        ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(600.0, 460.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| crate::ui::tools::render_curve_fit_task(app, ui),
+        )
+    };
+    let output_visible = |output: egui::FullOutput| {
+        output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::Shape::Text(text)
+                if text.galley.text().ends_with("Create Hertz Data Sheet")
+                    && shape.clip_rect.contains(text.pos + egui::vec2(3.0, 5.0)))
+        })
+    };
+    for _ in 0..4 {
+        let _ = frame(&mut app, Vec::new());
+    }
+    assert!(!output_visible(frame(&mut app, Vec::new())));
+    let _ = frame(
+        &mut app,
+        vec![
+            egui::Event::PointerMoved(egui::pos2(450.0, 200.0)),
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                phase: egui::TouchPhase::Move,
+                delta: egui::vec2(0.0, -2500.0),
+                modifiers: Default::default(),
+            },
+        ],
+    );
+    assert!((0..30).any(|_| output_visible(frame(&mut app, Vec::new()))));
+    assert!(describe(&app, output).enabled);
+    execute_without_clipboard(output, &mut app, &ctx);
+    assert_eq!(app.doc.datasets.len(), 2);
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.contact_z_nm = "99".into();
+    assert!(app.afm_hertz_result().is_none());
+    assert!(!describe(&app, output).enabled);
 }
 
 #[test]

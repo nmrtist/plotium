@@ -30,9 +30,7 @@ pub(crate) fn open_task(app: &mut PlotiumApp, di: usize) {
         return;
     }
     ensure_curve_fit_state(app, di);
-    app.session.ui.afm_fit_task = None;
-    app.session.ui.curve_fit_task_dataset = Some(di);
-    app.session.ui.open_task_tab(TaskDockTab::CurveFit);
+    super::afm_fit::switch_to_table(app, di);
 }
 
 pub(crate) fn render_task(app: &mut PlotiumApp, host: &mut Ui) {

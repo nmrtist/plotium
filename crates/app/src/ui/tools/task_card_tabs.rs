@@ -53,7 +53,7 @@ pub(in crate::ui::tools) fn tab_bar(
             icon::CHART_LINE_UP,
             "Fit",
             app.session.ui.curve_fit_task_dataset.or_else(|| {
-                let target = app.session.ui.afm_fit_task.as_ref()?.target;
+                let target = crate::ui::tools::afm_fit::target(app)?;
                 app.doc
                     .dataset_index(app.afm_fit_plot(target)?.primary_dataset()?)
             }),

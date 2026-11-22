@@ -9,6 +9,9 @@ pub enum AfmFitCommand {
     ResidualPlot,
     DataSheet,
     ShowSource,
+    OpenHertz,
+    RunHertz,
+    HertzDataSheet,
 }
 
 impl AfmFitCommand {
@@ -45,6 +48,13 @@ impl AfmFitCommand {
                 "Show AFM Source Plot",
                 "analysis.afm_fit_source",
                 icon::ARROW_LEFT,
+            ),
+            Self::OpenHertz => ("Manual Hertz", "analysis.afm_hertz", icon::CHART_LINE_UP),
+            Self::RunHertz => ("Calculate Hertz Fit", "analysis.afm_hertz_run", icon::PLAY),
+            Self::HertzDataSheet => (
+                "Create Hertz Data Sheet",
+                "analysis.afm_hertz_sheet",
+                icon::TABLE,
             ),
         }
     }

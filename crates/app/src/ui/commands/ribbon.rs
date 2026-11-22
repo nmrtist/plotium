@@ -100,7 +100,9 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
             Applicability::ToolGroup(ToolGroup::LineFit),
         ),
         CommandId::CurveFit | CommandId::RunCurveFit => (Analyze, "Curve Fit", 0, TableOnly),
-        CommandId::FitAfmForce(_) => (Analyze, "AFM Force Fit", 0, Applicability::AfmOnly),
+        CommandId::FitAfmForce(_) | CommandId::AfmFit(super::AfmFitCommand::OpenHertz) => {
+            (Analyze, "AFM Force Fit", 0, Applicability::AfmOnly)
+        }
         CommandId::Statistics => (Analyze, "Statistics", 0, TableOnly),
         CommandId::Integrate | CommandId::Multiplets => (
             Analyze,
