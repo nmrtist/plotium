@@ -49,6 +49,7 @@ mod geometry;
 mod image_drop;
 pub(crate) mod image_painting;
 mod selection_painting;
+mod selection_status;
 pub(crate) use image_drop::{ImagePanelDropTarget, image_drop_target};
 mod integrals;
 mod integrals2d;

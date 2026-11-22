@@ -4,7 +4,8 @@ use egui::Ui;
 use plotium_analysis::fit_model::{FitModelDefinition, FitSolver, RobustLoss, WeightMode};
 use plotium_analysis::models::{LINEAR_ID, builtin_models};
 use plotium_core::state::{
-    AfmFitDraft, AfmForceBranch, AfmForceFit, FrameRef, PlotiumApp, TaskDockTab,
+    AfmDeflectionSource, AfmFitDraft, AfmForceBranch, AfmForceCurveContext, AfmForceFit,
+    AfmForceXSource, FrameRef, PlotiumApp, TaskDockTab,
 };
 
 const TAB: TaskDockTab = TaskDockTab::CurveFit;
@@ -174,20 +175,31 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui) {
     else {
         return;
     };
-    let Some(source) = app
+    let Some((source, context)) = app
         .afm_fit_plot(target)
-        .and_then(|plot| plot.primary_dataset())
-        .and_then(|id| app.doc.dataset_by_id(id))
+        .and_then(|_| app.doc.dataset_by_id(target.source))
+        .and_then(|source| Some((source, source.as_afm()?.force_curve_context()?)))
     else {
         ui.small("Source plot unavailable. Open AFM Force Fit from a force curve.");
         return;
     };
     ui.weak(source.display_name());
+    let x = context.x.label();
+    let x_note = if context.x_source == AfmForceXSource::ReconstructedZ {
+        ", not indentation"
+    } else {
+        ""
+    };
+    ui.small(format!("X: {x}{x_note} | Y: {}", context.y.label()));
+    calibration(ui, &context);
     if app.session.active_canvas != app.doc.canvas_index(target.canvas) {
         command(app, ui, Fit::ShowSource, false);
     }
     if let Some(range) = app.afm_fit_selection(target) {
-        ui.label(format!("Selected X: {:.4} to {:.4}", range.min, range.max));
+        ui.label(format!(
+            "Selected {x}: {:.4} to {:.4}",
+            range.min, range.max
+        ));
     } else {
         ui.label("Range: Entire branch");
     }
@@ -199,8 +211,8 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui) {
         .chain(&app.session.ui.fit_custom_models)
         .filter(|model| model.independent_variables.len() == 1 && model.responses.len() == 1);
     let model_name = |model: &FitModelDefinition| model.name.as_str().to_owned();
-    ui.horizontal(|ui| {
-        ui.label("Model");
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Empirical model");
         let selected = models
             .clone()
             .find(|model| model.id == draft.model)
@@ -314,14 +326,66 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui) {
     }
 }
 
+fn quantity_label(name: &str, unit: &str) -> String {
+    if unit.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{name} ({unit})")
+    }
+}
+
+fn calibration(ui: &mut Ui, context: &AfmForceCurveContext<'_>) {
+    let sensitivity = context.deflection_sensitivity_m_per_v.map(|value| {
+        let nm_per_v = value * 1.0e9;
+        if (0.001..1000.0).contains(&nm_per_v) {
+            format!("{nm_per_v:.4} nm/V")
+        } else {
+            format!("{value:.4e} m/V")
+        }
+    });
+    let deflection = match context.deflection_source {
+        AfmDeflectionSource::StoredLength => sensitivity.map_or_else(
+            || "Deflection: stored length".to_owned(),
+            |value| format!("Deflection: stored length (file sensitivity {value}, not reapplied)"),
+        ),
+        AfmDeflectionSource::VoltageSensitivity => sensitivity.map_or_else(
+            || "Deflection: converted from voltage".to_owned(),
+            |value| format!("Deflection: file sensitivity {value} applied"),
+        ),
+        AfmDeflectionSource::MissingVoltageSensitivity => {
+            "Deflection unavailable: missing or invalid voltage sensitivity".to_owned()
+        }
+        AfmDeflectionSource::UnsupportedSignalUnit => {
+            "Deflection unavailable: unrecognized signal units".to_owned()
+        }
+    };
+    ui.small(deflection);
+    let converts_deflection = matches!(
+        context.deflection_source,
+        AfmDeflectionSource::StoredLength | AfmDeflectionSource::VoltageSensitivity
+    );
+    let spring = match (context.spring_constant_n_per_m, converts_deflection) {
+        (Some(value), true) => format!("Spring constant: {value} N/m (file, applied)"),
+        (Some(value), false) => format!("Spring constant: {value} N/m (file, not applied)"),
+        (None, true) => "Force unavailable: missing or invalid spring constant".to_owned(),
+        (None, false) => "Spring constant: missing or invalid".to_owned(),
+    };
+    ui.small(spring);
+}
+
 fn summary(ui: &mut Ui, result: &AfmForceFit) {
     let range = result.range();
-    crate::typography::headline_label(ui, &result.model.name);
+    crate::typography::headline_label(ui, format!("Empirical fit: {}", result.model.name));
     ui.small(format!(
-        "{:.4} to {:.4} {} | {} points",
+        "{} vs {} | No modulus",
+        quantity_label(&result.y_name, &result.y_unit),
+        quantity_label(&result.x_name, &result.x_unit),
+    ));
+    ui.small(format!(
+        "X range: {:.4} to {:.4}{} | {} points",
         range.min,
         range.max,
-        result.x_unit,
+        unit_suffix(&result.x_unit),
         result.rows.len()
     ));
     if result.converged {
@@ -335,14 +399,22 @@ fn summary(ui: &mut Ui, result: &AfmForceFit) {
             |error| super::curve_fit::fmt_val_sigma(p.value, error),
         );
         if result.model.id == LINEAR_ID && p.name == "a" {
-            ui.label(format!("Intercept (a): {value} {}", result.y_unit));
+            ui.label(format!(
+                "Intercept (a): {value}{}",
+                unit_suffix(&result.y_unit)
+            ));
         } else if result.model.id == LINEAR_ID && p.name == "b" {
             let unit = if result.x_unit.is_empty() {
-                format!("{}/sample", result.y_unit)
+                "sample"
             } else {
-                format!("{}/{}", result.y_unit, result.x_unit)
+                &result.x_unit
             };
-            ui.label(format!("Slope (b): {value} {unit}"));
+            let response = if result.y_unit.is_empty() {
+                "1"
+            } else {
+                &result.y_unit
+            };
+            ui.label(format!("Slope (b): {value} {response}/{unit}"));
         } else {
             ui.label(format!("{}: {value}", p.name));
         }
@@ -352,6 +424,14 @@ fn summary(ui: &mut Ui, result: &AfmForceFit) {
     }
     for notice in &result.notices {
         ui.colored_label(ui.visuals().warn_fg_color, notice);
+    }
+}
+
+fn unit_suffix(unit: &str) -> String {
+    if unit.is_empty() {
+        String::new()
+    } else {
+        format!(" {unit}")
     }
 }
 
