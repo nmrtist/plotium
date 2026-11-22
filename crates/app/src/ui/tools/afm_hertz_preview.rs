@@ -1,5 +1,5 @@
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Stroke, Ui};
-use plotium_analysis::afm_hertz::HertzResult;
+use plotium_analysis::afm_hertz::{HertzInput, HertzResult};
 use plotium_core::state::AfmHertzDraft;
 
 struct Colors {
@@ -26,7 +26,12 @@ impl Colors {
     }
 }
 
-pub(super) fn approach(ui: &mut Ui, points: &[[f64; 2]], draft: &AfmHertzDraft) -> Option<f64> {
+pub(super) fn approach(
+    ui: &mut Ui,
+    points: &[[f64; 2]],
+    draft: &AfmHertzDraft,
+    suggestion: Option<HertzInput>,
+) -> Option<f64> {
     let colors = Colors::from_ui(ui);
     let contact = finite_number(&draft.contact_z_nm);
     let baseline = band(&draft.baseline_z_nm, colors.baseline);
@@ -35,6 +40,9 @@ pub(super) fn approach(ui: &mut Ui, points: &[[f64; 2]], draft: &AfmHertzDraft) 
         key(ui, "Baseline", colors.baseline);
         key(ui, "Fit window", colors.fit);
         key(ui, "Contact Z", colors.contact);
+        if suggestion.is_some() {
+            ui.weak("Dashed: suggested inputs");
+        }
     });
     let trace = Trace {
         color: ui.visuals().text_color(),
@@ -47,8 +55,9 @@ pub(super) fn approach(ui: &mut Ui, points: &[[f64; 2]], draft: &AfmHertzDraft) 
         Marks {
             bands: [baseline, fit],
             vertical: contact.map(|z| (z, colors.contact)),
-            zero_line: false,
+            suggestion,
             pick: true,
+            ..Default::default()
         },
     )?;
     let response = response
@@ -134,6 +143,7 @@ struct Trace<'a> {
 struct Marks {
     bands: [Option<([f64; 2], Color32)>; 2],
     vertical: Option<(f64, Color32)>,
+    suggestion: Option<HertzInput>,
     zero_line: bool,
     pick: bool,
 }
@@ -257,6 +267,9 @@ fn plot(
             }
         }
     }
+    if let Some(suggestion) = marks.suggestion {
+        draw_suggestion(&chart, scale, suggestion, &Colors::from_ui(ui));
+    }
     painter.line_segment([plot.left_top(), plot.left_bottom()], axis);
     painter.line_segment([plot.left_bottom(), plot.right_bottom()], axis);
     for (anchor, alignment, tick) in [
@@ -285,6 +298,45 @@ fn plot(
     }
     ui.small(x_name);
     Some((response, scale))
+}
+
+fn draw_suggestion(chart: &egui::Painter, scale: Scale, input: HertzInput, colors: &Colors) {
+    let dashed = |points: &[Pos2], color| {
+        chart.extend(egui::Shape::dashed_line(
+            points,
+            Stroke::new(1.75_f32, color),
+            4.0,
+            3.0,
+        ));
+    };
+    let plot = scale.rect;
+    for ([lo, hi], color) in [
+        (input.baseline_z_nm, colors.baseline),
+        (input.fit_z_nm, colors.fit),
+    ] {
+        let left = scale.screen_x(lo.clamp(scale.x[0], scale.x[1]));
+        let right = scale.screen_x(hi.clamp(scale.x[0], scale.x[1]));
+        if left < right {
+            // Inset the outline so the dash pattern is visible at plot limits.
+            let top = plot.top() + 2.0;
+            let bottom = plot.bottom() - 2.0;
+            dashed(
+                &[
+                    egui::pos2(left, top),
+                    egui::pos2(right, top),
+                    egui::pos2(right, bottom),
+                    egui::pos2(left, bottom),
+                    egui::pos2(left, top),
+                ],
+                color,
+            );
+        }
+    }
+    let x = scale.screen_x(input.contact_z_nm);
+    dashed(
+        &[egui::pos2(x, plot.top()), egui::pos2(x, plot.bottom())],
+        colors.contact,
+    );
 }
 
 fn band(limits: &[String; 2], color: Color32) -> Option<([f64; 2], Color32)> {

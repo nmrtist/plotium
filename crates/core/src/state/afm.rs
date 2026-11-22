@@ -132,6 +132,17 @@ pub struct AfmDataset {
 }
 
 impl AfmDataset {
+    pub(super) fn force_increment_nn(&self) -> Option<f64> {
+        let forces = self.data.forces.as_ref()?;
+        let context = self.force_curve_context()?;
+        // The scale offset cancels when taking the difference for one count.
+        positive_finite(Some(force_nn(
+            forces.signal_scale.multiplier.abs(),
+            context.deflection_to_metres?,
+            context.spring_constant_n_per_m?,
+        )))
+    }
+
     pub fn load(data: AfmData) -> Self {
         let acquisition_identity =
             plotium_io::AcquisitionIdentity::from_path(std::path::Path::new(&data.source));
@@ -261,7 +272,7 @@ impl AfmDataset {
                 context.deflection_to_metres,
                 context.spring_constant_n_per_m,
             ) {
-                (Some(to_metres), Some(spring)) => stored * to_metres * spring * 1.0e9,
+                (Some(to_metres), Some(spring)) => force_nn(stored, to_metres, spring),
                 (Some(to_metres), None) => stored * to_metres * 1.0e9,
                 (None, _) => stored,
             }
@@ -339,6 +350,10 @@ impl PlotiumApp {
             && self.doc.dataset_by_id(dataset)?.as_afm().is_some())
         .then_some(dataset)
     }
+}
+
+fn force_nn(stored: f64, to_metres: f64, spring: f64) -> f64 {
+    stored * to_metres * spring * 1.0e9
 }
 
 fn positive_finite(value: Option<f64>) -> Option<f64> {

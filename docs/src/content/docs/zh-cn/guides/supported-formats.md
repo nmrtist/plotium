@@ -238,6 +238,13 @@ PeakForce Capture 曲线是逐像素采集的原始信号。模量等派生 QNM 
 
 手动 Hertz 不适用于 PeakForce Capture（`.pfc`），因为其加载分支尚未针对该拟合验证。
 
+确认弹簧常数并输入半径后，可选择 **Suggest Hertz Inputs** 查看候选接触点、
+基线和拟合区间。**Approach preview** 用虚线标出候选值，与当前输入区分。
+选择 **Use Suggested Inputs** 才会填入这些值，之后仍可修改，再选择
+**Calculate Hertz Fit**。建议不会计算模量，也不能证明 Hertz 模型适用。
+如果力的起始上升不明显、曲线噪声大或不规则，或符合条件的浅压入点不足，
+可继续手动选择。
+
 1. 在 **Contact Z (nm)** 中输入接触起始位置，或在 **Approach preview** 中
    点选最接近接触位置的采样点。
 2. 将 **Baseline Z (nm)** 完全设在接触前（相对 Z 较大），将 **Fit Z (nm)**

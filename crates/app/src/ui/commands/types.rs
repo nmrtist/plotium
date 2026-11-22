@@ -10,6 +10,8 @@ pub enum AfmFitCommand {
     DataSheet,
     ShowSource,
     OpenHertz,
+    SuggestHertz,
+    ApplyHertzSuggestion,
     RunHertz,
     HertzDataSheet,
 }
@@ -50,6 +52,16 @@ impl AfmFitCommand {
                 icon::ARROW_LEFT,
             ),
             Self::OpenHertz => ("Manual Hertz", "analysis.afm_hertz", icon::CHART_LINE_UP),
+            Self::SuggestHertz => (
+                "Suggest Hertz Inputs",
+                "analysis.afm_hertz_suggest",
+                icon::LIGHTBULB,
+            ),
+            Self::ApplyHertzSuggestion => (
+                "Use Suggested Inputs",
+                "analysis.afm_hertz_apply_suggestion",
+                icon::CHECK,
+            ),
             Self::RunHertz => ("Calculate Hertz Fit", "analysis.afm_hertz_run", icon::PLAY),
             Self::HertzDataSheet => (
                 "Create Hertz Data Sheet",

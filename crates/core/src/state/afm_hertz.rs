@@ -3,6 +3,9 @@ use crate::actions::Action;
 use plotium_analysis::afm_hertz::{HertzInput, HertzResult, fit_hertz};
 use std::sync::Arc;
 
+#[path = "afm_hertz_suggestion.rs"]
+mod suggestion;
+
 #[derive(Clone)]
 pub struct AfmHertzDraft {
     pub target: AfmFitTarget,
@@ -12,7 +15,9 @@ pub struct AfmHertzDraft {
     pub baseline_z_nm: [String; 2],
     pub fit_z_nm: [String; 2],
     pub error: Option<String>,
+    pub suggestion_error: Option<String>,
     result: Option<Arc<AfmHertzRun>>,
+    suggestion: Option<suggestion::AfmHertzProposal>,
 }
 
 struct AfmHertzRun {
@@ -33,8 +38,19 @@ impl AfmHertzDraft {
             baseline_z_nm: Default::default(),
             fit_z_nm: Default::default(),
             error: None,
+            suggestion_error: None,
             result: None,
+            suggestion: None,
         }
+    }
+
+    pub fn radius(&self) -> Result<f64, &'static str> {
+        self.radius_nm
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|radius| radius.is_finite() && *radius > 0.0)
+            .ok_or("Enter a finite, positive spherical tip radius in nm.")
     }
 
     pub fn input(&self, spring_constant_n_per_m: f64) -> Result<HertzInput, String> {
@@ -54,7 +70,7 @@ impl AfmHertzDraft {
         };
         Ok(HertzInput {
             spring_constant_n_per_m,
-            radius_nm: number(&self.radius_nm, "tip radius")?,
+            radius_nm: self.radius()?,
             contact_z_nm: number(&self.contact_z_nm, "contact Z")?,
             baseline_z_nm: range(&self.baseline_z_nm, "baseline bound")?,
             fit_z_nm: range(&self.fit_z_nm, "fit bound")?,

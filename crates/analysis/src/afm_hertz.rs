@@ -190,20 +190,20 @@ fn validate(points: &[[f64; 2]], input: HertzInput) -> Result<(), HertzError> {
     Ok(())
 }
 
-struct LinearBaseline {
+pub(super) struct LinearBaseline {
     center_z_nm: f64,
     center_force_nn: f64,
-    slope_nn_per_nm: f64,
-    rms_nn: f64,
+    pub(super) slope_nn_per_nm: f64,
+    pub(super) rms_nn: f64,
     samples: usize,
 }
 
 impl LinearBaseline {
-    fn at(&self, z: f64) -> f64 {
+    pub(super) fn at(&self, z: f64) -> f64 {
         self.center_force_nn + self.slope_nn_per_nm * (z - self.center_z_nm)
     }
 
-    fn fit(points: &[[f64; 2]], interval: [f64; 2]) -> Result<Self, HertzError> {
+    pub(super) fn fit(points: &[[f64; 2]], interval: [f64; 2]) -> Result<Self, HertzError> {
         let selected = points.iter().filter(|[z, _]| contains(interval, *z));
         let (z_sum, force_sum, samples) = selected
             .clone()

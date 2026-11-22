@@ -130,6 +130,8 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::FitAfmForce(AfmForceBranch::Approach),
         CommandId::FitAfmForce(AfmForceBranch::Retract),
         CommandId::AfmFit(AfmFitCommand::OpenHertz),
+        CommandId::AfmFit(AfmFitCommand::SuggestHertz),
+        CommandId::AfmFit(AfmFitCommand::ApplyHertzSuggestion),
         CommandId::AfmFit(AfmFitCommand::RunHertz),
         CommandId::AfmFit(AfmFitCommand::HertzDataSheet),
         CommandId::AfmFit(AfmFitCommand::Run),

@@ -154,3 +154,64 @@ fn manual_hertz_invalidates_result_and_saves_disclosed_fit_data() {
     app.undo();
     assert_eq!(app.doc.datasets.len(), 1);
 }
+
+#[test]
+fn hertz_suggestion_is_bound_to_current_curve_and_applied_only_on_request() {
+    let mut app = approach(Some(1.0), true);
+    let Dataset::Afm(afm) = &mut app.doc.datasets[0] else {
+        panic!("expected AFM");
+    };
+    let force = Arc::make_mut(&mut afm.data).forces.as_mut().unwrap();
+    let raw: Vec<_> = (0_i32..=100)
+        .map(|z| 1000 + 2 * (40 - z).max(0).pow(2) + i32::from(z == 60))
+        .collect();
+    force.samples_per_curve = raw.len();
+    force.approach_samples = raw.len();
+    force.display_order = (0..raw.len()).collect();
+    force.z_positions = Some((0..=100).map(f64::from).collect());
+    force.raw = Arc::from([raw.as_slice(), raw.as_slice()].concat());
+    force.signal_scale.multiplier = 0.001;
+
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.radius_nm = "1000".into();
+    assert!(app.suggest_afm_hertz().is_err());
+    app.session
+        .ui
+        .afm_hertz_task
+        .as_mut()
+        .unwrap()
+        .spring_confirmed = true;
+    app.suggest_afm_hertz().unwrap();
+    let suggestion = app.afm_hertz_suggestion().unwrap().input;
+    assert_eq!(suggestion.contact_z_nm, 40.0);
+    assert_eq!(
+        app.session.ui.afm_hertz_task.as_ref().unwrap().contact_z_nm,
+        "100"
+    );
+    assert!(app.afm_hertz_result().is_none());
+
+    app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "900".into();
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "1000".into();
+    let Dataset::Afm(afm) = &mut app.doc.datasets[0] else {
+        panic!("expected AFM");
+    };
+    afm.selected_pixel = [0, 0];
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    app.suggest_afm_hertz().unwrap();
+    app.apply_afm_hertz_suggestion().unwrap();
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.afm_hertz_result().is_none());
+    assert_eq!(
+        app.session
+            .ui
+            .afm_hertz_task
+            .as_ref()
+            .unwrap()
+            .input(1.0)
+            .unwrap(),
+        suggestion
+    );
+    app.run_afm_hertz().unwrap();
+    assert!(app.afm_hertz_result().is_some());
+}

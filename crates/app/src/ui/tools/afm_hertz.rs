@@ -30,6 +30,17 @@ pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
         .as_ref()
         .ok_or("Open Manual Hertz first.")?;
     match choice {
+        Fit::SuggestHertz => {
+            app.afm_hertz_calibration(draft.target)?;
+            if !draft.spring_confirmed {
+                return Err("Confirm the file spring constant.");
+            }
+            draft.radius().map(|_| ())
+        }
+        Fit::ApplyHertzSuggestion => app
+            .afm_hertz_suggestion()
+            .map(|_| ())
+            .ok_or("Suggest inputs for the current curve first."),
         Fit::RunHertz => {
             let k = app.afm_hertz_calibration(draft.target)?;
             if !draft.spring_confirmed {
@@ -69,13 +80,21 @@ pub(super) fn run_command(app: &mut PlotiumApp, choice: Fit) {
         ui.open_task_tab(TaskDockTab::CurveFit);
         return;
     }
+    let suggestion_action = matches!(choice, Fit::SuggestHertz | Fit::ApplyHertzSuggestion);
     let result = match choice {
+        Fit::SuggestHertz => app.suggest_afm_hertz(),
+        Fit::ApplyHertzSuggestion => app.apply_afm_hertz_suggestion(),
         Fit::RunHertz => app.run_afm_hertz(),
         Fit::HertzDataSheet => app.create_afm_hertz_output(),
         _ => return,
     };
     if let Some(task) = &mut app.session.ui.afm_hertz_task {
-        task.error = result.as_ref().err().cloned();
+        let error = result.as_ref().err().cloned();
+        if suggestion_action {
+            task.suggestion_error = error;
+        } else {
+            task.error = error;
+        }
     }
     if let Err(error) = result {
         app.session.status = error;
@@ -113,6 +132,9 @@ pub(super) fn body(app: &mut PlotiumApp, ui: &mut Ui, target: AfmFitTarget) {
             .inner;
         egui::Grid::new("hertz_inputs").show(ui, |ui| {
             changed |= number_field(ui, "Probe radius (nm)", &mut draft.radius_nm);
+            if changed {
+                draft.suggestion_error = None;
+            }
             ui.end_row();
             changed |= number_field(ui, "Contact Z (nm)", &mut draft.contact_z_nm);
             ui.end_row();
@@ -123,13 +145,45 @@ pub(super) fn body(app: &mut PlotiumApp, ui: &mut Ui, target: AfmFitTarget) {
             draft.error = None;
         }
     }
+    ui.horizontal_wrapped(|ui| {
+        command(app, ui, Fit::SuggestHertz, false);
+        command(app, ui, Fit::ApplyHertzSuggestion, false);
+    });
+    if let Some(message) = app
+        .session
+        .ui
+        .afm_hertz_task
+        .as_ref()
+        .and_then(|draft| draft.suggestion_error.as_deref())
+    {
+        ui.colored_label(ui.visuals().warn_fg_color, message);
+    }
+    if let Some(candidate) = app.afm_hertz_suggestion() {
+        let limits =
+            |[lo, hi]: [f64; 2]| format!("{} to {} nm", preview::value(lo), preview::value(hi));
+        ui.strong("Suggested inputs (not applied)");
+        ui.small(format!(
+            "Contact Z: {} nm",
+            preview::value(candidate.input.contact_z_nm)
+        ));
+        ui.small(format!(
+            "Baseline Z: {}",
+            limits(candidate.input.baseline_z_nm)
+        ));
+        ui.small(format!("Fit Z: {}", limits(candidate.input.fit_z_nm)));
+    }
     if calibration.is_ok() {
         let contact = egui::CollapsingHeader::new("Approach preview")
             .default_open(true)
             .show(ui, |ui| {
                 let draft = app.session.ui.afm_hertz_task.as_ref()?;
                 match app.afm_hertz_points(target) {
-                    Ok(points) => preview::approach(ui, &points, draft),
+                    Ok(points) => preview::approach(
+                        ui,
+                        &points,
+                        draft,
+                        app.afm_hertz_suggestion().map(|candidate| candidate.input),
+                    ),
                     Err(error) => {
                         ui.small(error);
                         None

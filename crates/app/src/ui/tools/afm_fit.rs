@@ -56,7 +56,11 @@ pub(super) fn switch_to_table(app: &mut PlotiumApp, di: usize) {
 
 pub(in crate::ui) fn afm_fit_gate(app: &PlotiumApp, command: Fit) -> Result<(), &'static str> {
     match command {
-        Fit::OpenHertz | Fit::RunHertz | Fit::HertzDataSheet => {
+        Fit::OpenHertz
+        | Fit::SuggestHertz
+        | Fit::ApplyHertzSuggestion
+        | Fit::RunHertz
+        | Fit::HertzDataSheet => {
             return super::afm_hertz::gate(app, command);
         }
         Fit::ShowSource => {
@@ -89,7 +93,11 @@ pub(in crate::ui) fn afm_fit_gate(app: &PlotiumApp, command: Fit) -> Result<(), 
 
 pub(in crate::ui) fn run_command(app: &mut PlotiumApp, command: Fit) {
     match command {
-        Fit::OpenHertz | Fit::RunHertz | Fit::HertzDataSheet => {
+        Fit::OpenHertz
+        | Fit::SuggestHertz
+        | Fit::ApplyHertzSuggestion
+        | Fit::RunHertz
+        | Fit::HertzDataSheet => {
             super::afm_hertz::run_command(app, command);
             return;
         }
@@ -127,7 +135,12 @@ pub(in crate::ui) fn run_command(app: &mut PlotiumApp, command: Fit) {
         Fit::Duplicate => app.duplicate_afm_fit_plot(target),
         Fit::ResidualPlot => app.create_afm_fit_output(target, true),
         Fit::DataSheet => app.create_afm_fit_output(target, false),
-        Fit::OpenHertz | Fit::RunHertz | Fit::HertzDataSheet | Fit::ShowSource => return,
+        Fit::OpenHertz
+        | Fit::SuggestHertz
+        | Fit::ApplyHertzSuggestion
+        | Fit::RunHertz
+        | Fit::HertzDataSheet
+        | Fit::ShowSource => return,
     };
     if let Some(task) = &mut app.session.ui.afm_fit_task {
         task.error = result.as_ref().err().cloned();

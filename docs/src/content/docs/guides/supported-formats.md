@@ -308,6 +308,16 @@ tip radius in **Probe radius (nm)**.
 Manual Hertz is unavailable for PeakForce Capture (`.pfc`); its loading branch
 has not been verified for this fit.
 
+After confirming the spring constant and entering the radius, you can select
+**Suggest Hertz Inputs** to review a candidate contact point, baseline, and
+fit window. The **Approach preview** shows these candidates with dashed
+markers, separate from the current inputs. Select **Use Suggested Inputs**
+to fill the fields; you can still edit them before selecting
+**Calculate Hertz Fit**. A suggestion neither calculates a modulus nor
+establishes that Hertz is appropriate. If there is no clear force onset,
+the trace is noisy or irregular, or too few suitable shallow-indentation
+points are available, continue with manual selection.
+
 1. Set **Contact Z (nm)** where contact begins, either by typing the value or
    clicking the nearest sample in the **Approach preview**.
 2. Set **Baseline Z (nm)** wholly before contact (larger relative Z), and

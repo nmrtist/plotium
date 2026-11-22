@@ -136,6 +136,95 @@ fn manual_hertz_calculates_and_only_exports_current_inputs() {
 }
 
 #[test]
+fn hertz_suggestion_requires_explicit_acceptance_and_calculation() {
+    let z = 0i32..=100;
+    let samples = z.clone().count();
+    let raw = z.clone().map(|value| 1000 + (40 - value).max(0).pow(2));
+    let mut app = insert_afm(Some(AfmForceSet {
+        grid_width: 1,
+        grid_height: 1,
+        samples_per_curve: samples * 2,
+        raw: raw.clone().chain(raw).collect(),
+        signal_scale: AfmScale {
+            multiplier: 0.001,
+            offset: 0.0,
+            unit: "nm".into(),
+        },
+        sample_period_s: None,
+        z_positions: Some(z.clone().chain(z).map(f64::from).collect()),
+        display_order: (0..samples * 2).collect(),
+        approach_samples: samples,
+        deflection_sensitivity_m_per_v: None,
+        spring_constant_n_per_m: Some(1.0),
+    }));
+    let ctx = crate::typography::test_context();
+    let open = CommandId::AfmFit(AfmFitCommand::OpenHertz);
+    let suggest = CommandId::AfmFit(AfmFitCommand::SuggestHertz);
+    let apply = CommandId::AfmFit(AfmFitCommand::ApplyHertzSuggestion);
+    let run = CommandId::AfmFit(AfmFitCommand::RunHertz);
+    let output = CommandId::AfmFit(AfmFitCommand::HertzDataSheet);
+    execute_without_clipboard(open, &mut app, &ctx);
+    assert!(!describe(&app, suggest).enabled);
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.spring_confirmed = true;
+    draft.radius_nm = "1000".into();
+    draft.contact_z_nm = "42".into();
+    assert!(
+        catalog(&app)
+            .iter()
+            .any(|entry| entry.id == suggest && entry.enabled)
+    );
+    assert!(!describe(&app, apply).enabled);
+    execute_without_clipboard(suggest, &mut app, &ctx);
+    let draft = app.session.ui.afm_hertz_task.as_ref().unwrap();
+    assert_eq!(draft.contact_z_nm, "42");
+    assert_eq!(draft.baseline_z_nm, ["", ""]);
+    assert_eq!(draft.fit_z_nm, ["", ""]);
+    let candidate = app.afm_hertz_suggestion().expect("Hertz suggestion").input;
+    assert!(
+        catalog(&app)
+            .iter()
+            .any(|entry| entry.id == apply && entry.enabled)
+    );
+    assert!(!describe(&app, run).enabled);
+
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 800.0),
+        )),
+        ..Default::default()
+    };
+    let _ = ctx.run_ui(input.clone(), |ui| {
+        crate::ui::tools::render_curve_fit_task(&mut app, ui);
+    });
+    let rendered = ctx.run_ui(input, |ui| {
+        crate::ui::tools::render_curve_fit_task(&mut app, ui);
+    });
+    for label in ["Suggested inputs (not applied)", "Dashed: suggested inputs"] {
+        assert!(
+            rendered.shapes.iter().any(|shape| {
+                matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text() == label)
+            }),
+            "missing proposal preview label: {label}"
+        );
+    }
+
+    execute_without_clipboard(apply, &mut app, &ctx);
+    let draft = app.session.ui.afm_hertz_task.as_ref().unwrap();
+    assert_eq!(draft.contact_z_nm, candidate.contact_z_nm.to_string());
+    assert_eq!(
+        draft.baseline_z_nm,
+        candidate.baseline_z_nm.map(|v| v.to_string())
+    );
+    assert_eq!(draft.fit_z_nm, candidate.fit_z_nm.map(|v| v.to_string()));
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(describe(&app, run).enabled);
+    assert!(!describe(&app, output).enabled);
+    assert!(app.afm_hertz_result().is_none());
+}
+
+#[test]
 fn afm_fit_command_uses_the_selected_branch_and_range() {
     let mut app = insert_afm(Some(AfmForceSet {
         grid_width: 1,
