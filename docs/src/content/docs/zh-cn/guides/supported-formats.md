@@ -208,9 +208,9 @@ PeakForce Capture `.pfc` 数据立方体。图像通道按文件记录的扫描�
 力。没有可用的弹簧常数时，显示以纳米计的偏转量。无法转换为偏转量时，保留保存的
 信号及其单位。
 
-选择 **Analyze → AFM Force Fit → Fit Approach** 或 **Fit Retract**。拟合面板会显示
-所选分支、绘图坐标及单位，以及所用的标定或未以力显示信号的原因。这是对绘图数值的
-经验拟合，不推断接触点，也不计算模量。
+进行经验拟合时，选择 **Analyze → AFM Force Fit → Fit Approach** 或 **Fit Retract**。
+拟合面板会显示所选分支、绘图坐标及单位，以及所用的标定或未以力显示信号的原因。
+经验拟合不推断接触点，也不计算模量。
 
 只拟合局部时，用 **Analyze → Analysis Range** 在曲线图上拖选区间。默认模型为
 **Linear**。点击 **Run AFM Fit**，拟合曲线会叠加在原图的拟合区间内，不会打开
@@ -228,6 +228,33 @@ PeakForce Capture 文件旁通常保存着一个 AllImages `.spm` 导出文件�
 
 PeakForce Capture 曲线是逐像素采集的原始信号。模量等派生 QNM 地图作为独立的
 图像通道导入；Plotium 不会从曲线重新计算这些地图。
+
+### 手动球形 Hertz 拟合
+
+选中横轴为 **Relative Z (nm)**、纵轴为 **Force (nN)** 的力曲线，选择
+**Analyze → AFM Force Fit → Manual Hertz** 拟合接近分支。此拟合需要已标定的
+偏转量和文件中的有效悬臂弹簧常数。勾选 **Use file spring constant**，在
+**Probe radius (nm)** 中输入已核实的球形探针半径。
+
+手动 Hertz 不适用于 PeakForce Capture（`.pfc`），因为其加载分支尚未针对该拟合验证。
+
+1. 在 **Contact Z (nm)** 中输入接触起始位置，或在 **Approach preview** 中
+   点选最接近接触位置的采样点。
+2. 将 **Baseline Z (nm)** 完全设在接触前（相对 Z 较大），将 **Fit Z (nm)**
+   完全设在受压侧（相对 Z 较小）。每个区间至少需要三个采样点，且 Z 值不能全部相同。也可用
+   **Analyze → Analysis Range** 在原图拖选区间，再点击对应区间旁的
+   **Use source plot selection** 按钮。在预览中核对两个区间及接触点的位置。
+3. 选择 **Calculate Hertz Fit**。Plotium 先扣除用接触前数据拟合的线性基线，
+   再用接触后的压电位移减去悬臂偏转量，得到压入深度。每个拟合点的校正力和压入
+   深度都必须为正。
+4. 检查校正力随压入深度变化的拟合图和残差。结果以 MPa 报告约化模量 **E\***，
+   并非样品的杨氏模量。接触点敏感性分析会保持两个区间不变，将接触点向两侧各移
+   大约一个局部采样间距后重新拟合。它不是置信区间，任一侧的重算都有可能无法完成。
+5. 选择 **Create Hertz Data Sheet**，拟合数据和输入参数即可随项目一同保存。
+
+球形 Hertz 模型适用于黏附及基底影响可忽略的浅压入弹性接触。若黏附明显、样品较
+薄、压入深度相对于探针半径较大，或样品响应依赖加载速率，即使残差很小，结果也
+可能不适用。参见 [Dimitriadis 等人关于有限厚度及接触点敏感性的研究](https://doi.org/10.1016/S0006-3495%2802%2975620-8)。
 
 ## 电生理（ABF2）
 

@@ -196,13 +196,7 @@ pub(crate) fn visible_area_id(app: &PlotiumApp) -> Option<Id> {
             .curve_fit_task_dataset
             .filter(|dataset| Some(*dataset) == active)
             .map(|_| area_id(TaskDockTab::CurveFit))
-            .or_else(|| {
-                app.session
-                    .ui
-                    .afm_fit_task
-                    .as_ref()
-                    .map(|_| area_id(TaskDockTab::CurveFit))
-            }),
+            .or_else(|| super::afm_fit::target(app).map(|_| area_id(TaskDockTab::CurveFit))),
         TaskDockTab::Statistics => app
             .session
             .ui

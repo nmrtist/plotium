@@ -2,6 +2,7 @@
 //! in here without touching the sidebar or the toolbar.
 
 mod afm_fit;
+mod afm_hertz;
 mod craft;
 mod cursors;
 mod curve_fit;
@@ -81,7 +82,7 @@ pub(crate) fn render_region_task(app: &mut PlotiumApp, ui: &mut Ui) {
 }
 
 pub(crate) fn render_curve_fit_task(app: &mut PlotiumApp, ui: &mut Ui) {
-    if app.session.ui.afm_fit_task.is_some() {
+    if afm_fit::target(app).is_some() {
         afm_fit::render_task(app, ui);
     } else {
         curve_fit::render_task(app, ui);

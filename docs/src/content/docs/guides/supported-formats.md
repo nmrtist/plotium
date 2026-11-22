@@ -267,11 +267,11 @@ Without a usable spring constant, calibrated deflection is shown in
 nanometres. If the signal cannot be converted to deflection, the plot keeps
 the stored signal and unit.
 
-Use **Analyze → AFM Force Fit → Fit Approach** or **Fit Retract**. The fit
-panel identifies the selected branch, its plotted coordinates and units, and
-the calibration used or why the signal is not shown as force. This is an
-empirical fit of the plotted values: it does not infer a contact point or
-calculate a modulus.
+For an empirical fit, use **Analyze → AFM Force Fit → Fit Approach** or
+**Fit Retract**. The fit panel identifies the selected branch, its plotted
+coordinates and units, and the calibration used or why the signal is not
+shown as force. An empirical fit does not infer a contact point or calculate
+a modulus.
 
 To fit part of a branch, use **Analyze → Analysis Range** and drag across
 the curve plot. The default model is **Linear**. **Run AFM Fit** overlays the
@@ -296,6 +296,44 @@ force curves alone.
 PeakForce Capture curves are the per-pixel signals as acquired. Derived QNM
 maps such as modulus arrive as their own image channels; Plotium does not
 recompute them from the curves.
+
+### Manual spherical Hertz fit
+
+Select a force curve with **Relative Z (nm)** and **Force (nN)**. Open
+**Analyze → AFM Force Fit → Manual Hertz** to fit the Approach branch. This
+requires calibrated deflection and a valid cantilever spring constant from the
+file. Check **Use file spring constant** and enter the verified spherical
+tip radius in **Probe radius (nm)**.
+
+Manual Hertz is unavailable for PeakForce Capture (`.pfc`); its loading branch
+has not been verified for this fit.
+
+1. Set **Contact Z (nm)** where contact begins, either by typing the value or
+   clicking the nearest sample in the **Approach preview**.
+2. Set **Baseline Z (nm)** wholly before contact (larger relative Z), and
+   **Fit Z (nm)** wholly on the compressive side (smaller relative Z). Each
+   interval needs at least three samples spanning distinct Z values. To copy
+   an interval from the source plot, drag a range with **Analyze → Analysis Range**, then use the
+   **Use source plot selection** button beside the corresponding interval.
+   Check both intervals and the contact point in the preview.
+3. Select **Calculate Hertz Fit**. Plotium subtracts a linear baseline fitted
+   before contact, then subtracts the cantilever deflection from the piezo
+   travel since contact to obtain indentation. Every fitted point must have
+   positive corrected force and indentation.
+4. Inspect the corrected force versus indentation, fitted curve, and
+   residuals. The reported reduced modulus, **E\*** in MPa, is not the
+   sample's Young's modulus. Contact sensitivity repeats the fit after
+   shifting contact by about one local sample spacing in both directions
+   while keeping the intervals fixed. It is not a confidence interval; either
+   shifted fit may be unavailable.
+5. Use **Create Hertz Data Sheet** to keep the fitted values and their inputs
+   when you save the project.
+
+Use spherical Hertz for shallow elastic contact with negligible adhesion and
+substrate influence. Strong adhesion, thin samples, deep indentation relative
+to tip radius, or rate-dependent behavior can make the result unsuitable even
+when the residuals are small. See [Dimitriadis et al. on finite thickness and
+contact-point sensitivity](https://doi.org/10.1016/S0006-3495%2802%2975620-8).
 
 ## Electrophysiology (ABF2)
 

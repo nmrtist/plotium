@@ -1,6 +1,7 @@
 //! Analysis layer for plotium: detection, quantitative extraction, fitting, and
 //! scientific parameter estimation over processed data.
 
+pub mod afm_hertz;
 pub mod alignment;
 pub mod craft;
 pub mod diffusion;

@@ -4,8 +4,8 @@ use egui::Ui;
 use plotium_analysis::fit_model::{FitModelDefinition, FitSolver, RobustLoss, WeightMode};
 use plotium_analysis::models::{LINEAR_ID, builtin_models};
 use plotium_core::state::{
-    AfmDeflectionSource, AfmFitDraft, AfmForceBranch, AfmForceCurveContext, AfmForceFit,
-    AfmForceXSource, FrameRef, PlotiumApp, TaskDockTab,
+    AfmDeflectionSource, AfmFitDraft, AfmFitTarget, AfmForceBranch, AfmForceCurveContext,
+    AfmForceFit, AfmForceXSource, FrameRef, PlotiumApp, TaskDockTab,
 };
 
 const TAB: TaskDockTab = TaskDockTab::CurveFit;
@@ -17,6 +17,7 @@ pub(in crate::ui) fn open_task(app: &mut PlotiumApp, branch: AfmForceBranch) {
     let Some(target) = app.afm_fit_target(source.resource_id(), branch) else {
         return;
     };
+    app.session.ui.afm_hertz_task = None;
     let result = app.afm_fit_result(target);
     app.session.ui.afm_fit_task = Some(AfmFitDraft {
         target,
@@ -37,7 +38,35 @@ pub(in crate::ui) fn open_task(app: &mut PlotiumApp, branch: AfmForceBranch) {
     app.session.ui.open_task_tab(TAB);
 }
 
+pub(super) fn target(app: &PlotiumApp) -> Option<AfmFitTarget> {
+    let ui = &app.session.ui;
+    ui.afm_hertz_task
+        .as_ref()
+        .map(|draft| draft.target)
+        .or_else(|| ui.afm_fit_task.as_ref().map(|draft| draft.target))
+}
+
+pub(super) fn switch_to_table(app: &mut PlotiumApp, di: usize) {
+    let ui = &mut app.session.ui;
+    ui.afm_fit_task = None;
+    ui.afm_hertz_task = None;
+    ui.curve_fit_task_dataset = Some(di);
+    ui.open_task_tab(TAB);
+}
+
 pub(in crate::ui) fn afm_fit_gate(app: &PlotiumApp, command: Fit) -> Result<(), &'static str> {
+    match command {
+        Fit::OpenHertz | Fit::RunHertz | Fit::HertzDataSheet => {
+            return super::afm_hertz::gate(app, command);
+        }
+        Fit::ShowSource => {
+            return target(app)
+                .and_then(|target| app.afm_fit_plot(target))
+                .map(|_| ())
+                .ok_or("Open AFM Force Fit on an available source plot.");
+        }
+        _ => {}
+    }
     let draft = app
         .session
         .ui
@@ -46,7 +75,7 @@ pub(in crate::ui) fn afm_fit_gate(app: &PlotiumApp, command: Fit) -> Result<(), 
         .ok_or("Open AFM Force Fit first.")?;
     app.afm_fit_plot(draft.target)
         .ok_or("Open AFM Force Fit on an available source plot.")?;
-    if matches!(command, Fit::Run | Fit::ShowSource) {
+    if command == Fit::Run {
         return Ok(());
     }
     let result = app
@@ -59,6 +88,19 @@ pub(in crate::ui) fn afm_fit_gate(app: &PlotiumApp, command: Fit) -> Result<(), 
 }
 
 pub(in crate::ui) fn run_command(app: &mut PlotiumApp, command: Fit) {
+    match command {
+        Fit::OpenHertz | Fit::RunHertz | Fit::HertzDataSheet => {
+            super::afm_hertz::run_command(app, command);
+            return;
+        }
+        Fit::ShowSource => {
+            if let Some(target) = target(app) {
+                show_source(app, target);
+            }
+            return;
+        }
+        _ => {}
+    }
     let Some(draft) = app.session.ui.afm_fit_task.clone() else {
         return;
     };
@@ -85,10 +127,7 @@ pub(in crate::ui) fn run_command(app: &mut PlotiumApp, command: Fit) {
         Fit::Duplicate => app.duplicate_afm_fit_plot(target),
         Fit::ResidualPlot => app.create_afm_fit_output(target, true),
         Fit::DataSheet => app.create_afm_fit_output(target, false),
-        Fit::ShowSource => {
-            show_source(app, target);
-            Ok(())
-        }
+        Fit::OpenHertz | Fit::RunHertz | Fit::HertzDataSheet | Fit::ShowSource => return,
     };
     if let Some(task) = &mut app.session.ui.afm_fit_task {
         task.error = result.as_ref().err().cloned();
@@ -98,7 +137,7 @@ pub(in crate::ui) fn run_command(app: &mut PlotiumApp, command: Fit) {
     }
 }
 
-fn show_source(app: &mut PlotiumApp, target: plotium_core::state::AfmFitTarget) {
+fn show_source(app: &mut PlotiumApp, target: AfmFitTarget) {
     if let Some(ci) = app.doc.canvas_index(target.canvas) {
         app.doc.canvases[ci].selected_object = Some(target.object);
         app.reveal_board_frame(FrameRef::Page(ci));
@@ -109,14 +148,13 @@ pub(super) fn render_task(app: &mut PlotiumApp, host: &mut Ui) {
     if !task_card::is_active(app, TAB) {
         return;
     }
-    let Some(target) = app
-        .session
-        .ui
-        .afm_fit_task
-        .as_ref()
-        .map(|draft| draft.target)
-    else {
+    let Some(target) = target(app) else {
         return;
+    };
+    let title = if app.session.ui.afm_hertz_task.is_some() {
+        "Manual Hertz"
+    } else {
+        "AFM Force Fit"
     };
     let collapsed = app.session.ui.curve_fit_task_collapsed;
     let TaskCardGeometry {
@@ -134,12 +172,11 @@ pub(super) fn render_task(app: &mut PlotiumApp, host: &mut Ui) {
             task_card::header(
                 ui,
                 area_id,
-                "AFM Force Fit",
+                title,
                 Some(target.branch.name().to_owned()),
                 |ui| {
-                    close = crate::ui::panel_chrome::close(ui, "Close AFM Force Fit").clicked();
-                    collapse =
-                        crate::ui::panel_chrome::collapse(ui, collapsed, "AFM Force Fit").clicked();
+                    close = crate::ui::panel_chrome::close(ui, &format!("Close {title}")).clicked();
+                    collapse = crate::ui::panel_chrome::collapse(ui, collapsed, title).clicked();
                 },
             );
             if task_card::tab_bar(app, TAB, ui) {
@@ -166,13 +203,7 @@ pub(super) fn render_task(app: &mut PlotiumApp, host: &mut Ui) {
 }
 
 fn body(app: &mut PlotiumApp, ui: &mut Ui) {
-    let Some(target) = app
-        .session
-        .ui
-        .afm_fit_task
-        .as_ref()
-        .map(|draft| draft.target)
-    else {
+    let Some(target) = target(app) else {
         return;
     };
     let Some((source, context)) = app
@@ -194,6 +225,10 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui) {
     calibration(ui, &context);
     if app.session.active_canvas != app.doc.canvas_index(target.canvas) {
         command(app, ui, Fit::ShowSource, false);
+    }
+    if app.session.ui.afm_hertz_task.is_some() {
+        super::afm_hertz::body(app, ui, target);
+        return;
     }
     if let Some(range) = app.afm_fit_selection(target) {
         ui.label(format!(
@@ -435,7 +470,7 @@ fn unit_suffix(unit: &str) -> String {
     }
 }
 
-fn command(app: &mut PlotiumApp, ui: &mut Ui, choice: Fit, primary: bool) -> bool {
+pub(super) fn command(app: &mut PlotiumApp, ui: &mut Ui, choice: Fit, primary: bool) -> bool {
     let id = CommandId::AfmFit(choice);
     let command = commands::describe(app, id);
     let label = if choice == Fit::ToggleOverlay {
