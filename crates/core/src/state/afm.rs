@@ -18,6 +18,104 @@ impl AfmForceBranch {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AfmCurveAxis<'a> {
+    pub name: &'static str,
+    pub unit: &'a str,
+}
+
+impl AfmCurveAxis<'_> {
+    pub fn label(self) -> String {
+        if self.unit.is_empty() {
+            self.name.into()
+        } else {
+            format!("{} ({})", self.name, self.unit)
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AfmForceXSource {
+    ReconstructedZ,
+    SamplePeriod,
+    SampleIndex,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AfmDeflectionSource {
+    StoredLength,
+    VoltageSensitivity,
+    MissingVoltageSensitivity,
+    UnsupportedSignalUnit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AfmForceCurveContext<'a> {
+    pub x: AfmCurveAxis<'a>,
+    pub y: AfmCurveAxis<'a>,
+    pub x_source: AfmForceXSource,
+    pub deflection_source: AfmDeflectionSource,
+    pub spring_constant_n_per_m: Option<f64>,
+    pub deflection_sensitivity_m_per_v: Option<f64>,
+    pub signal_unit: &'a str,
+    deflection_to_metres: Option<f64>,
+}
+
+impl<'a> AfmForceCurveContext<'a> {
+    fn from_force_set(forces: &'a plotium_io::AfmForceSet) -> Self {
+        let (x_source, x_name, x_unit) = if forces.z_positions.is_some() {
+            (AfmForceXSource::ReconstructedZ, "Relative Z", "nm")
+        } else if forces.sample_period_s.is_some() {
+            (AfmForceXSource::SamplePeriod, "Branch time", "s")
+        } else {
+            (AfmForceXSource::SampleIndex, "Sample index", "")
+        };
+        let spring_constant_n_per_m = positive_finite(forces.spring_constant_n_per_m);
+        let deflection_sensitivity_m_per_v = positive_finite(forces.deflection_sensitivity_m_per_v);
+        let scale_unit = forces.signal_scale.unit.trim();
+        // Applying the channel scale consumes its per-count denominator.
+        let signal_unit = scale_unit
+            .split_once('/')
+            .filter(|(_, denominator)| denominator.trim().eq_ignore_ascii_case("LSB"))
+            .map_or(scale_unit, |(unit, _)| unit.trim());
+        // The stored scale may have already applied the header's sensitivity.
+        let quantity_unit = scale_unit
+            .split_once('/')
+            .map_or(scale_unit, |(unit, _)| unit.trim());
+        let (deflection_source, deflection_to_metres) = match physical_length_factor(quantity_unit)
+        {
+            Some(factor) => (AfmDeflectionSource::StoredLength, Some(factor)),
+            None if quantity_unit.eq_ignore_ascii_case("V") => match deflection_sensitivity_m_per_v
+            {
+                Some(factor) => (AfmDeflectionSource::VoltageSensitivity, Some(factor)),
+                None => (AfmDeflectionSource::MissingVoltageSensitivity, None),
+            },
+            None => (AfmDeflectionSource::UnsupportedSignalUnit, None),
+        };
+        let (y_name, y_unit) = match (deflection_to_metres, spring_constant_n_per_m) {
+            (Some(_), Some(_)) => ("Force", "nN"),
+            (Some(_), None) => ("Deflection", "nm"),
+            (None, _) => ("Signal", signal_unit),
+        };
+        Self {
+            x: AfmCurveAxis {
+                name: x_name,
+                unit: x_unit,
+            },
+            y: AfmCurveAxis {
+                name: y_name,
+                unit: y_unit,
+            },
+            x_source,
+            deflection_source,
+            spring_constant_n_per_m,
+            deflection_sensitivity_m_per_v,
+            signal_unit,
+            deflection_to_metres,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AfmDataset {
     pub resource_id: DatasetId,
@@ -132,6 +230,7 @@ impl AfmDataset {
     pub fn force_figure(&self, field: FieldId) -> Option<Figure> {
         (self.field_catalog.id_for_key("afm.force_curve") == Some(field)).then_some(())?;
         let forces = self.data.forces.as_ref()?;
+        let context = AfmForceCurveContext::from_force_set(forces);
         let curve = forces.curve_raw(self.selected_pixel[0], self.selected_pixel[1])?;
         let x_value = |display_index: usize| {
             forces
@@ -156,13 +255,12 @@ impl AfmDataset {
                     }
                 })
         };
-        let displacement_factor = deflection_length_factor(forces);
-        let spring_constant = forces
-            .spring_constant_n_per_m
-            .filter(|value| value.is_finite() && *value > 0.0);
         let calibrated = |raw: i32| {
             let stored = forces.signal_scale.apply(raw);
-            match (displacement_factor, spring_constant) {
+            match (
+                context.deflection_to_metres,
+                context.spring_constant_n_per_m,
+            ) {
                 (Some(to_metres), Some(spring)) => stored * to_metres * spring * 1.0e9,
                 (Some(to_metres), None) => stored * to_metres * 1.0e9,
                 (None, _) => stored,
@@ -179,15 +277,6 @@ impl AfmDataset {
             })
             .collect();
         let split = forces.approach_samples.min(ordered.len());
-        let (x_name, x_unit) = force_x_quantity(forces);
-        let x_label = axis_label(x_name, x_unit);
-        let y_label = if displacement_factor.is_some() && spring_constant.is_some() {
-            "Force (nN)"
-        } else if displacement_factor.is_some() {
-            "Deflection (nm)"
-        } else {
-            &forces.signal_scale.unit
-        };
         let (x_min, x_max) = ordered
             .iter()
             .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), point| {
@@ -199,9 +288,9 @@ impl AfmDataset {
                 (lo.min(point[1]), hi.max(point[1]))
             });
         let mut figure = Figure::new(
-            "Force Curve",
-            Axis::new(x_label, x_min, x_max),
-            Axis::new(y_label, y_min, y_max),
+            format!("{} Curve", context.y.name),
+            Axis::new(context.x.label(), x_min, x_max),
+            Axis::new(context.y.label(), y_min, y_max),
         );
         figure.series.push(Series::line(
             AfmForceBranch::Approach.name(),
@@ -212,6 +301,13 @@ impl AfmDataset {
                 .colored(Color::rgb(0xd1, 0x24, 0x2a)),
         );
         Some(figure)
+    }
+
+    pub fn force_curve_context(&self) -> Option<AfmForceCurveContext<'_>> {
+        self.data
+            .forces
+            .as_ref()
+            .map(AfmForceCurveContext::from_force_set)
     }
 
     pub fn force_branch_sample_count(&self, branch: AfmForceBranch) -> usize {
@@ -245,55 +341,12 @@ impl PlotiumApp {
     }
 }
 
-fn axis_label(name: &str, unit: &str) -> String {
-    if unit.is_empty() {
-        name.into()
-    } else {
-        format!("{name} ({unit})")
-    }
-}
-
-pub(super) fn force_x_quantity(forces: &plotium_io::AfmForceSet) -> (&'static str, &'static str) {
-    if forces.z_positions.is_some() {
-        ("Z", "nm")
-    } else if forces.sample_period_s.is_some() {
-        ("Time", "s")
-    } else {
-        ("Sample index", "")
-    }
-}
-
-pub(super) fn force_y_quantity(forces: &plotium_io::AfmForceSet) -> (&'static str, &str) {
-    if deflection_length_factor(forces).is_none() {
-        ("Signal", &forces.signal_scale.unit)
-    } else if forces
-        .spring_constant_n_per_m
-        .is_some_and(|v| v.is_finite() && v > 0.0)
-    {
-        ("Force", "nN")
-    } else {
-        ("Deflection", "nm")
-    }
-}
-
-fn deflection_length_factor(forces: &plotium_io::AfmForceSet) -> Option<f64> {
-    let unit = forces.signal_scale.unit.split('/').next()?.trim();
-    physical_length_factor(unit)
-        .or_else(|| {
-            unit.eq_ignore_ascii_case("V")
-                .then_some(forces.deflection_sensitivity_m_per_v)
-                .flatten()
-        })
-        .filter(|value| value.is_finite() && *value > 0.0)
+fn positive_finite(value: Option<f64>) -> Option<f64> {
+    value.filter(|value| value.is_finite() && *value > 0.0)
 }
 
 fn physical_length_factor(unit: &str) -> Option<f64> {
-    let normalized = unit
-        .split('/')
-        .next()?
-        .trim()
-        .to_ascii_lowercase()
-        .replace(['µ', '~'], "u");
+    let normalized = unit.to_ascii_lowercase().replace(['µ', '~'], "u");
     match normalized.as_str() {
         "m" => Some(1.0),
         "mm" => Some(1.0e-3),

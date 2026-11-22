@@ -111,12 +111,38 @@ impl PlotiumApp {
         ));
         if residual_plot {
             let index = self.doc.canvases.len();
-            let action = Action::insert_dataset_with_default_canvas(
+            let y_label = AfmCurveAxis {
+                name: "Residual",
+                unit: &fit.y_unit,
+            }
+            .label();
+            let dataset = Dataset::Table(Box::new(table));
+            let mut canvas = crate::workflow::build_default_canvas_for_dataset(
+                &dataset,
+                self.doc.datasets.len(),
+                name.clone(),
+                DEFAULT_CANVAS_SIZE_MM,
+            );
+            let plot = canvas
+                .objects
+                .first_mut()
+                .and_then(CanvasObject::plot_mut)
+                .ok_or("Could not prepare the AFM residual plot.")?;
+            plot.axis_overrides.y_label = Some(y_label);
+            plot.apply_axis_overrides();
+            let mut action = Action::insert_dataset_with_default_canvas(
                 self,
-                Dataset::Table(Box::new(table)),
+                dataset,
                 name,
                 DEFAULT_CANVAS_SIZE_MM,
             );
+            let Action::InsertDatasetWithCanvas {
+                prepared_canvas, ..
+            } = &mut action
+            else {
+                return Err("Could not prepare the AFM residual plot action.".into());
+            };
+            *prepared_canvas = Some(Box::new(canvas));
             self.try_execute_action(action)
                 .map_err(|error| error.to_string())?;
             self.reveal_board_frame(FrameRef::Page(index));

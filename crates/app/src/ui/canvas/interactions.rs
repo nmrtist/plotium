@@ -143,15 +143,7 @@ pub(crate) fn finish_selection_drag(
         unit: None,
         source_stream: None,
     });
-    let unit = if app.doc.datasets[dataset].as_afm().is_some() {
-        app.session.status = format!("Selected AFM X range: {:.3}-{:.3}.", x.min, x.max);
-        return;
-    } else if app.doc.datasets[dataset].as_mass_spec().is_some() {
-        "min"
-    } else {
-        "ppm"
-    };
-    app.session.status = format!("Selected {:.3}-{:.3} {unit}.", x.min, x.max);
+    app.session.status = super::selection_status::range_status(&app.doc.datasets[dataset], x);
 }
 
 pub(crate) fn handle_zoom_drag(

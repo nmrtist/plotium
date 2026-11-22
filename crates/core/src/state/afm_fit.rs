@@ -153,10 +153,8 @@ impl PlotiumApp {
             .dataset_by_id(source)
             .and_then(Dataset::as_afm)
             .ok_or("The AFM source is unavailable.")?;
-        let forces = afm
-            .data
-            .forces
-            .as_ref()
+        let context = afm
+            .force_curve_context()
             .ok_or("The AFM source has no force curves.")?;
         let figure = afm
             .field_catalog
@@ -200,8 +198,6 @@ impl PlotiumApp {
         };
         let result = fit_model(model, vec![data], &[], options)
             .map_err(|error| format!("AFM fit failed: {error}"))?;
-        let (x_name, x_unit) = super::afm::force_x_quantity(forces);
-        let (y_name, y_unit) = super::afm::force_y_quantity(forces);
         let rows = result
             .points
             .iter()
@@ -243,10 +239,10 @@ impl PlotiumApp {
                 .is_finite()
                 .then_some(result.statistics.r_squared),
             notices: result.notices,
-            x_name: x_name.into(),
-            x_unit: x_unit.into(),
-            y_name: y_name.into(),
-            y_unit: y_unit.into(),
+            x_name: context.x.name.into(),
+            x_unit: context.x.unit.into(),
+            y_name: context.y.name.into(),
+            y_unit: context.y.unit.into(),
             rows,
         }));
         self.change_afm_fits(target, after)?;

@@ -1,8 +1,8 @@
 use plotium_core::actions::Action;
 use plotium_core::automation::{KIND_FIELD, ProjectResourceProvider, ResourceProvider};
 use plotium_core::state::{
-    CanvasObjectKind, DEFAULT_CANVAS_SIZE_MM, Dataset, DerivedAxes, NATURE_DOUBLE_COLUMN,
-    PlotiumApp, StackSpec,
+    AfmForceBranch, AfmForceXSource, CanvasObjectKind, DEFAULT_CANVAS_SIZE_MM, Dataset,
+    DerivedAxes, NATURE_DOUBLE_COLUMN, PlotiumApp, StackSpec,
 };
 use plotium_figure::{ContourSpec, SeriesEncoding};
 use plotium_io::{AfmData, AfmForceSet, AfmFrameDirection, AfmImageChannel, AfmScale};
@@ -90,7 +90,135 @@ fn map_and_force_plots_survive_project_roundtrip() {
     let force = objects[1].plot().unwrap();
     assert!(map.figure().heatmap.is_some());
     assert_eq!(force.figure().series.len(), 2);
-    assert_eq!(force.figure().x.label, "Z (nm)");
+    assert_eq!(force.figure().x.label, "Relative Z (nm)");
+}
+
+#[test]
+fn force_curve_context_matches_calibration_and_axes_used_in_plot() {
+    use plotium_core::state::AfmDeflectionSource::*;
+    let cases = [
+        // Stored length is already calibrated; the header sensitivity must not be applied again.
+        ("nm", Some(37e-9), 0.1, StoredLength, "Force (nN)", 0.1),
+        (
+            "V/LSB",
+            Some(2e-9),
+            0.1,
+            VoltageSensitivity,
+            "Force (nN)",
+            0.2,
+        ),
+        ("nm", None, 0.0, StoredLength, "Deflection (nm)", 1.0),
+        (
+            "V/LSB",
+            None,
+            0.1,
+            MissingVoltageSensitivity,
+            "Signal (V)",
+            1.0,
+        ),
+        (
+            "Arb/LSB",
+            None,
+            0.1,
+            UnsupportedSignalUnit,
+            "Signal (Arb)",
+            1.0,
+        ),
+    ];
+    for (index, (unit, sensitivity, spring, deflection_source, y_label, expected_y)) in
+        cases.into_iter().enumerate()
+    {
+        let mut dataset = afm_dataset(false);
+        let Dataset::Afm(afm) = &mut dataset else {
+            unreachable!()
+        };
+        let forces = Arc::make_mut(&mut afm.data).forces.as_mut().unwrap();
+        forces.signal_scale.unit = unit.into();
+        forces.deflection_sensitivity_m_per_v = sensitivity;
+        forces.spring_constant_n_per_m = Some(spring);
+        let (x_source, x_label, expected_x) = match index {
+            0 => (AfmForceXSource::ReconstructedZ, "Relative Z (nm)", 0.0),
+            1 => {
+                forces.z_positions = None;
+                forces.sample_period_s = Some(0.002);
+                (AfmForceXSource::SamplePeriod, "Branch time (s)", 0.002)
+            }
+            _ => {
+                forces.z_positions = None;
+                (AfmForceXSource::SampleIndex, "Sample index", 1.0)
+            }
+        };
+        let context = afm.force_curve_context().unwrap();
+        assert_eq!(context.deflection_source, deflection_source);
+        assert_eq!(context.deflection_sensitivity_m_per_v, sensitivity);
+        assert_eq!(
+            context.spring_constant_n_per_m,
+            (spring > 0.0).then_some(spring)
+        );
+        assert_eq!(context.x_source, x_source);
+        assert_eq!(context.x.label(), x_label);
+        assert_eq!(context.y.label(), y_label);
+        let field = afm.field_catalog.id_for_key("afm.force_curve").unwrap();
+        let quantity = y_label.split_whitespace().next().unwrap();
+        assert_eq!(
+            afm.force_figure(field).unwrap().title,
+            format!("{quantity} Curve")
+        );
+        let app = insert(dataset);
+        let plot = app.doc.canvases[0].objects[0].plot().unwrap();
+        let figure = plot.figure();
+        assert_eq!(figure.x.label, x_label);
+        assert_eq!(figure.y.label, y_label);
+        assert_eq!(figure.series[0].points[1][0], expected_x);
+        assert!((figure.series[0].points[0][1] - expected_y).abs() < 1.0e-12);
+    }
+}
+
+#[test]
+fn new_afm_fit_data_preserves_branch_and_curve_quantities() {
+    let mut dataset = afm_dataset(false);
+    let Dataset::Afm(afm) = &mut dataset else {
+        unreachable!()
+    };
+    let forces = Arc::make_mut(&mut afm.data).forces.as_mut().unwrap();
+    forces.samples_per_curve = 8;
+    forces.raw = Arc::from([1, 2, 3, 4, 5, 6, 7, 8]);
+    forces.signal_scale.unit = "V/LSB".into();
+    forces.deflection_sensitivity_m_per_v = None;
+    forces.z_positions = Some(Arc::from([0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0]));
+    forces.display_order = Arc::from([0, 1, 2, 3, 4, 5, 6, 7]);
+    forces.approach_samples = 4;
+    let mut app = insert(dataset);
+    let source = app.doc.datasets[0].resource_id();
+    let target = app.afm_fit_target(source, AfmForceBranch::Retract).unwrap();
+    app.run_afm_fit(
+        target,
+        plotium_analysis::models::LINEAR_ID,
+        Default::default(),
+        true,
+    )
+    .unwrap();
+    let fit = app.afm_fit_result(target).unwrap();
+    assert_eq!(fit.branch, AfmForceBranch::Retract);
+    assert_eq!((&*fit.x_name, &*fit.x_unit), ("Relative Z", "nm"));
+    assert_eq!((&*fit.y_name, &*fit.y_unit), ("Signal", "V"));
+    assert_eq!(fit.rows[0][..2], [0.0, 5.0]);
+
+    app.create_afm_fit_output(target, false).unwrap();
+    let table = app.doc.datasets.last().unwrap().as_table().unwrap();
+    let schema = &table.typed_state.envelope.revision.snapshot.schema;
+    let quantity = |id| {
+        let column = schema.column(id).unwrap();
+        (
+            column.name.as_str(),
+            column.unit.as_ref().unwrap().display_unit.as_str(),
+        )
+    };
+    assert_eq!(quantity(table.x_binding.unwrap()), ("Relative Z", "nm"));
+    assert_eq!(
+        quantity(table.series_bindings[0].value_column),
+        ("Signal", "V")
+    );
 }
 
 #[test]

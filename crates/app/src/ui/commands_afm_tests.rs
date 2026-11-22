@@ -66,7 +66,7 @@ fn afm_fit_command_uses_the_selected_branch_and_range() {
         source_stream: None,
     });
 
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     assert!(describe(&app, CommandId::SelectRange).enabled);
     let command = CommandId::FitAfmForce(AfmForceBranch::Retract);
     assert!(
@@ -80,6 +80,34 @@ fn afm_fit_command_uses_the_selected_branch_and_range() {
     let draft = app.session.ui.afm_fit_task.as_ref().unwrap();
     assert_eq!(draft.model, plotium_analysis::models::LINEAR_ID);
     let target = draft.target;
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1200.0, 900.0),
+        )),
+        ..Default::default()
+    };
+    let _ = ctx.run_ui(input.clone(), |ui| {
+        crate::ui::tools::render_curve_fit_task(&mut app, ui);
+    });
+    let rendered = ctx.run_ui(input, |ui| {
+        crate::ui::tools::render_curve_fit_task(&mut app, ui);
+    });
+    for label in [
+        "Retract",
+        "X: Relative Z (nm), not indentation | Y: Force (nN)",
+        "Deflection: stored length",
+        "Spring constant: 1 N/m (file, applied)",
+        "Empirical model",
+    ] {
+        assert!(
+            rendered.shapes.iter().any(|shape| matches!(
+                &shape.shape,
+                egui::Shape::Text(text) if text.galley.job.text == label
+            )),
+            "missing AFM fit label: {label}"
+        );
+    }
     let viewport = app.afm_fit_plot(target).unwrap().viewport.clone();
     let active = app.session.active_canvas;
     let run = |app: &mut PlotiumApp, command| {
@@ -139,15 +167,10 @@ fn afm_fit_command_uses_the_selected_branch_and_range() {
     assert!(!app.afm_fit_result(target).unwrap().shown);
     run(&mut app, AfmFitCommand::ResidualPlot);
     assert_eq!(app.session.active_canvas, Some(2));
-    assert_eq!(
-        app.doc.canvases[2].objects[0]
-            .plot()
-            .unwrap()
-            .figure()
-            .series[0]
-            .name,
-        "Residual"
-    );
+    let residual = app.doc.canvases[2].objects[0].plot().unwrap().figure();
+    assert_eq!(residual.series[0].name, "Residual");
+    assert_eq!(residual.x.label, "Relative Z (nm)");
+    assert_eq!(residual.y.label, "Residual (nN)");
     assert!(app.session.ui.sheet_open.is_none());
     run(&mut app, AfmFitCommand::DataSheet);
     assert_eq!(app.doc.canvases.len(), 3);

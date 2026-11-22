@@ -489,6 +489,7 @@ pub struct AfmForceSet {
     pub raw: std::sync::Arc<[i32]>,
     pub signal_scale: AfmScale,
     pub sample_period_s: Option<f64>,
+    /// Reconstructed relative actuator Z in nm, in display order; not indentation.
     pub z_positions: Option<std::sync::Arc<[f64]>>,
     /// Sample indices in display order; approach precedes retract.
     pub display_order: std::sync::Arc<[usize]>,
