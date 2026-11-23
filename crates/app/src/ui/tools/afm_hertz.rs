@@ -2,7 +2,8 @@ use super::afm_fit::command;
 use crate::ui::commands::AfmFitCommand as Fit;
 use egui::Ui;
 use egui_phosphor::regular as icon;
-use plotium_analysis::afm_hertz::HertzResult;
+use plotium_analysis::afm_hertz::{HertzResult, HertzWindow};
+use plotium_core::state::{AfmDeflectionSource, AfmHertzReference, AfmHertzWindow};
 use plotium_core::state::{
     AfmFitTarget, AfmForceBranch, AfmHertzDraft, AxisRange, PlotiumApp, TaskDockTab,
 };
@@ -21,14 +22,14 @@ pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
     if choice == Fit::OpenHertz {
         return active_target(app)
             .map(|_| ())
-            .ok_or("Show an AFM force plot before opening Manual Hertz.");
+            .ok_or("Show an AFM force plot before opening Hertz Fit.");
     }
     let draft = app
         .session
         .ui
         .afm_hertz_task
         .as_ref()
-        .ok_or("Open Manual Hertz first.")?;
+        .ok_or("Open Hertz Fit first.")?;
     match choice {
         Fit::RunHertz => {
             let k = app.afm_hertz_calibration(draft.target)?;
@@ -37,7 +38,7 @@ pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
             }
             let input = draft
                 .input(k)
-                .map_err(|_| "Enter a radius, a contact Z, and both window limits.")?;
+                .map_err(|_| "Complete the fit settings and window limits.")?;
             (input.radius_nm > 0.0)
                 .then_some(())
                 .ok_or("Enter a positive probe radius.")
@@ -46,7 +47,7 @@ pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
             .afm_hertz_result()
             .map(|_| ())
             .ok_or("Calculate a Hertz fit with the current inputs."),
-        _ => Err("Choose a Manual Hertz command."),
+        _ => Err("Choose a Hertz Fit command."),
     }
 }
 
@@ -84,7 +85,7 @@ pub(super) fn run_command(app: &mut PlotiumApp, choice: Fit) {
 
 pub(super) fn body(app: &mut PlotiumApp, ui: &mut Ui, target: AfmFitTarget) {
     ui.separator();
-    ui.weak("Nonadhesive spherical contact");
+    ui.weak("Approach / Extend · Spherical contact");
     if let Some(afm) = app
         .doc
         .dataset_by_id(target.source)
@@ -102,6 +103,29 @@ pub(super) fn body(app: &mut PlotiumApp, ui: &mut Ui, target: AfmFitTarget) {
     if let Err(message) = calibration {
         ui.colored_label(ui.visuals().warn_fg_color, message);
     }
+    if let Ok(spring) = calibration
+        && let Some(context) = app
+            .doc
+            .dataset_by_id(target.source)
+            .and_then(|data| data.as_afm())
+            .and_then(|afm| afm.force_curve_context())
+    {
+        ui.small(format!("Spring constant (file): {spring} N/m"));
+        match context.deflection_source {
+            AfmDeflectionSource::StoredLength => {
+                ui.small("Deflection: calibrated length from file");
+            }
+            AfmDeflectionSource::VoltageSensitivity => {
+                if let Some(sensitivity) = context.deflection_sensitivity_m_per_v {
+                    ui.small(format!(
+                        "Deflection sensitivity (file): {} nm/V",
+                        sensitivity * 1e9
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
     let selection = app.afm_fit_selection(target);
 
     if let Some(draft) = &mut app.session.ui.afm_hertz_task {
@@ -111,25 +135,86 @@ pub(super) fn body(app: &mut PlotiumApp, ui: &mut Ui, target: AfmFitTarget) {
                     .changed()
             })
             .inner;
+        let method = |linearized| {
+            if linearized {
+                "Linearized Hertz"
+            } else {
+                "Manual Contact Hertz"
+            }
+        };
+        let previous = (draft.linearized, draft.window, draft.reference);
+        egui::ComboBox::from_id_salt("hertz_method")
+            .selected_text(method(draft.linearized))
+            .show_ui(ui, |ui| {
+                for linearized in [false, true] {
+                    ui.selectable_value(&mut draft.linearized, linearized, method(linearized));
+                }
+            });
         egui::Grid::new("hertz_inputs").show(ui, |ui| {
             changed |= number_field(ui, "Probe radius (nm)", &mut draft.radius_nm);
             ui.end_row();
-            changed |= number_field(ui, "Contact Z (nm)", &mut draft.contact_z_nm);
-            ui.end_row();
+            if !draft.linearized {
+                changed |= number_field(ui, "Contact Z (nm)", &mut draft.contact_z_nm);
+                ui.end_row();
+            }
         });
         changed |= range_field(ui, "Baseline Z (nm)", &mut draft.baseline_z_nm, selection);
-        changed |= range_field(ui, "Fit Z (nm)", &mut draft.fit_z_nm, selection);
+        egui::ComboBox::from_id_salt("hertz_window")
+            .selected_text(draft.window.label())
+            .show_ui(ui, |ui| {
+                for window in AfmHertzWindow::ALL {
+                    ui.selectable_value(&mut draft.window, window, window.label());
+                }
+            });
+        changed |= match draft.window {
+            AfmHertzWindow::RelativeZ => {
+                range_field(ui, "Fit Z (nm)", &mut draft.fit_z_nm, selection)
+            }
+            AfmHertzWindow::ForceNn => {
+                range_field(ui, "Fit force (nN)", &mut draft.fit_force_nn, None)
+            }
+            AfmHertzWindow::ForcePercent => {
+                range_field(ui, "Fit force (%)", &mut draft.fit_force_percent, None)
+            }
+        };
+        let reference_label = |reference| match reference {
+            AfmHertzReference::Zero => "Off (corrected zero)",
+            AfmHertzReference::Automatic => "Automatic",
+            AfmHertzReference::Manual => "Manual value",
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Minimum force reference");
+            egui::ComboBox::from_id_salt("hertz_reference")
+                .selected_text(reference_label(draft.reference))
+                .show_ui(ui, |ui| {
+                    for reference in [
+                        AfmHertzReference::Zero,
+                        AfmHertzReference::Automatic,
+                        AfmHertzReference::Manual,
+                    ] {
+                        ui.selectable_value(
+                            &mut draft.reference,
+                            reference,
+                            reference_label(reference),
+                        );
+                    }
+                });
+        });
+        if draft.reference == AfmHertzReference::Manual {
+            changed |= number_field(ui, "Reference force (nN)", &mut draft.reference_nn);
+        }
+        changed |= previous != (draft.linearized, draft.window, draft.reference);
         if changed {
             draft.error = None;
         }
     }
-    if calibration.is_ok() {
+    if let Ok(spring) = calibration {
         let contact = egui::CollapsingHeader::new("Approach preview")
             .default_open(true)
             .show(ui, |ui| {
                 let draft = app.session.ui.afm_hertz_task.as_ref()?;
                 match app.afm_hertz_points(target) {
-                    Ok(points) => preview::approach(ui, &points, draft),
+                    Ok(points) => preview::approach(ui, &points, draft, spring),
                     Err(error) => {
                         ui.small(error);
                         None
@@ -189,12 +274,11 @@ fn range_field(
         let [minimum, maximum] = limits;
         let changed = text_box(ui, minimum, "Min").labelled_by(label.id).changed()
             | text_box(ui, maximum, "Max").labelled_by(label.id).changed();
-        let copy = ui
-            .add_enabled(selection.is_some(), egui::Button::new(icon::SELECTION))
-            .on_hover_text("Use source plot selection")
-            .on_disabled_hover_text("Select a range on the source plot.");
-        if copy.clicked()
-            && let Some(range) = selection
+        if let Some(range) = selection
+            && ui
+                .button(icon::SELECTION)
+                .on_hover_text("Use source plot selection")
+                .clicked()
         {
             *minimum = range.min.to_string();
             *maximum = range.max.to_string();
@@ -213,6 +297,27 @@ fn summary(ui: &mut Ui, result: &HertzResult) {
             preview::value(result.reduced_modulus_mpa)
         ),
     );
+    let method = if let Some(zero) = result.extrapolated_zero_z_nm {
+        ui.small(format!(
+            "Fitted extrapolated zero: {} nm",
+            preview::value(zero)
+        ));
+        "Linearized Hertz"
+    } else {
+        "Manual Contact Hertz"
+    };
+    let (window, [low, high]) = match result.options.window {
+        HertzWindow::RelativeZ(bounds) => (AfmHertzWindow::RelativeZ, bounds),
+        HertzWindow::ForceNn(bounds) => (AfmHertzWindow::ForceNn, bounds),
+        HertzWindow::ForcePercent(bounds) => (AfmHertzWindow::ForcePercent, bounds),
+    };
+    ui.small(format!(
+        "{method} · {} · {} to {}",
+        window.label(),
+        preview::value(low),
+        preview::value(high)
+    ));
+    ui.small(format!("Reference force: {:.6} nN", result.reference_nn));
     ui.small(format!(
         "Baseline RMS: {} nN ({} points)",
         preview::value(result.baseline_rms_nn),
@@ -251,6 +356,8 @@ fn summary(ui: &mut Ui, result: &HertzResult) {
             modulus(sensitivity.lower_contact_modulus_mpa),
             modulus(sensitivity.higher_contact_modulus_mpa),
         ));
+    } else if result.extrapolated_zero_z_nm.is_some() {
+        ui.small("Indentation is measured from the fitted extrapolated zero.");
     } else {
         ui.small("Contact sensitivity unavailable");
     }

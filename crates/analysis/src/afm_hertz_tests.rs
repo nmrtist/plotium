@@ -164,3 +164,124 @@ fn rejects_one_noncompressive_or_nonpositive_sample_without_dropping_rows() {
     *points.last_mut().unwrap() = [70.0, f64::NAN];
     assert_eq!(fit_hertz(&points, INPUT), Err(HertzError::Samples));
 }
+
+const LINEARIZED: HertzOptions = HertzOptions {
+    spring_constant_n_per_m: INPUT.spring_constant_n_per_m,
+    radius_nm: INPUT.radius_nm,
+    baseline_z_nm: INPUT.baseline_z_nm,
+    method: HertzMethod::Linearized,
+    window: HertzWindow::ForceNn([8.0, 125.0]),
+    reference: HertzReference::Zero,
+};
+
+#[test]
+fn linearized_hertz_recovers_modulus_and_inclusive_equivalent_windows() {
+    let mut points = reference_curve();
+    // Add a reference offset to the contact region while leaving the baseline intact.
+    for point in &mut points[7..] {
+        point[1] += 3.0;
+    }
+    let options = HertzOptions {
+        window: HertzWindow::ForceNn([11.0, 128.0]),
+        reference: HertzReference::Manual(3.0),
+        ..LINEARIZED
+    };
+    let result = fit_hertz_with_options(&points, options).unwrap();
+    assert_eq!(result.sample_indices, [7, 8, 9, 10]);
+    assert!((result.reduced_modulus_mpa - 37.5).abs() < 1e-10);
+    assert!((result.extrapolated_zero_z_nm.unwrap() - 100.0).abs() < 1e-10);
+    assert!(result.residual_rms_nn < 1e-10);
+
+    let percent = HertzOptions {
+        window: HertzWindow::ForcePercent([100.0 * 8.0 / 125.0, 100.0]),
+        ..options
+    };
+    let selection = select_hertz_points(&points, percent).unwrap();
+    assert_eq!(selection.force_bounds_nn, Some([11.0, 128.0]));
+    assert_eq!(selection.indices, result.sample_indices);
+
+    let shift = 500.0;
+    for point in &mut points {
+        point[0] += shift;
+    }
+    let shifted = fit_hertz_with_options(
+        &points,
+        HertzOptions {
+            baseline_z_nm: options.baseline_z_nm.map(|z| z + shift),
+            ..percent
+        },
+    )
+    .unwrap();
+    assert_eq!(shifted.sample_indices, result.sample_indices);
+    assert!((shifted.reduced_modulus_mpa - result.reduced_modulus_mpa).abs() < 1e-10);
+    assert!((shifted.extrapolated_zero_z_nm.unwrap() - 600.0).abs() < 1e-10);
+}
+
+#[test]
+fn linearized_includes_the_reference_at_the_zero_percent_boundary() {
+    let points = reference_curve();
+    let options = HertzOptions {
+        window: HertzWindow::ForcePercent([0.0, 100.0]),
+        ..LINEARIZED
+    };
+    let selection = select_hertz_points(&points, options).unwrap();
+    assert_eq!(selection.force_bounds_nn, Some([0.0, 125.0]));
+    assert_eq!(selection.indices, (0..points.len()).collect::<Vec<_>>());
+}
+
+#[test]
+fn linearized_reports_empty_windows_and_degenerate_regressions() {
+    let points = reference_curve();
+    assert_eq!(
+        fit_hertz_with_options(
+            &points,
+            HertzOptions {
+                window: HertzWindow::ForceNn([200.0, 300.0]),
+                ..LINEARIZED
+            }
+        ),
+        Err(HertzError::FitSamples)
+    );
+
+    for (compression, expected) in [
+        (
+            [[-5., 8.], [-9., 16.], [-13., 24.]],
+            HertzError::IndentationSpan,
+        ),
+        (
+            [[-10., 8.], [-11., 16.], [-12., 24.]],
+            HertzError::LinearizedSlope,
+        ),
+    ] {
+        let points = [[106., 0.], [110., 0.], [125., 0.]]
+            .into_iter()
+            .chain(compression)
+            .collect::<Vec<_>>();
+        assert_eq!(fit_hertz_with_options(&points, LINEARIZED), Err(expected));
+    }
+}
+
+#[test]
+fn automatic_reference_uses_first_positive_separation_slope() {
+    let points = [[1., 4.], [2., 2.], [3., 0.], [4., 3.], [5., 4.]];
+    let at_separation = points.map(|[separation, f]| [separation - f / 2., f]);
+    assert_eq!(automatic_reference(&at_separation, 2.), Ok(0.));
+    assert_eq!(
+        automatic_reference(&at_separation[..3], 2.),
+        Err(HertzError::ReferenceTurn)
+    );
+}
+
+#[test]
+fn manual_contact_can_fit_a_force_window() {
+    let result = fit_hertz_with_options(
+        &reference_curve(),
+        HertzOptions {
+            method: HertzMethod::ManualContact(100.0),
+            ..LINEARIZED
+        },
+    )
+    .unwrap();
+    assert_eq!(result.sample_indices, [7, 8, 9, 10]);
+    assert!((result.reduced_modulus_mpa - 37.5).abs() < 1e-10);
+}

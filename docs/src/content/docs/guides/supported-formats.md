@@ -297,15 +297,15 @@ PeakForce Capture curves are the per-pixel signals as acquired. Derived QNM
 maps such as modulus arrive as their own image channels; Plotium does not
 recompute them from the curves.
 
-### Manual spherical Hertz fit
+### Spherical Hertz fit
 
 Select a force curve with **Relative Z (nm)** and **Force (nN)**. Open
-**Analyze → AFM Force Fit → Manual Hertz** to fit the Approach branch. This
+**Analyze → AFM Force Fit → Hertz Fit** to fit the Approach branch. This
 requires calibrated deflection and a valid cantilever spring constant from the
 file. Check **Use file spring constant** and enter the verified spherical
 tip radius in **Probe radius (nm)**.
 
-Manual Hertz is unavailable for PeakForce Capture (`.pfc`); its loading branch
+Hertz fitting is unavailable for PeakForce Capture (`.pfc`); its loading branch
 has not been verified for this fit.
 
 1. Set **Contact Z (nm)** where contact begins, either by typing the value or
@@ -328,6 +328,18 @@ has not been verified for this fit.
    shifted fit may be unavailable.
 5. Use **Create Hertz Data Sheet** to keep the fitted values and their inputs
    when you save the project.
+
+Choose **Linearized Hertz** to fit without entering Contact Z. The fit uses a
+free intercept in the transformed force versus displacement regression. The
+result reports indentation from the fitted extrapolated zero.
+
+Either method supports **Relative Z (nm)**, **Force (nN)**, and **Force (%)**
+windows. Force windows use baseline-corrected force. The percentage scale runs
+from the reference force at 0% to the approach-branch peak at 100%. The
+preview shows the force thresholds and highlights the samples used in the fit.
+
+If automatic reference detection finds no positive local slope, select
+**Manual value** and enter the reference force in nN.
 
 Use spherical Hertz for shallow elastic contact with negligible adhesion and
 substrate influence. Strong adhesion, thin samples, deep indentation relative
