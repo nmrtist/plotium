@@ -154,3 +154,48 @@ fn manual_hertz_invalidates_result_and_saves_disclosed_fit_data() {
     app.undo();
     assert_eq!(app.doc.datasets.len(), 1);
 }
+
+#[test]
+fn hertz_method_switch_preserves_manual_inputs_and_exports_provenance() {
+    use plotium_core::state::AfmHertzWindow;
+
+    let mut app = approach(Some(1.), true);
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.spring_confirmed = true;
+    let manual = draft.input(1.).unwrap();
+    draft.linearized = true;
+    draft.window = AfmHertzWindow::ForceNn;
+    draft.fit_force_nn = ["0.01".into(), "1.01".into()];
+    let linearized = draft.input(1.).unwrap();
+
+    draft.linearized = false;
+    draft.window = AfmHertzWindow::RelativeZ;
+    assert_eq!(draft.input(1.).unwrap(), manual);
+
+    draft.linearized = true;
+    draft.window = AfmHertzWindow::ForceNn;
+    assert_eq!(draft.input(1.).unwrap(), linearized);
+    draft.contact_z_nm.clear();
+    app.run_afm_hertz().unwrap();
+    let result = app.afm_hertz_result().unwrap();
+    assert_eq!(result.sample_indices, [0, 1, 2, 3]);
+    assert!((result.reduced_modulus_mpa - 0.5859375).abs() < 1e-10);
+    app.create_afm_hertz_output().unwrap();
+    let table = app.doc.datasets[1].as_table().unwrap();
+    let schema = &table.typed_state.envelope.revision.snapshot.schema;
+    for name in [
+        "Fit method",
+        "Fit window",
+        "Reference force",
+        "Original sample index (zero-based)",
+        "Fitted extrapolated zero",
+        "Reduced modulus E*",
+        "Residual",
+        "Linearized slope",
+    ] {
+        assert!(
+            schema.columns.iter().any(|column| column.name == name),
+            "{name}"
+        );
+    }
+}

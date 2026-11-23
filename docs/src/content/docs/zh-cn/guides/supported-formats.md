@@ -229,14 +229,14 @@ PeakForce Capture 文件旁通常保存着一个 AllImages `.spm` 导出文件�
 PeakForce Capture 曲线是逐像素采集的原始信号。模量等派生 QNM 地图作为独立的
 图像通道导入；Plotium 不会从曲线重新计算这些地图。
 
-### 手动球形 Hertz 拟合
+### 球形 Hertz 拟合
 
 选中横轴为 **Relative Z (nm)**、纵轴为 **Force (nN)** 的力曲线，选择
-**Analyze → AFM Force Fit → Manual Hertz** 拟合接近分支。此拟合需要已标定的
+**Analyze → AFM Force Fit → Hertz Fit** 拟合接近分支。此拟合需要已标定的
 偏转量和文件中的有效悬臂弹簧常数。勾选 **Use file spring constant**，在
 **Probe radius (nm)** 中输入已核实的球形探针半径。
 
-手动 Hertz 不适用于 PeakForce Capture（`.pfc`），因为其加载分支尚未针对该拟合验证。
+Hertz 拟合不适用于 PeakForce Capture（`.pfc`），因为其加载分支尚未针对该拟合验证。
 
 1. 在 **Contact Z (nm)** 中输入接触起始位置，或在 **Approach preview** 中
    点选最接近接触位置的采样点。
@@ -251,6 +251,15 @@ PeakForce Capture 曲线是逐像素采集的原始信号。模量等派生 QNM 
    并非样品的杨氏模量。接触点敏感性分析会保持两个区间不变，将接触点向两侧各移
    大约一个局部采样间距后重新拟合。它不是置信区间，任一侧的重算都有可能无法完成。
 5. 选择 **Create Hertz Data Sheet**，拟合数据和输入参数即可随项目一同保存。
+
+选择 **Linearized Hertz** 后可直接拟合，无需输入 Contact Z。拟合对变换后的力和
+位移做带自由截距的线性回归。结果以拟合外推零点为压入深度基准。
+
+两种方法均支持 **Relative Z (nm)**、**Force (nN)** 和 **Force (%)** 窗口。
+力窗口使用基线校正后的力。力百分比以参考力为 0%，以接近分支的力峰值为 100%。
+预览显示力阈值并高亮实际入选点。
+
+若自动扫描未找到正斜率，选择 **Manual value**，并输入以 nN 为单位的参考力。
 
 球形 Hertz 模型适用于黏附及基底影响可忽略的浅压入弹性接触。若黏附明显、样品较
 薄、压入深度相对于探针半径较大，或样品响应依赖加载速率，即使残差很小，结果也
