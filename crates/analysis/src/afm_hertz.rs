@@ -1,4 +1,4 @@
-//! Manual, nonadhesive spherical Hertz fit for a calibrated AFM approach curve.
+//! Nonadhesive spherical Hertz fits for calibrated AFM approach curves.
 
 use thiserror::Error;
 
@@ -13,9 +13,54 @@ pub struct HertzInput {
     pub fit_z_nm: [f64; 2],
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum HertzMethod {
+    ManualContact(f64),
+    Linearized,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum HertzWindow {
+    RelativeZ([f64; 2]),
+    ForceNn([f64; 2]),
+    ForcePercent([f64; 2]),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum HertzReference {
+    Zero,
+    Automatic,
+    Manual(f64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HertzOptions {
+    pub spring_constant_n_per_m: f64,
+    pub radius_nm: f64,
+    pub baseline_z_nm: [f64; 2],
+    pub method: HertzMethod,
+    pub window: HertzWindow,
+    pub reference: HertzReference,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HertzSelection {
+    pub corrected: Vec<[f64; 2]>,
+    /// Indices in the supplied approach curve.
+    pub indices: Vec<usize>,
+    pub reference_nn: f64,
+    pub force_bounds_nn: Option<[f64; 2]>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct HertzResult {
     pub reduced_modulus_mpa: f64,
+    pub options: HertzOptions,
+    pub reference_nn: f64,
+    pub force_bounds_nn: Option<[f64; 2]>,
+    pub extrapolated_zero_z_nm: Option<f64>,
+    pub linearized_slope: Option<f64>,
+    pub sample_indices: Vec<usize>,
     /// Only the selected fit window, in input order.
     pub rows: Vec<HertzRow>,
     pub baseline_rms_nn: f64,
@@ -78,6 +123,16 @@ pub enum HertzError {
     NonpositiveIndentation,
     #[error("The fit interval needs distinct indentation values.")]
     IndentationSpan,
+    #[error("Enter finite, ascending window bounds. Force percentages must be between 0 and 100.")]
+    Window,
+    #[error("Enter a finite reference force in nN.")]
+    Reference,
+    #[error("No positive-slope turn was found. Enter the reference force manually.")]
+    ReferenceTurn,
+    #[error("The peak corrected force must be above the reference force for a percentage window.")]
+    ForceSpan,
+    #[error("The linearized Hertz slope must be positive.")]
+    LinearizedSlope,
     #[error("The Hertz calculation did not produce finite, positive fit parameters.")]
     Numerical,
 }
@@ -88,22 +143,85 @@ pub enum HertzError {
 /// decrease toward the sample, and compression force must be positive after
 /// subtracting a linear force baseline estimated from the noncontact window.
 pub fn fit_hertz(points: &[[f64; 2]], input: HertzInput) -> Result<HertzResult, HertzError> {
-    validate(points, input)?;
-    let baseline = LinearBaseline::fit(points, input.baseline_z_nm)?;
-    let baseline_force_at_contact_nn = baseline.at(input.contact_z_nm);
+    fit_hertz_with_options(
+        points,
+        HertzOptions {
+            spring_constant_n_per_m: input.spring_constant_n_per_m,
+            radius_nm: input.radius_nm,
+            baseline_z_nm: input.baseline_z_nm,
+            method: HertzMethod::ManualContact(input.contact_z_nm),
+            window: HertzWindow::RelativeZ(input.fit_z_nm),
+            reference: HertzReference::Zero,
+        },
+    )
+}
+
+pub fn select_hertz_points(
+    points: &[[f64; 2]],
+    options: HertzOptions,
+) -> Result<HertzSelection, HertzError> {
+    prepare(points, options).map(|(_, selection)| selection)
+}
+
+pub fn fit_hertz_with_options(
+    points: &[[f64; 2]],
+    options: HertzOptions,
+) -> Result<HertzResult, HertzError> {
+    let (baseline, selection) = prepare(points, options)?;
+    let selected: Vec<_> = selection
+        .indices
+        .iter()
+        .map(|&i| selection.corrected[i])
+        .collect();
+    if selected.len() < 3 {
+        return Err(HertzError::FitSamples);
+    }
+    let mut extrapolated_zero_z_nm = None;
+    let mut linearized_slope = None;
+    let mut contact_sensitivity = None;
+    let (rows, reduced_modulus_mpa, zero_z) = match options.method {
+        HertzMethod::ManualContact(contact) => {
+            if selected.iter().all(|p| p[0] == selected[0][0]) {
+                return Err(HertzError::FitSamples);
+            }
+            let (rows, modulus) =
+                fit_at_contact(&selected, options, contact, selection.reference_nn)?;
+            contact_sensitivity = contact_spacing(points, contact).map(|shift_nm| {
+                let modulus_at = |shifted| {
+                    if selected.iter().any(|p| p[0] >= shifted)
+                        || shifted >= options.baseline_z_nm[0]
+                    {
+                        return None;
+                    }
+                    if let HertzWindow::RelativeZ([_, high]) = options.window
+                        && shifted <= high
+                    {
+                        return None;
+                    }
+                    fit_at_contact(&selected, options, shifted, selection.reference_nn)
+                        .ok()
+                        .map(|(_, modulus)| modulus)
+                };
+                HertzContactSensitivity {
+                    shift_nm,
+                    lower_contact_modulus_mpa: modulus_at(contact - shift_nm),
+                    higher_contact_modulus_mpa: modulus_at(contact + shift_nm),
+                }
+            });
+            (rows, modulus, contact)
+        }
+        HertzMethod::Linearized => {
+            let (rows, modulus, zero, slope) =
+                fit_linearized(&selected, options, selection.reference_nn)?;
+            extrapolated_zero_z_nm = Some(zero);
+            linearized_slope = Some(slope);
+            (rows, modulus, zero)
+        }
+    };
+    let baseline_force_at_contact_nn = baseline.at(zero_z);
     if !baseline_force_at_contact_nn.is_finite() {
         return Err(HertzError::Numerical);
     }
-    let selected: Vec<_> = points
-        .iter()
-        .filter(|[z, _]| contains(input.fit_z_nm, *z))
-        .map(|&[z, force]| [z, force - baseline.at(z)])
-        .collect();
-    if selected.len() < 3 || selected.iter().all(|p| p[0] == selected[0][0]) {
-        return Err(HertzError::FitSamples);
-    }
-
-    let (rows, reduced_modulus_mpa) = fit_at_contact(&selected, input, input.contact_z_nm)?;
     let n = rows.len() as f64;
     let mean_force = rows.iter().map(|row| row.corrected_force_nn).sum::<f64>() / n;
     let centered_sum = rows
@@ -119,29 +237,20 @@ pub fn fit_hertz(points: &[[f64; 2]], input: HertzInput) -> Result<HertzResult, 
         .iter()
         .map(|row| row.indentation_nm)
         .fold(0.0, f64::max)
-        / input.radius_nm;
+        / options.radius_nm;
     if !residual_rms_nn.is_finite() || !max_indentation_over_radius.is_finite() {
         return Err(HertzError::Numerical);
     }
     let r_squared = (centered_sum.is_finite() && centered_sum > 0.0)
         .then(|| 1.0 - residual_sum / centered_sum)
         .filter(|value| value.is_finite());
-    let contact_sensitivity = contact_spacing(points, input.contact_z_nm).map(|shift_nm| {
-        let modulus_at = |contact: f64| {
-            if contact <= input.fit_z_nm[1] || contact >= input.baseline_z_nm[0] {
-                return None;
-            }
-            fit_at_contact(&selected, input, contact)
-                .ok()
-                .map(|(_, modulus)| modulus)
-        };
-        HertzContactSensitivity {
-            shift_nm,
-            lower_contact_modulus_mpa: modulus_at(input.contact_z_nm - shift_nm),
-            higher_contact_modulus_mpa: modulus_at(input.contact_z_nm + shift_nm),
-        }
-    });
     Ok(HertzResult {
+        options,
+        reference_nn: selection.reference_nn,
+        force_bounds_nn: selection.force_bounds_nn,
+        extrapolated_zero_z_nm,
+        linearized_slope,
+        sample_indices: selection.indices,
         reduced_modulus_mpa,
         rows,
         baseline_rms_nn: baseline.rms_nn,
@@ -155,26 +264,44 @@ pub fn fit_hertz(points: &[[f64; 2]], input: HertzInput) -> Result<HertzResult, 
     })
 }
 
-fn validate(points: &[[f64; 2]], input: HertzInput) -> Result<(), HertzError> {
-    if !positive_finite(input.spring_constant_n_per_m) {
+fn prepare(
+    points: &[[f64; 2]],
+    options: HertzOptions,
+) -> Result<(LinearBaseline, HertzSelection), HertzError> {
+    if !positive_finite(options.spring_constant_n_per_m) {
         return Err(HertzError::SpringConstant);
     }
-    if !positive_finite(input.radius_nm) {
+    if !positive_finite(options.radius_nm) {
         return Err(HertzError::Radius);
     }
-    let [lo_baseline, hi_baseline] = input.baseline_z_nm;
-    let [lo_fit, hi_fit] = input.fit_z_nm;
-    let contact = input.contact_z_nm;
-    if [lo_baseline, hi_baseline, lo_fit, hi_fit, contact]
-        .into_iter()
-        .any(|value| !value.is_finite())
-        || lo_baseline >= hi_baseline
-        || lo_fit >= hi_fit
-    {
+    let [baseline_low, baseline_high] = options.baseline_z_nm;
+    if !valid_bounds(options.baseline_z_nm) {
         return Err(HertzError::Intervals);
     }
-    if hi_fit >= contact || lo_baseline <= contact {
-        return Err(HertzError::IntervalOrder);
+    let z_bounds = match options.window {
+        HertzWindow::RelativeZ(bounds) => {
+            if !valid_bounds(bounds) {
+                return Err(HertzError::Intervals);
+            }
+            Some(bounds)
+        }
+        HertzWindow::ForceNn(bounds) | HertzWindow::ForcePercent(bounds) => {
+            if !valid_bounds(bounds)
+                || (matches!(options.window, HertzWindow::ForcePercent(_))
+                    && (bounds[0] < 0.0 || bounds[1] > 100.0))
+            {
+                return Err(HertzError::Window);
+            }
+            None
+        }
+    };
+    if let HertzMethod::ManualContact(contact) = options.method {
+        if !contact.is_finite() {
+            return Err(HertzError::Intervals);
+        }
+        if baseline_low <= contact || z_bounds.is_some_and(|[_, high]| high >= contact) {
+            return Err(HertzError::IntervalOrder);
+        }
     }
     if points.is_empty() || points.iter().flatten().any(|value| !value.is_finite()) {
         return Err(HertzError::Samples);
@@ -184,10 +311,165 @@ fn validate(points: &[[f64; 2]], input: HertzInput) -> Result<(), HertzError> {
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &[z, _]| {
             (lo.min(z), hi.max(z))
         });
-    if lo_fit < lo || hi_baseline > hi {
+    if baseline_low < lo
+        || baseline_high > hi
+        || z_bounds.is_some_and(|[low, high]| low < lo || high > hi)
+    {
         return Err(HertzError::OutsideCurve);
     }
-    Ok(())
+    let baseline = LinearBaseline::fit(points, options.baseline_z_nm)?;
+    let corrected: Vec<_> = points
+        .iter()
+        .map(|&[z, f]| [z, f - baseline.at(z)])
+        .collect();
+    if corrected.iter().any(|p| !p[1].is_finite()) {
+        return Err(HertzError::Numerical);
+    }
+    let reference_nn = match options.reference {
+        HertzReference::Zero => 0.0,
+        HertzReference::Manual(force) if force.is_finite() => force,
+        HertzReference::Manual(_) => return Err(HertzError::Reference),
+        HertzReference::Automatic => {
+            automatic_reference(&corrected, options.spring_constant_n_per_m)?
+        }
+    };
+    let force_bounds_nn = match options.window {
+        HertzWindow::RelativeZ(_) => None,
+        HertzWindow::ForceNn(bounds) => Some(bounds),
+        HertzWindow::ForcePercent(bounds) => {
+            let peak = corrected
+                .iter()
+                .map(|p| p[1])
+                .fold(f64::NEG_INFINITY, f64::max);
+            let span = peak - reference_nn;
+            if !positive_finite(span) {
+                return Err(HertzError::ForceSpan);
+            }
+            Some(bounds.map(|p| match p {
+                0.0 => reference_nn,
+                100.0 => peak,
+                _ => reference_nn + (p / 100.0) * span,
+            }))
+        }
+    };
+    let indices = corrected
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &[z, f])| {
+            let in_window = z_bounds.is_some_and(|bounds| contains(bounds, z))
+                || force_bounds_nn.is_some_and(|bounds| contains(bounds, f));
+            let valid = match options.method {
+                HertzMethod::Linearized => f >= reference_nn,
+                HertzMethod::ManualContact(contact) => {
+                    z_bounds.is_some()
+                        || (f > reference_nn
+                            && indentation(
+                                contact,
+                                z,
+                                f,
+                                options.spring_constant_n_per_m,
+                                reference_nn,
+                            ) > 0.0)
+                }
+            };
+            (in_window && valid).then_some(i)
+        })
+        .collect();
+    Ok((
+        baseline,
+        HertzSelection {
+            corrected,
+            indices,
+            reference_nn,
+            force_bounds_nn,
+        },
+    ))
+}
+
+fn valid_bounds([low, high]: [f64; 2]) -> bool {
+    low.is_finite() && high.is_finite() && low < high
+}
+
+fn automatic_reference(points: &[[f64; 2]], spring: f64) -> Result<f64, HertzError> {
+    let mut separation: Vec<_> = points.iter().map(|&[z, f]| [z + f / spring, f]).collect();
+    if separation.iter().any(|p| !p[0].is_finite()) {
+        return Err(HertzError::Numerical);
+    }
+    // The center sample locates each local slope estimate on the curve.
+    separation.sort_by(|a, b| a[0].total_cmp(&b[0]));
+    let width = separation.len().div_ceil(20).max(3);
+    separation
+        .windows(width)
+        .find(|window| regression(window).is_ok_and(|(_, _, slope)| slope > 0.0))
+        .map(|window| window[width / 2][1])
+        .ok_or(HertzError::ReferenceTurn)
+}
+
+fn regression(points: &[[f64; 2]]) -> Result<(f64, f64, f64), HertzError> {
+    if points.iter().all(|p| p[0] == points[0][0]) {
+        return Err(HertzError::IndentationSpan);
+    }
+    let n = points.len() as f64;
+    let (x, y) = points
+        .iter()
+        .fold((0.0, 0.0), |(x, y), p| (x + p[0], y + p[1]));
+    let (x, y) = (x / n, y / n);
+    let (xx, xy) = points.iter().fold((0.0, 0.0), |(xx, xy), p| {
+        let dx = p[0] - x;
+        (xx + dx * dx, xy + dx * (p[1] - y))
+    });
+    let slope = xy / xx;
+    if !slope.is_finite() {
+        return Err(HertzError::Numerical);
+    }
+    Ok((x, y, slope))
+}
+
+fn fit_linearized(
+    points: &[[f64; 2]],
+    options: HertzOptions,
+    reference: f64,
+) -> Result<(Vec<HertzRow>, f64, f64, f64), HertzError> {
+    let spring = options.spring_constant_n_per_m;
+    // Use a local Z origin to retain precision when the whole curve is translated.
+    let origin = points[0][0];
+    let linearized: Vec<_> = points
+        .iter()
+        .map(|&[z, f]| {
+            [
+                (origin - z) - (f - reference) / spring,
+                (f - reference).cbrt().powi(2),
+            ]
+        })
+        .collect();
+    let (x, y, slope) = regression(&linearized)?;
+    if slope <= 0.0 {
+        return Err(HertzError::LinearizedSlope);
+    }
+    let zero = x - y / slope;
+    let modulus = 750.0 * slope.powf(1.5) / options.radius_nm.sqrt();
+    if !positive_finite(modulus) || !zero.is_finite() {
+        return Err(HertzError::Numerical);
+    }
+    let rows = points
+        .iter()
+        .zip(linearized)
+        .map(|(&[z, f], [x, _])| {
+            let indentation_nm = x - zero;
+            HertzRow {
+                z_nm: z,
+                indentation_nm,
+                corrected_force_nn: f,
+                predicted_force_nn: reference + (slope * indentation_nm).max(0.0).powf(1.5),
+            }
+        })
+        .collect();
+    Ok((rows, modulus, origin - zero, slope))
+}
+
+fn indentation(contact: f64, z: f64, force: f64, spring: f64, reference: f64) -> f64 {
+    // 1 nN / (1 N/m) = 1 nm of cantilever deflection.
+    (contact - z) - (force - reference) / spring
 }
 
 pub(super) struct LinearBaseline {
@@ -254,26 +536,31 @@ impl LinearBaseline {
 
 fn fit_at_contact(
     points: &[[f64; 2]],
-    input: HertzInput,
+    input: HertzOptions,
     contact_z_nm: f64,
+    reference: f64,
 ) -> Result<(Vec<HertzRow>, f64), HertzError> {
     let mut rows = Vec::with_capacity(points.len());
     let (mut xy, mut xx) = (0.0, 0.0);
     for &[z_nm, corrected_force_nn] in points {
-        // 1 nN / (1 N/m) = 1 nm of cantilever deflection.
-        let indentation_nm =
-            (contact_z_nm - z_nm) - corrected_force_nn / input.spring_constant_n_per_m;
+        let indentation_nm = indentation(
+            contact_z_nm,
+            z_nm,
+            corrected_force_nn,
+            input.spring_constant_n_per_m,
+            reference,
+        );
         if !corrected_force_nn.is_finite() || !indentation_nm.is_finite() {
             return Err(HertzError::Numerical);
         }
-        if corrected_force_nn <= 0.0 {
+        if corrected_force_nn <= reference {
             return Err(HertzError::NonCompressiveForce);
         }
         if indentation_nm <= 0.0 {
             return Err(HertzError::NonpositiveIndentation);
         }
         let feature = indentation_nm * indentation_nm.sqrt();
-        xy += feature * corrected_force_nn;
+        xy += feature * (corrected_force_nn - reference);
         xx += feature * feature;
         rows.push(HertzRow {
             z_nm,
@@ -296,7 +583,7 @@ fn fit_at_contact(
         return Err(HertzError::Numerical);
     }
     for row in &mut rows {
-        row.predicted_force_nn *= coefficient;
+        row.predicted_force_nn = reference + row.predicted_force_nn * coefficient;
         if !row.residual_nn().is_finite() {
             return Err(HertzError::Numerical);
         }

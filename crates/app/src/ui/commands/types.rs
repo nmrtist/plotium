@@ -51,7 +51,7 @@ impl AfmFitCommand {
                 "analysis.afm_fit_source",
                 icon::ARROW_LEFT,
             ),
-            Self::OpenHertz => ("Manual Hertz", "analysis.afm_hertz", icon::CHART_LINE_UP),
+            Self::OpenHertz => ("Hertz Fit", "analysis.afm_hertz", icon::CHART_LINE_UP),
             Self::SuggestHertz => (
                 "Suggest Hertz Inputs",
                 "analysis.afm_hertz_suggest",

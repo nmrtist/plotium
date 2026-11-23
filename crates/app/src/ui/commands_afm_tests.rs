@@ -188,27 +188,40 @@ fn hertz_suggestion_requires_explicit_acceptance_and_calculation() {
     );
     assert!(!describe(&app, run).enabled);
 
-    let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(900.0, 800.0),
-        )),
-        ..Default::default()
+    let mut frame = |events| {
+        ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(900.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| crate::ui::tools::render_curve_fit_task(&mut app, ui),
+        )
     };
-    let _ = ctx.run_ui(input.clone(), |ui| {
-        crate::ui::tools::render_curve_fit_task(&mut app, ui);
-    });
-    let rendered = ctx.run_ui(input, |ui| {
-        crate::ui::tools::render_curve_fit_task(&mut app, ui);
-    });
-    for label in ["Suggested inputs (not applied)", "Dashed: suggested inputs"] {
-        assert!(
-            rendered.shapes.iter().any(|shape| {
-                matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text() == label)
-            }),
-            "missing proposal preview label: {label}"
-        );
+    let visible = |output: egui::FullOutput, label| {
+        output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::Shape::Text(text)
+                if text.galley.text() == label
+                    && shape.clip_rect.contains(text.pos + egui::vec2(3.0, 5.0)))
+        })
+    };
+    for _ in 0..4 {
+        let _ = frame(Vec::new());
     }
+    assert!(visible(frame(Vec::new()), "Suggested inputs (not applied)"));
+    let _ = frame(vec![
+        egui::Event::PointerMoved(egui::pos2(750.0, 200.0)),
+        egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            phase: egui::TouchPhase::Move,
+            delta: egui::vec2(0.0, -2500.0),
+            modifiers: Default::default(),
+        },
+    ]);
+    assert!((0..30).any(|_| visible(frame(Vec::new()), "Dashed: suggested inputs")));
 
     execute_without_clipboard(apply, &mut app, &ctx);
     let draft = app.session.ui.afm_hertz_task.as_ref().unwrap();

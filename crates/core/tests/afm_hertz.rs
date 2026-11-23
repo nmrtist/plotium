@@ -157,6 +157,9 @@ fn manual_hertz_invalidates_result_and_saves_disclosed_fit_data() {
 
 #[test]
 fn hertz_suggestion_is_bound_to_current_curve_and_applied_only_on_request() {
+    use plotium_analysis::afm_hertz::{HertzMethod, HertzReference, HertzWindow};
+    use plotium_core::state::{AfmHertzReference, AfmHertzWindow};
+
     let mut app = approach(Some(1.0), true);
     let Dataset::Afm(afm) = &mut app.doc.datasets[0] else {
         panic!("expected AFM");
@@ -190,6 +193,21 @@ fn hertz_suggestion_is_bound_to_current_curve_and_applied_only_on_request() {
     );
     assert!(app.afm_hertz_result().is_none());
 
+    app.session.ui.afm_hertz_task.as_mut().unwrap().linearized = true;
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.linearized = false;
+    draft.window = AfmHertzWindow::ForcePercent;
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.window = AfmHertzWindow::RelativeZ;
+    draft.reference = AfmHertzReference::Automatic;
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    app.session.ui.afm_hertz_task.as_mut().unwrap().reference = AfmHertzReference::Zero;
+
     app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "900".into();
     assert!(app.apply_afm_hertz_suggestion().is_err());
     app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "1000".into();
@@ -202,16 +220,66 @@ fn hertz_suggestion_is_bound_to_current_curve_and_applied_only_on_request() {
     app.apply_afm_hertz_suggestion().unwrap();
     assert!(app.afm_hertz_suggestion().is_none());
     assert!(app.afm_hertz_result().is_none());
+    let options = app
+        .session
+        .ui
+        .afm_hertz_task
+        .as_ref()
+        .unwrap()
+        .input(1.0)
+        .unwrap();
     assert_eq!(
-        app.session
-            .ui
-            .afm_hertz_task
-            .as_ref()
-            .unwrap()
-            .input(1.0)
-            .unwrap(),
-        suggestion
+        options.method,
+        HertzMethod::ManualContact(suggestion.contact_z_nm)
     );
+    assert_eq!(options.baseline_z_nm, suggestion.baseline_z_nm);
+    assert_eq!(options.window, HertzWindow::RelativeZ(suggestion.fit_z_nm));
+    assert_eq!(options.reference, HertzReference::Zero);
     app.run_afm_hertz().unwrap();
     assert!(app.afm_hertz_result().is_some());
+}
+
+#[test]
+fn hertz_method_switch_preserves_manual_inputs_and_exports_provenance() {
+    use plotium_core::state::AfmHertzWindow;
+
+    let mut app = approach(Some(1.), true);
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.spring_confirmed = true;
+    let manual = draft.input(1.).unwrap();
+    draft.linearized = true;
+    draft.window = AfmHertzWindow::ForceNn;
+    draft.fit_force_nn = ["0.01".into(), "1.01".into()];
+    let linearized = draft.input(1.).unwrap();
+
+    draft.linearized = false;
+    draft.window = AfmHertzWindow::RelativeZ;
+    assert_eq!(draft.input(1.).unwrap(), manual);
+
+    draft.linearized = true;
+    draft.window = AfmHertzWindow::ForceNn;
+    assert_eq!(draft.input(1.).unwrap(), linearized);
+    draft.contact_z_nm.clear();
+    app.run_afm_hertz().unwrap();
+    let result = app.afm_hertz_result().unwrap();
+    assert_eq!(result.sample_indices, [0, 1, 2, 3]);
+    assert!((result.reduced_modulus_mpa - 0.5859375).abs() < 1e-10);
+    app.create_afm_hertz_output().unwrap();
+    let table = app.doc.datasets[1].as_table().unwrap();
+    let schema = &table.typed_state.envelope.revision.snapshot.schema;
+    for name in [
+        "Fit method",
+        "Fit window",
+        "Reference force",
+        "Original sample index (zero-based)",
+        "Fitted extrapolated zero",
+        "Reduced modulus E*",
+        "Residual",
+        "Linearized slope",
+    ] {
+        assert!(
+            schema.columns.iter().any(|column| column.name == name),
+            "{name}"
+        );
+    }
 }

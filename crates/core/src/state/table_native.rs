@@ -465,6 +465,16 @@ pub fn materialized_float_series_table(
     series: Vec<FloatSeries>,
     operation_id: &str,
 ) -> plotium_data::Result<super::TableDataset> {
+    materialized_float_series_with_labels(x, series, &[], operation_id)
+}
+
+pub(super) fn materialized_float_series_with_labels(
+    x: (String, String, Vec<Option<f64>>),
+    series: Vec<FloatSeries>,
+    labels: &[(&str, &str)],
+    operation_id: &str,
+) -> plotium_data::Result<super::TableDataset> {
+    let row_count = x.2.len();
     let (mut x_schema, x_values) = materialized_float_column(x.0, &x.1, x.2);
     x_schema.role = plotium_data::SemanticRole::Custom("space.nmrtist.plotium.axis.x".into());
     let x_binding = x_schema.id;
@@ -502,6 +512,16 @@ pub fn materialized_float_series_table(
             uncertainty_column,
             fit: series.fit,
         });
+    }
+    for &(name, value) in labels {
+        columns.push((
+            plotium_data::ColumnSchema::new(name, plotium_data::LogicalType::Utf8),
+            plotium_data::ColumnChunk::all_valid(plotium_data::ColumnValues::Utf8(vec![
+                value
+                    .into();
+                row_count
+            ])),
+        ));
     }
     super::TableDataset::from_materialized(
         columns,

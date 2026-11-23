@@ -165,7 +165,7 @@ pub(super) fn render_task(app: &mut PlotiumApp, host: &mut Ui) {
         return;
     };
     let title = if app.session.ui.afm_hertz_task.is_some() {
-        "Manual Hertz"
+        "Hertz Fit"
     } else {
         "AFM Force Fit"
     };

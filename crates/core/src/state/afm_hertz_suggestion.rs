@@ -1,4 +1,4 @@
-use super::{AfmFitTarget, Arc, PlotiumApp};
+use super::{AfmFitTarget, AfmHertzDraft, AfmHertzReference, AfmHertzWindow, Arc, PlotiumApp};
 use plotium_analysis::afm_hertz_suggestion::{HertzSuggestion, suggest_hertz};
 
 #[derive(Clone)]
@@ -9,6 +9,28 @@ pub(super) struct AfmHertzProposal {
     candidate: HertzSuggestion,
 }
 
+impl AfmHertzDraft {
+    pub fn hertz_suggestion_radius(&self) -> Result<f64, &'static str> {
+        if self.linearized
+            || self.window != AfmHertzWindow::RelativeZ
+            || self.reference != AfmHertzReference::Zero
+        {
+            return Err(
+                "Choose Manual Contact Hertz, Relative Z (nm), and Off (corrected zero) to use suggestions.",
+            );
+        }
+        if !self.spring_confirmed {
+            return Err("Confirm the file spring constant.");
+        }
+        self.radius_nm
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|radius| radius.is_finite() && *radius > 0.0)
+            .ok_or("Enter a finite, positive spherical tip radius in nm.")
+    }
+}
+
 impl PlotiumApp {
     pub fn suggest_afm_hertz(&mut self) -> Result<(), String> {
         let draft = self
@@ -16,12 +38,9 @@ impl PlotiumApp {
             .ui
             .afm_hertz_task
             .as_mut()
-            .ok_or("Open Manual Hertz first.")?;
+            .ok_or("Open Hertz Fit first.")?;
         draft.suggestion = None;
-        if !draft.spring_confirmed {
-            return Err("Confirm the file spring constant first.".into());
-        }
-        let radius = draft.radius()?;
+        let radius = draft.hertz_suggestion_radius()?;
         let target = draft.target;
         let (afm, spring) = self.afm_hertz_source(target)?;
         let force_increment = afm
@@ -40,7 +59,7 @@ impl PlotiumApp {
             .ui
             .afm_hertz_task
             .as_mut()
-            .ok_or("Open Manual Hertz first.")?
+            .ok_or("Open Hertz Fit first.")?
             .suggestion = Some(proposal);
         Ok(())
     }
@@ -49,12 +68,11 @@ impl PlotiumApp {
         let draft = self.session.ui.afm_hertz_task.as_ref()?;
         let proposal = draft.suggestion.as_ref()?;
         let (afm, spring) = self.afm_hertz_source(draft.target).ok()?;
-        (draft.spring_confirmed
-            && proposal.target == draft.target
+        (proposal.target == draft.target
             && proposal.pixel == afm.selected_pixel
             && Arc::ptr_eq(&proposal.data, &afm.data)
             && proposal.candidate.input.spring_constant_n_per_m == spring
-            && proposal.candidate.input.radius_nm == draft.radius().ok()?)
+            && proposal.candidate.input.radius_nm == draft.hertz_suggestion_radius().ok()?)
         .then_some(&proposal.candidate)
     }
 
@@ -68,7 +86,7 @@ impl PlotiumApp {
             .ui
             .afm_hertz_task
             .as_mut()
-            .ok_or("Open Manual Hertz first.")?;
+            .ok_or("Open Hertz Fit first.")?;
         draft.contact_z_nm = input.contact_z_nm.to_string();
         draft.baseline_z_nm = input.baseline_z_nm.map(|bound| bound.to_string());
         draft.fit_z_nm = input.fit_z_nm.map(|bound| bound.to_string());

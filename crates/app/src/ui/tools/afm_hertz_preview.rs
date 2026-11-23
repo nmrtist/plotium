@@ -1,6 +1,6 @@
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Stroke, Ui};
-use plotium_analysis::afm_hertz::{HertzInput, HertzResult};
-use plotium_core::state::AfmHertzDraft;
+use plotium_analysis::afm_hertz::{HertzInput, HertzResult, select_hertz_points};
+use plotium_core::state::{AfmHertzDraft, AfmHertzReference, AfmHertzWindow};
 
 struct Colors {
     baseline: Color32,
@@ -30,36 +30,100 @@ pub(super) fn approach(
     ui: &mut Ui,
     points: &[[f64; 2]],
     draft: &AfmHertzDraft,
+    spring: f64,
     suggestion: Option<HertzInput>,
 ) -> Option<f64> {
     let colors = Colors::from_ui(ui);
-    let contact = finite_number(&draft.contact_z_nm);
+    let relative_z = draft.window == AfmHertzWindow::RelativeZ;
+    let contact = (!draft.linearized)
+        .then(|| finite_number(&draft.contact_z_nm))
+        .flatten();
     let baseline = band(&draft.baseline_z_nm, colors.baseline);
-    let fit = band(&draft.fit_z_nm, colors.fit);
+    let fit = relative_z
+        .then(|| band(&draft.fit_z_nm, colors.fit))
+        .flatten();
+    let selection = match draft.options(spring) {
+        Ok(options) => match select_hertz_points(points, options) {
+            Ok(selection) => Some(selection),
+            Err(error) => {
+                ui.small(error.to_string());
+                None
+            }
+        },
+        Err(error) => {
+            if !relative_z || draft.reference != AfmHertzReference::Zero {
+                ui.small(error);
+            }
+            None
+        }
+    };
+    let corrected = !relative_z && selection.is_some();
+    let display_points = if corrected {
+        selection
+            .as_ref()
+            .map_or(points, |selection| selection.corrected.as_slice())
+    } else {
+        points
+    };
+    let selected: Vec<_> = selection
+        .iter()
+        .flat_map(|selection| selection.indices.iter().map(|&index| display_points[index]))
+        .collect();
+    let force_bounds = selection
+        .as_ref()
+        .and_then(|selection| selection.force_bounds_nn);
+    if let Some(selection) = &selection {
+        ui.small(format!(
+            "Reference force: {:.6} nN · {} selected points",
+            selection.reference_nn,
+            selected.len()
+        ));
+    }
+    if let Some([low, high]) = force_bounds {
+        ui.small(format!(
+            "Force window: {} to {} nN",
+            value(low),
+            value(high)
+        ));
+    }
     ui.horizontal_wrapped(|ui| {
         key(ui, "Baseline", colors.baseline);
         key(ui, "Fit window", colors.fit);
-        key(ui, "Contact Z", colors.contact);
+        if !draft.linearized {
+            key(ui, "Contact Z", colors.contact);
+        }
         if suggestion.is_some() {
             ui.weak("Dashed: suggested inputs");
         }
     });
     let trace = Trace {
         color: ui.visuals().text_color(),
-        points,
+        points: display_points,
     };
     let (response, scale) = plot(
         ui,
-        ["Relative Z (nm)", "Force (nN)"],
+        [
+            "Relative Z (nm)",
+            if corrected {
+                "Corrected force (nN)"
+            } else {
+                "Force (nN)"
+            },
+        ],
         &[trace],
         Marks {
             bands: [baseline, fit],
             vertical: contact.map(|z| (z, colors.contact)),
             suggestion,
-            pick: true,
+            horizontal: force_bounds.map(|bounds| (bounds, colors.fit)),
+            selected: Some((&selected, colors.fit)),
+            pick: !draft.linearized,
             ..Default::default()
         },
     )?;
+    if draft.linearized {
+        return None;
+    }
     let response = response
         .on_hover_cursor(egui::CursorIcon::Crosshair)
         .on_hover_text("Set contact Z at the nearest sample");
@@ -140,10 +204,12 @@ struct Trace<'a> {
 }
 
 #[derive(Default)]
-struct Marks {
+struct Marks<'a> {
     bands: [Option<([f64; 2], Color32)>; 2],
     vertical: Option<(f64, Color32)>,
     suggestion: Option<HertzInput>,
+    horizontal: Option<([f64; 2], Color32)>,
+    selected: Option<(&'a [[f64; 2]], Color32)>,
     zero_line: bool,
     pick: bool,
 }
@@ -177,7 +243,7 @@ fn plot(
     ui: &mut Ui,
     [x_name, y_name]: [&str; 2],
     traces: &[Trace<'_>],
-    marks: Marks,
+    marks: Marks<'_>,
 ) -> Option<(Response, Scale)> {
     let mut lo = [f64::INFINITY; 2];
     let mut hi = [f64::NEG_INFINITY; 2];
@@ -199,6 +265,10 @@ fn plot(
     if !lo[0].is_finite() || lo[0] >= hi[0] || !(hi[0] - lo[0]).is_finite() {
         ui.weak("Preview unavailable: no finite X span.");
         return None;
+    }
+    if let Some(([low, high], _)) = marks.horizontal {
+        y_min = y_min.min(low);
+        y_max = y_max.max(high);
     }
     if y_min == y_max {
         let pad = (y_min.abs() * 0.01).max(0.01);
@@ -265,6 +335,19 @@ fn plot(
                     Stroke::new(1.3_f32, trace.color),
                 ));
             }
+        }
+    }
+    if let Some((bounds, color)) = marks.horizontal {
+        for force in bounds {
+            chart.line_segment(
+                [scale.point([lo[0], force]), scale.point([hi[0], force])],
+                Stroke::new(1.0_f32, color),
+            );
+        }
+    }
+    if let Some((points, color)) = marks.selected {
+        for &point in points {
+            chart.circle_filled(scale.point(point), 2.1, color);
         }
     }
     if let Some(suggestion) = marks.suggestion {
