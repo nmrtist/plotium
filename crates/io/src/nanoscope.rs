@@ -22,7 +22,7 @@ use companion::{companion_candidates, geometries_match};
 mod calibration;
 use calibration::{
     calibrated_si_value, first_number, is_physical_deflection_unit, normalize_afm_unit,
-    physical_unit, sensitivity_scale,
+    parenthesized, physical_unit, sensitivity_scale,
 };
 #[path = "nanoscope_force_axis.rs"]
 mod force_axis_details;
@@ -407,6 +407,10 @@ fn parse_force(
         .number(&["Spring Constant"])
         .or_else(|| global_number(globals, &["Spring Constant"]))
         .filter(|value| value.is_finite() && *value > 0.0);
+    let tip_radius_nm = section
+        .value(&["Tip Radius"])
+        .or_else(|| global_value(globals, &["Tip Radius"]))
+        .and_then(calibration::tip_radius_nm);
     Ok(AfmForceSet {
         grid_width,
         grid_height,
@@ -419,6 +423,7 @@ fn parse_force(
         approach_samples,
         deflection_sensitivity_m_per_v,
         spring_constant_n_per_m,
+        tip_radius_nm,
     })
 }
 
@@ -763,12 +768,6 @@ fn global_usize(values: &HashMap<String, String>, names: &[&str]) -> Option<usiz
 fn bracketed(value: &str) -> Option<&str> {
     let start = value.find('[')? + 1;
     let end = value[start..].find(']')? + start;
-    Some(&value[start..end])
-}
-
-fn parenthesized(value: &str) -> Option<&str> {
-    let start = value.rfind('(')? + 1;
-    let end = value[start..].find(')')? + start;
     Some(&value[start..end])
 }
 

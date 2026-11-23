@@ -87,7 +87,13 @@ pub(super) fn length_factor_nm(unit: &str) -> Option<f64> {
     }
 }
 
-fn parenthesized(value: &str) -> Option<&str> {
+pub(super) fn tip_radius_nm(value: &str) -> Option<f64> {
+    let (radius, unit) = display_quantity(value).or_else(|| Some((value.parse().ok()?, "nm")))?;
+    let radius_nm = radius * length_factor_nm(unit)?;
+    (radius_nm.is_finite() && radius_nm > 0.0).then_some(radius_nm)
+}
+
+pub(super) fn parenthesized(value: &str) -> Option<&str> {
     let start = value.rfind('(')? + 1;
     let end = value[start..].find(')')? + start;
     Some(&value[start..end])

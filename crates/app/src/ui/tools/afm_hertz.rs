@@ -44,15 +44,11 @@ pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
         }
         Fit::RunHertz => {
             let k = app.afm_hertz_calibration(draft.target)?;
-            if !draft.spring_confirmed {
-                return Err("Confirm the file spring constant.");
-            }
-            let input = draft
-                .input(k)
-                .map_err(|_| "Complete the fit settings and window limits.")?;
-            (input.radius_nm > 0.0)
-                .then_some(())
-                .ok_or("Enter a positive probe radius.")
+            draft.radius()?;
+            draft
+                .options(k)
+                .map(|_| ())
+                .map_err(|_| "Complete the fit settings and window limits.")
         }
         Fit::HertzDataSheet => app
             .afm_hertz_result()
@@ -67,14 +63,22 @@ pub(super) fn run_command(app: &mut PlotiumApp, choice: Fit) {
         let Some(target) = active_target(app) else {
             return;
         };
-        let ui = &mut app.session.ui;
-        if ui
+        if app
+            .session
+            .ui
             .afm_hertz_task
             .as_ref()
             .is_none_or(|task| task.target != target)
         {
-            ui.afm_hertz_task = Some(AfmHertzDraft::new(target));
+            let tip_radius_nm = app
+                .doc
+                .dataset_by_id(target.source)
+                .and_then(|dataset| dataset.as_afm())
+                .and_then(|afm| afm.data.forces.as_ref())
+                .and_then(|forces| forces.tip_radius_nm);
+            app.session.ui.afm_hertz_task = Some(AfmHertzDraft::new(target, tip_radius_nm));
         }
+        let ui = &mut app.session.ui;
         ui.afm_fit_task = None;
         ui.curve_fit_task_dataset = None;
         ui.curve_fit_task_collapsed = false;
@@ -148,12 +152,7 @@ pub(super) fn body(app: &mut PlotiumApp, ui: &mut Ui, target: AfmFitTarget) {
     let selection = app.afm_fit_selection(target);
 
     if let Some(draft) = &mut app.session.ui.afm_hertz_task {
-        let mut changed = ui
-            .add_enabled_ui(calibration.is_ok(), |ui| {
-                ui.checkbox(&mut draft.spring_confirmed, "Use file spring constant")
-                    .changed()
-            })
-            .inner;
+        let mut changed = false;
         let method = |linearized| {
             if linearized {
                 "Linearized Hertz"

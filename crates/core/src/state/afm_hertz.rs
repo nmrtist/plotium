@@ -39,7 +39,6 @@ pub enum AfmHertzReference {
 #[derive(Clone)]
 pub struct AfmHertzDraft {
     pub target: AfmFitTarget,
-    pub spring_confirmed: bool,
     pub radius_nm: String,
     pub contact_z_nm: String,
     pub baseline_z_nm: [String; 2],
@@ -65,11 +64,10 @@ struct AfmHertzRun {
 }
 
 impl AfmHertzDraft {
-    pub fn new(target: AfmFitTarget) -> Self {
+    pub fn new(target: AfmFitTarget, tip_radius_nm: Option<f64>) -> Self {
         Self {
             target,
-            spring_confirmed: false,
-            radius_nm: String::new(),
+            radius_nm: tip_radius_nm.map_or_else(String::new, |radius| radius.to_string()),
             contact_z_nm: String::new(),
             baseline_z_nm: Default::default(),
             fit_z_nm: Default::default(),
@@ -86,11 +84,13 @@ impl AfmHertzDraft {
         }
     }
 
-    pub fn input(&self, spring_constant_n_per_m: f64) -> Result<HertzOptions, String> {
-        if !self.spring_confirmed {
-            return Err("Confirm the file's spring constant before calculating.".into());
-        }
-        self.options(spring_constant_n_per_m)
+    pub fn radius(&self) -> Result<f64, &'static str> {
+        self.radius_nm
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|radius| radius.is_finite() && *radius > 0.0)
+            .ok_or("Enter a finite, positive spherical tip radius in nm.")
     }
 
     pub fn options(&self, spring_constant_n_per_m: f64) -> Result<HertzOptions, String> {
@@ -107,7 +107,7 @@ impl AfmHertzDraft {
         };
         Ok(HertzOptions {
             spring_constant_n_per_m,
-            radius_nm: number(&self.radius_nm, "tip radius (nm)")?,
+            radius_nm: self.radius()?,
             baseline_z_nm: range(&self.baseline_z_nm, "baseline bound (nm)")?,
             method: if self.linearized {
                 HertzMethod::Linearized
@@ -215,7 +215,7 @@ impl PlotiumApp {
             .afm_hertz_task
             .as_ref()
             .ok_or("Open Hertz Fit first.")?;
-        let input = draft.input(spring)?;
+        let input = draft.options(spring)?;
         let result = fit_hertz_with_options(&self.afm_hertz_points(target)?, input)
             .map_err(|error| error.to_string())?;
         let raw_indices = afm
@@ -253,7 +253,7 @@ impl PlotiumApp {
         (run.target == draft.target
             && run.pixel == afm.selected_pixel
             && Arc::ptr_eq(&run.data, &afm.data)
-            && draft.input(spring).ok()? == run.result.options)
+            && draft.options(spring).ok()? == run.result.options)
             .then_some(run)
     }
 

@@ -93,8 +93,53 @@ fn standalone_ramp_prefers_z_view_and_calibrates_both_branches() {
     );
     assert_eq!(force.sample_period_s, Some(6.0e-6));
     assert_eq!(force.spring_constant_n_per_m, Some(0.7));
+    assert_eq!(force.tip_radius_nm, None);
     assert_eq!(force.signal_scale.unit, "nm");
     assert!((force.signal_scale.apply(5) - 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn reads_positive_tip_radius_from_force_metadata_in_nm() {
+    // Keep the original binary offsets while varying the ASCII header.
+    let bytes = standalone_force_views();
+    let (header, payload) = bytes.split_at(1024);
+    let header = std::str::from_utf8(header).unwrap().trim_end_matches('\0');
+    for (global, channel, expected) in [
+        ("", "\\Tip Radius: 42\n", Some(42.0)),
+        ("\\Tip Radius: 0.08 µm\n", "", Some(80.0)),
+        (
+            "\\Tip Radius: 0.08 µm\n",
+            "\\@4:Tip Radius: V (1 nm/LSB) 42 nm\n",
+            Some(42.0),
+        ),
+        ("", "\\Tip Radius: 0 nm\n", None),
+        ("", "\\Tip Radius: -1 nm\n", None),
+        ("", "\\Tip Radius: NaN nm\n", None),
+        ("", "\\Tip Radius: 42 V\n", None),
+    ] {
+        let mut modified = header
+            .replace(
+                "\\*Ciao force list\n",
+                &format!("\\*Ciao force list\n{global}"),
+            )
+            .replacen(
+                "\\X Data Type: Ramp\n",
+                &format!("\\X Data Type: Ramp\n{channel}"),
+                1,
+            )
+            .into_bytes();
+        assert!(modified.len() <= 1024);
+        modified.resize(1024, 0);
+        modified.extend_from_slice(payload);
+        let (data, warnings) = parse(
+            &modified,
+            Path::new("ramp.spm"),
+            DataFormat::Afm(crate::AfmFormat::BrukerNanoScopeSpm),
+        )
+        .unwrap();
+        assert!(warnings.is_empty());
+        assert_eq!(data.forces.unwrap().tip_radius_nm, expected);
+    }
 }
 
 #[test]

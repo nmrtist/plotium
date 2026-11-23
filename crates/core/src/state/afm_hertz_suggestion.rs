@@ -19,15 +19,7 @@ impl AfmHertzDraft {
                 "Choose Manual Contact Hertz, Relative Z (nm), and Off (corrected zero) to use suggestions.",
             );
         }
-        if !self.spring_confirmed {
-            return Err("Confirm the file spring constant.");
-        }
-        self.radius_nm
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|radius| radius.is_finite() && *radius > 0.0)
-            .ok_or("Enter a finite, positive spherical tip radius in nm.")
+        self.radius()
     }
 }
 

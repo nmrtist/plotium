@@ -34,6 +34,7 @@ fn fixture() -> AfmData {
             approach_samples: 2,
             deflection_sensitivity_m_per_v: Some(2e-8),
             spring_constant_n_per_m: Some(0.4),
+            tip_radius_nm: Some(85.0),
         }),
         source: "synthetic.spm".to_owned(),
         import_warnings: vec!["synthetic warning".to_owned()],
@@ -53,6 +54,7 @@ fn binary_afm_round_trip_preserves_arrays_and_metadata() {
     assert_eq!(forces.display_order.as_ref(), [1, 0, 3, 2]);
     assert_eq!(forces.z_positions.unwrap().as_ref(), [0.0, 1.0, 2.0, 3.0]);
     assert_eq!(forces.spring_constant_n_per_m, Some(0.4));
+    assert_eq!(forces.tip_radius_nm, Some(85.0));
 }
 
 #[test]

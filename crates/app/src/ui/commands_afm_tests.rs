@@ -64,6 +64,7 @@ fn manual_hertz_calculates_and_only_exports_current_inputs() {
         approach_samples: samples,
         deflection_sensitivity_m_per_v: None,
         spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: None,
     }));
     let ctx = crate::typography::test_context();
     let open = CommandId::AfmFit(AfmFitCommand::OpenHertz);
@@ -80,7 +81,7 @@ fn manual_hertz_calculates_and_only_exports_current_inputs() {
     assert!(!describe(&app, output).enabled);
     let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
     assert_eq!(draft.target.branch, AfmForceBranch::Approach);
-    draft.spring_confirmed = true;
+    assert!(draft.radius_nm.is_empty());
     draft.radius_nm = "225".into();
     draft.contact_z_nm = "100".into();
     draft.baseline_z_nm = ["104".into(), "120".into()];
@@ -156,6 +157,7 @@ fn hertz_suggestion_requires_explicit_acceptance_and_calculation() {
         approach_samples: samples,
         deflection_sensitivity_m_per_v: None,
         spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: Some(1000.0),
     }));
     let ctx = crate::typography::test_context();
     let open = CommandId::AfmFit(AfmFitCommand::OpenHertz);
@@ -164,10 +166,9 @@ fn hertz_suggestion_requires_explicit_acceptance_and_calculation() {
     let run = CommandId::AfmFit(AfmFitCommand::RunHertz);
     let output = CommandId::AfmFit(AfmFitCommand::HertzDataSheet);
     execute_without_clipboard(open, &mut app, &ctx);
-    assert!(!describe(&app, suggest).enabled);
+    assert!(describe(&app, suggest).enabled);
     let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
-    draft.spring_confirmed = true;
-    draft.radius_nm = "1000".into();
+    assert_eq!(draft.radius_nm, "1000");
     draft.contact_z_nm = "42".into();
     assert!(
         catalog(&app)
@@ -235,6 +236,14 @@ fn hertz_suggestion_requires_explicit_acceptance_and_calculation() {
     assert!(describe(&app, run).enabled);
     assert!(!describe(&app, output).enabled);
     assert!(app.afm_hertz_result().is_none());
+
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.radius_nm = "800".into();
+    execute_without_clipboard(open, &mut app, &ctx);
+    execute_without_clipboard(run, &mut app, &ctx);
+    let result = app.afm_hertz_result().unwrap();
+    assert_eq!(result.options.radius_nm, 800.0);
+    assert_eq!(result.options.spring_constant_n_per_m, 1.0);
 }
 
 #[test]
@@ -255,6 +264,7 @@ fn afm_fit_command_uses_the_selected_branch_and_range() {
         approach_samples: 6,
         deflection_sensitivity_m_per_v: None,
         spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: None,
     }));
     let source = app.doc.datasets[0].resource_id();
     let canvas = &app.doc.canvases[0];

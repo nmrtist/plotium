@@ -302,8 +302,9 @@ recompute them from the curves.
 Select a force curve with **Relative Z (nm)** and **Force (nN)**. Open
 **Analyze → AFM Force Fit → Hertz Fit** to fit the Approach branch. This
 requires calibrated deflection and a valid cantilever spring constant from the
-file. Check **Use file spring constant** and enter the verified spherical
-tip radius in **Probe radius (nm)**.
+file, which Plotium uses automatically. **Probe radius (nm)** starts with the
+tip radius from the NanoScope header when available. Edit the value or enter a
+verified spherical tip radius if the field is empty.
 
 Hertz fitting is unavailable for PeakForce Capture (`.pfc`); its loading branch
 has not been verified for this fit.
@@ -311,7 +312,7 @@ has not been verified for this fit.
 For **Manual Contact Hertz** with a **Relative Z (nm)** window and the
 minimum force reference set to **Off (corrected zero)**, you can select
 **Suggest Hertz Inputs** to review a candidate contact point, baseline, and
-fit window after confirming the spring constant and entering the radius.
+fit window once **Probe radius (nm)** has a valid value.
 The **Approach preview** shows these candidates with dashed
 markers, separate from the current inputs. Select **Use Suggested Inputs**
 to fill the fields; you can still edit them before selecting
