@@ -64,6 +64,9 @@ pub(in crate::ui) fn afm_fit_gate(app: &PlotiumApp, command: Fit) -> Result<(), 
             return super::afm_hertz::gate(app, command);
         }
         Fit::ShowSource => {
+            if app.session.ui.afm_hertz_task.is_some() {
+                super::afm_hertz::require_selected_plot(app)?;
+            }
             return target(app)
                 .and_then(|target| app.afm_fit_plot(target))
                 .map(|_| ())
@@ -219,6 +222,12 @@ fn body(app: &mut PlotiumApp, ui: &mut Ui) {
     let Some(target) = target(app) else {
         return;
     };
+    if app.session.ui.afm_hertz_task.is_some()
+        && let Err(reason) = super::afm_hertz::require_selected_plot(app)
+    {
+        ui.weak(reason);
+        return;
+    }
     let Some((source, context)) = app
         .afm_fit_plot(target)
         .and_then(|_| app.doc.dataset_by_id(target.source))

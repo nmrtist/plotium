@@ -5,17 +5,60 @@ use egui_phosphor::regular as icon;
 use plotium_analysis::afm_hertz::{HertzResult, HertzWindow};
 use plotium_core::state::{AfmDeflectionSource, AfmHertzReference, AfmHertzWindow};
 use plotium_core::state::{
-    AfmFitTarget, AfmForceBranch, AfmHertzDraft, AxisRange, PlotiumApp, TaskDockTab,
+    AfmFitTarget, AfmForceBranch, AfmHertzDraft, AxisRange, DatasetId, PlotiumApp, TaskDockTab,
 };
 
 #[path = "afm_hertz_preview.rs"]
 mod preview;
 
-fn active_target(app: &PlotiumApp) -> Option<AfmFitTarget> {
+fn active_afm_source(app: &PlotiumApp) -> Option<DatasetId> {
     let source = app
         .active_dataset()
         .and_then(|di| app.doc.datasets.get(di))?;
-    app.afm_fit_target(source.resource_id(), AfmForceBranch::Approach)
+    source.as_afm()?;
+    Some(source.resource_id())
+}
+
+fn active_target(app: &PlotiumApp) -> Option<AfmFitTarget> {
+    app.afm_fit_target(active_afm_source(app)?, AfmForceBranch::Approach)
+}
+
+pub(super) fn require_selected_plot(app: &PlotiumApp) -> Result<(), &'static str> {
+    if let Some(source) = active_afm_source(app)
+        && app
+            .afm_fit_target(source, AfmForceBranch::Approach)
+            .is_none()
+    {
+        return Err("Show a force plot for the selected AFM dataset.");
+    }
+    Ok(())
+}
+
+pub(in crate::ui) fn sync_hertz_target(app: &mut PlotiumApp) {
+    if app.session.ui.afm_hertz_task.is_some()
+        && let Some(target) = active_target(app)
+    {
+        bind_target(app, target);
+    }
+}
+
+fn bind_target(app: &mut PlotiumApp, target: AfmFitTarget) {
+    if app
+        .session
+        .ui
+        .afm_hertz_task
+        .as_ref()
+        .is_some_and(|task| task.target == target)
+    {
+        return;
+    }
+    let tip_radius_nm = app
+        .doc
+        .dataset_by_id(target.source)
+        .and_then(|dataset| dataset.as_afm())
+        .and_then(|afm| afm.data.forces.as_ref())
+        .and_then(|forces| forces.tip_radius_nm);
+    app.session.ui.afm_hertz_task = Some(AfmHertzDraft::new(target, tip_radius_nm));
 }
 
 pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
@@ -30,6 +73,7 @@ pub(super) fn gate(app: &PlotiumApp, choice: Fit) -> Result<(), &'static str> {
         .afm_hertz_task
         .as_ref()
         .ok_or("Open Hertz Fit first.")?;
+    require_selected_plot(app)?;
     match choice {
         Fit::SuggestHertz => {
             app.afm_hertz_calibration(draft.target)?;
@@ -63,21 +107,7 @@ pub(super) fn run_command(app: &mut PlotiumApp, choice: Fit) {
         let Some(target) = active_target(app) else {
             return;
         };
-        if app
-            .session
-            .ui
-            .afm_hertz_task
-            .as_ref()
-            .is_none_or(|task| task.target != target)
-        {
-            let tip_radius_nm = app
-                .doc
-                .dataset_by_id(target.source)
-                .and_then(|dataset| dataset.as_afm())
-                .and_then(|afm| afm.data.forces.as_ref())
-                .and_then(|forces| forces.tip_radius_nm);
-            app.session.ui.afm_hertz_task = Some(AfmHertzDraft::new(target, tip_radius_nm));
-        }
+        bind_target(app, target);
         let ui = &mut app.session.ui;
         ui.afm_fit_task = None;
         ui.curve_fit_task_dataset = None;

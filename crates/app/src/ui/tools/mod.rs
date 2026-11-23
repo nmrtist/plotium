@@ -3,6 +3,7 @@
 
 mod afm_fit;
 mod afm_hertz;
+pub(super) use afm_hertz::sync_hertz_target;
 mod craft;
 mod cursors;
 mod curve_fit;
@@ -82,6 +83,7 @@ pub(crate) fn render_region_task(app: &mut PlotiumApp, ui: &mut Ui) {
 }
 
 pub(crate) fn render_curve_fit_task(app: &mut PlotiumApp, ui: &mut Ui) {
+    sync_hertz_target(app);
     if afm_fit::target(app).is_some() {
         afm_fit::render_task(app, ui);
     } else {

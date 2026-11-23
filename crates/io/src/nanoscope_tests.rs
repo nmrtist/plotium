@@ -109,6 +109,11 @@ fn reads_positive_tip_radius_from_force_metadata_in_nm() {
         ("\\Tip Radius: 0.08 µm\n", "", Some(80.0)),
         (
             "\\Tip Radius: 0.08 µm\n",
+            "\\Tip Radius: 0 nm\n",
+            Some(80.0),
+        ),
+        (
+            "\\Tip Radius: 0.08 µm\n",
             "\\@4:Tip Radius: V (1 nm/LSB) 42 nm\n",
             Some(42.0),
         ),

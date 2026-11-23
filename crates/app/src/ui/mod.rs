@@ -105,6 +105,7 @@ pub fn render(
 ) {
     let ctx = ui.ctx().clone();
     phase_context::reconcile(app, &ctx);
+    tools::sync_hertz_target(app);
     nmr_volume::poll_phase(app, &ctx);
     if let plotium_core::state::Interaction::Phase(drag) = app.interaction()
         && nmr_volume::phase_target(app) != Some(drag.dataset)

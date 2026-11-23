@@ -306,6 +306,9 @@ file, which Plotium uses automatically. **Probe radius (nm)** starts with the
 tip radius from the NanoScope header when available. Edit the value or enter a
 verified spherical tip radius if the field is empty.
 
+When you select another AFM force curve, the open Hertz Fit panel uses the new
+curve's calibration and starts with fresh fit inputs.
+
 Hertz fitting is unavailable for PeakForce Capture (`.pfc`); its loading branch
 has not been verified for this fit.
 

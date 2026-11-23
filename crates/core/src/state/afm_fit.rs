@@ -88,6 +88,10 @@ impl PlotiumApp {
             let canvas = self.doc.canvases.get(ci)?;
             let valid = |object| {
                 canvas.object(object).is_some_and(|item| item.visible)
+                    && canvas
+                        .parent_panel(object)
+                        .and_then(|id| canvas.panel(id))
+                        .is_none_or(|panel| panel.visible)
                     && self.afm_force_plot_dataset(ci, object) == Some(source)
             };
             let object = canvas

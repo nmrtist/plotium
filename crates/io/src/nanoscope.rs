@@ -409,8 +409,8 @@ fn parse_force(
         .filter(|value| value.is_finite() && *value > 0.0);
     let tip_radius_nm = section
         .value(&["Tip Radius"])
-        .or_else(|| global_value(globals, &["Tip Radius"]))
-        .and_then(calibration::tip_radius_nm);
+        .and_then(calibration::tip_radius_nm)
+        .or_else(|| global_value(globals, &["Tip Radius"]).and_then(calibration::tip_radius_nm));
     Ok(AfmForceSet {
         grid_width,
         grid_height,

@@ -237,6 +237,8 @@ PeakForce Capture 曲线是逐像素采集的原始信号。模量等派生 QNM 
 针尖半径预填到 **Probe radius (nm)**。你可以修改预填值，也可以在字段为空时
 输入已核实的球形针尖半径。
 
+选中另一条 AFM 力曲线时，已打开的 Hertz Fit 面板会使用新曲线的标定，并重置拟合输入。
+
 Hertz 拟合不适用于 PeakForce Capture（`.pfc`），因为其加载分支尚未针对该拟合验证。
 
 选择 **Manual Contact Hertz**、**Relative Z (nm)** 窗口，并将最小力参考设为
