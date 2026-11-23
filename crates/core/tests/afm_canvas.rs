@@ -46,6 +46,7 @@ fn afm_dataset(with_image: bool) -> Dataset {
             approach_samples: 2,
             deflection_sensitivity_m_per_v: Some(1.0e-9),
             spring_constant_n_per_m: Some(0.1),
+            tip_radius_nm: None,
         }),
         source: "synthetic.spm".to_owned(),
         import_warnings: Vec::new(),

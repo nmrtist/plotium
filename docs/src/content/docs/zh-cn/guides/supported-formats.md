@@ -233,10 +233,21 @@ PeakForce Capture 曲线是逐像素采集的原始信号。模量等派生 QNM 
 
 选中横轴为 **Relative Z (nm)**、纵轴为 **Force (nN)** 的力曲线，选择
 **Analyze → AFM Force Fit → Hertz Fit** 拟合接近分支。此拟合需要已标定的
-偏转量和文件中的有效悬臂弹簧常数。勾选 **Use file spring constant**，在
-**Probe radius (nm)** 中输入已核实的球形探针半径。
+偏转量。Plotium 会自动使用文件中有效的悬臂弹簧常数，并将 NanoScope 文件头中的
+针尖半径预填到 **Probe radius (nm)**。你可以修改预填值，也可以在字段为空时
+输入已核实的球形针尖半径。
+
+选中另一条 AFM 力曲线时，已打开的 Hertz Fit 面板会使用新曲线的标定，并重置拟合输入。
 
 Hertz 拟合不适用于 PeakForce Capture（`.pfc`），因为其加载分支尚未针对该拟合验证。
+
+选择 **Manual Contact Hertz**、**Relative Z (nm)** 窗口，并将最小力参考设为
+**Off (corrected zero)**。半径有效时，可选择 **Suggest Hertz Inputs** 查看候选接触点、
+基线和拟合区间。**Approach preview** 用虚线标出候选值，与当前输入区分。
+选择 **Use Suggested Inputs** 才会填入这些值，之后仍可修改，再选择
+**Calculate Hertz Fit**。建议不会计算模量，也不能证明 Hertz 模型适用。
+如果力的起始上升不明显、曲线噪声大或不规则，或符合条件的浅压入点不足，
+可按以下步骤手动设置。
 
 1. 在 **Contact Z (nm)** 中输入接触起始位置，或在 **Approach preview** 中
    点选最接近接触位置的采样点。

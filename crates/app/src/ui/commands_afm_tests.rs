@@ -8,6 +8,11 @@ use std::sync::Arc;
 
 fn insert_afm(forces: Option<AfmForceSet>) -> PlotiumApp {
     let mut app = PlotiumApp::new_with_settings(plotium_core::settings::Settings::default());
+    append_afm(&mut app, forces);
+    app
+}
+
+fn append_afm(app: &mut PlotiumApp, forces: Option<AfmForceSet>) {
     let data = AfmDataset::load(AfmData {
         images: Vec::new(),
         forces,
@@ -15,12 +20,144 @@ fn insert_afm(forces: Option<AfmForceSet>) -> PlotiumApp {
         import_warnings: Vec::new(),
     });
     app.execute_action(Action::insert_dataset_with_default_canvas(
-        &app,
+        app,
         Dataset::Afm(Box::new(data)),
         "AFM".into(),
         DEFAULT_CANVAS_SIZE_MM,
     ));
-    app
+}
+
+#[test]
+fn hertz_fit_follows_selected_force_curves_and_keeps_its_source_on_result_sheets() {
+    let z = 0i32..=100;
+    let samples = z.clone().count();
+    let raw = z.clone().map(|value| 1000 + (40 - value).max(0).pow(2));
+    let forces = AfmForceSet {
+        grid_width: 1,
+        grid_height: 1,
+        samples_per_curve: samples * 2,
+        raw: raw.clone().chain(raw).collect(),
+        signal_scale: AfmScale {
+            multiplier: 0.001,
+            offset: 0.0,
+            unit: "nm".into(),
+        },
+        sample_period_s: None,
+        z_positions: Some(z.clone().chain(z).map(f64::from).collect()),
+        display_order: (0..samples * 2).collect(),
+        approach_samples: samples,
+        deflection_sensitivity_m_per_v: None,
+        spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: Some(1000.0),
+    };
+    let mut app = insert_afm(Some(forces.clone()));
+    append_afm(
+        &mut app,
+        Some(AfmForceSet {
+            spring_constant_n_per_m: Some(2.0),
+            tip_radius_nm: Some(800.0),
+            ..forces
+        }),
+    );
+    let first = app.doc.datasets[0].resource_id();
+    let second = app.doc.datasets[1].resource_id();
+    let ctx = crate::typography::test_context();
+    let render = |app: &mut PlotiumApp| {
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            crate::ui::tools::render_curve_fit_task(app, ui);
+        });
+    };
+    let execute = |app: &mut PlotiumApp, command| {
+        execute_without_clipboard(CommandId::AfmFit(command), app, &ctx);
+    };
+    app.activate_canvas(0);
+    for command in [
+        AfmFitCommand::OpenHertz,
+        AfmFitCommand::SuggestHertz,
+        AfmFitCommand::ApplyHertzSuggestion,
+        AfmFitCommand::RunHertz,
+        AfmFitCommand::SuggestHertz,
+    ] {
+        execute(&mut app, command);
+    }
+    let original = app.session.ui.afm_hertz_task.as_ref().unwrap().target;
+    assert_eq!(original.source, first);
+    assert!(app.afm_hertz_result().is_some());
+    assert!(app.afm_hertz_suggestion().is_some());
+    execute(&mut app, AfmFitCommand::HertzDataSheet);
+    app.focus_single(2);
+    render(&mut app);
+    assert_eq!(
+        app.session.ui.afm_hertz_task.as_ref().unwrap().target,
+        original
+    );
+    assert!(app.afm_hertz_result().is_some());
+
+    let target = app
+        .afm_fit_target(second, AfmForceBranch::Approach)
+        .unwrap();
+    let destination = crate::ui::data_navigation::Destination {
+        canvas: target.canvas,
+        plot: target.object,
+        series: app.afm_fit_plot(target).unwrap().binding.series[0].id,
+    };
+    app.doc.canvases[1]
+        .object_mut(target.object)
+        .unwrap()
+        .visible = false;
+    execute_without_clipboard(CommandId::GoToDatasetPlot(destination), &mut app, &ctx);
+    assert_eq!(app.active_dataset(), Some(1));
+    render(&mut app);
+    for choice in [
+        AfmFitCommand::SuggestHertz,
+        AfmFitCommand::ApplyHertzSuggestion,
+        AfmFitCommand::RunHertz,
+        AfmFitCommand::HertzDataSheet,
+        AfmFitCommand::ShowSource,
+    ] {
+        assert_eq!(
+            describe(&app, CommandId::AfmFit(choice)).disabled_reason,
+            Some("Show a force plot for the selected AFM dataset.")
+        );
+    }
+    execute(&mut app, AfmFitCommand::HertzDataSheet);
+    assert_eq!(app.doc.datasets.len(), 3);
+    app.doc.canvases[1]
+        .object_mut(target.object)
+        .unwrap()
+        .visible = true;
+    app.activate_canvas(1);
+    render(&mut app);
+    let draft = app.session.ui.afm_hertz_task.as_ref().unwrap();
+    assert_eq!(draft.target.source, second);
+    assert_eq!(draft.radius_nm, "800");
+    assert!(draft.contact_z_nm.is_empty());
+    assert!(app.afm_hertz_result().is_none());
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert_eq!(app.session.ui.task_dock_active, Some(TaskDockTab::CurveFit));
+    execute(&mut app, AfmFitCommand::SuggestHertz);
+    let proposal = &app.afm_hertz_suggestion().unwrap().input;
+    assert_eq!(proposal.radius_nm, 800.0);
+    assert_eq!(proposal.spring_constant_n_per_m, 2.0);
+
+    // Switching datasets from the Data list can precede the next panel frame.
+    app.focus_single(0);
+    execute(&mut app, AfmFitCommand::SuggestHertz);
+    assert_eq!(
+        app.session.ui.afm_hertz_task.as_ref().unwrap().target,
+        original
+    );
+    let proposal = &app.afm_hertz_suggestion().unwrap().input;
+    assert_eq!(proposal.radius_nm, 1000.0);
+    assert_eq!(proposal.spring_constant_n_per_m, 1.0);
+
+    execute_without_clipboard(CommandId::GoToDatasetPlot(destination), &mut app, &ctx);
+    render(&mut app);
+    assert_eq!(
+        app.session.ui.afm_hertz_task.as_ref().unwrap().target,
+        target
+    );
+    assert!(app.afm_hertz_suggestion().is_none());
 }
 
 #[test]
@@ -64,6 +201,7 @@ fn manual_hertz_calculates_and_only_exports_current_inputs() {
         approach_samples: samples,
         deflection_sensitivity_m_per_v: None,
         spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: None,
     }));
     let ctx = crate::typography::test_context();
     let open = CommandId::AfmFit(AfmFitCommand::OpenHertz);
@@ -80,7 +218,7 @@ fn manual_hertz_calculates_and_only_exports_current_inputs() {
     assert!(!describe(&app, output).enabled);
     let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
     assert_eq!(draft.target.branch, AfmForceBranch::Approach);
-    draft.spring_confirmed = true;
+    assert!(draft.radius_nm.is_empty());
     draft.radius_nm = "225".into();
     draft.contact_z_nm = "100".into();
     draft.baseline_z_nm = ["104".into(), "120".into()];
@@ -136,6 +274,116 @@ fn manual_hertz_calculates_and_only_exports_current_inputs() {
 }
 
 #[test]
+fn hertz_suggestion_requires_explicit_acceptance_and_calculation() {
+    let z = 0i32..=100;
+    let samples = z.clone().count();
+    let raw = z.clone().map(|value| 1000 + (40 - value).max(0).pow(2));
+    let mut app = insert_afm(Some(AfmForceSet {
+        grid_width: 1,
+        grid_height: 1,
+        samples_per_curve: samples * 2,
+        raw: raw.clone().chain(raw).collect(),
+        signal_scale: AfmScale {
+            multiplier: 0.001,
+            offset: 0.0,
+            unit: "nm".into(),
+        },
+        sample_period_s: None,
+        z_positions: Some(z.clone().chain(z).map(f64::from).collect()),
+        display_order: (0..samples * 2).collect(),
+        approach_samples: samples,
+        deflection_sensitivity_m_per_v: None,
+        spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: Some(1000.0),
+    }));
+    let ctx = crate::typography::test_context();
+    let open = CommandId::AfmFit(AfmFitCommand::OpenHertz);
+    let suggest = CommandId::AfmFit(AfmFitCommand::SuggestHertz);
+    let apply = CommandId::AfmFit(AfmFitCommand::ApplyHertzSuggestion);
+    let run = CommandId::AfmFit(AfmFitCommand::RunHertz);
+    let output = CommandId::AfmFit(AfmFitCommand::HertzDataSheet);
+    execute_without_clipboard(open, &mut app, &ctx);
+    assert!(describe(&app, suggest).enabled);
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    assert_eq!(draft.radius_nm, "1000");
+    draft.contact_z_nm = "42".into();
+    assert!(
+        catalog(&app)
+            .iter()
+            .any(|entry| entry.id == suggest && entry.enabled)
+    );
+    assert!(!describe(&app, apply).enabled);
+    execute_without_clipboard(suggest, &mut app, &ctx);
+    let draft = app.session.ui.afm_hertz_task.as_ref().unwrap();
+    assert_eq!(draft.contact_z_nm, "42");
+    assert_eq!(draft.baseline_z_nm, ["", ""]);
+    assert_eq!(draft.fit_z_nm, ["", ""]);
+    let candidate = app.afm_hertz_suggestion().expect("Hertz suggestion").input;
+    assert!(
+        catalog(&app)
+            .iter()
+            .any(|entry| entry.id == apply && entry.enabled)
+    );
+    assert!(!describe(&app, run).enabled);
+
+    let mut frame = |events| {
+        ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(900.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| crate::ui::tools::render_curve_fit_task(&mut app, ui),
+        )
+    };
+    let visible = |output: egui::FullOutput, label| {
+        output.shapes.iter().any(|shape| {
+            matches!(&shape.shape, egui::Shape::Text(text)
+                if text.galley.text() == label
+                    && shape.clip_rect.contains(text.pos + egui::vec2(3.0, 5.0)))
+        })
+    };
+    for _ in 0..4 {
+        let _ = frame(Vec::new());
+    }
+    assert!(visible(frame(Vec::new()), "Suggested inputs (not applied)"));
+    let _ = frame(vec![
+        egui::Event::PointerMoved(egui::pos2(750.0, 200.0)),
+        egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            phase: egui::TouchPhase::Move,
+            delta: egui::vec2(0.0, -2500.0),
+            modifiers: Default::default(),
+        },
+    ]);
+    assert!((0..30).any(|_| visible(frame(Vec::new()), "Dashed: suggested inputs")));
+
+    execute_without_clipboard(apply, &mut app, &ctx);
+    let draft = app.session.ui.afm_hertz_task.as_ref().unwrap();
+    assert_eq!(draft.contact_z_nm, candidate.contact_z_nm.to_string());
+    assert_eq!(
+        draft.baseline_z_nm,
+        candidate.baseline_z_nm.map(|v| v.to_string())
+    );
+    assert_eq!(draft.fit_z_nm, candidate.fit_z_nm.map(|v| v.to_string()));
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(describe(&app, run).enabled);
+    assert!(!describe(&app, output).enabled);
+    assert!(app.afm_hertz_result().is_none());
+
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.radius_nm = "800".into();
+    execute_without_clipboard(open, &mut app, &ctx);
+    execute_without_clipboard(run, &mut app, &ctx);
+    let result = app.afm_hertz_result().unwrap();
+    assert_eq!(result.options.radius_nm, 800.0);
+    assert_eq!(result.options.spring_constant_n_per_m, 1.0);
+}
+
+#[test]
 fn afm_fit_command_uses_the_selected_branch_and_range() {
     let mut app = insert_afm(Some(AfmForceSet {
         grid_width: 1,
@@ -153,6 +401,7 @@ fn afm_fit_command_uses_the_selected_branch_and_range() {
         approach_samples: 6,
         deflection_sensitivity_m_per_v: None,
         spring_constant_n_per_m: Some(1.0),
+        tip_radius_nm: None,
     }));
     let source = app.doc.datasets[0].resource_id();
     let canvas = &app.doc.canvases[0];

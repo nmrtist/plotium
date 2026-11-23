@@ -496,6 +496,8 @@ pub struct AfmForceSet {
     pub approach_samples: usize,
     pub deflection_sensitivity_m_per_v: Option<f64>,
     pub spring_constant_n_per_m: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tip_radius_nm: Option<f64>,
 }
 
 impl AfmForceSet {

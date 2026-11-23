@@ -28,6 +28,7 @@ fn approach(spring: Option<f64>, with_z: bool) -> PlotiumApp {
         approach_samples: raw.len(),
         deflection_sensitivity_m_per_v: None,
         spring_constant_n_per_m: spring,
+        tip_radius_nm: None,
     };
     let data = AfmDataset::load(AfmData {
         images: vec![],
@@ -46,7 +47,7 @@ fn approach(spring: Option<f64>, with_z: bool) -> PlotiumApp {
     let target = app
         .afm_fit_target(source, AfmForceBranch::Approach)
         .unwrap();
-    let mut draft = AfmHertzDraft::new(target);
+    let mut draft = AfmHertzDraft::new(target, None);
     draft.radius_nm = "400".into();
     draft.contact_z_nm = "100".into();
     draft.baseline_z_nm = ["101".into(), "103".into()];
@@ -56,22 +57,26 @@ fn approach(spring: Option<f64>, with_z: bool) -> PlotiumApp {
 }
 
 #[test]
-fn manual_hertz_checks_calibration_and_confirmation() {
+fn manual_hertz_requires_valid_calibration_and_uses_the_file_spring() {
     let mut app = approach(Some(1.), false);
     assert!(app.run_afm_hertz().unwrap_err().contains("relative Z"));
     let mut app = approach(None, true);
     assert!(app.run_afm_hertz().unwrap_err().contains("spring constant"));
     let mut app = approach(Some(1.), true);
-    assert!(app.run_afm_hertz().unwrap_err().contains("Confirm"));
-    assert!(app.afm_hertz_result().is_none());
+    app.run_afm_hertz().unwrap();
+    assert_eq!(
+        app.afm_hertz_result()
+            .unwrap()
+            .options
+            .spring_constant_n_per_m,
+        1.0
+    );
 }
 
 #[test]
 fn manual_hertz_rejects_peakforce_capture_even_with_usable_calibration() {
     let mut app = approach(Some(1.), true);
-    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
-    draft.spring_confirmed = true;
-    let target = draft.target;
+    let target = app.session.ui.afm_hertz_task.as_ref().unwrap().target;
     app.run_afm_hertz().unwrap();
 
     let Dataset::Afm(afm) = &mut app.doc.datasets[0] else {
@@ -94,12 +99,6 @@ fn manual_hertz_rejects_peakforce_capture_even_with_usable_calibration() {
 #[test]
 fn manual_hertz_invalidates_result_and_saves_disclosed_fit_data() {
     let mut app = approach(Some(1.), true);
-    app.session
-        .ui
-        .afm_hertz_task
-        .as_mut()
-        .unwrap()
-        .spring_confirmed = true;
     app.run_afm_hertz().unwrap();
     let result = app.afm_hertz_result().unwrap();
     assert_eq!(result.rows.len(), 4);
@@ -156,25 +155,100 @@ fn manual_hertz_invalidates_result_and_saves_disclosed_fit_data() {
 }
 
 #[test]
+fn hertz_suggestion_is_bound_to_current_curve_and_applied_only_on_request() {
+    use plotium_analysis::afm_hertz::{HertzMethod, HertzReference, HertzWindow};
+    use plotium_core::state::{AfmHertzReference, AfmHertzWindow};
+
+    let mut app = approach(Some(1.0), true);
+    let Dataset::Afm(afm) = &mut app.doc.datasets[0] else {
+        panic!("expected AFM");
+    };
+    let force = Arc::make_mut(&mut afm.data).forces.as_mut().unwrap();
+    let raw: Vec<_> = (0_i32..=100)
+        .map(|z| 1000 + 2 * (40 - z).max(0).pow(2) + i32::from(z == 60))
+        .collect();
+    force.samples_per_curve = raw.len();
+    force.approach_samples = raw.len();
+    force.display_order = (0..raw.len()).collect();
+    force.z_positions = Some((0..=100).map(f64::from).collect());
+    force.raw = Arc::from([raw.as_slice(), raw.as_slice()].concat());
+    force.signal_scale.multiplier = 0.001;
+
+    app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "1000".into();
+    app.suggest_afm_hertz().unwrap();
+    let suggestion = app.afm_hertz_suggestion().unwrap().input;
+    assert_eq!(suggestion.contact_z_nm, 40.0);
+    assert_eq!(
+        app.session.ui.afm_hertz_task.as_ref().unwrap().contact_z_nm,
+        "100"
+    );
+    assert!(app.afm_hertz_result().is_none());
+
+    app.session.ui.afm_hertz_task.as_mut().unwrap().linearized = true;
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.linearized = false;
+    draft.window = AfmHertzWindow::ForcePercent;
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
+    draft.window = AfmHertzWindow::RelativeZ;
+    draft.reference = AfmHertzReference::Automatic;
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    app.session.ui.afm_hertz_task.as_mut().unwrap().reference = AfmHertzReference::Zero;
+
+    app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "900".into();
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    app.session.ui.afm_hertz_task.as_mut().unwrap().radius_nm = "1000".into();
+    let Dataset::Afm(afm) = &mut app.doc.datasets[0] else {
+        panic!("expected AFM");
+    };
+    afm.selected_pixel = [0, 0];
+    assert!(app.apply_afm_hertz_suggestion().is_err());
+    app.suggest_afm_hertz().unwrap();
+    app.apply_afm_hertz_suggestion().unwrap();
+    assert!(app.afm_hertz_suggestion().is_none());
+    assert!(app.afm_hertz_result().is_none());
+    let options = app
+        .session
+        .ui
+        .afm_hertz_task
+        .as_ref()
+        .unwrap()
+        .options(1.0)
+        .unwrap();
+    assert_eq!(
+        options.method,
+        HertzMethod::ManualContact(suggestion.contact_z_nm)
+    );
+    assert_eq!(options.baseline_z_nm, suggestion.baseline_z_nm);
+    assert_eq!(options.window, HertzWindow::RelativeZ(suggestion.fit_z_nm));
+    assert_eq!(options.reference, HertzReference::Zero);
+    app.run_afm_hertz().unwrap();
+    assert!(app.afm_hertz_result().is_some());
+}
+
+#[test]
 fn hertz_method_switch_preserves_manual_inputs_and_exports_provenance() {
     use plotium_core::state::AfmHertzWindow;
 
     let mut app = approach(Some(1.), true);
     let draft = app.session.ui.afm_hertz_task.as_mut().unwrap();
-    draft.spring_confirmed = true;
-    let manual = draft.input(1.).unwrap();
+    let manual = draft.options(1.).unwrap();
     draft.linearized = true;
     draft.window = AfmHertzWindow::ForceNn;
     draft.fit_force_nn = ["0.01".into(), "1.01".into()];
-    let linearized = draft.input(1.).unwrap();
+    let linearized = draft.options(1.).unwrap();
 
     draft.linearized = false;
     draft.window = AfmHertzWindow::RelativeZ;
-    assert_eq!(draft.input(1.).unwrap(), manual);
+    assert_eq!(draft.options(1.).unwrap(), manual);
 
     draft.linearized = true;
     draft.window = AfmHertzWindow::ForceNn;
-    assert_eq!(draft.input(1.).unwrap(), linearized);
+    assert_eq!(draft.options(1.).unwrap(), linearized);
     draft.contact_z_nm.clear();
     app.run_afm_hertz().unwrap();
     let result = app.afm_hertz_result().unwrap();

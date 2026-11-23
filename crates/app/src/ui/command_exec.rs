@@ -30,6 +30,9 @@ fn execute_inner(
     ctx: &egui::Context,
 ) {
     super::phase_context::reconcile(app, ctx);
+    if matches!(id, CommandId::AfmFit(_)) {
+        super::tools::sync_hertz_target(app);
+    }
     if matches!(id, CommandId::Undo | CommandId::Redo) {
         // Commit any debounced wheel zoom before the enabled gate, so the
         // pending zoom becomes the next undoable step and history is ordered

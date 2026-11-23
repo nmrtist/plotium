@@ -305,11 +305,17 @@ pub(super) fn navigate(app: &mut PlotiumApp, ctx: &egui::Context, target: Destin
     };
     app.session.active_canvas = Some(ci);
     app.select_object(ci, target.plot);
+    let hidden = target.hidden(app) == Some(true);
+    if app.session.ui.afm_hertz_task.is_some()
+        && app.afm_force_plot_dataset(ci, target.plot).is_some()
+    {
+        app.focus_object_datasets(ci, target.plot);
+    }
     app.session.ui.frame_selection = vec![BoardFrameId::Page(target.canvas)];
     super::canvas::request_board_fit_target(app, ctx, fit);
     let until = ctx.input(|input| input.time) + 2.5;
     ctx.data_mut(|data| data.insert_temp(key(app, "located_series"), (target, until)));
-    app.session.status = if target.hidden(app) == Some(true) {
+    app.session.status = if hidden {
         "Located a hidden series. Use Reveal to show it."
     } else {
         "Located the plot series."
